@@ -1,0 +1,33 @@
+name: MAGNISA CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_APP_URL: https://magnisa.vercel.app
+      NEXT_PUBLIC_SUPABASE_URL: https://pmlzirobpdlzsrvtkvir.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_pL2Aw_tHI8kletdh9PquVg__JDKmDw9
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Production build
+        run: npm run build
