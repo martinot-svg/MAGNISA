@@ -1,0 +1,22 @@
+import {requireOrganization} from "@/lib/current-org";
+import {money} from "@/lib/money";
+import {EmptyState} from "@/components/empty-state";
+import {ActivityBars,ReceivablesAge} from "@/components/data-charts";
+
+function monthKey(d:Date){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`}
+function labelMonth(d:Date){return new Intl.DateTimeFormat("fr-FR",{month:"short"}).format(d).replace(".","")}
+export default async function Dashboard(){
+  const {supabase,organizationId}=await requireOrganization();const {data:org}=await supabase.from("organizations").select("currency").eq("id",organizationId).single();const currency=org?.currency||"MGA";const {data:metrics}=await supabase.rpc("dashboard_metrics",{p_org:organizationId});const m=(metrics??{}) as any;
+  const from=new Date();from.setDate(1);from.setMonth(from.getMonth()-5);const fromIso=from.toISOString().slice(0,10);
+  const [{data:invoices=[]},{data:payments=[]},{data:expenses=[]},{data:openInvoices=[]}]=await Promise.all([
+    supabase.from("invoices").select("issue_date,total,status").eq("organization_id",organizationId).gte("issue_date",fromIso).neq("status","cancelled"),
+    supabase.from("payments").select("paid_at,amount,status").eq("organization_id",organizationId).gte("paid_at",fromIso).in("status",["confirmed","reconciled"]),
+    supabase.from("expenses").select("expense_date,amount,status").eq("organization_id",organizationId).gte("expense_date",fromIso).neq("status","cancelled"),
+    supabase.from("invoices").select("due_date,balance_due,status").eq("organization_id",organizationId).gt("balance_due",0).neq("status","cancelled")
+  ]);
+  const months=Array.from({length:6},(_,i)=>{const d=new Date(from.getFullYear(),from.getMonth()+i,1);return{key:monthKey(d),label:labelMonth(d),revenue:0,receipts:0,expenses:0}});const mm=new Map(months.map(x=>[x.key,x]));
+  for(const x of invoices as any[]){const r=mm.get(String(x.issue_date).slice(0,7));if(r)r.revenue+=Number(x.total||0)}for(const x of payments as any[]){const r=mm.get(String(x.paid_at).slice(0,7));if(r)r.receipts+=Number(x.amount||0)}for(const x of expenses as any[]){const r=mm.get(String(x.expense_date).slice(0,7));if(r)r.expenses+=Number(x.amount||0)}
+  const now=new Date();const age=[{label:"Non échues",value:0},{label:"1–30 jours",value:0},{label:"31–60 jours",value:0},{label:"61–90 jours",value:0},{label:"+90 jours",value:0}];for(const x of openInvoices as any[]){const v=Number(x.balance_due||0);if(!x.due_date){age[0].value+=v;continue}const diff=Math.floor((now.getTime()-new Date(x.due_date).getTime())/86400000);if(diff<=0)age[0].value+=v;else if(diff<=30)age[1].value+=v;else if(diff<=60)age[2].value+=v;else if(diff<=90)age[3].value+=v;else age[4].value+=v}
+  const hasData=(m.invoice_count??0)+(m.payment_count??0)+(m.expense_count??0)>0;
+  return <><div className="pageHead"><div><p className="eyebrow">Cockpit de pilotage</p><h1>Vue d'ensemble</h1><p>Indicateurs calculés uniquement à partir des opérations réellement enregistrées.</p></div></div>{!hasData?<EmptyState title="Aucune donnée financière" description="Crée d'abord un client, une prestation puis un devis ou une facture. MAGNISA n'affiche aucune statistique fictive."/>:<><div className="grid4"><Metric label="Chiffre d'affaires facturé" value={money(Number(m.revenue||0),currency)}/><Metric label="Encaissements confirmés" value={money(Number(m.receipts||0),currency)}/><Metric label="Charges payées" value={money(Number(m.expenses||0),currency)}/><Metric label="Créances clients" value={money(Number(m.receivables||0),currency)}/></div><div className="grid3 section"><Metric label="Trésorerie disponible" value={money(Number(m.cash_available||0),currency)}/><Metric label="Factures en retard" value={String(m.overdue_invoice_count??0)}/><Metric label="Devis acceptés" value={String(m.accepted_quote_count??0)}/></div><div className="twoCols section"><div className="card"><h2>Activité sur 6 mois</h2><p className="muted">Chiffre d'affaires facturé, encaissements et charges.</p><ActivityBars rows={months}/></div><div className="card"><h2>Ancienneté des créances</h2><p className="muted">Répartition du solde restant dû selon l'échéance.</p><ReceivablesAge rows={age}/></div></div></>}</>}
+function Metric({label,value}:{label:string;value:string}){return <div className="card"><div className="muted">{label}</div><div className="metric">{value}</div></div>}

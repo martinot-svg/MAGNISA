@@ -1,0 +1,2 @@
+import Link from "next/link";import {LoginForm} from "@/components/login-form";import {BrandMark} from "@/components/brand-mark";
+export default function Login(){return <main className="auth authPremium"><BrandMark/><div><p className="eyebrow">Espace sécurisé</p><h1>Connexion</h1><p className="muted">Accède à l'espace de ton entreprise.</p></div><LoginForm/><div style={{display:'flex',justifyContent:'space-between',gap:12,fontSize:13}}><Link href="/forgot-password">Mot de passe oublié ?</Link><Link href="/signup">Créer un compte</Link></div></main>}
