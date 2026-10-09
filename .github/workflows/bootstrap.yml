@@ -1,10 +1,10 @@
-name: Bootstrap MAGNISA source
+name: Bootstrap MAGNISA runtime source
 
 on:
   push:
     branches: [main]
     paths:
-      - '.bootstrap/magnisa_source.tar.xz'
+      - '.bootstrap/runtime_chunk_*'
       - '.github/workflows/bootstrap.yml'
 
 permissions:
@@ -17,13 +17,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Unpack MAGNISA source
+      - name: Rebuild and unpack MAGNISA source
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/magnisa-source
-          tar -xJf .bootstrap/magnisa_source.tar.xz -C /tmp/magnisa-source --strip-components=1
-          rsync -a --delete             --exclude '.git/'             --exclude '.github/workflows/bootstrap.yml'             /tmp/magnisa-source/ ./
+          cat .bootstrap/runtime_chunk_* | base64 -d > /tmp/magnisa_runtime.tar.xz
+          mkdir -p /tmp/magnisa-runtime
+          tar -xJf /tmp/magnisa_runtime.tar.xz -C /tmp/magnisa-runtime
+          rsync -a --delete             --exclude '.git/'             --exclude '.github/workflows/bootstrap.yml'             /tmp/magnisa-runtime/ ./
           rm -rf .bootstrap
           rm -f .github/workflows/bootstrap.yml
       - name: Commit full source
@@ -37,5 +38,5 @@ jobs:
             echo "No changes to commit"
             exit 0
           fi
-          git commit -m "Deploy full MAGNISA V3 source"
+          git commit -m "Deploy full MAGNISA runtime source"
           git push origin HEAD:main
