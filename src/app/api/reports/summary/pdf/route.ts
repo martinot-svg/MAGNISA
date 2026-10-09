@@ -33,6 +33,6 @@ export async function GET(){
     supabase.rpc('dashboard_metrics',{p_org:organizationId}),
     supabase.from('organizations').select('name,currency').eq('id',organizationId).single()
   ]);
-  const buffer=await renderToBuffer(React.createElement(Report,{company:org?.name||'Entreprise',currency:org?.currency||'MGA',m:m||{}}));
+  const buffer=await renderToBuffer(Report({company:org?.name||'Entreprise',currency:org?.currency||'MGA',m:m||{}}));
   return new NextResponse(buffer as BodyInit,{headers:{'Content-Type':'application/pdf','Content-Disposition':'inline; filename="rapport-magnisa.pdf"'}});
 }

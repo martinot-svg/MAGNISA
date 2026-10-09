@@ -32,4 +32,4 @@ export function PdfDocument({d}:{d:PdfData}){
     {d.template?.footerText&&<Text fixed style={s.footer}>{d.template.footerText}</Text>}
   </Page></Document>
 }
-export async function renderPdf(d:PdfData){return renderToBuffer(<PdfDocument d={d}/>)}
+export async function renderPdf(d:PdfData){return renderToBuffer(PdfDocument({d}))}
