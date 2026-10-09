@@ -25,7 +25,9 @@ export type Permission =
   | "accounting.view"
   | "payroll.view"
   | "suppliers.view"
-  | "reports.view";
+  | "reports.view"
+  | "sales.view"
+  | "billing.view";
 
 const defaults: Record<string, Set<Permission>> = {
   owner: new Set<Permission>([
@@ -33,42 +35,42 @@ const defaults: Record<string, Set<Permission>> = {
     "invoices.create","invoices.issue","invoices.cancel","payments.record","expenses.record",
     "treasury.transfer","suppliers.manage","payroll.manage","payroll.pay","accounting.manage",
     "reports.export","settings.manage","users.manage","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","sales.view","billing.view"
   ]),
   admin: new Set<Permission>([
     "customers.create","services.create","quotes.create","quotes.edit","quotes.accept","orders.manage",
     "invoices.create","invoices.issue","invoices.cancel","payments.record","expenses.record",
     "treasury.transfer","suppliers.manage","payroll.manage","payroll.pay","accounting.manage",
     "reports.export","settings.manage","users.manage","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","sales.view","billing.view"
   ]),
   director: new Set<Permission>([
     "customers.create","services.create","quotes.create","quotes.edit","quotes.accept","orders.manage",
     "invoices.create","invoices.issue","payments.record","expenses.record","treasury.transfer",
     "suppliers.manage","reports.export","audit.view",
-    "treasury.view","finance.view","accounting.view","suppliers.view","reports.view"
+    "treasury.view","finance.view","accounting.view","suppliers.view","reports.view","sales.view","billing.view"
   ]),
   finance_manager: new Set<Permission>([
     "invoices.issue","invoices.cancel","payments.record","expenses.record","treasury.transfer",
     "suppliers.manage","payroll.pay","accounting.manage","reports.export","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","billing.view"
   ]),
   accountant: new Set<Permission>([
     "invoices.issue","payments.record","expenses.record","suppliers.manage","payroll.manage",
     "accounting.manage","reports.export","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","billing.view"
   ]),
   sales: new Set<Permission>([
-    "customers.create","services.create","quotes.create","quotes.edit"
+    "customers.create","services.create","quotes.create","quotes.edit","sales.view","billing.view"
   ]),
   cashier: new Set<Permission>([
-    "payments.record","expenses.record","treasury.view"
+    "payments.record","expenses.record","treasury.view","billing.view"
   ]),
   hr: new Set<Permission>([
     "payroll.manage","payroll.view"
   ]),
   auditor: new Set<Permission>([
-    "reports.export","audit.view","accounting.view","reports.view"
+    "reports.export","audit.view","accounting.view","reports.view","billing.view"
   ]),
   employee: new Set<Permission>(),
   viewer: new Set<Permission>()
