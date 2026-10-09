@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
-import { assertPermission } from "@/lib/permissions";
+import {assertPermission, requirePermission } from "@/lib/permissions";
 import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
 import { transferFunds } from "@/server/actions/core";
