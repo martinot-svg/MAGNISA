@@ -28,8 +28,7 @@ async function createAccount(fd: FormData) {
   revalidatePath("/dashboard");
 }
 
-export default async function Treasury() {
-  const { supabase, organizationId } = await requireOrganization();
+export default async function Treasury(){const ctx=await requireOrganization();await requirePermission(ctx,"treasury.view");const {supabase,organizationId}=ctx;
   const [{ data: accounts = [] }, { data: org }] = await Promise.all([
     supabase
       .from("financial_accounts")
