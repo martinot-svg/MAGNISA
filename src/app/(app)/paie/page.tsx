@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
-import { assertPermission } from "@/lib/permissions";
+import { assertPermission, requirePermission } from "@/lib/permissions";
 import { money } from "@/lib/money";
 import { EmptyState } from "@/components/empty-state";
 
@@ -149,7 +149,9 @@ async function payPayslip(fd: FormData) {
 }
 
 export default async function Payroll() {
-  const { supabase, organizationId } = await requireOrganization();
+  const ctx = await requireOrganization();
+  await requirePermission(ctx, "payroll.view");
+  const { supabase, organizationId } = ctx;
   const [
     { data: org },
     { data: employees = [] },
