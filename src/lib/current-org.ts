@@ -5,6 +5,13 @@ export async function requireUser() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const {data:profile}=await supabase.from("profiles").select("account_status").eq("id",user.id).maybeSingle();
+  if(!user.email_confirmed_at || profile?.account_status==="pending_verification"){
+    redirect(`/verify-email?email=${encodeURIComponent(user.email||"")}`);
+  }
+  if(profile?.account_status==="suspended") redirect("/login?status=suspended");
+
   return { supabase, user };
 }
 
