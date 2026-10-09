@@ -6,6 +6,13 @@ import { getEffectivePermissions, type Permission } from "@/lib/permissions";
 import { BrandMark } from "@/components/brand-mark";
 
 const featurePermission: Partial<Record<FeatureKey, Permission>> = {
+  prospects: "sales.view",
+  clients: "billing.view",
+  services: "sales.view",
+  projects: "sales.view",
+  quotes: "sales.view",
+  orders: "sales.view",
+  invoices: "billing.view",
   payments: "treasury.view",
   expenses: "treasury.view",
   treasury: "treasury.view",
