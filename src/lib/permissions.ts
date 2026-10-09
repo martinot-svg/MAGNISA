@@ -105,3 +105,25 @@ export async function hasPermission(
     .maybeSingle();
   return data ? !!data.allowed : !!defaults[ctx.role]?.has(permission);
 }
+
+
+export async function getEffectivePermissions(
+  ctx: { supabase: any; organizationId: string; role: string }
+) {
+  const effective = new Set<Permission>(defaults[ctx.role] ?? []);
+  if (ctx.role === "owner") return effective;
+
+  const { data = [], error } = await ctx.supabase
+    .from("role_permissions")
+    .select("permission_key,allowed")
+    .eq("organization_id", ctx.organizationId)
+    .eq("role", ctx.role);
+
+  if (error) throw new Error(error.message);
+
+  for (const row of data as Array<{ permission_key: Permission; allowed: boolean }>) {
+    if (row.allowed) effective.add(row.permission_key);
+    else effective.delete(row.permission_key);
+  }
+  return effective;
+}
