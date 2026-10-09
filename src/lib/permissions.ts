@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 export type Permission =
   | "customers.create"
   | "services.create"
@@ -126,4 +127,14 @@ export async function getEffectivePermissions(
     else effective.delete(row.permission_key);
   }
   return effective;
+}
+
+
+export async function requirePermission(
+  ctx: { supabase: any; organizationId: string; role: string },
+  permission: Permission
+) {
+  if (!(await hasPermission(ctx, permission))) {
+    redirect("/dashboard?access=denied");
+  }
 }
