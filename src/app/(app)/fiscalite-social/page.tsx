@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
@@ -58,8 +59,7 @@ async function createSocial(fd: FormData) {
   revalidatePath("/analyse");
 }
 
-export default async function TaxSocial() {
-  const { supabase, organizationId } = await requireOrganization();
+export default async function TaxSocial(){const ctx=await requireOrganization();await requirePermission(ctx,"finance.view");const {supabase,organizationId}=ctx;
   const [{ data: tax = [] }, { data: social = [] }, { data: org }] = await Promise.all([
     supabase.from("tax_obligations").select("*").eq("organization_id", organizationId).order("due_date"),
     supabase.from("social_obligations").select("*").eq("organization_id", organizationId).order("due_date"),
