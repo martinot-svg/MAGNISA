@@ -1,11 +1,11 @@
 "use client";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useActionState } from "react";
+import { Suspense, useActionState } from "react";
 import { resendEmailCode, verifyEmailCode } from "@/server/actions/auth";
 import { BrandMark } from "@/components/brand-mark";
 
-export default function VerifyEmail() {
+function VerifyEmailContent() {
   const sp = useSearchParams();
   const email = sp.get("email") || "";
   const [state, action, pending] = useActionState<any,FormData>(async (_: any, fd: FormData) => verifyEmailCode(fd), {});
@@ -55,4 +55,8 @@ export default function VerifyEmail() {
       <p className="muted"><Link href="/login">Retour à la connexion</Link></p>
     </main>
   );
+}
+
+export default function VerifyEmail(){
+  return <Suspense fallback={<main className="auth authPremium"><BrandMark/><p className="muted">Chargement de la vérification…</p></main>}><VerifyEmailContent/></Suspense>;
 }
