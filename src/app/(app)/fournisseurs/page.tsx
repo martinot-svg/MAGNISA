@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
@@ -96,8 +97,7 @@ async function paySupplier(fd: FormData) {
   revalidatePath("/dashboard");
 }
 
-export default async function Suppliers() {
-  const { supabase, organizationId } = await requireOrganization();
+export default async function Suppliers(){const ctx=await requireOrganization();await requirePermission(ctx,"suppliers.view");const {supabase,organizationId}=ctx;
   const [{ data: org }, { data: suppliers = [] }, { data: invoices = [] }, { data: accounts = [] }] =
     await Promise.all([
       supabase.from("organizations").select("currency").eq("id", organizationId).single(),
