@@ -8,8 +8,8 @@ import { BrandMark } from "@/components/brand-mark";
 export default function VerifyEmail() {
   const sp = useSearchParams();
   const email = sp.get("email") || "";
-  const [state, action, pending] = useActionState(async (_: any, fd: FormData) => verifyEmailCode(fd), {});
-  const [resendState, resendAction, resendPending] = useActionState(async (_: any, fd: FormData) => resendEmailCode(fd), {});
+  const [state, action, pending] = useActionState<any,FormData>(async (_: any, fd: FormData) => verifyEmailCode(fd), {});
+  const [resendState, resendAction, resendPending] = useActionState<any,FormData>(async (_: any, fd: FormData) => resendEmailCode(fd), {});
 
   return (
     <main className="auth authPremium">
