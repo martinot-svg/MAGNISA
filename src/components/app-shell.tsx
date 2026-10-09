@@ -29,6 +29,8 @@ const featurePermission: Partial<Record<FeatureKey, Permission>> = {
   reports: "reports.view",
   document_templates: "settings.manage",
   audit: "audit.view",
+  users: "users.manage",
+  settings: "settings.manage",
 };
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
