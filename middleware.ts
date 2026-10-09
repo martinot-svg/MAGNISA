@@ -30,25 +30,37 @@ export async function middleware(request: NextRequest) {
       }
     }
   );
+
   const pathname = request.nextUrl.pathname;
-  const protectedRoute = protectedPrefixes.some((prefix) => matchesPath(pathname, prefix));
-  if (!protectedRoute) return response;
+  if (!protectedPrefixes.some((prefix) => matchesPath(pathname, prefix))) return response;
 
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.search = "";
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
-  // An unverified account must never access tenant business data.
-  if (!user.email_confirmed_at) {
+  const {data:profile}=await supabase.from("profiles").select("account_status").eq("id",user.id).maybeSingle();
+
+  if (!user.email_confirmed_at || profile?.account_status==="pending_verification") {
     const url = request.nextUrl.clone();
     url.pathname = "/verify-email";
+    url.search = "";
     if (user.email) url.searchParams.set("email", user.email);
     return NextResponse.redirect(url);
   }
+
+  if(profile?.account_status==="suspended"){
+    const url=request.nextUrl.clone();
+    url.pathname="/login";
+    url.search="";
+    url.searchParams.set("status","suspended");
+    return NextResponse.redirect(url);
+  }
+
   return response;
 }
 
