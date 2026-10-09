@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/permissions";
 import {Activity,AlertTriangle,CheckCircle2,ShieldAlert} from "lucide-react";
 import {requireOrganization} from "@/lib/current-org";
 import {analyze,Health} from "@/lib/analysis";
@@ -5,8 +6,7 @@ import {EmptyState} from "@/components/empty-state";
 import {money} from "@/lib/money";
 const labels:Record<Health,string>={healthy:"Sain",watch:"À surveiller",attention:"Attention",critical:"Critique"};
 function HealthIcon({h}:{h:Health}){if(h==="healthy")return <CheckCircle2 size={18}/>;if(h==="critical")return <ShieldAlert size={18}/>;if(h==="attention")return <AlertTriangle size={18}/>;return <Activity size={18}/>}
-export default async function Analysis(){
-  const {supabase,organizationId}=await requireOrganization();const [{data:m},{data:org}]=await Promise.all([supabase.rpc("analysis_metrics",{p_org:organizationId}),supabase.from("organizations").select("currency").eq("id",organizationId).single()]);const metrics=(m??{}) as any;
+export default async function Analysis(){const ctx=await requireOrganization();await requirePermission(ctx,"finance.view");const {supabase,organizationId}=ctx;const [{data:m},{data:org}]=await Promise.all([supabase.rpc("analysis_metrics",{p_org:organizationId}),supabase.from("organizations").select("currency").eq("id",organizationId).single()]);const metrics=(m??{}) as any;
   const hasData=Number(metrics.revenue||0)+Number(metrics.expenses||0)+Number(metrics.receivables||0)+Number(metrics.cash_available||0)>0;
   if(!hasData)return <><div className="pageHead"><div><p className="eyebrow">Santé économique</p><h1>MAGNISA Analyse</h1><p>Lecture économique, explication simple, risques et actions à partir de données réelles.</p></div></div><EmptyState title="Données insuffisantes pour une analyse" description="MAGNISA ne fabrique ni diagnostic ni recommandation. Les analyses apparaîtront quand des opérations réelles permettront une lecture fiable."/></>;
   const alerts=analyze({revenue:Number(metrics.revenue||0),budgetRevenue:metrics.budget_revenue?Number(metrics.budget_revenue):null,expenses:Number(metrics.expenses||0),budgetExpenses:metrics.budget_expenses?Number(metrics.budget_expenses):null,receivables:Number(metrics.receivables||0),overdueReceivables:Number(metrics.overdue_receivables||0),cashAvailable:Number(metrics.cash_available||0),expectedReceipts30d:Number(metrics.expected_receipts_30d||0),obligations30d:Number(metrics.obligations_30d||0),unbilledCompletedServices:Number(metrics.unbilled_completed_services||0)});
