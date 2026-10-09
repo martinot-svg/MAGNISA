@@ -1,0 +1,41 @@
+name: Bootstrap MAGNISA source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.bootstrap/magnisa_source.tar.xz'
+      - '.github/workflows/bootstrap.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Unpack MAGNISA source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/magnisa-source
+          tar -xJf .bootstrap/magnisa_source.tar.xz -C /tmp/magnisa-source --strip-components=1
+          rsync -a --delete             --exclude '.git/'             --exclude '.github/workflows/bootstrap.yml'             /tmp/magnisa-source/ ./
+          rm -rf .bootstrap
+          rm -f .github/workflows/bootstrap.yml
+      - name: Commit full source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MAGNISA deployment bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Deploy full MAGNISA V3 source"
+          git push origin HEAD:main
