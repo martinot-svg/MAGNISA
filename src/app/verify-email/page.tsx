@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useActionState } from "react";
+import { Suspense, useActionState, useEffect, useState } from "react";
 import { resendEmailCode, verifyEmailCode } from "@/server/actions/auth";
 import { BrandMark } from "@/components/brand-mark";
 
@@ -10,6 +10,17 @@ function VerifyEmailContent() {
   const email = sp.get("email") || "";
   const [state, action, pending] = useActionState<any,FormData>(async (_: any, fd: FormData) => verifyEmailCode(fd), {});
   const [resendState, resendAction, resendPending] = useActionState<any,FormData>(async (_: any, fd: FormData) => resendEmailCode(fd), {});
+  const [seconds, setSeconds] = useState(60);
+
+  useEffect(() => {
+    if (seconds <= 0) return;
+    const timer = window.setTimeout(() => setSeconds((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [seconds]);
+
+  useEffect(() => {
+    if (resendState?.success) setSeconds(60);
+  }, [resendState]);
 
   return (
     <main className="auth authPremium">
@@ -35,6 +46,8 @@ function VerifyEmailContent() {
                 pattern="[0-9]{6}"
                 maxLength={6}
                 autoComplete="one-time-code"
+                autoFocus
+                minLength={6}
                 required
                 placeholder="000000"
                 aria-label="Code de vérification à 6 chiffres"
@@ -46,7 +59,7 @@ function VerifyEmailContent() {
 
           <form action={resendAction}>
             <input type="hidden" name="email" value={email} />
-            <button className="button subtle" disabled={resendPending}>{resendPending ? "Envoi…" : "Renvoyer le code"}</button>
+            <button className="button subtle" disabled={resendPending || seconds > 0}>{resendPending ? "Envoi…" : seconds > 0 ? `Renvoyer dans ${seconds}s` : "Renvoyer le code"}</button>
             {resendState?.error && <p className="error compact">{resendState.error}</p>}
             {resendState?.success && <p className="success compact">{resendState.success}</p>}
           </form>
