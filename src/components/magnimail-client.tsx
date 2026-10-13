@@ -97,7 +97,7 @@ const emptyCompose = {
   customerId: "",
 };
 
-export function MagniMailClient({ connectedEmail }: { connectedEmail: string }) {
+export function MagniMailClient({ connectedEmail, initialTo = "", initialCustomerId = "" }: { connectedEmail: string; initialTo?: string; initialCustomerId?: string }) {
   const [folder, setFolder] = useState<Folder>("inbox");
   const [items, setItems] = useState<MailSummary[]>([]);
   const [selected, setSelected] = useState<MailSummary | null>(null);
@@ -107,8 +107,8 @@ export function MagniMailClient({ connectedEmail }: { connectedEmail: string }) 
   const [error, setError] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
-  const [composeOpen, setComposeOpen] = useState(false);
-  const [compose, setCompose] = useState(emptyCompose);
+  const [composeOpen, setComposeOpen] = useState(Boolean(initialTo));
+  const [compose, setCompose] = useState({ ...emptyCompose, to: initialTo, customerId: initialCustomerId });
   const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState("");
