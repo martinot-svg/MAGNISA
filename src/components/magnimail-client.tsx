@@ -31,6 +31,7 @@ type MailDetail = {
   date: string;
   timestamp: number;
   body: string;
+  snippet: string;
   labelIds: string[];
   messageIdHeader: string;
   references: string;
