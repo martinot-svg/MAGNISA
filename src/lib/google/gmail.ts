@@ -1,5 +1,5 @@
 import { openSecret, sealSecret } from "@/lib/security/secret-box";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 type ConnectionRow = {
   id: string;
@@ -64,9 +64,9 @@ export async function getGmailAccess(
   organizationId: string,
   userId: string,
 ): Promise<{ connection: ConnectionRow; accessToken: string }> {
-  const admin = createAdminClient();
+  const supabase = await createClient();
 
-  const { data: connection, error: connectionError } = await admin
+  const { data: connection, error: connectionError } = await supabase
     .from("email_connections")
     .select("id,email")
     .eq("organization_id", organizationId)
@@ -78,7 +78,7 @@ export async function getGmailAccess(
   if (connectionError) throw new Error(connectionError.message);
   if (!connection) throw new Error("Aucun compte Gmail n'est connecté à MAGNISA.");
 
-  const { data: secret, error: secretError } = await admin
+  const { data: secret, error: secretError } = await supabase
     .from("email_connection_secrets")
     .select("refresh_token_ciphertext,access_token_ciphertext,access_token_expires_at")
     .eq("connection_id", connection.id)
@@ -100,7 +100,7 @@ export async function getGmailAccess(
 
   const refreshed = await refreshAccessToken(openSecret(secret.refresh_token_ciphertext));
 
-  const { error: updateError } = await admin
+  const { error: updateError } = await supabase
     .from("email_connection_secrets")
     .update({
       access_token_ciphertext: sealSecret(refreshed.access_token),
