@@ -23,9 +23,8 @@ export async function POST(
     await requirePermission(ctx, type === "quote" ? "sales.view" : "billing.view");
     const { supabase, organizationId, user } = ctx;
 
-    const payload = await request.json().catch(() => null) as
-      | { to?: string; subject?: string; body?: string }
-      | null;
+    const payload = (await request.json().catch((): null => null)) as
+      { to?: string; subject?: string; body?: string } | null;
 
     const to = String(payload?.to || "").trim().toLowerCase();
     const subject = String(payload?.subject || "").trim();
