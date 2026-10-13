@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireOrganization } from "@/lib/current-org";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { exchangeGoogleCode, getGoogleUserInfo, GOOGLE_GMAIL_SCOPES } from "@/lib/google/oauth";
 import { sealSecret } from "@/lib/security/secret-box";
 
@@ -25,7 +24,7 @@ export async function GET(request: NextRequest) {
   };
 
   try {
-    const { organizationId, user, role } = await requireOrganization();
+    const { supabase, organizationId, user, role } = await requireOrganization();
     if (!adminRoles.has(role)) return responseFor("access_denied");
 
     const url = new URL(request.url);
@@ -42,10 +41,9 @@ export async function GET(request: NextRequest) {
 
     const tokens = await exchangeGoogleCode(code);
     const googleUser = await getGoogleUserInfo(tokens.access_token);
-    const admin = createAdminClient();
     const now = new Date().toISOString();
 
-    const { data: connection, error: connectionError } = await admin
+    const { data: connection, error: connectionError } = await supabase
       .from("email_connections")
       .upsert({
         organization_id: organizationId,
@@ -62,7 +60,7 @@ export async function GET(request: NextRequest) {
 
     if (connectionError || !connection) throw connectionError || new Error("Connexion Gmail introuvable.");
 
-    const { data: previousSecret } = await admin
+    const { data: previousSecret } = await supabase
       .from("email_connection_secrets")
       .select("refresh_token_ciphertext")
       .eq("connection_id", connection.id)
@@ -76,7 +74,7 @@ export async function GET(request: NextRequest) {
       throw new Error("Google n'a pas fourni de refresh token. Reconnecte le compte avec consentement.");
     }
 
-    const { error: secretError } = await admin
+    const { error: secretError } = await supabase
       .from("email_connection_secrets")
       .upsert({
         connection_id: connection.id,
