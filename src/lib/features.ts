@@ -8,6 +8,7 @@ export const FEATURE_CATALOG=[
   {key:"orders",label:"Commandes",href:"/commandes",required:false,group:"Ventes",description:"Engagement après acceptation d'un devis."},
   {key:"invoices",label:"Factures",href:"/factures",required:false,group:"Ventes",description:"Facturation directe ou issue d'un devis/commande."},
   {key:"payments",label:"Paiements clients",href:"/paiements",required:false,group:"Ventes",description:"Encaissements et règlement des créances."},
+  {key:"magnimail",label:"MagniMail",href:"/magnimail",required:true,group:"Communication",description:"Messagerie clients intégrée : réception, envoi, brouillons, pièces jointes et historique."},
   {key:"suppliers",label:"Fournisseurs",href:"/fournisseurs",required:false,group:"Achats",description:"Fournisseurs, sous-traitants et factures fournisseurs."},
   {key:"expenses",label:"Charges & dépenses",href:"/depenses",required:false,group:"Achats",description:"Coûts d'exploitation et décaissements."},
   {key:"treasury",label:"Trésorerie",href:"/tresorerie",required:false,group:"Finance",description:"Banque, caisse, Mobile Money et transferts."},
