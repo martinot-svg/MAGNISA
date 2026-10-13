@@ -96,9 +96,36 @@ const emptyCompose = {
   references: "",
   draftId: "",
   customerId: "",
+  quoteId: "",
+  invoiceId: "",
+  projectId: "",
+  creditNoteId: "",
+  paymentId: "",
 };
 
-export function MagniMailClient({ connectedEmail, initialTo = "", initialCustomerId = "" }: { connectedEmail: string; initialTo?: string; initialCustomerId?: string }) {
+export function MagniMailClient({
+  connectedEmail,
+  initialTo = "",
+  initialCustomerId = "",
+  initialSubject = "",
+  initialBody = "",
+  initialQuoteId = "",
+  initialInvoiceId = "",
+  initialProjectId = "",
+  initialCreditNoteId = "",
+  initialPaymentId = "",
+}: {
+  connectedEmail: string;
+  initialTo?: string;
+  initialCustomerId?: string;
+  initialSubject?: string;
+  initialBody?: string;
+  initialQuoteId?: string;
+  initialInvoiceId?: string;
+  initialProjectId?: string;
+  initialCreditNoteId?: string;
+  initialPaymentId?: string;
+}) {
   const [folder, setFolder] = useState<Folder>("inbox");
   const [items, setItems] = useState<MailSummary[]>([]);
   const [selected, setSelected] = useState<MailSummary | null>(null);
@@ -108,8 +135,19 @@ export function MagniMailClient({ connectedEmail, initialTo = "", initialCustome
   const [error, setError] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
-  const [composeOpen, setComposeOpen] = useState(Boolean(initialTo));
-  const [compose, setCompose] = useState({ ...emptyCompose, to: initialTo, customerId: initialCustomerId });
+  const [composeOpen, setComposeOpen] = useState(Boolean(initialTo || initialSubject || initialBody));
+  const [compose, setCompose] = useState({
+    ...emptyCompose,
+    to: initialTo,
+    customerId: initialCustomerId,
+    subject: initialSubject,
+    body: initialBody,
+    quoteId: initialQuoteId,
+    invoiceId: initialInvoiceId,
+    projectId: initialProjectId,
+    creditNoteId: initialCreditNoteId,
+    paymentId: initialPaymentId,
+  });
   const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState("");
