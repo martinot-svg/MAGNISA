@@ -8,7 +8,6 @@ import {
   type GmailDraft,
   type GmailMessage,
 } from "@/lib/google/gmail";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 const folderLabels: Record<string, string> = {
   inbox: "INBOX",
@@ -84,8 +83,7 @@ async function syncHistory(
     });
 
   if (!rows.length) return;
-  const admin = createAdminClient();
-  const { error } = await admin
+  const { error } = await supabase
     .from("email_history")
     .upsert(rows, { onConflict: "organization_id,provider,provider_message_id" });
   if (error) console.error("MagniMail history sync failed", error);
