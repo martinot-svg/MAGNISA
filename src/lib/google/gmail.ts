@@ -295,6 +295,13 @@ export async function createGmailDraft(accessToken: string, raw: string, threadI
   });
 }
 
+export async function updateGmailDraft(accessToken: string, draftId: string, raw: string, threadId?: string) {
+  return gmailJson<GmailDraft>(accessToken, `/drafts/${encodeURIComponent(draftId)}`, {
+    method: "PUT",
+    body: JSON.stringify({ message: { raw, ...(threadId ? { threadId } : {}) } }),
+  });
+}
+
 export async function sendGmailDraft(accessToken: string, draftId: string) {
   return gmailJson<GmailMessage>(accessToken, "/drafts/send", {
     method: "POST",
