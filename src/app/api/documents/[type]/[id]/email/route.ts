@@ -3,6 +3,7 @@ import { requireOrganization } from "@/lib/current-org";
 import { requirePermission } from "@/lib/permissions";
 import { renderPdf } from "@/lib/pdf/document";
 import { buildMimeMessage, getGmailAccess, sendGmailRaw } from "@/lib/google/gmail";
+import { recordMailHistory } from "@/lib/magnimail/history";
 
 function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -128,6 +129,25 @@ export async function POST(
     });
 
     const sent = await sendGmailRaw(accessToken, raw);
+
+    await recordMailHistory({
+      organizationId,
+      connectionId: connection.id,
+      provider: "google",
+      providerMessageId: sent.id,
+      providerThreadId: sent.threadId,
+      direction: "outgoing",
+      fromEmail: connection.email,
+      toEmails: [to],
+      subject,
+      snippet: body.slice(0, 240),
+      occurredAt: new Date().toISOString(),
+      customerId: doc.customer_id || null,
+      quoteId: isQuote ? doc.id : doc.quote_id || null,
+      invoiceId: isQuote ? null : doc.id,
+      attachmentNames: [`${doc.number}.pdf`],
+      createdBy: user.id,
+    });
 
     return NextResponse.json({
       ok: true,
