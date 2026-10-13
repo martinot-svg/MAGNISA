@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 export type MailHistoryInput = {
   organizationId: string;
@@ -24,8 +24,8 @@ export type MailHistoryInput = {
 };
 
 export async function recordMailHistory(input: MailHistoryInput) {
-  const admin = createAdminClient();
-  const { error } = await admin.from("email_history").upsert({
+  const supabase = await createClient();
+  const { error } = await supabase.from("email_history").upsert({
     organization_id: input.organizationId,
     connection_id: input.connectionId || null,
     provider: input.provider || "google",
