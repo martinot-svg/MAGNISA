@@ -6,6 +6,25 @@ type ConnectionRow = {
   email: string;
 };
 
+export type GmailHeader = { name?: string; value?: string };
+export type GmailPart = {
+  partId?: string;
+  mimeType?: string;
+  filename?: string;
+  headers?: GmailHeader[];
+  body?: { attachmentId?: string; size?: number; data?: string };
+  parts?: GmailPart[];
+};
+export type GmailMessage = {
+  id: string;
+  threadId: string;
+  labelIds?: string[];
+  snippet?: string;
+  internalDate?: string;
+  payload?: GmailPart;
+};
+export type GmailDraft = { id: string; message?: GmailMessage };
+
 function googleClientId() {
   const value = process.env.GOOGLE_CLIENT_ID;
   if (!value) throw new Error("GOOGLE_CLIENT_ID n'est pas configuré.");
@@ -98,6 +117,99 @@ export async function getGmailAccess(
   };
 }
 
+export async function gmailJson<T>(
+  accessToken: string,
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    if (response.status === 403 && detail.includes("insufficientPermissions")) {
+      throw new Error("MAGNISA n'a pas encore l'autorisation complète Gmail. Reconnecte Gmail après avoir ajouté le scope gmail.modify dans Google Auth Platform.");
+    }
+    throw new Error(`Gmail API (${response.status}) : ${detail.slice(0, 300)}`);
+  }
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+}
+
+export function gmailHeader(message: GmailMessage, name: string) {
+  return message.payload?.headers?.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value || "";
+}
+
+export function decodeBase64Url(value?: string) {
+  if (!value) return "";
+  try {
+    return Buffer.from(value, "base64url").toString("utf8");
+  } catch {
+    return "";
+  }
+}
+
+function collectBodies(part?: GmailPart, acc: { plain: string[]; html: string[] } = { plain: [], html: [] }) {
+  if (!part) return acc;
+  const data = decodeBase64Url(part.body?.data);
+  if (data && part.mimeType === "text/plain") acc.plain.push(data);
+  if (data && part.mimeType === "text/html") acc.html.push(data);
+  for (const child of part.parts || []) collectBodies(child, acc);
+  return acc;
+}
+
+export function gmailBody(message: GmailMessage) {
+  const bodies = collectBodies(message.payload);
+  if (bodies.plain.length) return { text: bodies.plain.join("\n"), html: bodies.html.join("\n") };
+  if (bodies.html.length) return { text: "", html: bodies.html.join("\n") };
+  const single = decodeBase64Url(message.payload?.body?.data);
+  return message.payload?.mimeType === "text/html"
+    ? { text: "", html: single }
+    : { text: single, html: "" };
+}
+
+export type GmailAttachmentMeta = {
+  filename: string;
+  mimeType: string;
+  attachmentId: string;
+  size: number;
+};
+
+export function gmailAttachments(message: GmailMessage) {
+  const result: GmailAttachmentMeta[] = [];
+  const walk = (part?: GmailPart) => {
+    if (!part) return;
+    if (part.filename && part.body?.attachmentId) {
+      result.push({
+        filename: part.filename,
+        mimeType: part.mimeType || "application/octet-stream",
+        attachmentId: part.body.attachmentId,
+        size: Number(part.body.size || 0),
+      });
+    }
+    for (const child of part.parts || []) walk(child);
+  };
+  walk(message.payload);
+  return result;
+}
+
+export function parseAddressList(value: string) {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((part) => {
+      const match = part.match(/<([^>]+)>/);
+      return (match?.[1] || part).trim().replace(/^"|"$/g, "").toLowerCase();
+    })
+    .filter((email) => email.includes("@"));
+}
+
 function encodeHeader(value: string) {
   return `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
 }
@@ -116,20 +228,32 @@ function base64Lines(value: Buffer | string) {
 export function buildMimeMessage(args: {
   from: string;
   to: string;
+  cc?: string;
+  bcc?: string;
   subject: string;
   body: string;
-  pdf: Buffer;
-  filename: string;
+  pdf?: Buffer;
+  filename?: string;
+  attachments?: Array<{ data: Buffer; filename: string; mimeType?: string }>;
+  inReplyTo?: string;
+  references?: string;
 }) {
   const boundary = `magnisa_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const safeTo = sanitizeHeader(args.to);
   const safeFrom = sanitizeHeader(args.from);
-  const safeFilename = sanitizeHeader(args.filename).replace(/"/g, "");
+  const attachments = [...(args.attachments || [])];
+  if (args.pdf && args.filename) {
+    attachments.push({ data: args.pdf, filename: args.filename, mimeType: "application/pdf" });
+  }
 
-  const mime = [
+  const headers = [
     `From: ${safeFrom}`,
     `To: ${safeTo}`,
+    args.cc ? `Cc: ${sanitizeHeader(args.cc)}` : "",
+    args.bcc ? `Bcc: ${sanitizeHeader(args.bcc)}` : "",
     `Subject: ${encodeHeader(sanitizeHeader(args.subject))}`,
+    args.inReplyTo ? `In-Reply-To: ${sanitizeHeader(args.inReplyTo)}` : "",
+    args.references ? `References: ${sanitizeHeader(args.references)}` : "",
     "MIME-Version: 1.0",
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
     "",
@@ -139,35 +263,45 @@ export function buildMimeMessage(args: {
     "",
     base64Lines(args.body),
     "",
-    `--${boundary}`,
-    'Content-Type: application/pdf; name="' + safeFilename + '"',
-    "Content-Transfer-Encoding: base64",
-    'Content-Disposition: attachment; filename="' + safeFilename + '"',
-    "",
-    base64Lines(args.pdf),
-    "",
-    `--${boundary}--`,
-    "",
-  ].join("\r\n");
+  ].filter(Boolean);
 
-  return Buffer.from(mime, "utf8").toString("base64url");
+  for (const attachment of attachments) {
+    const safeFilename = sanitizeHeader(attachment.filename).replace(/"/g, "");
+    headers.push(
+      `--${boundary}`,
+      `Content-Type: ${attachment.mimeType || "application/octet-stream"}; name="${safeFilename}"`,
+      "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename="${safeFilename}"`,
+      "",
+      base64Lines(attachment.data),
+      "",
+    );
+  }
+  headers.push(`--${boundary}--`, "");
+  return Buffer.from(headers.join("\r\n"), "utf8").toString("base64url");
 }
 
-export async function sendGmailRaw(accessToken: string, raw: string) {
-  const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+export async function sendGmailRaw(accessToken: string, raw: string, threadId?: string) {
+  return gmailJson<{ id: string; threadId: string }>(accessToken, "/messages/send", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ raw }),
-    cache: "no-store",
+    body: JSON.stringify({ raw, ...(threadId ? { threadId } : {}) }),
   });
+}
 
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Envoi Gmail impossible (${response.status}) : ${detail.slice(0, 300)}`);
-  }
+export async function createGmailDraft(accessToken: string, raw: string, threadId?: string) {
+  return gmailJson<GmailDraft>(accessToken, "/drafts", {
+    method: "POST",
+    body: JSON.stringify({ message: { raw, ...(threadId ? { threadId } : {}) } }),
+  });
+}
 
-  return response.json() as Promise<{ id: string; threadId: string }>;
+export async function sendGmailDraft(accessToken: string, draftId: string) {
+  return gmailJson<GmailMessage>(accessToken, "/drafts/send", {
+    method: "POST",
+    body: JSON.stringify({ id: draftId }),
+  });
+}
+
+export async function deleteGmailDraft(accessToken: string, draftId: string) {
+  return gmailJson<void>(accessToken, `/drafts/${encodeURIComponent(draftId)}`, { method: "DELETE" });
 }
