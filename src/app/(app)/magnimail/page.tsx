@@ -3,7 +3,8 @@ import { MagniMailClient } from "@/components/magnimail-client";
 
 const MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
 
-export default async function MagniMailPage() {
+export default async function MagniMailPage({searchParams}:{searchParams:Promise<{composeTo?:string;customerId?:string}>}) {
+  const query=await searchParams;
   const { supabase, organizationId, user } = await requireOrganization();
   const { data: gmail } = await supabase
     .from("email_connections")
@@ -74,7 +75,7 @@ export default async function MagniMailPage() {
           </a>
         </div>
       )}
-      <MagniMailClient connectedEmail={gmail.email} />
+      <MagniMailClient connectedEmail={gmail.email} initialTo={query.composeTo||""} initialCustomerId={query.customerId||""} />
     </>
   );
 }
