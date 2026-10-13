@@ -3,7 +3,6 @@ import Image from "next/image";
 import {revalidatePath} from "next/cache";
 import {requireOrganization} from "@/lib/current-org";
 import {FEATURE_CATALOG} from "@/lib/features";
-import {createAdminClient} from "@/lib/supabase/admin";
 
 const adminRoles=new Set(["owner","admin"]);
 function assertAdmin(role:string){if(!adminRoles.has(role))throw new Error("Seul un administrateur peut modifier cette configuration.")}
@@ -29,7 +28,7 @@ async function saveFeatures(fd:FormData){"use server";const {supabase,organizati
   const rows=FEATURE_CATALOG.filter(f=>f.key!=="settings").map(f=>({organization_id:organizationId,feature_key:f.key,enabled:enabled.has(f.key),enabled_at:enabled.has(f.key)?now:null,enabled_by:enabled.has(f.key)?user.id:null,disabled_at:enabled.has(f.key)?null:now,disabled_by:enabled.has(f.key)?null:user.id,updated_at:now}));
   const {error}=await supabase.from("organization_features").upsert(rows,{onConflict:"organization_id,feature_key"});if(error)throw new Error(error.message);revalidatePath("/", "layout");}
 
-async function disconnectGoogle(){"use server";const {organizationId,user,role}=await requireOrganization();assertAdmin(role);const admin=createAdminClient();const {error}=await admin.from("email_connections").delete().eq("organization_id",organizationId).eq("user_id",user.id).eq("provider","google");if(error)throw new Error(error.message);revalidatePath("/parametres")}
+async function disconnectGoogle(){"use server";const {supabase,organizationId,user,role}=await requireOrganization();assertAdmin(role);const {error}=await supabase.from("email_connections").delete().eq("organization_id",organizationId).eq("user_id",user.id).eq("provider","google");if(error)throw new Error(error.message);revalidatePath("/parametres")}
 
 async function saveNumbering(fd:FormData){"use server";const {supabase,organizationId,role}=await requireOrganization();assertAdmin(role);for(const type of ["quote","invoice","payment","expense"]){const prefix=String(fd.get(`${type}_prefix`)||"").trim();const padding=Number(fd.get(`${type}_padding`)||5);if(!prefix)throw new Error(`Préfixe requis pour ${type}`);if(padding<1||padding>12)throw new Error("Longueur de numérotation invalide");const {error}=await supabase.from("number_sequences").update({prefix,padding,updated_at:new Date().toISOString()}).eq("organization_id",organizationId).eq("document_type",type);if(error)throw new Error(error.message)}revalidatePath("/parametres")}
 
