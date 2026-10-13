@@ -1,10 +1,25 @@
 import { requireOrganization } from "@/lib/current-org";
 import { MagniMailClient } from "@/components/magnimail-client";
+import { DEFAULT_EMAIL_TEMPLATES, getEmailTemplate, renderEmailTemplate, type EmailTemplateKey } from "@/lib/magnimail/templates";
 
 const MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
 
-export default async function MagniMailPage({searchParams}:{searchParams:Promise<{composeTo?:string;customerId?:string}>}) {
-  const query=await searchParams;
+export default async function MagniMailPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    composeTo?: string;
+    customerId?: string;
+    templateKey?: string;
+    numero?: string;
+    quoteId?: string;
+    invoiceId?: string;
+    projectId?: string;
+    creditNoteId?: string;
+    paymentId?: string;
+  }>;
+}) {
+  const query = await searchParams;
   const { supabase, organizationId, user } = await requireOrganization();
   const { data: gmail } = await supabase
     .from("email_connections")
@@ -50,6 +65,30 @@ export default async function MagniMailPage({searchParams}:{searchParams:Promise
     );
   }
 
+  let initialSubject = "";
+  let initialBody = "";
+  const templateKey = String(query.templateKey || "");
+  if (templateKey && DEFAULT_EMAIL_TEMPLATES.some((item) => item.key === templateKey)) {
+    let clientName = "Client";
+    if (query.customerId) {
+      const { data: customer } = await supabase
+        .from("customers")
+        .select("name")
+        .eq("organization_id", organizationId)
+        .eq("id", query.customerId)
+        .maybeSingle();
+      if (customer?.name) clientName = customer.name;
+    }
+    const template = await getEmailTemplate(
+      supabase,
+      organizationId,
+      templateKey as EmailTemplateKey,
+    );
+    const variables = { client: clientName, numero: query.numero || "" };
+    initialSubject = renderEmailTemplate(template.subject, variables);
+    initialBody = renderEmailTemplate(template.body, variables);
+  }
+
   const scopes = Array.isArray(gmail.scopes) ? gmail.scopes : [];
   const needsUpgrade = !scopes.includes(MODIFY_SCOPE);
 
@@ -75,7 +114,18 @@ export default async function MagniMailPage({searchParams}:{searchParams:Promise
           </a>
         </div>
       )}
-      <MagniMailClient connectedEmail={gmail.email} initialTo={query.composeTo||""} initialCustomerId={query.customerId||""} />
+      <MagniMailClient
+        connectedEmail={gmail.email}
+        initialTo={query.composeTo || ""}
+        initialCustomerId={query.customerId || ""}
+        initialSubject={initialSubject}
+        initialBody={initialBody}
+        initialQuoteId={query.quoteId || ""}
+        initialInvoiceId={query.invoiceId || ""}
+        initialProjectId={query.projectId || ""}
+        initialCreditNoteId={query.creditNoteId || ""}
+        initialPaymentId={query.paymentId || ""}
+      />
     </>
   );
 }
