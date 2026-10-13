@@ -64,9 +64,18 @@ export async function POST(request: NextRequest) {
     if (!["owner", "admin"].includes(role)) {
       return NextResponse.json({ error: "Action réservée aux administrateurs." }, { status: 403 });
     }
-    const payload = (await request.json().catch(() => null)) as
-      | { key?: string; name?: string; subject?: string; body?: string; isActive?: boolean }
-      | null;
+    let payload: { key?: string; name?: string; subject?: string; body?: string; isActive?: boolean } | null = null;
+    try {
+      payload = (await request.json()) as {
+        key?: string;
+        name?: string;
+        subject?: string;
+        body?: string;
+        isActive?: boolean;
+      };
+    } catch {
+      payload = null;
+    }
     const key = String(payload?.key || "").trim().toLowerCase();
     const name = String(payload?.name || "").trim();
     const subject = String(payload?.subject || "").trim();
