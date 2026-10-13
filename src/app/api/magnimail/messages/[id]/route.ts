@@ -146,7 +146,8 @@ export async function POST(
     const ctx = await requireOrganization();
     const { organizationId, user } = ctx;
     const { accessToken } = await getGmailAccess(organizationId, user.id);
-    const payload = (await request.json().catch(() => null)) as { action?: string } | null;
+    let payload: { action?: string } | null = null;
+    try { payload = (await request.json()) as { action?: string }; } catch { payload = null; }
     const action = payload?.action;
 
     if (!["trash", "untrash"].includes(String(action))) {
