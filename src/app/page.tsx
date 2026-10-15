@@ -14,7 +14,7 @@ const pillars=[
 /* Lightweight SVG illustrations: animated with CSS, no external image assets. */
 function PillarIllustration({kind}:{kind:"commercial"|"financial"|"analysis"}){
  if(kind==="commercial") return <div className="magPillarArt magPillarPhoto"><img src="/gestion-commerciale.svg" alt="Présentation d'une analyse commerciale entre professionnels, avec un tableau de bord financier sur ordinateur" loading="lazy" decoding="async"/></div>;
- const label=kind==="commercial"?"Parcours commercial connecté":kind==="financial"?"Flux entre les comptes financiers":"Indicateurs et analyse de performance";
+ const label=kind==="financial"?"Flux entre les comptes financiers":"Indicateurs et analyse de performance";
  return <div className={`magPillarArt magPillarArt--${kind}`} role="img" aria-label={label}>
   <svg viewBox="0 0 300 154" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
    <defs>
@@ -22,14 +22,7 @@ function PillarIllustration({kind}:{kind:"commercial"|"financial"|"analysis"}){
     <linearGradient id={`artSurface-${kind}`} x1="0" y1="0" x2="1" y2="1"><stop stopColor="#FFFFFF"/><stop offset="1" stopColor="#E8F0FF"/></linearGradient>
    </defs>
    <ellipse cx="150" cy="83" rx="129" ry="62" stroke={`url(#artGradient-${kind})`} strokeWidth="1" strokeDasharray="5 8" opacity=".28" className="magOrbit"/>
-   {kind==="commercial"?<>
-    <rect x="24" y="37" width="91" height="81" rx="15" fill={`url(#artSurface-${kind})`} stroke="#BDD5FF" strokeWidth="1.5"/>
-    <circle cx="69" cy="67" r="13" fill="#D7ECFF" stroke="#19BFF4" strokeWidth="2"/><path d="M45 100C47 81 91 81 93 100" stroke="#266EFF" strokeWidth="5" strokeLinecap="round"/>
-    <path d="M121 76H162" stroke={`url(#artGradient-${kind})`} strokeWidth="4" strokeLinecap="round" className="magFlow"/><path d="M155 69L164 76L155 83" stroke="#754EFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-    <rect x="169" y="20" width="102" height="118" rx="15" fill={`url(#artSurface-${kind})`} stroke="#CDBDFB" strokeWidth="1.5" className="magArtFloat"/>
-    <rect x="187" y="44" width="61" height="8" rx="4" fill="#266EFF"/><rect x="187" y="65" width="66" height="5" rx="2.5" fill="#B9CDFB"/><rect x="187" y="77" width="48" height="5" rx="2.5" fill="#B9CDFB"/>
-    <path d="M187 103L201 116L249 88" stroke={`url(#artGradient-${kind})`} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" className="magArtPulse"/>
-   </>:kind==="financial"?<>
+   {kind==="financial"?<>
     <rect x="91" y="21" width="118" height="83" rx="17" fill={`url(#artSurface-${kind})`} stroke="#B8CDFF" strokeWidth="1.5" className="magArtFloat"/>
     <path d="M120 48L150 31L180 48V53H120V48Z" fill="#D0E8FF" stroke="#2863FF" strokeWidth="2"/><path d="M126 58V80M150 58V80M174 58V80" stroke="#557CFC" strokeWidth="5" strokeLinecap="round"/><path d="M119 86H181" stroke="#2863FF" strokeWidth="4" strokeLinecap="round"/>
     <path d="M135 107C103 127 70 122 61 113M165 107C197 127 230 122 239 113" stroke={`url(#artGradient-${kind})`} strokeWidth="3" strokeLinecap="round" strokeDasharray="5 6" className="magFlow"/>
