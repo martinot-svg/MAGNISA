@@ -1,0 +1,68 @@
+/* MAGNISA Signature Hybride. Only the public homepage uses this namespace. */
+.signature{--s-blue:#1663ff;--s-violet:#714bff;--s-ink:#101724;--s-paper:#f7f7f3;--s-muted:#657080;--s-ease:cubic-bezier(.22,.8,.2,1);color:var(--s-ink);background:var(--s-paper);overflow:clip}
+.signature *{box-sizing:border-box}
+.signature a{text-decoration:none}
+.signatureHeader{height:85px;position:relative;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:0 max(5%,calc((100% - 1380px)/2));border-bottom:1px solid #e4e5e2;background:rgba(247,247,243,.97)}
+.signatureHeader .brandMark{gap:13px}.signatureHeader .brandWords strong{font-size:18px;letter-spacing:.18em}.signatureHeader .brandWords small{font-size:9px}
+.signatureNav{display:flex;gap:30px;align-items:center;font-size:12px;font-weight:650}.signatureNav a{position:relative;transition:color .25s}.signatureNav a:hover{color:var(--s-blue)}
+.signatureNav a:after{content:"";position:absolute;bottom:-9px;height:1px;background:var(--s-blue);left:0;right:100%;transition:right .4s var(--s-ease)}.signatureNav a:hover:after{right:0}
+.signatureHeaderActions,.signatureCtas{display:flex;gap:10px;align-items:center}.signatureBtn{display:inline-flex;gap:15px;justify-content:center;align-items:center;min-height:45px;padding:12px 19px;border:1px solid var(--s-ink);border-radius:3px;font-weight:750;font-size:12px;letter-spacing:.01em;white-space:nowrap;transition:transform .3s var(--s-ease),box-shadow .3s var(--s-ease),background .3s ease}
+.signatureBtn:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(13,34,87,.14)}.signatureBtnPrimary{background:var(--s-blue);border-color:var(--s-blue);color:#fff}.signatureBtnOutline{background:transparent;color:var(--s-ink)}
+.signature a:focus-visible,.signature summary:focus-visible{outline:3px solid var(--s-blue);outline-offset:4px}
+.signatureMobileNav{display:none}
+.signatureHero{position:relative;min-height:735px;padding:70px 5% 75px;background:linear-gradient(105deg,#f7f7f3 0%,#f7f7f3 56%,#eceef5 100%);border-bottom:1px solid #e1e3e3}
+.signatureHeroGrid{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(#11182708 1px,transparent 1px),linear-gradient(90deg,#11182708 1px,transparent 1px);background-size:110px 110px;mask-image:linear-gradient(90deg,transparent 15%,#000 100%)}
+.signatureHeroInner{max-width:1440px;margin:auto;display:grid;grid-template-columns:51% 49%;align-items:center;position:relative}
+.signatureHeroContent{position:relative;z-index:2;padding-bottom:45px}.signatureKicker{display:flex;align-items:center;gap:12px;text-transform:uppercase;letter-spacing:.17em;color:#334e90;font-size:10px;font-weight:800;line-height:1.6;margin:0 0 30px}
+.signatureKicker:before{content:"";width:36px;height:2px;flex:none;background:var(--s-blue)}
+.signatureHero h1{margin:0 0 30px;font-size:clamp(72px,7.7vw,132px);line-height:.88;letter-spacing:-.092em;font-weight:850;color:var(--s-ink)}.signatureHero h1 span{color:var(--s-blue)}
+.signatureHeroLead{font-size:16px;max-width:455px;line-height:1.75;color:#586375;margin:0}
+.signatureCtas{margin-top:26px;flex-wrap:wrap}
+.signatureTrust{display:flex;align-items:center;gap:10px;color:#6b7785;font-size:11px;line-height:1.6;margin-top:29px;max-width:480px}.signatureTrust svg{color:var(--s-blue);flex:none}
+.signatureHeroArt{position:relative;min-width:0;z-index:1;margin-left:-40px;transform:translateY(14px)}
+.signatureVideoFrame{position:relative;padding:11px;background:white;border:1px solid #d8dbe2;box-shadow:0 28px 70px rgba(23,41,86,.15);transform:rotate(-1.6deg)}
+.signatureHeroVideo{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:contain;background:#e5e7eb}
+.signatureFrameFoot{display:flex;align-items:center;justify-content:space-between;padding:10px 2px 1px;color:#7e8692;font-size:9px;letter-spacing:.17em}
+.signatureOrbit{position:absolute;width:210px;height:210px;border:1px solid rgba(125,147,216,.35);border-radius:50%;top:-55px;right:-34px;z-index:-1;box-shadow:0 0 0 35px rgba(82,118,208,.045),0 0 0 72px rgba(82,118,208,.025)}
+.signatureStamp{position:absolute;bottom:-33px;left:-22px;background:#101b32;color:white;padding:22px 24px;font-size:13px;letter-spacing:.08em;font-weight:800;box-shadow:12px 13px 0 var(--s-blue)}
+.signatureStamp small{display:block;letter-spacing:.14em;color:#9eaec4;font-size:9px;margin-top:6px}
+.signatureScroll{position:absolute;bottom:26px;left:5%;display:flex;align-items:center;gap:18px;font-size:10px;letter-spacing:.18em;color:#6a7280}.signatureScroll span{font-size:18px;color:var(--s-blue)}.signatureIndex{position:absolute;bottom:30px;right:5%;font-size:12px;letter-spacing:.2em;color:#6a7280}
+.signatureSection{max-width:1440px;margin:auto;padding:95px 5%}.signatureLabel{color:var(--s-blue);font-size:11px;letter-spacing:.2em;font-weight:800;margin:0}
+.signatureProduct h2{font-size:clamp(40px,5.1vw,76px);letter-spacing:-.067em;line-height:1.04;max-width:1100px;margin:28px 0 24px;font-weight:780}
+.signatureDescription{color:var(--s-muted);line-height:1.8;max-width:660px;font-size:15px}
+.signaturePillars{display:grid;grid-template-columns:1.2fr .8fr;margin-top:56px;border-block:1px solid #ccd0d8}
+.signaturePillar{position:relative;min-height:190px;padding:35px 28px 35px 0;border-bottom:1px solid #dadddf;transition:background .3s ease}
+.signaturePillar:first-child{grid-row:span 2;border-right:1px solid #cdd1d8;padding:40px 8% 40px 0}.signaturePillar:nth-child(n+2){padding-left:8%}.signaturePillar:nth-child(3){border-bottom:none}
+.signaturePillarTop{display:flex;align-items:center;justify-content:space-between;color:var(--s-blue)}.signaturePillarTop span{font-size:11px;letter-spacing:.16em;font-weight:800}
+.signaturePillar h3{margin:24px 0 10px;font-size:clamp(22px,3vw,39px);letter-spacing:-.05em;line-height:1.1}
+.signaturePillar:first-child h3{font-size:clamp(36px,4vw,52px);margin-top:65px}
+.signaturePillar p{font-size:14px;line-height:1.75;color:#697383;max-width:470px;margin:0}
+.signatureWorkflow{background:#eaeef3;padding:100px 5%}.signatureWorkflowInner{max-width:1296px;margin:auto;display:grid;grid-template-columns:43% minmax(0,57%);gap:35px;align-items:start}
+.signatureWorkflow h2{font-size:clamp(40px,4.4vw,67px);letter-spacing:-.065em;line-height:1.06;margin:25px 0;overflow-wrap:anywhere;max-width:520px}
+.signatureWorkflow .signatureDescription{max-width:460px}
+.signatureSteps{border-top:1px solid #bfc7d3}.signatureStep{display:grid;grid-template-columns:65px 1fr 30px;gap:15px;align-items:center;padding:20px 10px 20px 18px;border-bottom:1px solid #c0c9d5;transition:background .3s,padding-left .3s}
+.signatureStep:hover{background:#fff;padding-left:26px}
+.signatureStep span:first-child{font-size:12px;color:var(--s-blue);letter-spacing:.2em}.signatureStep strong{font-size:20px;letter-spacing:-.035em}.signatureStepArrow{color:#7785a6}
+.signatureAnalysis{position:relative;background:#0c152a;color:#fff;padding:110px 5%;overflow:hidden}
+.signatureAnalysis:before{content:"";position:absolute;right:-250px;top:-270px;width:700px;height:700px;border:1px solid rgba(113,131,187,.14);border-radius:50%;box-shadow:0 0 0 100px rgba(113,131,187,.035),0 0 0 210px rgba(113,131,187,.025);pointer-events:none}
+.signatureAnalysisInner{max-width:1296px;margin:auto;display:grid;grid-template-columns:1fr 1fr;gap:9%;position:relative}
+.signatureAnalysis h2{font-size:clamp(43px,5vw,72px);line-height:1.06;letter-spacing:-.062em;margin:30px 0}
+.signatureAnalysis .signatureDescription{color:#a8b5ca;line-height:1.85}
+.signatureAnalysisEntry{padding:26px 0;border-bottom:1px solid #36425a}.signatureAnalysisEntry:first-child{border-top:1px solid #36425a}
+.signatureAnalysisEntry small{text-transform:uppercase;letter-spacing:.17em;font-size:10px;color:#6da9ff}
+.signatureAnalysisEntry p{font-size:18px;line-height:1.57;margin:12px 0 0;color:#e6ebf6}
+.signatureSecurity{padding:80px 5%;background:#f9f9f6}
+.signatureSecurityInner{max-width:1296px;margin:auto;border-top:1px solid #cfd5dd;padding-top:45px;display:grid;grid-template-columns:70px minmax(0,1fr) auto;gap:24px;align-items:center}
+.signatureSecurityIcon{width:58px;height:58px;border:1px solid #b1bfe0;border-radius:50%;padding:13px;color:var(--s-blue)}
+.signatureSecurity h2{font-size:29px;letter-spacing:-.04em;margin:0 0 10px}
+.signatureSecurity p{color:#6b7583;line-height:1.65;max-width:700px;font-size:13px;margin:0}
+.signatureFooter{padding:26px 5%;border-top:1px solid #dde0e5;display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#758090;background:var(--s-paper)}
+.signature .motion-reveal{opacity:1;transform:none}
+.signature .motion-reveal.motion-pending{opacity:0;transform:translateY(23px)}
+.signature .motion-reveal.motion-pending.motion-visible{opacity:1;transform:translateY(0);transition:opacity .85s var(--s-ease),transform .85s var(--s-ease)}
+@media(prefers-reduced-motion:no-preference){.signatureHero h1{animation:s-entrance .7s both var(--s-ease)}.signatureHeroArt{animation:s-art 1s .12s both var(--s-ease)}}
+@keyframes s-entrance{from{opacity:.62;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes s-art{from{opacity:.65;translate:0 25px}to{opacity:1;translate:0 0}}
+@media(max-width:1000px){.signatureNav{display:none}.signatureMobileNav{display:block;position:relative}.signatureMobileNav summary{list-style:none;cursor:pointer;padding:12px;display:flex;flex-direction:column;gap:5px}.signatureMobileNav summary::-webkit-details-marker{display:none}.signatureMobileNav summary span{display:block;width:21px;height:2px;background:#101724}.signatureMobileNav nav{position:absolute;right:0;top:48px;min-width:200px;background:#f7f7f3;display:flex;flex-direction:column;gap:18px;padding:24px;box-shadow:0 16px 38px rgba(15,27,52,.15);border:1px solid #dde3ef}.signatureHeroInner{grid-template-columns:1fr}.signatureHero{min-height:0;padding:50px 5% 78px}.signatureHero h1{font-size:clamp(73px,11vw,110px)}.signatureHeroContent{padding-bottom:32px}.signatureHeroArt{margin:0;max-width:700px}.signatureScroll,.signatureIndex{display:none}.signatureWorkflowInner,.signatureAnalysisInner{grid-template-columns:1fr}.signatureSteps{margin-top:35px}.signaturePillar:first-child h3{font-size:37px}}
+@media(max-width:600px){.signatureHeader{height:74px;padding:0 18px}.signatureHeader .brandWords strong{font-size:14px}.signatureHeader .brandWords small{font-size:7px}.signatureHeaderActions{margin-left:auto}.signatureHeaderActions .signatureBtnOutline{display:none}.signatureHeaderActions .signatureBtn{padding:10px 12px;min-height:40px}.signatureHero{padding:42px 18px 65px}.signatureKicker{font-size:9px;letter-spacing:.1em;margin-bottom:24px}.signatureKicker:before{width:20px}.signatureHero h1{font-size:clamp(64px,13vw,90px);letter-spacing:-.085em;margin-bottom:25px}.signatureHeroLead{font-size:14px;line-height:1.7}.signatureHeroContent{padding-bottom:42px}.signatureHeroArt{margin:0 0 0 6px}.signatureVideoFrame{padding:7px}.signatureStamp{padding:12px 16px;left:-12px;bottom:-20px;font-size:11px}.signatureStamp small{font-size:7px}.signatureFrameFoot{font-size:7px}.signatureOrbit{width:135px;height:135px;top:-30px;right:-8px}.signatureSection{padding:66px 22px}.signatureProduct h2{font-size:clamp(36px,9.7vw,53px)}.signaturePillars{display:block;margin-top:37px}.signaturePillar,.signaturePillar:first-child,.signaturePillar:nth-child(2),.signaturePillar:nth-child(3){min-height:0;padding:30px 0;border-right:0;border-bottom:1px solid #dadddf}.signaturePillar:first-child h3{margin-top:20px;font-size:34px}.signaturePillar h3{font-size:28px;margin-top:16px}.signatureWorkflow,.signatureAnalysis{padding:74px 22px}.signatureWorkflow h2,.signatureAnalysis h2{font-size:44px}.signatureStep{padding:17px 2px;grid-template-columns:43px 1fr 25px}.signatureStep strong{font-size:18px}.signatureAnalysisEntry p{font-size:16px}.signatureSecurity{padding:60px 22px}.signatureSecurityInner{grid-template-columns:1fr;gap:15px}.signatureSecurity h2{font-size:26px}.signatureFooter{padding:28px 22px;display:grid;gap:20px}.signatureCtas .signatureBtn{padding:12px 13px;font-size:11px}}
+@media(prefers-reduced-motion:reduce){.signatureHero h1,.signatureHeroArt{animation:none!important}.signature .motion-reveal.motion-pending{opacity:1;transform:none}.signature .signatureBtn,.signature .signatureStep{transition:none!important}}
