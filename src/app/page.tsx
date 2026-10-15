@@ -3,6 +3,7 @@ import {ArrowRight,FileCheck2,LineChart,ShieldCheck,WalletCards} from "lucide-re
 import {BrandMark} from "@/components/brand-mark";
 import {LandingMotion} from "@/components/landing-motion";
 import "./signature.css";
+import "./premium-v2.css";
 
 const pillars=[
   {icon:FileCheck2,title:"Ventes structurées",text:"Prospects, clients, services, devis, commandes, factures et paiements restent liés sans ressaisie inutile."},
@@ -12,7 +13,7 @@ const pillars=[
 const steps=["Prospect","Client","Devis","Commande","Facture","Paiement","Trésorerie","Analyse"];
 
 export default function Home(){
- return <div className="landing signature">
+ return <div className="landing signature premiumV2">
   <LandingMotion/>
   <header className="signatureHeader">
    <BrandMark/>
@@ -21,10 +22,10 @@ export default function Home(){
    <details className="signatureMobileNav"><summary aria-label="Afficher la navigation"><span></span><span></span><span></span></summary><nav aria-label="Navigation mobile"><a href="#produit">Produit</a><a href="#fonctionnalites">Fonctionnalités</a><a href="#pilotage">Pilotage</a><a href="#securite">Sécurité</a><Link href="/login">Connexion</Link></nav></details>
   </header>
   <main>
-   <section className="signatureHero">
+   <section className="signatureHero"><div className="premiumGrid" aria-hidden="true"/><div className="premiumAmbient" aria-hidden="true"/>
     <div className="signatureHeroGrid" aria-hidden="true"></div>
     <div className="signatureHeroInner">
-     <div className="signatureHeroContent">
+     <div className="signatureHeroContent"><div className="premiumHeroMarker" aria-hidden="true"><span>MAGNISA</span><span>01 / 04</span></div>
       <p className="signatureKicker">Pilotage d'entreprise, sans rupture d'information</p>
       <h1>Gérez<br/>mieux.<br/><span>Décidez<br/>mieux.</span></h1>
       <p className="signatureHeroLead">Centralisez votre activité, votre trésorerie, vos ventes et vos décisions financières depuis une seule plateforme.</p>
@@ -33,7 +34,7 @@ export default function Home(){
      </div>
      <div className="signatureHeroArt">
       <div className="signatureOrbit" aria-hidden="true"></div>
-      <div className="signatureVideoFrame">
+      <div className="signatureVideoFrame"><div className="premiumVideoChrome" aria-hidden="true"><span className="premiumLiveDot"/> EXPÉRIENCE MAGNISA <span>GESTION & PILOTAGE</span></div>
        <video className="signatureHeroVideo" autoPlay loop muted playsInline preload="metadata" aria-label="Présentation de MAGNISA en vidéo"><source src="/VDERA.mp4" type="video/mp4"/></video>
        <div className="signatureFrameFoot" aria-hidden="true"><span>MAGNISA / EXPERIENCE</span><span>MAGNISA</span></div>
       </div>
