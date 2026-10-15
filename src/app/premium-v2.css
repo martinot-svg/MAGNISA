@@ -188,3 +188,40 @@
  .premiumV2 .signatureHeroArt{margin:0}
  .premiumV2 .signatureHeroLead{margin:20px 0}
 }
+
+/* Final screenshot corrections: centered kicker, title fitted to indicated box, no overlay. */
+.premiumV2 .signatureStamp{display:none!important}
+.premiumV2 .signatureHeroContent{min-width:0}
+.premiumV2 .signatureKicker{
+  width:100%;
+  max-width:100%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  text-align:center;
+  gap:9px;
+  font-size:clamp(8px,.72vw,10px);
+  letter-spacing:.09em;
+  line-height:1.45;
+  margin:0 0 17px;
+}
+.premiumV2 .signatureKicker::before{width:25px;min-width:25px}
+.premiumV2 .signatureHero h1{
+  display:block;
+  width:100%;
+  max-width:100%;
+  font-size:clamp(56px,5.55vw,80px);
+  line-height:1.02;
+  margin:0 0 0;
+  letter-spacing:-.073em;
+  overflow-wrap:normal;
+}
+@media(max-width:1000px){
+ .premiumV2 .signatureKicker{justify-content:flex-start;text-align:left;font-size:10px}
+ .premiumV2 .signatureHero h1{font-size:clamp(58px,9vw,85px)}
+}
+@media(max-width:600px){
+ .premiumV2 .signatureKicker{font-size:9px;line-height:1.6;letter-spacing:.07em}
+ .premiumV2 .signatureKicker::before{width:18px;min-width:18px}
+ .premiumV2 .signatureHero h1{font-size:clamp(47px,11.6vw,65px);line-height:1.03}
+}
