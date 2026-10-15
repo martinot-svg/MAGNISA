@@ -468,3 +468,43 @@
  .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureHeroLead{margin:0}
  .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureTrust{margin:0}
 }
+
+/* B2B editorial hero: approved copy, distinct from the brand slogan. */
+.landing.signature.premiumV2 .signatureHero .heroContentTop{
+ gap:0;
+}
+.landing.signature.premiumV2 .signatureHero .heroContentTop .signatureKickerMoved{
+ margin:0 0 13px;
+ text-transform:uppercase;
+}
+.landing.signature.premiumV2 .signatureHero .heroContentHeadline{
+ margin:0 0 16px;
+ max-width:540px;
+ color:#101b35;
+ font-size:clamp(26px,2.3vw,37px);
+ line-height:1.14;
+ letter-spacing:-.05em;
+ font-weight:800;
+ text-wrap:balance;
+}
+.landing.signature.premiumV2 .signatureHero .heroContentTop .signatureHeroLead{
+ margin:0 0 13px;
+ font-size:clamp(14px,1.1vw,16px);
+ line-height:1.68;
+}
+.landing.signature.premiumV2 .signatureHero .heroContentDetail{
+ margin:0;
+ max-width:520px;
+ color:#66758d;
+ font-size:clamp(13px,1.02vw,15px);
+ line-height:1.68;
+}
+@media(max-width:1000px){
+ .landing.signature.premiumV2 .signatureHero .heroContentHeadline{font-size:clamp(26px,4.2vw,34px)}
+ .landing.signature.premiumV2 .signatureHero .heroContentTop{gap:0}
+}
+@media(max-width:600px){
+ .landing.signature.premiumV2 .signatureHero .heroContentHeadline{font-size:29px;line-height:1.17}
+ .landing.signature.premiumV2 .signatureHero .heroContentTop .signatureHeroLead{font-size:15px}
+ .landing.signature.premiumV2 .signatureHero .heroContentDetail{font-size:14px}
+}
