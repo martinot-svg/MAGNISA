@@ -34,8 +34,10 @@ export default function Home(){
     <div className="signatureHeroInner">
      <div className="signatureHeroContent">
       <div className="heroContentTop">
-       <p className="signatureKicker signatureKickerMoved">Pilotage d'entreprise, sans rupture d'information</p>
-       <p className="signatureHeroLead">Centralisez votre activité, votre trésorerie, vos ventes et vos décisions financières depuis une seule plateforme.</p>
+       <p className="signatureKicker signatureKickerMoved">De la vente au suivi financier</p>
+       <h2 className="heroContentHeadline">Vos opérations avancent ensemble.</h2>
+       <p className="signatureHeroLead">Avec MAGNISA, chaque étape de votre activité s'inscrit dans un processus cohérent : de la gestion des clients à la facturation, des encaissements au suivi de trésorerie.</p>
+       <p className="heroContentDetail">Les informations circulent entre les modules pour limiter les ressaisies, faciliter le suivi des opérations et vous offrir une lecture plus précise de la situation de votre entreprise.</p>
       </div>
       <div className="heroContentMiddle">
        <div className="signatureCtas"><Link className="signatureBtn signatureBtnPrimary" href="/signup">Commencer <ArrowRight size={17}/></Link><a className="signatureBtn signatureBtnOutline" href="#produit">Découvrir MAGNISA <span aria-hidden="true">↘</span></a></div>
