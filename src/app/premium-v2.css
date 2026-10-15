@@ -91,14 +91,20 @@
 .premiumV2 .motionHaloCyan{width:min(50vw,620px);aspect-ratio:1;top:-20%;left:-17%;background:radial-gradient(circle,rgba(24,201,245,.17),rgba(24,201,245,.045) 50%,transparent 72%);animation:magniHaloOne 21s ease-in-out infinite alternate}
 .premiumV2 .motionHaloViolet{width:min(54vw,700px);aspect-ratio:1;top:-22%;right:-22%;background:radial-gradient(circle,rgba(121,72,245,.15),rgba(121,72,245,.035) 52%,transparent 73%);animation:magniHaloTwo 26s ease-in-out infinite alternate}
 .premiumV2 .motionHaloBlue{width:min(48vw,580px);aspect-ratio:1;left:25%;bottom:-34%;background:radial-gradient(circle,rgba(22,99,255,.12),transparent 72%);animation:magniHaloThree 24s ease-in-out infinite alternate}
-.premiumV2 .motionOrbit{position:absolute;border:1px solid rgba(52,99,188,.085);border-radius:50%;pointer-events:none}
-.premiumV2 .motionOrbitOne{width:480px;height:480px;top:-210px;right:-140px;box-shadow:0 0 0 65px rgba(70,110,194,.018),0 0 0 130px rgba(70,110,194,.012);animation:magniOrbitDrift 28s ease-in-out infinite alternate}
-.premiumV2 .motionOrbitTwo{width:290px;height:290px;bottom:-165px;left:-115px;box-shadow:0 0 0 54px rgba(70,110,194,.02);animation:magniOrbitDrift 32s ease-in-out infinite alternate-reverse}
+/* Ultra-fine technology signal arcs: two half-rings, not a full radar. */
+.premiumV2 .motionBgGrid,.premiumV2 .premiumGrid,.premiumV2 .signatureHeroGrid{display:none!important;background-image:none!important}
+.premiumV2 .motionOrbit{position:absolute;pointer-events:none;border:0;border-radius:0;background:transparent;box-shadow:none;animation:none}
+.premiumV2 .motionOrbit::before,.premiumV2 .motionOrbit::after{content:"";position:absolute;border-radius:50%;border:1px solid transparent;border-top-color:rgba(22,99,255,.24);border-left-color:rgba(24,201,245,.12);border-right-color:rgba(121,72,245,.11);border-bottom-color:transparent;opacity:0;transform:scale(.94);will-change:transform,opacity;animation:magniSignalPulse 11s cubic-bezier(.28,.5,.35,1) infinite}
+.premiumV2 .motionOrbitOne{width:min(52vw,580px);aspect-ratio:1;height:auto;right:-12%;top:-18%}
+.premiumV2 .motionOrbitOne::before{inset:0;animation-delay:0s}
+.premiumV2 .motionOrbitOne::after{inset:38px;border-top-color:rgba(24,201,245,.25);animation-delay:2.1s}
+.premiumV2 .motionOrbitTwo{width:min(37vw,380px);aspect-ratio:1;height:auto;left:-10%;bottom:-16%}
+.premiumV2 .motionOrbitTwo::before{inset:0;animation-delay:3.6s}
+.premiumV2 .motionOrbitTwo::after{inset:29px;border-top-color:rgba(121,72,245,.22);animation-delay:5.4s}
+@keyframes magniSignalPulse{0%{opacity:0;transform:scale(.94) translateY(3px)}20%{opacity:.65}55%{opacity:.32}85%,100%{opacity:0;transform:scale(1.09) translateY(-5px)}}
 @keyframes magniHaloOne{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(9vw,7vh,0) scale(1.12)}}
 @keyframes magniHaloTwo{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(-8vw,9vh,0) scale(1.09)}}
 @keyframes magniHaloThree{from{transform:translate3d(0,0,0)}to{transform:translate3d(-6vw,-8vh,0)}}
-@keyframes magniGrid{from{transform:translate3d(0,0,0)}to{transform:translate3d(38px,20px,0)}}
-@keyframes magniOrbitDrift{from{transform:translate3d(0,0,0)}to{transform:translate3d(25px,-20px,0)}}
 /* Background stays visible through deliberately softened sections. */
 .premiumV2 .signatureHero{background:linear-gradient(160deg,rgba(248,251,255,.75),rgba(242,247,253,.55))!important}
 .premiumV2 .signatureProduct{background:rgba(255,255,255,.79)!important}
@@ -110,8 +116,17 @@
  .premiumV2 .motionHaloCyan{width:90vw;top:0;left:-45%}
  .premiumV2 .motionHaloViolet{width:95vw;top:25%;right:-54%}
  .premiumV2 .motionHaloBlue{width:80vw;left:15%;bottom:-18%}
- .premiumV2 .motionOrbit{display:none}
+ .premiumV2 .motionOrbitOne{width:310px;right:-120px;top:-65px}
+ .premiumV2 .motionOrbitTwo{width:210px;left:-95px;bottom:-55px}
+ .premiumV2 .motionOrbitOne::after{inset:24px}
+ .premiumV2 .motionOrbitTwo::after{inset:18px}
 }
 @media(prefers-reduced-motion:reduce){
  .premiumV2 .motionBgGrid,.premiumV2 .motionHalo,.premiumV2 .motionOrbit{animation:none!important;will-change:auto}
 }
+
+/* Quiet light sweep confined to the video's outer frame, never processing VDERA. */
+.premiumV2 .signatureVideoFrame{isolation:isolate}
+.premiumV2 .signatureVideoFrame::after{content:"";position:absolute;inset:-1px;border-radius:inherit;border:1px solid transparent;background:linear-gradient(115deg,transparent 25%,rgba(24,201,245,.24) 47%,rgba(121,72,245,.20) 53%,transparent 75%) border-box;mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);mask-composite:exclude;pointer-events:none;opacity:0;animation:magniFrameShimmer 13s ease-in-out infinite}
+@keyframes magniFrameShimmer{0%,64%,100%{opacity:0}76%{opacity:.8}88%{opacity:0}}
+@media(prefers-reduced-motion:reduce){.premiumV2 .motionOrbit::before,.premiumV2 .motionOrbit::after,.premiumV2 .signatureVideoFrame::after{animation:none!important;opacity:.24;will-change:auto}}
