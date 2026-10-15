@@ -43,7 +43,7 @@ export default function Home(){
        <div className="signatureCtas"><Link className="signatureBtn signatureBtnPrimary" href="/signup">Commencer <ArrowRight size={17}/></Link><a className="signatureBtn signatureBtnOutline" href="#produit">Découvrir MAGNISA <span aria-hidden="true">↘</span></a></div>
       </div>
       <div className="heroContentBottom">
-       <div className="signatureTrust"><ShieldCheck size={17} aria-hidden="true"/><span>Données séparées par organisation, permissions serveur et journal d'audit.</span></div>
+       <div className="signatureTrust"><ShieldCheck size={17} aria-hidden="true"/><span>Vos données professionnelles, protégées et accessibles selon les autorisations de chacun.</span></div>
        <a className="signatureExploreInline" href="#produit">EXPLORER L’UNIVERS <span aria-hidden="true">↓</span></a>
       </div>
      </div>
