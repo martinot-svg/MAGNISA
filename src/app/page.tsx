@@ -42,7 +42,7 @@ export default function Home(){
        <video className="signatureHeroVideo" autoPlay loop muted playsInline preload="metadata" aria-label="Présentation de MAGNISA en vidéo"><source src="/VDERA.mp4" type="video/mp4"/></video>
        <div className="signatureFrameFoot" aria-hidden="true"><span>MAGNISA / EXPERIENCE</span><span>MAGNISA</span></div>
       </div>
-      <div className="signatureStamp" aria-hidden="true">MAGNISA<small>GÉREZ MIEUX. DÉCIDEZ MIEUX.</small></div>
+      
      </div>
     </div>
     <a className="signatureScroll" href="#produit">EXPLORER L'UNIVERS <span aria-hidden="true">↓</span></a><span className="signatureIndex" aria-hidden="true">01 / 05</span>
