@@ -225,3 +225,50 @@
  .premiumV2 .signatureKicker::before{width:18px;min-width:18px}
  .premiumV2 .signatureHero h1{font-size:clamp(47px,11.6vw,65px);line-height:1.03}
 }
+
+/* HERO visual correction / definitive selectors (avoid legacy signature.css overlap).
+   Kicker centered above title; lower video badge removed in JSX. */
+.landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureKicker{
+  display:block;
+  width:100%;
+  max-width:none;
+  padding:0 0 14px;
+  margin:0 0 13px;
+  text-align:center;
+  font-size:clamp(10px,.79vw,12px);
+  font-weight:800;
+  letter-spacing:.075em;
+  line-height:1.55;
+  color:#345a9d;
+}
+.landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureKicker::before{
+  content:none;
+  display:none;
+}
+.landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureKicker::after{
+  content:"";
+  display:block;
+  width:44px;
+  height:2px;
+  border-radius:2px;
+  margin:12px auto 0;
+  background:linear-gradient(90deg,#18c9f5,#1663ff,#7948f5);
+}
+.landing.signature.premiumV2 .signatureHero .signatureHeroContent h1{
+  box-sizing:border-box;
+  width:100%;
+  max-width:100%;
+  margin:0;
+  font-size:clamp(54px,5.45vw,79px);
+  line-height:1.02;
+  letter-spacing:-.074em;
+}
+.landing.signature.premiumV2 .signatureHero .signatureStamp{display:none!important}
+@media(max-width:1000px){
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureKicker{font-size:10px;text-align:center}
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent h1{font-size:clamp(55px,9vw,82px)}
+}
+@media(max-width:600px){
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureKicker{font-size:9px;letter-spacing:.045em;padding-bottom:9px;margin-bottom:10px}
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent h1{font-size:clamp(45px,11.5vw,63px)}
+}
