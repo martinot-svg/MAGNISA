@@ -752,3 +752,54 @@
 @media(prefers-reduced-motion:reduce){
  .landing.signature.premiumV2 .signatureProduct .magPillarPhoto img{transition:none}
 }
+
+/* Connected customer-to-insight workflow, fully scoped to homepage. */
+.landing.signature.premiumV2 .signatureWorkflow{background:linear-gradient(145deg,#f4f8ff 0%,#edf3ff 48%,#f6f3ff 100%)!important;padding:105px max(5%,calc((100vw - 1300px)/2));}
+.landing.signature.premiumV2 .signatureWorkflowInner{display:grid;grid-template-columns:minmax(0,.83fr) minmax(0,1.17fr);align-items:start;gap:clamp(42px,6vw,95px);max-width:1300px;margin:0 auto;}
+.landing.signature.premiumV2 .signatureWorkflowIntro{position:sticky;top:125px;}
+.landing.signature.premiumV2 .signatureWorkflow .signatureLabel{margin:0 0 22px;font-weight:800;letter-spacing:.16em;color:#355de5;}
+.landing.signature.premiumV2 .signatureWorkflow h2{font-size:clamp(37px,3.5vw,56px);line-height:1.1;letter-spacing:-.055em;max-width:590px;margin:0 0 27px;overflow-wrap:normal;}
+.landing.signature.premiumV2 .signatureWorkflow .signatureDescription{font-size:16px;line-height:1.85;max-width:520px;color:#52627d;margin:0;}
+.landing.signature.premiumV2 .magWorkflowNote{margin-top:35px;display:flex;gap:14px;align-items:flex-start;max-width:460px;}
+.landing.signature.premiumV2 .magWorkflowNoteLine{flex:none;width:3px;height:42px;border-radius:8px;background:linear-gradient(#18c9f5,#7948f5);}
+.landing.signature.premiumV2 .magWorkflowNote p{font-size:13px;line-height:1.7;color:#76839b;margin:0;}
+.landing.signature.premiumV2 .signatureWorkflowPath{min-width:0;}
+.landing.signature.premiumV2 .magWorkflowPathTitle{font-size:11px;font-weight:800;letter-spacing:.15em;color:#697a98;margin:3px 0 21px;}
+.landing.signature.premiumV2 .signatureSteps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;border:0;margin:0;}
+.landing.signature.premiumV2 .signatureStep{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:0;min-width:0;min-height:172px;padding:23px 22px 24px!important;border:1px solid #e0e8f6;border-radius:18px;background:rgba(255,255,255,.9);box-shadow:0 8px 26px rgba(42,67,125,.035);transition:transform .32s ease,box-shadow .32s ease,border-color .32s ease;}
+.landing.signature.premiumV2 .signatureStep:hover{padding-left:22px!important;background:#fff;border-color:#c9d6f4;box-shadow:0 17px 35px rgba(45,77,147,.11);transform:translateY(-4px);}
+.landing.signature.premiumV2 .magWorkflowCardHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:17px;}
+.landing.signature.premiumV2 .magWorkflowIcon{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:13px;background:linear-gradient(145deg,#e8f4ff,#edf0ff);color:#3566e6;}
+.landing.signature.premiumV2 .signatureStep:nth-child(3n+2) .magWorkflowIcon{background:linear-gradient(145deg,#eafaff,#eaf1ff);color:#16a5cf;}
+.landing.signature.premiumV2 .signatureStep:nth-child(3n) .magWorkflowIcon{background:linear-gradient(145deg,#f1ebff,#f9efff);color:#8553db;}
+.landing.signature.premiumV2 .magWorkflowNumber{font-size:12px!important;letter-spacing:.08em!important;font-weight:700;color:#a0adc5!important;}
+.landing.signature.premiumV2 .signatureStep h3{font-size:20px;line-height:1.25;letter-spacing:-.035em;margin:0 0 7px;color:#17223e;}
+.landing.signature.premiumV2 .signatureStep p{font-size:13px;line-height:1.65;color:#64738c;margin:0;max-width:250px;}
+@media(max-width:1050px){
+ .landing.signature.premiumV2 .signatureWorkflowInner{grid-template-columns:1fr;gap:39px;}
+ .landing.signature.premiumV2 .signatureWorkflowIntro{position:static;}
+ .landing.signature.premiumV2 .signatureWorkflow h2{max-width:780px;}
+ .landing.signature.premiumV2 .signatureWorkflow .signatureDescription{max-width:770px;}
+ .landing.signature.premiumV2 .signatureSteps{grid-template-columns:repeat(4,minmax(0,1fr));}
+ .landing.signature.premiumV2 .signatureStep{min-height:180px;padding:18px!important;}
+ .landing.signature.premiumV2 .signatureStep:hover{padding-left:18px!important;}
+}
+@media(max-width:750px){
+ .landing.signature.premiumV2 .signatureWorkflow{padding:68px 22px!important;}
+ .landing.signature.premiumV2 .signatureWorkflow h2{font-size:clamp(31px,6.4vw,43px);letter-spacing:-.048em;}
+ .landing.signature.premiumV2 .signatureSteps{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+ .landing.signature.premiumV2 .signatureStep{min-height:169px;padding:17px!important;border-radius:15px;}
+ .landing.signature.premiumV2 .signatureStep:hover{padding-left:17px!important;}
+ .landing.signature.premiumV2 .signatureStep h3{font-size:17px;}
+ .landing.signature.premiumV2 .signatureStep p{font-size:12px;line-height:1.5;}
+ .landing.signature.premiumV2 .magWorkflowIcon{width:39px;height:39px;}
+}
+@media(max-width:370px){
+ .landing.signature.premiumV2 .signatureWorkflow{padding-left:17px!important;padding-right:17px!important;}
+ .landing.signature.premiumV2 .signatureSteps{grid-template-columns:1fr;}
+ .landing.signature.premiumV2 .signatureStep{min-height:0;}
+}
+@media(prefers-reduced-motion:reduce){
+ .landing.signature.premiumV2 .signatureStep{transition:none!important;}
+ .landing.signature.premiumV2 .signatureStep:hover{transform:none;}
+}
