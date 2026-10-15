@@ -324,6 +324,9 @@
  .landing.signature.premiumV2 .signatureHero .signatureHeroHeading h1{font-size:clamp(18px,5.15vw,58px)}
 }
 @media(max-width:600px){
+   <p className="signatureKicker signatureKickerMoved">
+  Pilotage d'entreprise, sans rupture d'information
+</p>
  .landing.signature.premiumV2 .signatureHero .signatureHeroHeading{margin-bottom:22px}
  .landing.signature.premiumV2 .signatureHero .signatureHeroHeading .signatureKicker{font-size:9px;letter-spacing:.015em}
  .landing.signature.premiumV2 .signatureHero .signatureHeroHeading h1{font-size:clamp(16px,5.05vw,29px);letter-spacing:-.065em}
