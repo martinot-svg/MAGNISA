@@ -33,12 +33,16 @@ export default function Home(){
     </div>
     <div className="signatureHeroInner">
      <div className="signatureHeroContent">
-       <p className="signatureKicker signatureKickerMoved">
-  Pilotage d'entreprise, sans rupture d'information
-</p>
-      <p className="signatureHeroLead">Centralisez votre activité, votre trésorerie, vos ventes et vos décisions financières depuis une seule plateforme.</p>
-      <div className="signatureCtas"><Link className="signatureBtn signatureBtnPrimary" href="/signup">Commencer <ArrowRight size={17}/></Link><a className="signatureBtn signatureBtnOutline" href="#produit">Découvrir MAGNISA <span aria-hidden="true">↘</span></a></div>
-      <div className="signatureTrust"><ShieldCheck size={17} aria-hidden="true"/><span>Données séparées par organisation, permissions serveur et journal d'audit.</span></div>
+      <div className="heroContentTop">
+       <p className="signatureKicker signatureKickerMoved">Pilotage d'entreprise, sans rupture d'information</p>
+       <p className="signatureHeroLead">Centralisez votre activité, votre trésorerie, vos ventes et vos décisions financières depuis une seule plateforme.</p>
+      </div>
+      <div className="heroContentMiddle">
+       <div className="signatureCtas"><Link className="signatureBtn signatureBtnPrimary" href="/signup">Commencer <ArrowRight size={17}/></Link><a className="signatureBtn signatureBtnOutline" href="#produit">Découvrir MAGNISA <span aria-hidden="true">↘</span></a></div>
+      </div>
+      <div className="heroContentBottom">
+       <div className="signatureTrust"><ShieldCheck size={17} aria-hidden="true"/><span>Données séparées par organisation, permissions serveur et journal d'audit.</span></div>
+      </div>
      </div>
      <div className="signatureHeroArt">
       <div className="signatureOrbit" aria-hidden="true"></div>
