@@ -55,7 +55,6 @@ export default function Home(){
       
      </div>
     </div>
-    <a className="signatureScroll" href="#produit">EXPLORER L'UNIVERS <span aria-hidden="true">↓</span></a><span className="signatureIndex" aria-hidden="true">01 / 05</span>
    </section>
    <section id="produit" className="signatureSection signatureProduct">
     <div className="signatureReveal motion-reveal">
