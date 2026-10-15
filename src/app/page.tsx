@@ -44,7 +44,7 @@ export default function Home(){
       <div className="signatureOrbit" aria-hidden="true"></div>
       <div className="signatureVideoFrame"><div className="premiumVideoChrome" aria-hidden="true"><span className="premiumLiveDot"/> EXPÉRIENCE MAGNISA <span>GESTION & PILOTAGE</span></div>
        <video className="signatureHeroVideo" autoPlay loop muted playsInline preload="metadata" aria-label="Présentation de MAGNISA en vidéo"><source src="/VDERA.mp4" type="video/mp4"/></video>
-       <div className="signatureFrameFoot" aria-hidden="true"><span>MAGNISA / EXPERIENCE</span><span>MAGNISA</span></div>
+       
       </div>
       
      </div>
