@@ -539,3 +539,40 @@
 @media (max-width:600px){
  .landing.signature.premiumV2 .signatureHero{padding-bottom:24px}
 }
+
+/* Compact hero ending: preserve the explore action, without a separate footer strip. */
+.landing.signature.premiumV2 .signatureHero .signatureExploreInline{
+ display:inline-flex;
+ align-items:center;
+ gap:12px;
+ width:max-content;
+ max-width:100%;
+ margin-top:18px;
+ color:#526b92;
+ font-size:10px;
+ font-weight:600;
+ letter-spacing:.15em;
+ line-height:1.55;
+ text-decoration:none;
+ transition:color .2s ease;
+}
+.landing.signature.premiumV2 .signatureHero .signatureExploreInline span{
+ color:#2363ff;
+ font-size:17px;
+ line-height:1;
+}
+.landing.signature.premiumV2 .signatureHero .signatureExploreInline:hover,
+.landing.signature.premiumV2 .signatureHero .signatureExploreInline:focus-visible{
+ color:#235bdb;
+}
+.landing.signature.premiumV2 .signatureHero .signatureExploreInline:focus-visible{
+ outline:2px solid #235bdb;
+ outline-offset:5px;
+ border-radius:3px;
+}
+@media(max-width:600px){
+ .landing.signature.premiumV2 .signatureHero .signatureExploreInline{
+  margin-top:16px;
+  font-size:9px;
+ }
+}
