@@ -358,3 +358,44 @@
   margin-bottom:14px;
  }
 }
+
+/* 2026-10-15: desktop hero composition requested by owner.
+   Remove accidental centered whitespace; align copy with top of media. */
+@media (min-width:1001px) {
+ .landing.signature.premiumV2 .signatureHero .signatureHeroHeading {
+   margin-bottom:24px;
+ }
+ .landing.signature.premiumV2 .signatureHero .signatureHeroInner {
+   align-items:start;
+   grid-template-columns:minmax(0,.77fr) minmax(0,1.23fr);
+   gap:clamp(20px,2.8vw,42px);
+ }
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent {
+   align-self:start;
+   padding:0;
+   margin:0;
+   display:flex;
+   flex-direction:column;
+   justify-content:flex-start;
+ }
+ .landing.signature.premiumV2 .signatureHero .signatureHeroArt {
+   align-self:start;
+   margin:0;
+ }
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureKickerMoved {
+   margin:0 0 20px;
+   padding:0;
+   text-align:left;
+   max-width:390px;
+ }
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureHeroLead {
+   margin:0 0 24px;
+   max-width:470px;
+ }
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureCtas{
+   margin-top:0;
+ }
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureTrust{
+   margin-top:24px;
+ }
+}
