@@ -272,3 +272,59 @@
  .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureKicker{font-size:9px;letter-spacing:.045em;padding-bottom:9px;margin-bottom:10px}
  .landing.signature.premiumV2 .signatureHero .signatureHeroContent h1{font-size:clamp(45px,11.5vw,63px)}
 }
+
+/* Full-width editorial headline. No forced line breaks at any viewport. */
+.landing.signature.premiumV2 .signatureHero .signatureHeroHeading{
+ position:relative;
+ z-index:4;
+ width:100%;
+ max-width:1300px;
+ margin:0 auto 24px;
+ text-align:center;
+}
+.landing.signature.premiumV2 .signatureHero .signatureHeroHeading .signatureKicker{
+ display:block;
+ width:100%;
+ margin:0 auto 13px;
+ padding:0;
+ text-align:center;
+ font-size:clamp(9px,.8vw,12px);
+ line-height:1.5;
+ letter-spacing:.075em;
+ color:#345a9d;
+}
+.landing.signature.premiumV2 .signatureHero .signatureHeroHeading .signatureKicker::before{display:none;content:none}
+.landing.signature.premiumV2 .signatureHero .signatureHeroHeading .signatureKicker::after{
+ display:block;
+ content:"";
+ width:46px;height:2px;
+ margin:12px auto 0;
+ background:linear-gradient(90deg,#18c9f5,#1663ff,#7948f5);
+}
+.landing.signature.premiumV2 .signatureHero .signatureHeroHeading h1{
+ display:block;
+ margin:0;
+ width:100%;
+ max-width:none;
+ font-size:clamp(18px,5.35vw,76px);
+ font-weight:860;
+ line-height:1.14;
+ letter-spacing:-.065em;
+ white-space:nowrap;
+ text-align:center;
+}
+.landing.signature.premiumV2 .signatureHero .signatureHeroInner{
+ align-items:center;
+ gap:clamp(20px,3vw,45px);
+}
+.landing.signature.premiumV2 .signatureHero .signatureHeroContent{padding-top:0}
+.landing.signature.premiumV2 .signatureHero .signatureHeroArt{margin:0}
+@media(max-width:1000px){
+ .landing.signature.premiumV2 .signatureHero .signatureHeroHeading{margin-bottom:26px}
+ .landing.signature.premiumV2 .signatureHero .signatureHeroHeading h1{font-size:clamp(18px,5.15vw,58px)}
+}
+@media(max-width:600px){
+ .landing.signature.premiumV2 .signatureHero .signatureHeroHeading{margin-bottom:22px}
+ .landing.signature.premiumV2 .signatureHero .signatureHeroHeading .signatureKicker{font-size:9px;letter-spacing:.015em}
+ .landing.signature.premiumV2 .signatureHero .signatureHeroHeading h1{font-size:clamp(16px,5.05vw,29px);letter-spacing:-.065em}
+}
