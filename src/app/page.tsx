@@ -1,5 +1,5 @@
 import Link from "next/link";
-import {ArrowRight,ShieldCheck} from "lucide-react";
+import {ArrowRight,ShieldCheck,UserRoundSearch,UsersRound,FileText,ClipboardCheck,ReceiptText,CreditCard,Wallet,ChartNoAxesCombined} from "lucide-react";
 import {BrandMark} from "@/components/brand-mark";
 import {LandingMotion} from "@/components/landing-motion";
 import "./signature.css";
@@ -18,7 +18,16 @@ function PillarIllustration({kind}:{kind:"commercial"|"financial"|"analysis"}){
  if(kind==="analysis") return <div className="magPillarArt magPillarPhoto"><img src="/analyse-pilotage.webp" alt="Tableau de bord d’analyse et de pilotage" loading="lazy" decoding="async"/></div>;
 }
 
-const steps=["Prospect","Client","Devis","Commande","Facture","Paiement","Trésorerie","Analyse"];
+const steps=[
+ {title:"Prospect",description:"Suivez vos opportunités commerciales.",Icon:UserRoundSearch},
+ {title:"Client",description:"Centralisez vos relations clients.",Icon:UsersRound},
+ {title:"Devis",description:"Préparez vos propositions de services.",Icon:FileText},
+ {title:"Commande",description:"Organisez les prestations confirmées.",Icon:ClipboardCheck},
+ {title:"Facture",description:"Facturez vos prestations.",Icon:ReceiptText},
+ {title:"Paiement",description:"Suivez les règlements de vos clients.",Icon:CreditCard},
+ {title:"Trésorerie",description:"Maîtrisez vos entrées et sorties d'argent.",Icon:Wallet},
+ {title:"Analyse",description:"Pilotez votre activité avec des indicateurs.",Icon:ChartNoAxesCombined}
+] as const;
 
 export default function Home(){
  return <div className="landing signature premiumV2">
@@ -79,10 +88,21 @@ export default function Home(){
      </article>)}
     </div>
    </section>
-   <section id="fonctionnalites" className="signatureWorkflow">
+   <section id="fonctionnalites" className="signatureWorkflow" aria-labelledby="workflow-title">
     <div className="signatureWorkflowInner">
-     <div className="motion-reveal"><p className="signatureLabel">02 / DE L'OPÉRATION À LA DÉCISION</p><h2>Client → Devis → Commande → Facture → Paiement → Trésorerie → Comptabilité → Analyse</h2><p className="signatureDescription">Chaque étape conserve les relations d'origine, les statuts, les justificatifs et la traçabilité. Les modules peuvent être activés selon les besoins de chaque entreprise.</p></div>
-     <div className="signatureSteps">{steps.map((step,i)=><div className="signatureStep motion-reveal" key={step}><span>{String(i+1).padStart(2,"0")}</span><strong>{step}</strong><span className="signatureStepArrow" aria-hidden="true">↗</span></div>)}</div>
+     <div className="signatureWorkflowIntro motion-reveal">
+      <p className="signatureLabel">UN PARCOURS CONNECTÉ</p>
+      <h2 id="workflow-title">De la première opportunité à une vision claire de votre entreprise.</h2>
+      <p className="signatureDescription">Avec MAGNISA, chaque opération s'inscrit dans un parcours cohérent. De la gestion des clients au suivi des paiements et de la trésorerie, les informations circulent entre les modules pour simplifier votre travail, assurer la traçabilité de vos opérations et vous offrir une meilleure visibilité sur votre activité.</p>
+      <div className="magWorkflowNote"><span className="magWorkflowNoteLine" aria-hidden="true"/><p>Un parcours de référence, adapté aux opérations et à l'organisation de chaque entreprise.</p></div>
+     </div>
+     <div className="signatureWorkflowPath" aria-label="Les huit étapes clés de votre gestion">
+      <p className="magWorkflowPathTitle">LES ÉTAPES CLÉS DE VOTRE GESTION</p>
+      <div className="signatureSteps">{steps.map(({title,description,Icon},i)=><article className="signatureStep motion-reveal" key={title}>
+       <div className="magWorkflowCardHead"><span className="magWorkflowIcon"><Icon size={22} strokeWidth={1.7} aria-hidden="true"/></span><span className="magWorkflowNumber">{String(i+1).padStart(2,"0")}</span></div>
+       <h3>{title}</h3><p>{description}</p>
+      </article>)}</div>
+     </div>
     </div>
    </section>
    <section id="pilotage" className="signatureAnalysis">
