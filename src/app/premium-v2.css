@@ -79,3 +79,39 @@
 @media(max-width:1000px){.premiumV2 .signatureHeader{padding:0 4%}.premiumV2 .signatureHero{padding:48px 5% 45px;min-height:0}.premiumV2 .signatureHeroInner{grid-template-columns:1fr;gap:38px}.premiumV2 .signatureHero h1{font-size:clamp(62px,9vw,86px)}.premiumV2 .signatureHeroArt{max-width:720px;margin:0 auto;width:100%}.premiumV2 .signaturePillars{grid-template-columns:1fr}.premiumV2 .signaturePillar:first-child{grid-row:auto;min-height:0}.premiumV2 .signaturePillar:first-child h3{margin-top:32px}.premiumV2 .signatureWorkflowInner,.premiumV2 .signatureAnalysisInner{grid-template-columns:1fr;gap:30px}.premiumV2 .signatureWorkflow,.premiumV2 .signatureAnalysis{padding:70px 5%}.premiumV2 .signatureSecurityInner{grid-template-columns:1fr}.premiumV2 .signatureSection{padding:65px 5%}}
 @media(max-width:600px){.premiumV2 .signatureHeader{height:72px;padding:0 17px}.premiumV2 .signatureHero{padding:30px 18px 40px}.premiumV2 .premiumHeroMarker{margin-bottom:20px}.premiumV2 .signatureKicker{font-size:9px}.premiumV2 .signatureHero h1{font-size:clamp(47px,11.6vw,66px);letter-spacing:-.07em}.premiumV2 .signatureHeroLead{font-size:15px;margin:21px 0}.premiumV2 .signatureCtas{align-items:stretch;flex-direction:column}.premiumV2 .signatureCtas .signatureBtn{width:100%}.premiumV2 .signatureTrust{margin-top:20px}.premiumV2 .signatureVideoFrame{padding:8px;border-radius:20px}.premiumV2 .premiumVideoChrome{font-size:8px}.premiumV2 .signatureStamp{position:relative;left:auto;bottom:auto;display:inline-block;margin-top:14px;box-shadow:none}.premiumV2 .signatureSection,.premiumV2 .signatureWorkflow,.premiumV2 .signatureAnalysis,.premiumV2 .signatureSecurity{padding:52px 19px}.premiumV2 .signatureProduct h2,.premiumV2 .signatureWorkflow h2,.premiumV2 .signatureAnalysis h2{font-size:35px}.premiumV2 .signaturePillar,.premiumV2 .signaturePillar:first-child,.premiumV2 .signaturePillar:nth-child(n+2){padding:24px}.premiumV2 .signaturePillar h3,.premiumV2 .signaturePillar:first-child h3{font-size:29px}.premiumV2 .signatureSecurityInner{padding:24px}.premiumV2 .signatureFooter{padding:25px 19px}}
 @media(prefers-reduced-motion:reduce){.premiumV2 .signatureHero h1,.premiumV2 .signatureHeroArt,.premiumV2 .signatureHeroContent{animation:none!important}.premiumV2 .motion-reveal.motion-pending{opacity:1;transform:none}.premiumV2 .signatureBtn,.premiumV2 .signatureStep{transition:none!important}}
+
+
+/* PREMIUM V2 — ambient motion canvas, isolated to the public homepage.
+   No video processing and no app-level styling changes. */
+.landing.signature.premiumV2{position:relative;isolation:isolate;overflow:clip}
+.premiumV2 .motionBg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;contain:paint;background:linear-gradient(160deg,#f9fbff,#f2f6fc 58%,#f8f9ff)}
+.premiumV2 > .signatureHeader,.premiumV2 > main,.premiumV2 > .signatureFooter{position:relative;z-index:1}
+.premiumV2 .motionBgGrid{position:absolute;inset:-8%;opacity:.5;background-image:linear-gradient(rgba(31,77,150,.048) 1px,transparent 1px),linear-gradient(90deg,rgba(31,77,150,.048) 1px,transparent 1px);background-size:94px 94px;mask-image:linear-gradient(180deg,#000 0%,transparent 90%);animation:magniGrid 36s linear infinite}
+.premiumV2 .motionHalo{position:absolute;border-radius:50%;pointer-events:none;will-change:transform;mix-blend-mode:multiply}
+.premiumV2 .motionHaloCyan{width:min(50vw,620px);aspect-ratio:1;top:-20%;left:-17%;background:radial-gradient(circle,rgba(24,201,245,.17),rgba(24,201,245,.045) 50%,transparent 72%);animation:magniHaloOne 21s ease-in-out infinite alternate}
+.premiumV2 .motionHaloViolet{width:min(54vw,700px);aspect-ratio:1;top:-22%;right:-22%;background:radial-gradient(circle,rgba(121,72,245,.15),rgba(121,72,245,.035) 52%,transparent 73%);animation:magniHaloTwo 26s ease-in-out infinite alternate}
+.premiumV2 .motionHaloBlue{width:min(48vw,580px);aspect-ratio:1;left:25%;bottom:-34%;background:radial-gradient(circle,rgba(22,99,255,.12),transparent 72%);animation:magniHaloThree 24s ease-in-out infinite alternate}
+.premiumV2 .motionOrbit{position:absolute;border:1px solid rgba(52,99,188,.085);border-radius:50%;pointer-events:none}
+.premiumV2 .motionOrbitOne{width:480px;height:480px;top:-210px;right:-140px;box-shadow:0 0 0 65px rgba(70,110,194,.018),0 0 0 130px rgba(70,110,194,.012);animation:magniOrbitDrift 28s ease-in-out infinite alternate}
+.premiumV2 .motionOrbitTwo{width:290px;height:290px;bottom:-165px;left:-115px;box-shadow:0 0 0 54px rgba(70,110,194,.02);animation:magniOrbitDrift 32s ease-in-out infinite alternate-reverse}
+@keyframes magniHaloOne{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(9vw,7vh,0) scale(1.12)}}
+@keyframes magniHaloTwo{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(-8vw,9vh,0) scale(1.09)}}
+@keyframes magniHaloThree{from{transform:translate3d(0,0,0)}to{transform:translate3d(-6vw,-8vh,0)}}
+@keyframes magniGrid{from{transform:translate3d(0,0,0)}to{transform:translate3d(38px,20px,0)}}
+@keyframes magniOrbitDrift{from{transform:translate3d(0,0,0)}to{transform:translate3d(25px,-20px,0)}}
+/* Background stays visible through deliberately softened sections. */
+.premiumV2 .signatureHero{background:linear-gradient(160deg,rgba(248,251,255,.75),rgba(242,247,253,.55))!important}
+.premiumV2 .signatureProduct{background:rgba(255,255,255,.79)!important}
+.premiumV2 .signatureWorkflow{background:rgba(240,245,252,.83)!important}
+.premiumV2 .signatureSecurity{background:rgba(248,250,255,.78)!important}
+.premiumV2 .signatureAnalysis{background:linear-gradient(125deg,#0d1830,#131e39 75%,#182550)!important}
+@media(max-width:700px){
+ .premiumV2 .motionBgGrid{background-size:64px 64px;opacity:.33;animation:none}
+ .premiumV2 .motionHaloCyan{width:90vw;top:0;left:-45%}
+ .premiumV2 .motionHaloViolet{width:95vw;top:25%;right:-54%}
+ .premiumV2 .motionHaloBlue{width:80vw;left:15%;bottom:-18%}
+ .premiumV2 .motionOrbit{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+ .premiumV2 .motionBgGrid,.premiumV2 .motionHalo,.premiumV2 .motionOrbit{animation:none!important;will-change:auto}
+}
