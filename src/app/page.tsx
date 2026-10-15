@@ -29,7 +29,7 @@ export default function Home(){
   <main>
    <section className="signatureHero"><div className="premiumAmbient" aria-hidden="true"/><div className="sonicWave sonicWaveRight" aria-hidden="true"><span/><span/><span/></div><div className="sonicWave sonicWaveLeft" aria-hidden="true"><span/><span/><span/></div>
     <div className="signatureHeroInner">
-     <div className="signatureHeroContent"><div className="premiumHeroMarker" aria-hidden="true"><span>MAGNISA</span><span>01 / 04</span></div>
+     <div className="signatureHeroContent">
       <p className="signatureKicker">Pilotage d'entreprise, sans rupture d'information</p>
       <h1>Gérez<br/>mieux.<br/><span>Décidez<br/>mieux.</span></h1>
       <p className="signatureHeroLead">Centralisez votre activité, votre trésorerie, vos ventes et vos décisions financières depuis une seule plateforme.</p>
