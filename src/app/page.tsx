@@ -15,6 +15,14 @@ const steps=["Prospect","Client","Devis","Commande","Facture","Paiement","Tréso
 export default function Home(){
  return <div className="landing signature premiumV2">
   <LandingMotion/>
+  <div className="motionBg" aria-hidden="true">
+   <div className="motionBgGrid"/>
+   <div className="motionHalo motionHaloCyan"/>
+   <div className="motionHalo motionHaloViolet"/>
+   <div className="motionHalo motionHaloBlue"/>
+   <div className="motionOrbit motionOrbitOne"/>
+   <div className="motionOrbit motionOrbitTwo"/>
+  </div>
   <header className="signatureHeader">
    <BrandMark/>
    <nav className="signatureNav" aria-label="Navigation principale"><a href="#produit">Produit</a><a href="#fonctionnalites">Fonctionnalités</a><a href="#pilotage">Pilotage</a><a href="#securite">Sécurité</a></nav>
