@@ -19,8 +19,6 @@ export default function Home(){
    <div className="motionHalo motionHaloCyan"/>
    <div className="motionHalo motionHaloViolet"/>
    <div className="motionHalo motionHaloBlue"/>
-   <div className="motionOrbit motionOrbitOne"/>
-   <div className="motionOrbit motionOrbitTwo"/>
   </div>
   <header className="signatureHeader">
    <BrandMark/>
@@ -29,7 +27,7 @@ export default function Home(){
    <details className="signatureMobileNav"><summary aria-label="Afficher la navigation"><span></span><span></span><span></span></summary><nav aria-label="Navigation mobile"><a href="#produit">Produit</a><a href="#fonctionnalites">Fonctionnalités</a><a href="#pilotage">Pilotage</a><a href="#securite">Sécurité</a><Link href="/login">Connexion</Link></nav></details>
   </header>
   <main>
-   <section className="signatureHero"><div className="premiumAmbient" aria-hidden="true"/>
+   <section className="signatureHero"><div className="premiumAmbient" aria-hidden="true"/><div className="sonicWave sonicWaveRight" aria-hidden="true"><span/><span/><span/></div><div className="sonicWave sonicWaveLeft" aria-hidden="true"><span/><span/><span/></div>
     <div className="signatureHeroInner">
      <div className="signatureHeroContent"><div className="premiumHeroMarker" aria-hidden="true"><span>MAGNISA</span><span>01 / 04</span></div>
       <p className="signatureKicker">Pilotage d'entreprise, sans rupture d'information</p>
