@@ -399,3 +399,72 @@
    margin-top:24px;
  }
 }
+
+/* Signature Motion: make desktop copy occupy the same full visual height as VDERA.
+   Existing mobile flow remains natural, without artificial empty height. */
+@media (min-width:1001px){
+ .landing.signature.premiumV2 .signatureHero .signatureHeroInner{
+  align-items:stretch;
+  grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr);
+  gap:clamp(22px,2.5vw,34px);
+ }
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent{
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  align-self:stretch;
+  height:100%;
+  min-height:0;
+  padding:0;
+  margin:0;
+ }
+ .landing.signature.premiumV2 .signatureHero .signatureHeroArt{
+  align-self:stretch;
+  margin:0;
+ }
+ .landing.signature.premiumV2 .signatureHero .heroContentTop,
+ .landing.signature.premiumV2 .signatureHero .heroContentMiddle,
+ .landing.signature.premiumV2 .signatureHero .heroContentBottom{width:100%;flex:0 0 auto}
+ .landing.signature.premiumV2 .signatureHero .heroContentTop{
+  display:flex;
+  flex-direction:column;
+  gap:20px;
+ }
+ .landing.signature.premiumV2 .signatureHero .heroContentMiddle{
+  margin-top:auto;
+  margin-bottom:auto;
+  padding:24px 0;
+ }
+ .landing.signature.premiumV2 .signatureHero .heroContentBottom{
+  margin-top:auto;
+ }
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureKickerMoved{
+  width:100%;max-width:100%;margin:0;padding:0;text-align:left;
+  font-size:clamp(12px,.98vw,14px);line-height:1.65;
+ }
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureHeroLead{
+  width:100%;max-width:100%;margin:0;font-size:17px;line-height:1.7;
+ }
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureCtas{
+  display:flex;flex-wrap:wrap;gap:12px;margin:0;
+ }
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureTrust{
+  max-width:100%;width:100%;margin:0;padding-top:18px;
+  border-top:1px solid #d9e2ef;
+ }
+}
+@media (max-width:1000px){
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent{
+  display:flex;flex-direction:column;gap:20px;height:auto;min-height:0;
+ }
+ .landing.signature.premiumV2 .signatureHero .heroContentTop,
+ .landing.signature.premiumV2 .signatureHero .heroContentMiddle,
+ .landing.signature.premiumV2 .signatureHero .heroContentBottom{
+  width:100%;margin:0;padding:0;
+ }
+ .landing.signature.premiumV2 .signatureHero .heroContentTop{
+  display:flex;flex-direction:column;gap:14px;
+ }
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureHeroLead{margin:0}
+ .landing.signature.premiumV2 .signatureHero .signatureHeroContent .signatureTrust{margin:0}
+}
