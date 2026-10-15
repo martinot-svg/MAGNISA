@@ -130,3 +130,25 @@
 .premiumV2 .signatureVideoFrame::after{content:"";position:absolute;inset:-1px;border-radius:inherit;border:1px solid transparent;background:linear-gradient(115deg,transparent 25%,rgba(24,201,245,.24) 47%,rgba(121,72,245,.20) 53%,transparent 75%) border-box;mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);mask-composite:exclude;pointer-events:none;opacity:0;animation:magniFrameShimmer 13s ease-in-out infinite}
 @keyframes magniFrameShimmer{0%,64%,100%{opacity:0}76%{opacity:.8}88%{opacity:0}}
 @media(prefers-reduced-motion:reduce){.premiumV2 .motionOrbit::before,.premiumV2 .motionOrbit::after,.premiumV2 .signatureVideoFrame::after{animation:none!important;opacity:.24;will-change:auto}}
+
+/* Visible sonic wave pass. Positioned inside hero above its translucent background,
+   but behind headings, CTAs, and VDERA. Three staggered half-arcs per emitter. */
+.premiumV2 .signatureHero{position:relative;isolation:isolate;overflow:hidden}
+.premiumV2 .signatureHeroInner,.premiumV2 .signatureScroll,.premiumV2 .signatureIndex{position:relative;z-index:3}
+.premiumV2 .sonicWave{position:absolute;z-index:2;width:540px;height:340px;pointer-events:none;overflow:visible}
+.premiumV2 .sonicWaveRight{top:4%;right:-7%}
+.premiumV2 .sonicWaveLeft{bottom:-13%;left:-10%;transform:rotate(180deg)}
+.premiumV2 .sonicWave span{position:absolute;inset:0;border-radius:50% 50% 0 0;border:1px solid transparent;border-top-color:rgba(22,99,255,.50);border-left-color:rgba(24,201,245,.20);border-right-color:rgba(121,72,245,.18);border-bottom:none;opacity:0;transform-origin:center bottom;animation:magniSonicExpand 7.2s ease-out infinite;will-change:transform,opacity}
+.premiumV2 .sonicWave span:nth-child(2){inset:23px 36px 0;border-top-color:rgba(24,201,245,.5);animation-delay:2.4s}
+.premiumV2 .sonicWave span:nth-child(3){inset:46px 72px 0;border-top-color:rgba(121,72,245,.48);animation-delay:4.8s}
+.premiumV2 .sonicWaveLeft span{border-top-color:rgba(22,99,255,.35)}
+@keyframes magniSonicExpand{
+  0%{opacity:0;transform:translateY(18px) scale(.76)}
+  13%{opacity:.85}
+  46%{opacity:.62;transform:translateY(-10px) scale(1.04)}
+  78%{opacity:.24}
+  100%{opacity:0;transform:translateY(-28px) scale(1.35)}
+}
+@media(max-width:1000px){.premiumV2 .sonicWaveRight{right:-29%;top:9%}.premiumV2 .sonicWaveLeft{left:-40%;bottom:-7%}}
+@media(max-width:600px){.premiumV2 .sonicWave{width:350px;height:210px}.premiumV2 .sonicWaveRight{right:-160px;top:17%}.premiumV2 .sonicWaveLeft{left:-175px;bottom:0}.premiumV2 .sonicWave span{border-top-color:rgba(22,99,255,.38)}}
+@media(prefers-reduced-motion:reduce){.premiumV2 .sonicWave span{animation:none!important;opacity:.35;transform:none;will-change:auto}}
