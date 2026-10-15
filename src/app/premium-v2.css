@@ -576,3 +576,45 @@
   font-size:9px;
  }
 }
+
+/* Unified vertical rhythm — landing page (desktop / tablet / mobile).
+   Consistent section breathing room; no artificial fixed heights. */
+.landing.signature.premiumV2{
+ --mag-page-space:clamp(64px,6.2vw,92px);
+ --mag-hero-top:clamp(36px,3.6vw,56px);
+ --mag-hero-bottom:clamp(44px,4.4vw,66px);
+}
+.landing.signature.premiumV2 .signatureHero{
+ padding-top:var(--mag-hero-top);
+ padding-bottom:var(--mag-hero-bottom);
+ min-height:0;
+}
+.landing.signature.premiumV2 .signatureSection,
+.landing.signature.premiumV2 .signatureWorkflow,
+.landing.signature.premiumV2 .signatureAnalysis,
+.landing.signature.premiumV2 .signatureSecurity{
+ padding-top:var(--mag-page-space);
+ padding-bottom:var(--mag-page-space);
+}
+.landing.signature.premiumV2 .signatureFooter{
+ padding-top:32px;
+ padding-bottom:32px;
+}
+@media (max-width:1000px){
+ .landing.signature.premiumV2{
+  --mag-page-space:clamp(54px,6.5vw,72px);
+  --mag-hero-top:38px;
+  --mag-hero-bottom:48px;
+ }
+}
+@media (max-width:600px){
+ .landing.signature.premiumV2{
+  --mag-page-space:48px;
+  --mag-hero-top:30px;
+  --mag-hero-bottom:42px;
+ }
+ .landing.signature.premiumV2 .signatureFooter{
+  padding-top:26px;
+  padding-bottom:26px;
+ }
+}
