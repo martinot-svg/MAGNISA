@@ -59,7 +59,7 @@ export default function Home(){
    </section>
    <section id="produit" className="signatureSection signatureProduct">
     <div className="signatureReveal motion-reveal">
-     <p className="signatureLabel">01 / UNE CHAÎNE MÉTIER COHÉRENTE</p>
+     <p className="signatureLabel">UNE GESTION STRUCTURÉE, DE BOUT EN BOUT</p>
      <h2>Une opération saisie une fois. L'information circule partout où elle doit aller.</h2>
      <p className="signatureDescription">MAGNISA relie le commercial, la finance, la comptabilité et l'analyse au lieu de juxtaposer des écrans indépendants.</p>
     </div>
