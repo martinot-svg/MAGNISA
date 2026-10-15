@@ -16,32 +16,6 @@ function PillarIllustration({kind}:{kind:"commercial"|"financial"|"analysis"}){
  if(kind==="commercial") return <div className="magPillarArt magPillarPhoto"><img src="/gestion-commerciale.svg" alt="Présentation d'une analyse commerciale entre professionnels, avec un tableau de bord financier sur ordinateur" loading="lazy" decoding="async"/></div>;
  if(kind==="financial") return <div className="magPillarArt magPillarPhoto"><img src="/gestion-financiere.webp" alt="Flux financiers entre banque, caisse et Mobile Money" loading="lazy" decoding="async"/></div>;
  if(kind==="analysis") return <div className="magPillarArt magPillarPhoto"><img src="/analyse-pilotage.webp" alt="Tableau de bord d’analyse et de pilotage" loading="lazy" decoding="async"/></div>;
- const label=kind==="financial"?"Flux entre les comptes financiers":"Indicateurs et analyse de performance";
- return <div className={`magPillarArt magPillarArt--${kind}`} role="img" aria-label={label}>
-  <svg viewBox="0 0 300 154" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-   <defs>
-    <linearGradient id={`artGradient-${kind}`} x1="30" y1="10" x2="267" y2="143" gradientUnits="userSpaceOnUse"><stop stopColor="#17D7F7"/><stop offset=".48" stopColor="#2863FF"/><stop offset=".78" stopColor="#8248F6"/><stop offset="1" stopColor="#D83DEA"/></linearGradient>
-    <linearGradient id={`artSurface-${kind}`} x1="0" y1="0" x2="1" y2="1"><stop stopColor="#FFFFFF"/><stop offset="1" stopColor="#E8F0FF"/></linearGradient>
-   </defs>
-   <ellipse cx="150" cy="83" rx="129" ry="62" stroke={`url(#artGradient-${kind})`} strokeWidth="1" strokeDasharray="5 8" opacity=".28" className="magOrbit"/>
-   {kind==="financial"?<>
-    <rect x="91" y="21" width="118" height="83" rx="17" fill={`url(#artSurface-${kind})`} stroke="#B8CDFF" strokeWidth="1.5" className="magArtFloat"/>
-    <path d="M120 48L150 31L180 48V53H120V48Z" fill="#D0E8FF" stroke="#2863FF" strokeWidth="2"/><path d="M126 58V80M150 58V80M174 58V80" stroke="#557CFC" strokeWidth="5" strokeLinecap="round"/><path d="M119 86H181" stroke="#2863FF" strokeWidth="4" strokeLinecap="round"/>
-    <path d="M135 107C103 127 70 122 61 113M165 107C197 127 230 122 239 113" stroke={`url(#artGradient-${kind})`} strokeWidth="3" strokeLinecap="round" strokeDasharray="5 6" className="magFlow"/>
-    <rect x="18" y="97" width="80" height="42" rx="12" fill="#E8F9FF" stroke="#26C6F4" strokeWidth="1.5"/><rect x="32" y="109" width="45" height="6" rx="3" fill="#25BDFC"/><rect x="32" y="122" width="29" height="5" rx="2.5" fill="#80D9F6"/>
-    <rect x="202" y="97" width="80" height="42" rx="12" fill="#F5EAFE" stroke="#B88DFE" strokeWidth="1.5"/><rect x="216" y="109" width="45" height="6" rx="3" fill="#9652F6"/><rect x="216" y="122" width="29" height="5" rx="2.5" fill="#D38AF5"/>
-    <circle cx="150" cy="110" r="8" fill="#FFFFFF" stroke="#4468FA" strokeWidth="3" className="magArtPulse"/>
-   </>:<>
-    <rect x="39" y="22" width="222" height="113" rx="17" fill={`url(#artSurface-${kind})`} stroke="#BDC8FA" strokeWidth="1.5" className="magArtFloat"/>
-    <path d="M63 107H239M63 107V46" stroke="#B8C7ED" strokeWidth="2"/>
-    <rect x="81" y="84" width="17" height="23" rx="4" fill="#9DDAFF"/><rect x="114" y="71" width="17" height="36" rx="4" fill="#6E9CFF"/><rect x="147" y="56" width="17" height="51" rx="4" fill="#7659FB"/><rect x="180" y="38" width="17" height="69" rx="4" fill="#BC65EF"/>
-    <path d="M76 83L122 61L154 70L208 35" stroke={`url(#artGradient-${kind})`} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="magFlow"/>
-    <circle cx="208" cy="35" r="8" fill="#FFFFFF" stroke="#D83DEA" strokeWidth="4" className="magArtPulse"/>
-    <rect x="215" y="74" width="32" height="20" rx="8" fill="#EBDDFC"/><path d="M224 84H238" stroke="#9B54EF" strokeWidth="4" strokeLinecap="round"/>
-   </>}
-   <circle cx="24" cy="28" r="4" fill="#1AD4F5" className="magArtPulse"/><circle cx="282" cy="45" r="5" fill="#C750EE" className="magArtPulse"/>
-  </svg>
- </div>;
 }
 
 const steps=["Prospect","Client","Devis","Commande","Facture","Paiement","Trésorerie","Analyse"];
