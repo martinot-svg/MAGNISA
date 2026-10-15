@@ -13,6 +13,7 @@ const pillars=[
 
 /* Lightweight SVG illustrations: animated with CSS, no external image assets. */
 function PillarIllustration({kind}:{kind:"commercial"|"financial"|"analysis"}){
+ if(kind==="commercial") return <div className="magPillarArt magPillarPhoto"><img src="/gestion-commerciale.svg" alt="Présentation d'une analyse commerciale entre professionnels, avec un tableau de bord financier sur ordinateur" loading="lazy" decoding="async"/></div>;
  const label=kind==="commercial"?"Parcours commercial connecté":kind==="financial"?"Flux entre les comptes financiers":"Indicateurs et analyse de performance";
  return <div className={`magPillarArt magPillarArt--${kind}`} role="img" aria-label={label}>
   <svg viewBox="0 0 300 154" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
