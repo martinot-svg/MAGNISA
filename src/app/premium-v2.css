@@ -152,3 +152,39 @@
 @media(max-width:1000px){.premiumV2 .sonicWaveRight{right:-29%;top:9%}.premiumV2 .sonicWaveLeft{left:-40%;bottom:-7%}}
 @media(max-width:600px){.premiumV2 .sonicWave{width:350px;height:210px}.premiumV2 .sonicWaveRight{right:-160px;top:17%}.premiumV2 .sonicWaveLeft{left:-175px;bottom:0}.premiumV2 .sonicWave span{border-top-color:rgba(22,99,255,.38)}}
 @media(prefers-reduced-motion:reduce){.premiumV2 .sonicWave span{animation:none!important;opacity:.35;transform:none;will-change:auto}}
+
+/* HERO FINISHING — 2026-10-15. Screenshot-directed layout corrections.
+   Badge removed in TSX; introductory kicker moves up; video fills the dead zone. */
+.premiumV2 .premiumHeroMarker{display:none!important}
+.premiumV2 .signatureHero{padding-top:36px;padding-bottom:54px}
+.premiumV2 .signatureHeroInner{
+  grid-template-columns:minmax(0,.77fr) minmax(0,1.23fr);
+  gap:clamp(18px,2vw,30px);
+  align-items:start;
+}
+.premiumV2 .signatureHeroContent{padding-top:3px}
+.premiumV2 .signatureKicker{margin:0 0 17px;letter-spacing:.12em;line-height:1.5}
+.premiumV2 .signatureHero h1{
+  font-size:clamp(56px,5.6vw,79px);
+  margin:0;
+  letter-spacing:-.072em;
+  line-height:1.02;
+  max-width:100%;
+}
+.premiumV2 .signatureHeroLead{max-width:465px;margin:25px 0 21px}
+.premiumV2 .signatureHeroArt{min-width:0;width:100%;max-width:none;margin:50px 0 0}
+.premiumV2 .signatureVideoFrame{width:100%;margin:0}
+@media(max-width:1000px){
+ .premiumV2 .signatureHero{padding:38px 5% 52px}
+ .premiumV2 .signatureHeroInner{grid-template-columns:1fr;gap:28px}
+ .premiumV2 .signatureHeroArt{margin:0 auto;max-width:720px}
+ .premiumV2 .signatureHero h1{font-size:clamp(58px,9vw,85px)}
+}
+@media(max-width:600px){
+ .premiumV2 .signatureHero{padding:29px 18px 43px}
+ .premiumV2 .signatureHeroInner{gap:24px}
+ .premiumV2 .signatureKicker{margin-bottom:15px;font-size:9px}
+ .premiumV2 .signatureHero h1{font-size:clamp(47px,11.6vw,65px);line-height:1.03}
+ .premiumV2 .signatureHeroArt{margin:0}
+ .premiumV2 .signatureHeroLead{margin:20px 0}
+}
