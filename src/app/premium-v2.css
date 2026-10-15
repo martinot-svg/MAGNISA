@@ -528,3 +528,14 @@
   margin-top:26px;
  }
 }
+
+/* Hero footer removed: eliminate its formerly reserved lower spacing. */
+@media (min-width:1001px){
+ .landing.signature.premiumV2 .signatureHero{padding-bottom:24px;min-height:0}
+}
+@media (max-width:1000px){
+ .landing.signature.premiumV2 .signatureHero{padding-bottom:28px}
+}
+@media (max-width:600px){
+ .landing.signature.premiumV2 .signatureHero{padding-bottom:24px}
+}
