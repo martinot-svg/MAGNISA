@@ -6,7 +6,7 @@ import {useEffect} from "react";
  * Progressive enhancement: the page remains fully visible without JavaScript.
  * Observed content only animates if IntersectionObserver and motion are allowed.
  */
-export function LandingMotion(){
+export function LandingMotion(): null {
   useEffect(()=>{
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     if(reduced.matches || !("IntersectionObserver" in window)) return;
