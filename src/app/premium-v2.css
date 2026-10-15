@@ -508,3 +508,23 @@
  .landing.signature.premiumV2 .signatureHero .heroContentTop .signatureHeroLead{font-size:15px}
  .landing.signature.premiumV2 .signatureHero .heroContentDetail{font-size:14px}
 }
+
+/* Prevent the in-hero explore link from overlapping the security reassurance.
+   Keep it in document flow beneath the complete two-column hero. */
+.landing.signature.premiumV2 .signatureHero .signatureScroll{
+ position:relative;
+ inset:auto;
+ left:auto;
+ bottom:auto;
+ display:flex;
+ width:max-content;
+ max-width:100%;
+ margin:clamp(28px,3.5vw,44px) 0 0;
+ padding:0;
+ z-index:4;
+}
+@media(max-width:1000px){
+ .landing.signature.premiumV2 .signatureHero .signatureScroll{
+  margin-top:26px;
+ }
+}
