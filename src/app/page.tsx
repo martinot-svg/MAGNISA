@@ -16,7 +16,6 @@ export default function Home(){
  return <div className="landing signature premiumV2">
   <LandingMotion/>
   <div className="motionBg" aria-hidden="true">
-   <div className="motionBgGrid"/>
    <div className="motionHalo motionHaloCyan"/>
    <div className="motionHalo motionHaloViolet"/>
    <div className="motionHalo motionHaloBlue"/>
@@ -30,8 +29,7 @@ export default function Home(){
    <details className="signatureMobileNav"><summary aria-label="Afficher la navigation"><span></span><span></span><span></span></summary><nav aria-label="Navigation mobile"><a href="#produit">Produit</a><a href="#fonctionnalites">Fonctionnalités</a><a href="#pilotage">Pilotage</a><a href="#securite">Sécurité</a><Link href="/login">Connexion</Link></nav></details>
   </header>
   <main>
-   <section className="signatureHero"><div className="premiumGrid" aria-hidden="true"/><div className="premiumAmbient" aria-hidden="true"/>
-    <div className="signatureHeroGrid" aria-hidden="true"></div>
+   <section className="signatureHero"><div className="premiumAmbient" aria-hidden="true"/>
     <div className="signatureHeroInner">
      <div className="signatureHeroContent"><div className="premiumHeroMarker" aria-hidden="true"><span>MAGNISA</span><span>01 / 04</span></div>
       <p className="signatureKicker">Pilotage d'entreprise, sans rupture d'information</p>
