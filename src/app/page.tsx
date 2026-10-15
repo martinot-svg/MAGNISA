@@ -44,6 +44,7 @@ export default function Home(){
       </div>
       <div className="heroContentBottom">
        <div className="signatureTrust"><ShieldCheck size={17} aria-hidden="true"/><span>Données séparées par organisation, permissions serveur et journal d'audit.</span></div>
+       <a className="signatureExploreInline" href="#produit">EXPLORER L’UNIVERS <span aria-hidden="true">↓</span></a>
       </div>
      </div>
      <div className="signatureHeroArt">
