@@ -65,7 +65,7 @@ begin
     (p_org,v_entry,'TREASURY:'||a_from.id::text,a_from.name,0,p_amount,a_from.id);
   perform public.audit_event(p_org,'treasury.transfer','transfer',v_transfer,null,jsonb_build_object('from',a_from.id,'to',a_to.id,'amount',p_amount));
   return v_transfer;
-end;$function$
+end;$function$;
 
 -- =====================================
 -- 4. lot1_04_financial_audit_immutability_test
