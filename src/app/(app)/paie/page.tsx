@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, requirePermission } from "@/lib/permissions";
@@ -131,9 +132,12 @@ async function payPayslip(fd: FormData) {
     throw new Error("Mode de paiement invalide.");
   }
 
-  const { error } = await ctx.supabase.rpc("record_payroll_payment", {
+  const requestKey = String(fd.get("idempotency_key") || "");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestKey)) throw new Error("Cle de requete invalide.");
+  const { error } = await ctx.supabase.rpc("lot2_record_payroll_payment_idempotent", {
     p_org: ctx.organizationId,
     p_payslip: String(fd.get("payslip_id") || ""),
+    p_request_key: requestKey,
     p_account: String(fd.get("financial_account_id") || ""),
     p_amount: amount,
     p_method: method,
@@ -356,6 +360,7 @@ export default async function Payroll() {
                             style={{ display: "grid", gridTemplateColumns: "120px 130px 150px 1fr", gap: 6 }}
                           >
                             <input type="hidden" name="payslip_id" value={s.id} />
+                            <input type="hidden" name="idempotency_key" value={randomUUID()} />
                             <input type="date" name="payment_date" required />
                             <select name="financial_account_id" required>
                               {accounts.map((a: any) => (
