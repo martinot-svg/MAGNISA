@@ -21,6 +21,23 @@ export async function acceptQuote(quoteId:string){ const ctx=await requireOrgani
 export async function convertQuoteToInvoice(quoteId:string){ const ctx=await requireOrganization(); await assertPermission(ctx,"invoices.create"); const {data,error}=await ctx.supabase.rpc("convert_quote_to_invoice",{p_org:ctx.organizationId,p_quote:quoteId}); if(error)throw new Error(error.message); revalidatePath("/factures"); revalidatePath(`/devis/${quoteId}`); return data as string; }
 export async function issueInvoice(invoiceId:string){ const ctx=await requireOrganization(); await assertPermission(ctx,"invoices.issue"); const {error}=await ctx.supabase.rpc("issue_invoice",{p_org:ctx.organizationId,p_invoice:invoiceId}); if(error)throw new Error(error.message); revalidatePath("/factures"); revalidatePath(`/factures/${invoiceId}`); }
 
+export async function reserveCashReceiptReference(requestKey: string, paidAt: string): Promise<string> {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "payments.record");
+  const parsed = z.object({
+    requestKey: z.string().uuid(),
+    paidAt: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+  }).safeParse({ requestKey, paidAt });
+  if (!parsed.success) throw new Error("Date ou demande de reçu invalide.");
+  const { data, error } = await ctx.supabase.rpc("reserve_cash_receipt_reference", {
+    p_org: ctx.organizationId,
+    p_request_key: parsed.data.requestKey,
+    p_paid_at: parsed.data.paidAt,
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
 export async function recordPayment(formData:FormData){
   const ctx=await requireOrganization();
   await assertPermission(ctx,"payments.record");
