@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
@@ -45,6 +46,7 @@ export async function recordPayment(formData:FormData){
   if(!p.success)throw new Error("Paiement invalide.");
   const {error}=await ctx.supabase.rpc("lot1_record_invoice_payment_idempotent",{p_org:ctx.organizationId,p_invoice:p.data.invoice_id,p_account:p.data.financial_account_id,p_amount:p.data.amount,p_paid_at:p.data.paid_at,p_method:p.data.method,p_reference:p.data.reference||null,p_request_key:p.data.idempotency_key});
   if(error)throw new Error(error.message); revalidatePath("/factures"); revalidatePath("/paiements"); revalidatePath("/dashboard");
+  redirect("/paiements?enregistrement=succes");
 }
 
 export async function createExpense(formData:FormData){
