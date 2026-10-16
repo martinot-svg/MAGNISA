@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import {assertPermission, requirePermission } from "@/lib/permissions";
@@ -17,10 +18,10 @@ async function createAccount(fd: FormData) {
     throw new Error("Type de compte invalide.");
   }
 
-  const { error } = await ctx.supabase.from("financial_accounts").insert({
-    organization_id: ctx.organizationId,
-    name,
-    type,
+  const { error } = await ctx.supabase.rpc("lot1_create_financial_account", {
+    p_org: ctx.organizationId,
+    p_name: name,
+    p_type: type,
   });
 
   if (error) throw new Error(error.message);
@@ -98,7 +99,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
           <p className="muted">
             Un transfert déplace la trésorerie entre deux comptes sans créer de chiffre d'affaires ni de charge.
           </p>
-          <form action={transferFunds} className="form">
+          <form action={transferFunds} className="form"><input type="hidden" name="idempotency_key" value={randomUUID()}/>
             <div className="grid2">
               <div className="field">
                 <label>Depuis</label>
