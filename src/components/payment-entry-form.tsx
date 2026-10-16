@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { reserveCashReceiptReference } from "@/server/actions/core";
 
 type InvoiceOption = { id: string; number: string; balance_due: number; customerName: string };
 type AccountOption = { id: string; name: string; type: string };
@@ -21,6 +22,28 @@ export function PaymentEntryForm({
   const [invoiceId, setInvoiceId] = useState("");
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("bank_transfer");
+  const [paidAt, setPaidAt] = useState("");
+  const [requestId, setRequestId] = useState(requestKey);
+  const [cashReference, setCashReference] = useState("");
+  const [cashReferenceLoading, setCashReferenceLoading] = useState(false);
+  const [cashReferenceError, setCashReferenceError] = useState("");
+  useEffect(() => {
+    if (method !== "cash" || !paidAt) {
+      setCashReference("");
+      setCashReferenceLoading(false);
+      setCashReferenceError("");
+      return;
+    }
+    let current = true;
+    setCashReference("");
+    setCashReferenceLoading(true);
+    setCashReferenceError("");
+    reserveCashReceiptReference(requestId, paidAt)
+      .then((reference) => { if (current) setCashReference(reference); })
+      .catch(() => { if (current) setCashReferenceError("Impossible de réserver un numéro de reçu. Réessaie en changeant la date ou en rechargeant la page."); })
+      .finally(() => { if (current) setCashReferenceLoading(false); });
+    return () => { current = false; };
+  }, [method, paidAt, requestId]);
   const invoice = invoices.find((item) => item.id === invoiceId);
   const due = invoice?.balance_due ?? 0;
   const received = amount.trim() === "" ? NaN : Number(amount);
@@ -35,7 +58,7 @@ export function PaymentEntryForm({
 
   return (
     <form action={action} className="form">
-      <input type="hidden" name="idempotency_key" value={requestKey} />
+      <input type="hidden" name="idempotency_key" value={requestId} />
       <div className="field">
         <label htmlFor="payment-invoice">Facture</label>
         <select
@@ -114,27 +137,53 @@ export function PaymentEntryForm({
       </div>
       <div className="field">
         <label htmlFor="payment-date">Date</label>
-        <input id="payment-date" name="paid_at" type="date" required />
+        <input
+          id="payment-date"
+          name="paid_at"
+          type="date"
+          value={paidAt}
+          onChange={(event) => {
+            setPaidAt(event.target.value);
+            setRequestId(crypto.randomUUID());
+          }}
+          required
+        />
       </div>
       <div className="field">
         <label htmlFor="payment-reference">
-          {method === "cash" ? "Référence du reçu de caisse" : "Référence réelle de transaction"}
+          {method === "cash" ? "Référence automatique du reçu de caisse" : "Référence réelle de transaction"}
         </label>
-        <input
-          id="payment-reference"
-          name="reference"
-          key={method}
-          placeholder={method === "cash" ? "Générée automatiquement (REC-AAAA-00001)" : "Référence figurant sur le justificatif"}
-          readOnly={method === "cash"}
-          disabled={method === "cash"}
-        />
         {method === "cash" ? (
-          <small>MAGNISA attribuera un numéro de reçu de caisse unique à l'enregistrement. Le reçu apparaîtra dans la liste des paiements.</small>
+          <>
+            <input
+              id="payment-reference"
+              name="reference"
+              value={cashReference}
+              placeholder={cashReferenceLoading ? "Réservation en cours…" : "Choisir une date pour générer la référence"}
+              readOnly
+              required
+              aria-describedby="cash-reference-help"
+            />
+            <small id="cash-reference-help">
+              {cashReference
+                ? "Numéro réservé : il sera conservé lors de l'enregistrement. Champ non modifiable."
+                : "Sélectionne la date du paiement. MAGNISA réservera automatiquement un numéro unique."}
+            </small>
+            {cashReferenceError && <p className="error" role="alert">{cashReferenceError}</p>}
+          </>
         ) : (
-          <small>Saisis la référence réelle communiquée par la banque ou l'opérateur, sans ajouter de préfixe artificiel.</small>
+          <>
+            <input
+              id="payment-reference"
+              name="reference"
+              key={method}
+              placeholder="Référence figurant sur le justificatif"
+            />
+            <small>Saisis la référence réelle communiquée par la banque ou l'opérateur, sans préfixe artificiel.</small>
+          </>
         )}
       </div>
-      <button className="button primary" disabled={!valid || !accounts.length}>
+      <button className="button primary" disabled={!valid || !accounts.length || (method === "cash" && (!cashReference || cashReferenceLoading))}>
         Enregistrer
       </button>
     </form>
