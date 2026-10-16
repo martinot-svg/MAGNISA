@@ -20,6 +20,7 @@ export function PaymentEntryForm({
 }) {
   const [invoiceId, setInvoiceId] = useState("");
   const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState("bank_transfer");
   const invoice = invoices.find((item) => item.id === invoiceId);
   const due = invoice?.balance_due ?? 0;
   const received = amount.trim() === "" ? NaN : Number(amount);
@@ -93,7 +94,7 @@ export function PaymentEntryForm({
       )}
       <div className="field">
         <label htmlFor="payment-method">Mode</label>
-        <select id="payment-method" name="method">
+        <select id="payment-method" name="method" value={method} onChange={(event) => setMethod(event.target.value)}>
           <option value="bank_transfer">Virement bancaire</option>
           <option value="cash">Espèces</option>
           <option value="mobile_money">Mobile Money</option>
@@ -116,8 +117,22 @@ export function PaymentEntryForm({
         <input id="payment-date" name="paid_at" type="date" required />
       </div>
       <div className="field">
-        <label htmlFor="payment-reference">Référence</label>
-        <input id="payment-reference" name="reference" />
+        <label htmlFor="payment-reference">
+          {method === "cash" ? "Référence du reçu de caisse" : "Référence réelle de transaction"}
+        </label>
+        <input
+          id="payment-reference"
+          name="reference"
+          key={method}
+          placeholder={method === "cash" ? "Générée automatiquement (REC-AAAA-00001)" : "Référence figurant sur le justificatif"}
+          readOnly={method === "cash"}
+          disabled={method === "cash"}
+        />
+        {method === "cash" ? (
+          <small>MAGNISA attribuera un numéro de reçu de caisse unique à l'enregistrement. Le reçu apparaîtra dans la liste des paiements.</small>
+        ) : (
+          <small>Saisis la référence réelle communiquée par la banque ou l'opérateur, sans ajouter de préfixe artificiel.</small>
+        )}
       </div>
       <button className="button primary" disabled={!valid || !accounts.length}>
         Enregistrer
