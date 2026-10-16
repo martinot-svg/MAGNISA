@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { requirePermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
@@ -79,9 +80,12 @@ async function paySupplier(fd: FormData) {
     throw new Error("Mode de paiement invalide.");
   }
 
-  const { error } = await ctx.supabase.rpc("record_supplier_payment", {
+  const requestKey = String(fd.get("idempotency_key") || "");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestKey)) throw new Error("Cle de requete invalide.");
+  const { error } = await ctx.supabase.rpc("lot2_record_supplier_payment_idempotent", {
     p_org: ctx.organizationId,
     p_supplier_invoice: String(fd.get("supplier_invoice_id") || ""),
+    p_request_key: requestKey,
     p_account: String(fd.get("financial_account_id") || ""),
     p_amount: amount,
     p_method: method,
@@ -244,6 +248,7 @@ export default async function Suppliers(){const ctx=await requireOrganization();
                           style={{ display: "flex", gap: 6, justifyContent: "flex-end", minWidth: 420 }}
                         >
                           <input type="hidden" name="supplier_invoice_id" value={x.id} />
+                          <input type="hidden" name="idempotency_key" value={randomUUID()} />
                           <input name="payment_date" type="date" required />
                           <select name="financial_account_id" required>
                             {accounts.map((a: any) => (
