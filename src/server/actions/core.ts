@@ -26,7 +26,7 @@ export async function reserveCashReceiptReference(requestKey: string, paidAt: st
   await assertPermission(ctx, "payments.record");
   const parsed = z.object({
     requestKey: z.string().uuid(),
-    paidAt: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+    paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   }).safeParse({ requestKey, paidAt });
   if (!parsed.success) throw new Error("Date ou demande de reçu invalide.");
   const { data, error } = await ctx.supabase.rpc("reserve_cash_receipt_reference", {
