@@ -21,7 +21,7 @@ export function PaymentEntryForm({
 }) {
   const [invoiceId, setInvoiceId] = useState("");
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("bank_transfer");
+  const [method, setMethod] = useState("");
   const [paidAt, setPaidAt] = useState("");
   const [requestId, setRequestId] = useState(requestKey);
   const [cashReference, setCashReference] = useState("");
@@ -117,7 +117,8 @@ export function PaymentEntryForm({
       )}
       <div className="field">
         <label htmlFor="payment-method">Mode</label>
-        <select id="payment-method" name="method" value={method} onChange={(event) => setMethod(event.target.value)}>
+        <select id="payment-method" name="method" value={method} required onChange={(event) => setMethod(event.target.value)}>
+          <option value="">Sélectionner</option>
           <option value="bank_transfer">Virement bancaire</option>
           <option value="cash">Espèces</option>
           <option value="mobile_money">Mobile Money</option>
@@ -183,7 +184,7 @@ export function PaymentEntryForm({
           </>
         )}
       </div>
-      <button className="button primary" disabled={!valid || !accounts.length || (method === "cash" && (!cashReference || cashReferenceLoading))}>
+      <button className="button primary" disabled={!valid || !accounts.length || !method || (method === "cash" && (!cashReference || cashReferenceLoading))}>
         Enregistrer
       </button>
     </form>
