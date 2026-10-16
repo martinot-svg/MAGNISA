@@ -350,7 +350,6 @@ export default async function Payroll() {
                         {s.status === "calculated" ? (
                           <form action={validatePayslip}>
                             <input type="hidden" name="payslip_id" value={s.id} />
-                            <input type="hidden" name="idempotency_key" value={randomUUID()} />
                             <button className="button">Valider & comptabiliser</button>
                           </form>
                         ) : ["validated", "partially_paid"].includes(s.status) &&
@@ -361,6 +360,7 @@ export default async function Payroll() {
                             style={{ display: "grid", gridTemplateColumns: "120px 130px 150px 1fr", gap: 6 }}
                           >
                             <input type="hidden" name="payslip_id" value={s.id} />
+                            <input type="hidden" name="idempotency_key" value={randomUUID()} />
                             <input type="date" name="payment_date" required />
                             <select name="financial_account_id" required>
                               {accounts.map((a: any) => (
