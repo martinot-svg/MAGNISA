@@ -48,6 +48,7 @@ export default async function Accounting() {
     { data: invoiceReconciliation = [], error: invoiceReconciliationError },
     { data: supplierReconciliation = [], error: supplierReconciliationError },
     { data: accountReconciliation = [], error: accountReconciliationError },
+    { data: payrollReconciliation = [], error: payrollReconciliationError },
   ] = await Promise.all([
     supabase.from("journal_entries")
       .select("id,entry_date,reference,description,status,total_debit,total_credit")
@@ -63,11 +64,12 @@ export default async function Accounting() {
     supabase.from("magnisa_invoice_reconciliation").select("invoice_id,number,reconciliation_status,payment_difference,allocation_difference").eq("organization_id", organizationId),
     supabase.from("magnisa_supplier_reconciliation").select("supplier_invoice_id,supplier_number,reconciliation_status,payment_difference,allocation_difference").eq("organization_id", organizationId),
     supabase.from("magnisa_account_reconciliation").select("financial_account_id,name,reconciliation_status,balance_difference").eq("organization_id", organizationId),
+    supabase.from("magnisa_payroll_reconciliation").select("payslip_id,reconciliation_status,payment_difference").eq("organization_id", organizationId),
   ]);
 
-  if (entryError || organizationError || balanceError || integrityError || catalogError || invoiceReconciliationError || supplierReconciliationError || accountReconciliationError) {
+  if (entryError || organizationError || balanceError || integrityError || catalogError || invoiceReconciliationError || supplierReconciliationError || accountReconciliationError || payrollReconciliationError) {
     throw new Error("Impossible de charger la comptabilite PCG 2005 : " +
-      [entryError, organizationError, balanceError, integrityError, catalogError, invoiceReconciliationError, supplierReconciliationError, accountReconciliationError].filter(Boolean)
+      [entryError, organizationError, balanceError, integrityError, catalogError, invoiceReconciliationError, supplierReconciliationError, accountReconciliationError, payrollReconciliationError].filter(Boolean)
         .map(e => e!.message).join(" ; "));
   }
 
@@ -81,7 +83,8 @@ export default async function Accounting() {
   const invoiceGaps = (invoiceReconciliation || []).filter((r: any) => r.reconciliation_status !== "ok");
   const supplierGaps = (supplierReconciliation || []).filter((r: any) => r.reconciliation_status !== "ok");
   const accountGaps = (accountReconciliation || []).filter((r: any) => r.reconciliation_status !== "ok");
-  const reconciliationCount = invoiceGaps.length + supplierGaps.length + accountGaps.length;
+  const payrollGaps = (payrollReconciliation || []).filter((r: any) => r.reconciliation_status !== "ok");
+  const reconciliationCount = invoiceGaps.length + supplierGaps.length + accountGaps.length + payrollGaps.length;
 
   return <>
     <div className="pageHead">
@@ -115,6 +118,7 @@ export default async function Accounting() {
           <div><strong>Factures clients</strong><p>{(invoiceReconciliation || []).length} vérifiées — {invoiceGaps.length} écart(s)</p></div>
           <div><strong>Factures fournisseurs</strong><p>{(supplierReconciliation || []).length} vérifiées — {supplierGaps.length} écart(s)</p></div>
           <div><strong>Comptes financiers</strong><p>{(accountReconciliation || []).length} vérifiés — {accountGaps.length} écart(s)</p></div>
+          <div><strong>Bulletins de paie</strong><p>{(payrollReconciliation || []).length} vérifiés — {payrollGaps.length} écart(s)</p></div>
         </div>
         {reconciliationCount > 0 && <div role="alert">
           <p><strong>{reconciliationCount} anomalie(s) à investiguer avant validation comptable.</strong></p>
@@ -122,6 +126,7 @@ export default async function Accounting() {
             {invoiceGaps.map((r: any) => <li key={r.invoice_id}>Facture {r.number} : {r.reconciliation_status} ; écart règlements {money(r.payment_difference, currency)} ; écart solde {money(r.allocation_difference, currency)}</li>)}
             {supplierGaps.map((r: any) => <li key={r.supplier_invoice_id}>Fournisseur {r.supplier_number} : {r.reconciliation_status} ; écart règlements {money(r.payment_difference, currency)}</li>)}
             {accountGaps.map((r: any) => <li key={r.financial_account_id}>Compte {r.name} : {r.reconciliation_status} ; écart {money(r.balance_difference, currency)}</li>)}
+            {payrollGaps.map((r: any) => <li key={r.payslip_id}>Bulletin de paie {r.payslip_id} : {r.reconciliation_status} ; écart {money(r.payment_difference, currency)}</li>)}
           </ul>
         </div>}
       </section>
