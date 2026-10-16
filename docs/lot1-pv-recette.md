@@ -24,9 +24,9 @@ Production : hors périmètre, interdiction de fusionner vers `main` à ce stade
 - [ ] Auth réelle via Supabase GoTrue avec jeton signé et cookies SSR ; les SQL SET ROLE / request.jwt.claim.sub sont des simulations du contexte JWT.
 - [ ] Navigateur interactif : inscription, OTP, connexion, onboarding, création de compte, facture, paiement et contrôle des messages.
 - [ ] Résultat vérifié des requêtes runtime Preview sous session authentifiée (non déduit du seul succès de build).
-- [ ] Tests de deux clés différentes payant simultanément le dernier montant dû.
+- [x] Deux demandes simultanées avec clés différentes de 60 MGA sur solde restant 75 MGA : 1 acceptée, seconde rejetée, 15 MGA restants.
 - [ ] Tests de navigateur sur mobile et desktop, accessibilité et erreurs réseau.
-- [ ] Nettoyage sécurisé des données du test SQL concurrent : 1 organisation fictive, 1 utilisateur fictif, 1 paiement fictif et 1 mouvement fictif persistent ; ne pas employer de TRUNCATE destructif ni désactiver les triggers hors procédure de nettoyage test contrôlée.
+- [x] Nettoyage réussi : suppression ordonnée des dépendances, organisation et identité fictives ; 0 organisation, 0 paiement, 0 mouvement, 0 audit, 0 utilisateur fictif ; audit trigger actif.
 - [ ] Test indépendant d'éventuelles autres dépendances du projet (Mail, callbacks, domaine de redirection).
 - [ ] Sauvegarde/restauration et stratégie de retour arrière production.
 
@@ -50,3 +50,12 @@ Production : hors périmètre, interdiction de fusionner vers `main` à ce stade
 10. Nettoyer les données d'essai par procédure contrôlée, conserver traces de recette et rapport.
 
 Décision : **non prêt pour promotion production** tant que la recette Auth+navigateur n'est pas approuvée.
+
+## Complément de recette — 2026-10-16
+- Deux appels concurrents avec même clé : UUID de paiement identique, un seul paiement créé.
+- Deux appels concurrents avec clés distinctes : une tentative bloquée par solde restant insuffisant.
+- Suppression des fixtures confirmée : MAGNISA-TEST est vide de toute donnée métier de recette et de son utilisateur temporaire.
+- Les media queries CSS à 980 et 620 px existent, mais l'affichage responsive n'a pas été testé dans un navigateur.
+- Le navigateur réel, OTP e-mail, jetons Auth signés, cookies SSR et parcours des formulaires restent non validés ; pas de navigateur pilotable ni accès HTTP externe dans la session.
+- Les anciennes RPC sous-jacentes disposent potentiellement de leurs droits EXECUTE historiques : l'idempotence n'est pas universelle tant que toutes les voies d'écriture ne sont pas auditées.
+- Ne pas fusionner la branche ni appliquer les migrations en production sans recette bout en bout.
