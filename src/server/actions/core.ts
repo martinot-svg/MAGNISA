@@ -60,6 +60,15 @@ export async function recordPayment(formData:FormData){
   if(isMvola && (feeAmount===undefined || !Number.isFinite(feeAmount) || (p.data.mvola_fee_option==="with_fees" && feeAmount<=0))){
     throw new Error("Indique le remboursement des frais réellement reçu sur MVola.");
   }
+  if (isMvola) {
+    const {data: wallet, error: walletError}=await ctx.supabase.from("financial_accounts")
+      .select("id,name,type,is_active").eq("organization_id",ctx.organizationId)
+      .eq("id",p.data.financial_account_id).maybeSingle();
+    if(walletError)throw new Error(walletError.message);
+    if(!wallet||!wallet.is_active||wallet.type!=="mobile_money"||wallet.name.trim().toLowerCase()!=="mvola"){
+      throw new Error("Sélectionne un compte MVola actif correspondant à l'opérateur du paiement.");
+    }
+  }
   const paymentArgs={
     p_org:ctx.organizationId,p_invoice:p.data.invoice_id,
     p_account:p.data.financial_account_id,p_amount:p.data.amount,
