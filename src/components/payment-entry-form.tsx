@@ -6,30 +6,6 @@ import { reserveCashReceiptReference } from "@/server/actions/core";
 type InvoiceOption = { id: string; number: string; balance_due: number; customerName: string };
 type AccountOption = { id: string; name: string; type: string };
 
-// Barème Cash Point MVola communiqué par l'utilisateur (MGA TTC).
-// Estimation seulement : les frais réels sont constatés lors du retrait.
-const MVOLA_WITHDRAWAL_FEES: ReadonlyArray<readonly [number, number]> = [
-  [1_000, 100], [5_000, 150], [10_000, 275], [20_000, 550],
-  [25_000, 650], [50_000, 1_300], [100_000, 1_900],
-  [250_000, 3_400], [500_000, 4_700], [1_000_000, 8_800],
-  [2_000_000, 14_700], [3_000_000, 19_600],
-  [4_000_000, 24_500], [5_000_000, 29_400],
-  [6_000_000, 34_300], [7_000_000, 39_200],
-  [8_000_000, 44_100], [9_000_000, 49_000],
-  [10_000_000, 53_900], [11_000_000, 59_000],
-  [12_000_000, 64_000], [13_000_000, 69_000],
-  [14_000_000, 74_000], [15_000_000, 79_000],
-  [16_000_000, 84_000], [17_000_000, 89_000],
-  [18_000_000, 94_000], [19_000_000, 98_000],
-  [20_000_000, 100_000],
-];
-
-function mvolaWithdrawalFee(amount: number, channel: "cash_point" | "bred"): number | null {
-  if (!Number.isInteger(amount) || amount < 100 || amount > 20_000_000) return null;
-  if (channel === "bred" && (amount < 5_001 || amount > 500_000)) return null;
-  return MVOLA_WITHDRAWAL_FEES.find(([maximum]) => amount <= maximum)?.[1] ?? null;
-}
-
 export function PaymentEntryForm({
   invoices,
   accounts,
@@ -48,6 +24,7 @@ export function PaymentEntryForm({
   const [method, setMethod] = useState("");
   const [paidAt, setPaidAt] = useState("");
   const [mobileOperator, setMobileOperator] = useState("");
+  const [mvolaFeeOption, setMvolaFeeOption] = useState("");
   const [requestId, setRequestId] = useState(requestKey);
   const [cashReference, setCashReference] = useState("");
   const [cashReferenceLoading, setCashReferenceLoading] = useState(false);
@@ -73,8 +50,7 @@ export function PaymentEntryForm({
   const due = invoice?.balance_due ?? 0;
   const received = amount.trim() === "" ? NaN : Number(amount);
   const valid = !!invoice && Number.isFinite(received) && received > 0 && received <= due;
-  const showMvola = method === "mobile_money" && mobileOperator === "mvola" && currency === "MGA";
-  const withdrawalFee = showMvola && valid ? mvolaWithdrawalFee(received, "cash_point") : null;
+  const showMvola = method === "mobile_money" && mobileOperator === "mvola";
   const remaining = valid ? Math.max(0, Math.round((due - received) * 100) / 100) : null;
   const formatter = new Intl.NumberFormat("fr-FR", {
     style: "currency",
@@ -159,8 +135,9 @@ export function PaymentEntryForm({
           <label htmlFor="payment-mobile-operator">Opérateur Mobile Money</label>
           <select
             id="payment-mobile-operator"
+            name="mobile_operator"
             value={mobileOperator}
-            onChange={(event) => setMobileOperator(event.target.value)}
+            onChange={(event) => { setMobileOperator(event.target.value); setMvolaFeeOption(""); }}
             required
           >
             <option value="">Sélectionner</option>
@@ -170,24 +147,20 @@ export function PaymentEntryForm({
         </div>
       )}
       {showMvola && (
-        <section className="card" aria-label="Frais de retrait MVola estimés" aria-live="polite">
-          <h3>Frais de retrait MVola estimés</h3>
-          {withdrawalFee === null ? (
-            <small>Tarif indisponible pour ce montant (Cash Point MVola).</small>
-          ) : (
-            <>
-              <div className="field">
-                <span className="muted">Frais de retrait (Cash Point)</span>
-                <strong>{formatter.format(withdrawalFee)}</strong>
-              </div>
-              <div className="field">
-                <span className="muted">Net estimé si frais déduits</span>
-                <strong>{formatter.format(received - withdrawalFee)}</strong>
-              </div>
-            </>
-          )}
-          <small>Indication uniquement : la facture reste réglée à hauteur du paiement reçu. Les frais réels sont enregistrés lors du retrait.</small>
-        </section>
+        <div className="field">
+          <label htmlFor="payment-mvola-fee-option">Frais de retrait MVola</label>
+          <select
+            id="payment-mvola-fee-option"
+            name="mvola_fee_option"
+            value={mvolaFeeOption}
+            onChange={(event) => setMvolaFeeOption(event.target.value)}
+            required
+          >
+            <option value="">Sélectionner</option>
+            <option value="with_fees">Avec frais — pris en charge par le client</option>
+            <option value="without_fees">Sans frais — non pris en charge par le client</option>
+          </select>
+        </div>
       )}
       <div className="field">
         <label htmlFor="payment-account">Compte destinataire</label>
@@ -246,7 +219,7 @@ export function PaymentEntryForm({
           </>
         )}
       </div>
-      <button className="button primary" disabled={!valid || !accounts.length || !method || (method === "mobile_money" && !mobileOperator) || (method === "cash" && (!cashReference || cashReferenceLoading))}>
+      <button className="button primary" disabled={!valid || !accounts.length || !method || (method === "mobile_money" && !mobileOperator) || (showMvola && !mvolaFeeOption) || (method === "cash" && (!cashReference || cashReferenceLoading))}>
         Enregistrer
       </button>
     </form>
