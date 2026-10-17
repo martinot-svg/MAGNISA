@@ -2,7 +2,7 @@
 import {useState} from "react";
 type Props={active:number;total:number;inflows:number;outflows:number};
 export function TreasuryDashboardChart({active,total,inflows,outflows}:Props){
- const [mode,setMode]=useState<"bar"|"donut">("bar");
+ const [mode,setMode]=useState<"bar"|"donut"|"kpi">("bar");
  const values=[{name:"Comptes actifs",value:active},{name:"Comptes de trésorerie",value:total},{name:"Entrées enregistrées",value:inflows},{name:"Sorties enregistrées",value:outflows}];
  const max=Math.max(1,...values.map(v=>v.value));
  const inactive=Math.max(0,total-active);
@@ -12,12 +12,12 @@ export function TreasuryDashboardChart({active,total,inflows,outflows}:Props){
    <h3 style={{margin:0}}>Indicateurs de trésorerie</h3>
    <div className="field" style={{margin:0}}>
     <label htmlFor="treasury-chart-choice">Type de graphique</label>
-    <select id="treasury-chart-choice" value={mode} onChange={e=>setMode(e.target.value as "bar"|"donut")}>
-     <option value="bar">Histogramme</option><option value="donut">Anneau</option>
+    <select id="treasury-chart-choice" value={mode} onChange={e=>setMode(e.target.value as "bar"|"donut"|"kpi")}>
+     <option value="bar">Histogramme</option><option value="donut">Anneau</option><option value="kpi">Indicateurs KPI</option>
     </select>
    </div>
   </div>
-  {mode==="bar"?<div role="img" aria-label={values.map(v=>v.name+": "+v.value).join(", ")} style={{display:"grid",gap:14}}>
+  {mode==="kpi"?<div className="grid2" aria-label="Indicateurs KPI de trésorerie">{values.map(v=><div key={v.name} className="card" style={{padding:16}}><div className="muted">{v.name}</div><div className="metric">{v.value}</div></div>)}</div>:mode==="bar"?<div role="img" aria-label={values.map(v=>v.name+": "+v.value).join(", ")} style={{display:"grid",gap:14}}>
    {values.map(v=><div key={v.name} style={{display:"grid",gridTemplateColumns:"minmax(135px,1fr) minmax(90px,2fr) 50px",alignItems:"center",gap:12}}>
     <span>{v.name}</span>
     <div style={{height:22,background:"var(--surface-2, #e5e7eb)",borderRadius:6,overflow:"hidden"}}>
