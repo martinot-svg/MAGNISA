@@ -25,6 +25,7 @@ type PaymentInfo = {
 };
 
 function itemLabel(entry: Movement) {
+  if (entry.source_type === "mvola_fee_contribution") return "Remboursement frais MVola";
   if (entry.source_type === "payment" || entry.kind === "customer_payment") return "Encaissement de facture";
   if (entry.kind === "transfer_in") return "Transfert entrant";
   if (entry.kind === "transfer_out") return "Transfert sortant";
@@ -69,7 +70,7 @@ export default async function AccountStatement({
 
   const capped = (rawMovements ?? []).length > 200;
   const movements = ((rawMovements ?? []).slice(0, 200)) as Movement[];
-  const paymentIds = [...new Set(movements.filter((m) => m.source_type === "payment" && m.source_id).map((m) => m.source_id!))];
+  const paymentIds = [...new Set(movements.filter((m) => (m.source_type === "payment" || m.source_type === "mvola_fee_contribution") && m.source_id).map((m) => m.source_id!))];
   const paymentById = new Map<string, PaymentInfo>();
   if (paymentIds.length) {
     const { data: payments, error: paymentError } = await supabase
@@ -129,7 +130,7 @@ export default async function AccountStatement({
               </thead>
               <tbody>
                 {movements.map((entry) => {
-                  const payment = entry.source_type === "payment" && entry.source_id
+                  const payment = (entry.source_type === "payment" || entry.source_type === "mvola_fee_contribution") && entry.source_id
                     ? paymentById.get(entry.source_id)
                     : undefined;
                   const invoice = payment ? relatedName(payment.invoices) : null;
@@ -137,7 +138,7 @@ export default async function AccountStatement({
                   const detail = [invoice?.number, customer?.name].filter(Boolean).join(" · ");
                   const feeLabel = account.type === "mobile_money" && payment
                     ? payment.mvola_withdrawal_fee_option === "with_fees"
-                      ? "Pris en charge par le client (déclaré)"
+                      ? "Avec remboursement client"
                       : payment.mvola_withdrawal_fee_option === "without_fees"
                         ? "Non pris en charge par le client"
                         : "Non renseigné"
@@ -161,9 +162,8 @@ export default async function AccountStatement({
         )}
         {account.type === "mobile_money" && (
           <p className="muted">
-            « Avec frais » ou « Sans frais » indique la prise en charge déclarée lors du paiement,
-            sans prouver un complément reçu. Aucun frais estimé n'est débité automatiquement :
-            seuls les mouvements financiers effectivement enregistrés apparaissent ici.
+            Les remboursements réellement encaissés apparaissent comme mouvements distincts, liés aux factures.
+            Les frais estimés ne sont pas débités automatiquement : seuls les mouvements enregistrés figurent ici.
           </p>
         )}
       </section>
