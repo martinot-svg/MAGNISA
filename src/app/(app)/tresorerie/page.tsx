@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import {assertPermission, requirePermission } from "@/lib/permissions";
@@ -61,6 +62,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
                 <div className="card" key={a.id}>
                   <div className="muted">{a.type}</div>
                   <h3>{a.name}</h3>
+                  <Link href={`/tresorerie/comptes/${a.id}`} className="button">Voir les mouvements</Link>
                   <div className="metric">{money(a.balance, org?.currency || "MGA")}</div>
                   {!a.is_active && <div className="muted">Compte inactif</div>}
                 </div>
