@@ -104,3 +104,24 @@ export async function addInvoiceLine(formData:FormData){const ctx=await requireO
 export async function duplicateQuoteAction(quoteId:string){const ctx=await requireOrganization();await assertPermission(ctx,"quotes.create");const {data,error}=await ctx.supabase.rpc("duplicate_quote",{p_org:ctx.organizationId,p_quote:quoteId});if(error)throw new Error(error.message);return data as string}
 export async function cancelInvoiceAction(formData:FormData){const ctx=await requireOrganization();await assertPermission(ctx,"invoices.cancel");const id=String(formData.get("invoice_id")||"");const reason=String(formData.get("reason")||"");const {error}=await ctx.supabase.rpc("cancel_invoice",{p_org:ctx.organizationId,p_invoice:id,p_reason:reason});if(error)throw new Error(error.message);revalidatePath(`/factures/${id}`);revalidatePath('/factures');revalidatePath('/dashboard')}
 export async function transferFunds(formData:FormData){const ctx=await requireOrganization();await assertPermission(ctx,"treasury.transfer");const p=z.object({from:z.string().uuid(),to:z.string().uuid(),amount:z.coerce.number().positive(),date:z.string().min(8),reference:z.string().optional(),idempotency_key:z.string().uuid()}).safeParse(Object.fromEntries(formData));if(!p.success)throw new Error("Transfert invalide.");const {error}=await ctx.supabase.rpc("lot1_transfer_funds_idempotent",{p_org:ctx.organizationId,p_from:p.data.from,p_to:p.data.to,p_amount:p.data.amount,p_date:p.data.date,p_reference:p.data.reference||null,p_request_key:p.data.idempotency_key});if(error)throw new Error(error.message);revalidatePath('/tresorerie');revalidatePath('/dashboard')}
+
+export async function recordInternalTransferDebit(fd:FormData){
+ const ctx=await requireOrganization();await assertPermission(ctx,"treasury.transfer");
+ const p=z.object({source:z.string().uuid(),destination:z.string().uuid(),date:z.string().date(),
+  source_debit:z.coerce.number().positive(),destination_credit:z.coerce.number().positive(),
+  operator_fee:z.coerce.number().nonnegative(),reference:z.string().trim().min(2),request_key:z.string().uuid()}).safeParse(Object.fromEntries(fd));
+ if(!p.success)throw new Error("Données du transfert invalides.");
+ const v=p.data;
+ if(Math.abs(v.source_debit-v.destination_credit-v.operator_fee)>0.005)throw new Error("Débit source = crédit attendu + frais constatés.");
+ const {error}=await ctx.supabase.rpc("magnisa_record_transfer_debit",{p_org:ctx.organizationId,p_source:v.source,p_destination:v.destination,p_date:v.date,p_source_debit:v.source_debit,p_destination_credit:v.destination_credit,p_fee:v.operator_fee,p_reference:v.reference,p_request_key:v.request_key});
+ if(error)throw new Error(error.message);
+ revalidatePath("/tresorerie");revalidatePath("/dashboard");revalidatePath("/tresorerie/comptes/"+v.source);
+}
+export async function confirmInternalTransferCredit(fd:FormData){
+ const ctx=await requireOrganization();await assertPermission(ctx,"treasury.transfer");
+ const p=z.object({transfer_id:z.string().uuid(),date:z.string().date(),reference:z.string().trim().min(2)}).safeParse(Object.fromEntries(fd));
+ if(!p.success)throw new Error("Confirmation du crédit invalide.");
+ const {error}=await ctx.supabase.rpc("magnisa_confirm_transfer_credit",{p_org:ctx.organizationId,p_transfer:p.data.transfer_id,p_date:p.data.date,p_reference:p.data.reference});
+ if(error)throw new Error(error.message);
+ revalidatePath("/tresorerie");revalidatePath("/dashboard");
+}
