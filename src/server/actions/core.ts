@@ -49,11 +49,16 @@ export async function recordPayment(formData:FormData){
     reference:z.string().optional(),idempotency_key:z.string().uuid(),
     mobile_operator:z.string().optional(),
     mvola_fee_option:z.string().optional(),
+    mvola_fee_amount:z.coerce.number().nonnegative().optional(),
   }).safeParse(Object.fromEntries(formData));
   if(!p.success)throw new Error("Paiement invalide.");
   const isMvola=p.data.method==="mobile_money"&&p.data.mobile_operator==="mvola";
   if(isMvola&&!["with_fees","without_fees"].includes(p.data.mvola_fee_option??"")){
     throw new Error("Indique si le client prend en charge les frais MVola.");
+  }
+  const feeAmount=p.data.mvola_fee_option==="with_fees"?p.data.mvola_fee_amount:0;
+  if(isMvola && (feeAmount===undefined || !Number.isFinite(feeAmount) || (p.data.mvola_fee_option==="with_fees" && feeAmount<=0))){
+    throw new Error("Indique le remboursement des frais réellement reçu sur MVola.");
   }
   const paymentArgs={
     p_org:ctx.organizationId,p_invoice:p.data.invoice_id,
@@ -62,8 +67,12 @@ export async function recordPayment(formData:FormData){
     p_reference:p.data.reference||null,p_request_key:p.data.idempotency_key,
   };
   const {error}=isMvola
-    ?await ctx.supabase.rpc("record_mvola_invoice_payment_with_fee_option",{
-      ...paymentArgs,p_fee_option:p.data.mvola_fee_option,
+    ?await ctx.supabase.rpc("record_mvola_payment_with_reimbursement",{
+      p_org:ctx.organizationId,p_invoice:p.data.invoice_id,
+      p_account:p.data.financial_account_id,p_amount:p.data.amount,
+      p_paid_at:p.data.paid_at,p_reference:p.data.reference||null,
+      p_request_key:p.data.idempotency_key,p_fee_option:p.data.mvola_fee_option,
+      p_fee_reimbursement:feeAmount,
     })
     :await ctx.supabase.rpc("lot1_record_invoice_payment_idempotent",paymentArgs);
   if(error)throw new Error(error.message);
