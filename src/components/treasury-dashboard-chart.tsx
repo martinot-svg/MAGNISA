@@ -27,7 +27,7 @@ export function TreasuryDashboardChart({active,total,inflows,outflows}:Props){
   </div>:<div style={{display:"flex",gap:22,flexWrap:"wrap",alignItems:"center"}}>
    <div role="img" aria-label={total===0?"Aucun compte":`${active} comptes actifs et ${inactive} inactifs sur ${total}`} style={{width:170,height:170,borderRadius:"50%",background:total===0?"#e5e7eb":`conic-gradient(#2563eb 0% ${ratio}%, #cbd5e1 ${ratio}% 100%)`,display:"grid",placeItems:"center",flexShrink:0}}>
     <div style={{width:115,height:115,borderRadius:"50%",background:"var(--background, white)",display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",color:"var(--foreground, #111827)"}}>
-     <strong style={{fontSize:25}}>{total===0?"—":`${Math.round(ratio)}%`}</strong><small>actifs</small>
+     <strong style={{fontSize:25}}>{total===0?"-":`${Math.round(ratio)}%`}</strong><small>actifs</small>
     </div>
    </div>
    <div><p><strong>{active}</strong> comptes actifs</p><p><strong>{inactive}</strong> comptes inactifs</p><p><strong>{total}</strong> comptes au total</p><p className="muted">L'anneau représente la répartition des comptes uniquement.</p></div>
