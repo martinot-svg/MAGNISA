@@ -102,7 +102,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
         transfers={<section className="section">
           <h2>Transferts internes — opérations réelles</h2>
           <p className="muted">Enregistre uniquement un débit déjà constaté sur le compte source. Le destinataire n'est crédité dans MAGNISA qu'après confirmation de son crédit réel.</p>
-          <div className="grid2">
+          <div>
             <form action={recordInternalTransferDebit} className="card form">
               <h3>Enregistrer un débit confirmé</h3>
               <input type="hidden" name="request_key" value={randomUUID()}/>
@@ -115,14 +115,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
               <div className="field"><label htmlFor="internal-ref">Référence réelle du débit</label><input id="internal-ref" name="reference" required minLength={2} placeholder="Référence sur le SMS ou le relevé"/></div>
               <button className="button primary" type="submit">Enregistrer — placer en transit</button>
             </form>
-            <div className="card">
-              <h3>Règles de transfert</h3>
-              <p><strong>MVola → Caisse :</strong> retrait d'espèces. Les frais réellement prélevés sont séparés de l'entrée en caisse.</p>
-              <p><strong>Banque / Caisse / Mobile Money → MVola :</strong> débit source d'abord, crédit MVola seulement après confirmation.</p>
-              <p><strong>Frais inclus :</strong> renseigner le total débité et le montant net attendu.</p>
-              <p><strong>Frais ajoutés :</strong> renseigner le débit incluant le principal et les frais supplémentaires.</p>
-              <p className="muted">Les fonds en transit ne font partie du solde disponible d'aucun compte destinataire. La réception doit être confirmée avec une référence réelle.</p>
-            </div>
+
           </div>
           <h3>Suivi et confirmation des crédits</h3>
           {!internalTransfers.length?<EmptyState title="Aucun transfert suivi" description="Le premier transfert réel enregistré apparaîtra ici."/>:
