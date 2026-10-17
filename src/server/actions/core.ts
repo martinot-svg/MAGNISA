@@ -42,10 +42,32 @@ export async function reserveCashReceiptReference(requestKey: string, paidAt: st
 export async function recordPayment(formData:FormData){
   const ctx=await requireOrganization();
   await assertPermission(ctx,"payments.record");
-  const p=z.object({invoice_id:z.string().uuid(),financial_account_id:z.string().uuid(),amount:z.coerce.number().positive(),paid_at:z.string().min(8),method:z.enum(["bank_transfer","cash","mobile_money","cheque","card","other"]),reference:z.string().optional(),idempotency_key:z.string().uuid()}).safeParse(Object.fromEntries(formData));
+  const p=z.object({
+    invoice_id:z.string().uuid(),financial_account_id:z.string().uuid(),
+    amount:z.coerce.number().positive(),paid_at:z.string().min(8),
+    method:z.enum(["bank_transfer","cash","mobile_money","cheque","card","other"]),
+    reference:z.string().optional(),idempotency_key:z.string().uuid(),
+    mobile_operator:z.string().optional(),
+    mvola_fee_option:z.string().optional(),
+  }).safeParse(Object.fromEntries(formData));
   if(!p.success)throw new Error("Paiement invalide.");
-  const {error}=await ctx.supabase.rpc("lot1_record_invoice_payment_idempotent",{p_org:ctx.organizationId,p_invoice:p.data.invoice_id,p_account:p.data.financial_account_id,p_amount:p.data.amount,p_paid_at:p.data.paid_at,p_method:p.data.method,p_reference:p.data.reference||null,p_request_key:p.data.idempotency_key});
-  if(error)throw new Error(error.message); revalidatePath("/factures"); revalidatePath("/paiements"); revalidatePath("/dashboard");
+  const isMvola=p.data.method==="mobile_money"&&p.data.mobile_operator==="mvola";
+  if(isMvola&&!["with_fees","without_fees"].includes(p.data.mvola_fee_option??"")){
+    throw new Error("Indique si le client prend en charge les frais MVola.");
+  }
+  const paymentArgs={
+    p_org:ctx.organizationId,p_invoice:p.data.invoice_id,
+    p_account:p.data.financial_account_id,p_amount:p.data.amount,
+    p_paid_at:p.data.paid_at,p_method:p.data.method,
+    p_reference:p.data.reference||null,p_request_key:p.data.idempotency_key,
+  };
+  const {error}=isMvola
+    ?await ctx.supabase.rpc("record_mvola_invoice_payment_with_fee_option",{
+      ...paymentArgs,p_fee_option:p.data.mvola_fee_option,
+    })
+    :await ctx.supabase.rpc("lot1_record_invoice_payment_idempotent",paymentArgs);
+  if(error)throw new Error(error.message);
+  revalidatePath("/factures");revalidatePath("/paiements");revalidatePath("/dashboard");
   redirect("/paiements?enregistrement=succes");
 }
 
