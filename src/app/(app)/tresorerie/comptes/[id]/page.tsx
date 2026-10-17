@@ -86,6 +86,8 @@ export default async function AccountStatement({
   let mobileDebits = 0;
   let mobileFees = 0;
   let mobileFeeCount = 0;
+  let mobileReimbursements = 0;
+  let mobileReimbursementCount = 0;
   if (account.type === "mobile_money") {
     const pageSize = 1000;
     for (let offset = 0; ; offset += pageSize) {
@@ -99,6 +101,10 @@ export default async function AccountStatement({
       for (const entry of page ?? []) {
         const amount = Number(entry.amount);
         if (amount > 0) mobileCredits += amount;
+        if (amount > 0 && entry.source_type === "mvola_fee_contribution") {
+          mobileReimbursements += amount;
+          mobileReimbursementCount++;
+        }
         if (amount < 0) mobileDebits += -amount;
         // Seuls les frais opérateur explicitement catégorisés sont des frais.
         // Les remboursements client (mvola_fee_contribution) en sont exclus.
@@ -153,6 +159,12 @@ export default async function AccountStatement({
               {!mobileFeeCount && <p className="muted">Aucun frais opérateur distinctement identifié dans les mouvements enregistrés.</p>}
             </div>
           </div>
+          <section className="card">
+            <h3>Suivi des frais et remboursements</h3>
+            <div className="field"><span className="muted">Remboursements de frais reçus des clients</span><strong>{mobileReimbursementCount ? money(mobileReimbursements, accountCurrency) : "—"}</strong></div>
+            <div className="field"><span className="muted">Frais opérateur identifiés</span><strong>{mobileFeeCount ? money(mobileFees, accountCurrency) : "—"}</strong></div>
+            <p className="muted">Un remboursement n’est pas un frais réellement prélevé. En l’absence de frais identifiés, aucun rapprochement automatique n’est supposé. Les montants proviennent exclusivement des mouvements existants.</p>
+          </section>
           <p className="muted">Indicateurs calculés automatiquement sur tous les mouvements du compte. Les frais remboursés par les clients ne sont pas comptés comme frais opérateur.</p>
         </section>
       )}
