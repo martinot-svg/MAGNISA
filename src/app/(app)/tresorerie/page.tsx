@@ -9,6 +9,7 @@ import { money } from "@/lib/money";
 import { TreasuryAccountDialog } from "@/components/treasury-account-dialog";
 import { TreasuryNavigation } from "@/components/treasury-navigation";
 import { TreasuryDashboardChart } from "@/components/treasury-dashboard-chart";
+import { InternalTransferForm } from "@/components/internal-transfer-form";
 
 async function createAccount(fd: FormData) {
   "use server";
@@ -55,7 +56,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
   const [{ data: accounts = [] }, { data: org }, {data:transactions=[]},{data:reconciliations=[]},{data:internalTransfers=[]}] = await Promise.all([
     supabase
       .from("financial_accounts")
-      .select("id,name,type,balance,is_active,mvola_account_category")
+      .select("id,name,type,balance,is_active,mvola_account_category,details")
       .eq("organization_id", organizationId)
       .order("name"),
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
@@ -103,18 +104,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
           <h2>Transferts internes - opérations réelles</h2>
           <p className="muted">Enregistre uniquement un débit déjà constaté sur le compte source. Le destinataire n'est crédité dans MAGNISA qu'après confirmation de son crédit réel.</p>
           <div>
-            <form action={recordInternalTransferDebit} className="card form">
-              <h3>Enregistrer un débit confirmé</h3>
-              <input type="hidden" name="request_key" value={randomUUID()}/>
-              <div className="field"><label htmlFor="internal-source">Compte source</label><select id="internal-source" name="source" required defaultValue=""><option value="">Sélectionner</option>{accounts.filter((a:any)=>a.is_active).map((a:any)=><option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}</select></div>
-              <div className="field"><label htmlFor="internal-destination">Compte destinataire</label><select id="internal-destination" name="destination" required defaultValue=""><option value="">Sélectionner</option>{accounts.filter((a:any)=>a.is_active).map((a:any)=><option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}</select></div>
-              <div className="field"><label htmlFor="internal-debit">Total réellement débité du compte source (Ar)</label><input id="internal-debit" name="source_debit" type="number" min="0.01" step="0.01" required/></div>
-              <div className="field"><label htmlFor="internal-fees">Frais opérateur réellement prélevés sur la source (Ar)</label><input id="internal-fees" name="operator_fee" type="number" min="0" step="0.01" defaultValue="0" required/><small>Ne saisis pas un tarif estimé : consulte le SMS ou le relevé. Frais débités sur le destinataire non pris en charge dans ce formulaire.</small></div>
-              <div className="field"><label htmlFor="internal-net">Montant attendu sur le compte destinataire (Ar)</label><input id="internal-net" name="destination_credit" type="number" min="0.01" step="0.01" required/><small>Total débité = montant attendu + frais réellement prélevés. Le compte destinataire ne sera pas crédité à cette étape.</small></div>
-              <div className="field"><label htmlFor="internal-date">Date réelle du débit</label><input id="internal-date" type="date" name="date" required/></div>
-              <div className="field"><label htmlFor="internal-ref">Référence réelle du débit</label><input id="internal-ref" name="reference" required minLength={2} placeholder="Référence sur le SMS ou le relevé"/></div>
-              <button className="button primary" type="submit">Enregistrer - placer en transit</button>
-            </form>
+            <InternalTransferForm action={recordInternalTransferDebit} accounts={accounts.filter((a:any)=>a.is_active)} requestKey={randomUUID()}/>
 
           </div>
           <h3>Suivi et confirmation des crédits</h3>
