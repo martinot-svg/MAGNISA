@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { estimateMvolaFee, type MvolaFeeOperation } from "@/lib/mvola-tariffs";
+import { calculateMvolaTransfer, type MvolaFeeOperation } from "@/lib/mvola-tariffs";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
 
@@ -128,13 +128,11 @@ export async function recordInternalTransferDebit(fd:FormData){
  else if(source.type==="bank"&&isMvola(dest))operation=source.name.toLowerCase().includes("bni")||accountCategory(dest)==="personal"?"deposit":"bank_other";
  else if(isMvola(source)&&dest.type==="mobile_money")operation=accountCategory(source)==="business"?"enterprise_transfer":"transfer_other_operator";
  if(!operation)throw new Error("Le tarif officiel de ce parcours n'est pas encore disponible.");
- if(operation==="bank_other"&&v.fee_mode==="included")throw new Error("L'assiette des frais inclus de 1 % doit être confirmée avant enregistrement.");
- const fee=estimateMvolaFee(operation,v.reference_amount);
- if(fee===null)throw new Error("Aucun tarif disponible pour cette tranche de montant.");
- const debit=v.fee_mode==="included"?v.reference_amount:v.reference_amount+fee;
- const credit=v.fee_mode==="included"?v.reference_amount-fee:v.reference_amount;
- if(credit<=0||v.source_debit!==debit||v.destination_credit!==credit||v.operator_fee!==fee)
-   throw new Error("Les montants calculés ne correspondent pas au barème officiel. Recharge la page.");
+ const calculated=calculateMvolaTransfer(operation,v.reference_amount,v.fee_mode);
+ if(!calculated)throw new Error("Calcul automatique indisponible pour cette tranche ou ce mode. Vérifie le tarif.");
+ const {debit,credit,fee}=calculated;
+ if(v.source_debit!==debit||v.destination_credit!==credit||v.operator_fee!==fee)
+   throw new Error("Les montants ne correspondent pas au calcul automatique. Recharge la page.");
  const {error}=await ctx.supabase.rpc("magnisa_record_transfer_debit",{p_org:ctx.organizationId,p_source:v.source,p_destination:v.destination,p_date:v.date,p_source_debit:debit,p_destination_credit:credit,p_fee:fee,p_reference:v.reference,p_request_key:v.request_key});
  if(error)throw new Error(error.message);
  revalidatePath("/tresorerie");revalidatePath("/dashboard");revalidatePath("/tresorerie/comptes/"+v.source);
