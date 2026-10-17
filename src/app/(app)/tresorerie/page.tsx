@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { recordInternalTransferDebit, confirmInternalTransferCredit } from "@/server/actions/core";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
@@ -50,7 +52,7 @@ async function createAccount(fd: FormData) {
 }
 
 export default async function Treasury(){const ctx=await requireOrganization();await requirePermission(ctx,"treasury.view");const {supabase,organizationId}=ctx;
-  const [{ data: accounts = [] }, { data: org }, {data:transactions=[]},{data:reconciliations=[]}] = await Promise.all([
+  const [{ data: accounts = [] }, { data: org }, {data:transactions=[]},{data:reconciliations=[]},{data:internalTransfers=[]}] = await Promise.all([
     supabase
       .from("financial_accounts")
       .select("id,name,type,balance,is_active,mvola_account_category")
@@ -59,6 +61,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
     supabase.from("financial_transactions").select("id,financial_account_id,transaction_date,amount,kind,description,reference").eq("organization_id",organizationId).order("transaction_date",{ascending:false}).limit(100),
     supabase.from("magnisa_account_reconciliation").select("financial_account_id,name,balance,movements_sum,balance_difference,reconciliation_status").eq("organization_id",organizationId),
+    supabase.from("magnisa_internal_transfers").select("id,source_account_id,destination_account_id,transfer_date,received_date,source_debit,destination_credit,operator_fee,source_reference,destination_reference,status").eq("organization_id",organizationId).order("transfer_date",{ascending:false}).limit(100),
   ]);
 
   return (
@@ -96,13 +99,49 @@ export default async function Treasury(){const ctx=await requireOrganization();a
             {transactions.map((t:any)=><tr key={t.id}><td>{t.transaction_date}</td><td>{accounts.find((a:any)=>a.id===t.financial_account_id)?.name||"Compte indisponible"}</td><td>{t.description||t.kind}</td><td>{t.reference||"—"}</td><td>{money(t.amount,org?.currency||"MGA")}</td></tr>)}
           </tbody></table></div>}
         </section>}
-        transfers={<section className="section"><h2>Transferts internes</h2>
-          <p className="muted">Cette section est en consultation seule. Les transferts sont enregistrés depuis les circuits financiers autorisés, sans saisie manuelle en Trésorerie.</p>
-          {!transactions.filter((t:any)=>t.kind==="transfer_in"||t.kind==="transfer_out").length
-            ? <EmptyState title="Aucun transfert récent" description="Les transferts enregistrés apparaîtront ici automatiquement."/>
-            : <div className="card" style={{overflowX:"auto"}}><table style={{width:"100%"}}><thead><tr><th>Date</th><th>Compte</th><th>Nature</th><th>Référence</th><th>Montant</th></tr></thead><tbody>
-              {transactions.filter((t:any)=>t.kind==="transfer_in"||t.kind==="transfer_out").map((t:any)=><tr key={t.id}><td>{t.transaction_date}</td><td>{accounts.find((a:any)=>a.id===t.financial_account_id)?.name||"Compte indisponible"}</td><td>{t.kind==="transfer_in"?"Transfert entrant":"Transfert sortant"}</td><td>{t.reference||"—"}</td><td>{money(t.amount,org?.currency||"MGA")}</td></tr>)}
-            </tbody></table></div>}
+        transfers={<section className="section">
+          <h2>Transferts internes — opérations réelles</h2>
+          <p className="muted">Enregistre uniquement un débit déjà constaté sur le compte source. Le destinataire n'est crédité dans MAGNISA qu'après confirmation de son crédit réel.</p>
+          <div className="grid2">
+            <form action={recordInternalTransferDebit} className="card form">
+              <h3>Enregistrer un débit confirmé</h3>
+              <input type="hidden" name="request_key" value={randomUUID()}/>
+              <div className="field"><label htmlFor="internal-source">Compte source</label><select id="internal-source" name="source" required defaultValue=""><option value="">Sélectionner</option>{accounts.filter((a:any)=>a.is_active).map((a:any)=><option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}</select></div>
+              <div className="field"><label htmlFor="internal-destination">Compte destinataire</label><select id="internal-destination" name="destination" required defaultValue=""><option value="">Sélectionner</option>{accounts.filter((a:any)=>a.is_active).map((a:any)=><option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}</select></div>
+              <div className="field"><label htmlFor="internal-debit">Total réellement débité du compte source (Ar)</label><input id="internal-debit" name="source_debit" type="number" min="0.01" step="0.01" required/></div>
+              <div className="field"><label htmlFor="internal-fees">Frais opérateur réellement prélevés sur la source (Ar)</label><input id="internal-fees" name="operator_fee" type="number" min="0" step="0.01" defaultValue="0" required/><small>Ne saisis pas un tarif estimé : consulte le SMS ou le relevé. Frais débités sur le destinataire non pris en charge dans ce formulaire.</small></div>
+              <div className="field"><label htmlFor="internal-net">Montant attendu sur le compte destinataire (Ar)</label><input id="internal-net" name="destination_credit" type="number" min="0.01" step="0.01" required/><small>Total débité = montant attendu + frais réellement prélevés. Le compte destinataire ne sera pas crédité à cette étape.</small></div>
+              <div className="field"><label htmlFor="internal-date">Date réelle du débit</label><input id="internal-date" type="date" name="date" required/></div>
+              <div className="field"><label htmlFor="internal-ref">Référence réelle du débit</label><input id="internal-ref" name="reference" required minLength={2} placeholder="Référence sur le SMS ou le relevé"/></div>
+              <button className="button primary" type="submit">Enregistrer — placer en transit</button>
+            </form>
+            <div className="card">
+              <h3>Règles de transfert</h3>
+              <p><strong>MVola → Caisse :</strong> retrait d'espèces. Les frais réellement prélevés sont séparés de l'entrée en caisse.</p>
+              <p><strong>Banque / Caisse / Mobile Money → MVola :</strong> débit source d'abord, crédit MVola seulement après confirmation.</p>
+              <p><strong>Frais inclus :</strong> renseigner le total débité et le montant net attendu.</p>
+              <p><strong>Frais ajoutés :</strong> renseigner le débit incluant le principal et les frais supplémentaires.</p>
+              <p className="muted">Les fonds en transit ne font partie du solde disponible d'aucun compte destinataire. La réception doit être confirmée avec une référence réelle.</p>
+            </div>
+          </div>
+          <h3>Suivi et confirmation des crédits</h3>
+          {!internalTransfers.length?<EmptyState title="Aucun transfert suivi" description="Le premier transfert réel enregistré apparaîtra ici."/>:
+          <div className="card" style={{overflowX:"auto"}}><table style={{width:"100%"}}><thead><tr><th>Date</th><th>Trajet</th><th>Débit source</th><th>Frais</th><th>Crédit attendu</th><th>État / confirmation</th></tr></thead><tbody>
+          {internalTransfers.map((t:any)=><tr key={t.id}>
+            <td>{t.transfer_date}<div className="muted">{t.source_reference}</div></td>
+            <td>{accounts.find((a:any)=>a.id===t.source_account_id)?.name||"Source"} → {accounts.find((a:any)=>a.id===t.destination_account_id)?.name||"Destination"}</td>
+            <td>{money(t.source_debit,org?.currency||"MGA")}</td><td>{money(t.operator_fee,org?.currency||"MGA")}</td><td>{money(t.destination_credit,org?.currency||"MGA")}</td>
+            <td>{t.status==="completed"?<><strong>Crédit confirmé</strong><div className="muted">{t.received_date} · {t.destination_reference}</div></>:
+              <form action={confirmInternalTransferCredit} className="form">
+                <strong>En transit</strong><input type="hidden" name="transfer_id" value={t.id}/>
+                <label>Date de réception<input type="date" name="date" min={t.transfer_date} required/></label>
+                <label>Référence du crédit<input name="reference" required minLength={2} placeholder="Relevé destinataire"/></label>
+                <button className="button" type="submit">Confirmer le crédit reçu</button>
+              </form>}
+            </td></tr>)}
+          </tbody></table></div>}
+          <h3>Historique des transferts antérieurs</h3>
+          <p className="muted">Les anciens transferts déjà comptabilisés restent visibles dans Mouvements. Ils ne sont pas recréés dans le nouveau suivi.</p>
         </section>}
         reconciliation={<section className="section"><h2>Rapprochement des comptes</h2>
           <p className="muted">Contrôle de cohérence entre les soldes MAGNISA et les mouvements enregistrés. Ce contrôle ne constitue pas un rapprochement avec un relevé bancaire externe.</p>
