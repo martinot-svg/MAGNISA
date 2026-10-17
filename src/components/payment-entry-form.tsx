@@ -48,7 +48,6 @@ export function PaymentEntryForm({
   const [method, setMethod] = useState("");
   const [paidAt, setPaidAt] = useState("");
   const [mobileOperator, setMobileOperator] = useState("");
-  const [withdrawalChannel, setWithdrawalChannel] = useState<"cash_point" | "bred">("cash_point");
   const [requestId, setRequestId] = useState(requestKey);
   const [cashReference, setCashReference] = useState("");
   const [cashReferenceLoading, setCashReferenceLoading] = useState(false);
@@ -75,7 +74,7 @@ export function PaymentEntryForm({
   const received = amount.trim() === "" ? NaN : Number(amount);
   const valid = !!invoice && Number.isFinite(received) && received > 0 && received <= due;
   const showMvola = method === "mobile_money" && mobileOperator === "mvola" && currency === "MGA";
-  const withdrawalFee = showMvola && valid ? mvolaWithdrawalFee(received, withdrawalChannel) : null;
+  const withdrawalFee = showMvola && valid ? mvolaWithdrawalFee(received, "cash_point") : null;
   const remaining = valid ? Math.max(0, Math.round((due - received) * 100) / 100) : null;
   const formatter = new Intl.NumberFormat("fr-FR", {
     style: "currency",
@@ -171,55 +170,23 @@ export function PaymentEntryForm({
         </div>
       )}
       {showMvola && (
-        <section className="card" aria-label="Estimation des frais de retrait MVola" aria-live="polite">
-          <h3>Simulation automatique des frais de retrait MVola</h3>
-          <div className="field">
-            <label htmlFor="mvola-withdrawal-channel">Canal de retrait envisagé</label>
-            <select
-              id="mvola-withdrawal-channel"
-              value={withdrawalChannel}
-              onChange={(event) => setWithdrawalChannel(event.target.value as "cash_point" | "bred")}
-            >
-              <option value="cash_point">Cash Point MVola</option>
-              <option value="bred">DAB BRED Madagasikara</option>
-            </select>
-          </div>
+        <section className="card" aria-label="Frais de retrait MVola estimés" aria-live="polite">
+          <h3>Frais de retrait MVola estimés</h3>
           {withdrawalFee === null ? (
-            <small>
-              {valid
-                ? "Aucun tarif renseigné pour ce montant et ce canal dans la grille fournie."
-                : "Sélectionne une facture et saisis un montant valide pour calculer les frais."}
-            </small>
+            <small>Tarif indisponible pour ce montant (Cash Point MVola).</small>
           ) : (
             <>
               <div className="field">
-                <span className="muted">Montant reçu sur MVola (règlement de la facture)</span>
-                <strong>{formatter.format(received)}</strong>
-              </div>
-              <div className="field">
-                <span className="muted">Frais estimés de retrait (TTC)</span>
+                <span className="muted">Frais de retrait (Cash Point)</span>
                 <strong>{formatter.format(withdrawalFee)}</strong>
               </div>
               <div className="field">
-                <span className="muted">Si les frais sont déduits des fonds reçus : espèces nettes estimées</span>
+                <span className="muted">Net estimé si frais déduits</span>
                 <strong>{formatter.format(received - withdrawalFee)}</strong>
-              </div>
-              <div className="field">
-                <span className="muted">Si les frais sont prélevés en supplément : solde MVola nécessaire</span>
-                <strong>{formatter.format(received + withdrawalFee)}</strong>
-              </div>
-              <div className="field">
-                <span className="muted">Si le client contribue volontairement à hauteur des frais : transfert indicatif</span>
-                <strong>{formatter.format(received + withdrawalFee)}</strong>
               </div>
             </>
           )}
-          <small>
-            Estimation d'après la grille MVola fournie, pour un retrait ultérieur unique du montant saisi.
-            Les frais de transfert payés par le client sont distincts. Aucun frais de retrait ni
-            complément client n'est enregistré par ce formulaire : seul le paiement de facture
-            réellement reçu est comptabilisé. Les frais réels doivent être constatés au retrait.
-          </small>
+          <small>Indication uniquement : la facture reste réglée à hauteur du paiement reçu. Les frais réels sont enregistrés lors du retrait.</small>
         </section>
       )}
       <div className="field">
