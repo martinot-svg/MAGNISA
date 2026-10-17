@@ -86,7 +86,7 @@ export function PaymentEntryForm({
           <option value="">Sélectionner</option>
           {invoices.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.number} — {item.customerName} — reste {formatter.format(item.balance_due)}
+              {item.number} - {item.customerName} - reste {formatter.format(item.balance_due)}
             </option>
           ))}
         </select>
@@ -118,11 +118,11 @@ export function PaymentEntryForm({
           </div>
           <div className="field">
             <span className="muted">Montant reçu</span>
-            <strong>{valid ? formatter.format(received) : "—"}</strong>
+            <strong>{valid ? formatter.format(received) : "-"}</strong>
           </div>
           <div className="field">
             <span className="muted">Nouveau solde restant</span>
-            <strong>{remaining !== null ? formatter.format(remaining) : "—"}</strong>
+            <strong>{remaining !== null ? formatter.format(remaining) : "-"}</strong>
           </div>
         </section>
       )}
@@ -165,8 +165,8 @@ export function PaymentEntryForm({
             required
           >
             <option value="">Sélectionner</option>
-            <option value="with_fees">Avec frais — pris en charge par le client</option>
-            <option value="without_fees">Sans frais — non pris en charge par le client</option>
+            <option value="with_fees">Avec frais - pris en charge par le client</option>
+            <option value="without_fees">Sans frais - non pris en charge par le client</option>
           </select>
         </div>
       )}
