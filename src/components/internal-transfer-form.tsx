@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { estimateMvolaFee, MVOLA_RATE_VERSION, type MvolaFeeOperation } from "@/lib/mvola-tariffs";
+import { calculateMvolaTransfer, MVOLA_RATE_VERSION, type MvolaFeeOperation } from "@/lib/mvola-tariffs";
 
 type Account = {id:string;name:string;type:string;details?:unknown};
 type Props={accounts:Account[];requestKey:string;action:(fd:FormData)=>void|Promise<void>};
@@ -27,17 +27,7 @@ export function InternalTransferForm({accounts,requestKey,action}:Props){
  const [date,setDate]=useState("");const [reference,setReference]=useState("");
  const src=accounts.find(a=>a.id===source),dst=accounts.find(a=>a.id===destination);
  const operation=tariff(src,dst);const n=Number(amount);
- const calculated=useMemo(()=>{
-  if(!operation||!Number.isInteger(n)||n<=0)return null;
-  // For inclusive percentage fees, the provider may charge on net principal.
-  // No assumption about fee base is safe: require transaction confirmation.
-  if(mode==="included"&&operation==="bank_other")return null;
-  const fee=estimateMvolaFee(operation,n);
-  if(fee===null)return null;
-  const debit=mode==="included"?n:n+fee;
-  const credit=mode==="included"?n-fee:n;
-  return credit>0?{fee,debit,credit}:null;
- },[n,mode,operation]);
+ const calculated=useMemo(()=>operation?calculateMvolaTransfer(operation,n,mode):null,[n,mode,operation]);
  const supported=!!calculated&&!!src&&!!dst&&src.id!==dst.id;
  const fmt=(value:number)=>new Intl.NumberFormat("fr-FR").format(value)+" Ar";
  return <form action={action} className="card form">
@@ -45,7 +35,7 @@ export function InternalTransferForm({accounts,requestKey,action}:Props){
   <input type="hidden" name="request_key" value={requestKey}/>
   <div className="field"><label htmlFor="internal-source">Compte source</label><select id="internal-source" name="source" value={source} onChange={e=>setSource(e.target.value)} required><option value="">Sélectionner</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}</select></div>
   <div className="field"><label htmlFor="internal-destination">Compte destinataire</label><select id="internal-destination" name="destination" value={destination} onChange={e=>setDestination(e.target.value)} required><option value="">Sélectionner</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}</select></div>
-  <div className="field"><label htmlFor="internal-mode">Mode de calcul des frais</label><select id="internal-mode" name="fee_mode" value={mode} onChange={e=>setMode(e.target.value as "included"|"added")}><option value="included">Montant brut - frais déduits</option><option value="added">Montant net - frais ajoutés</option></select></div>
+  <div className="field"><label htmlFor="internal-mode">Mode de transfert</label><select id="internal-mode" name="fee_mode" value={mode} onChange={e=>setMode(e.target.value as "included"|"added")}><option value="included">Montant brut - frais déduits</option><option value="added">Montant net - frais ajoutés</option></select></div>
   <div className="field"><label htmlFor="internal-amount">Montant de référence (Ar)</label><input id="internal-amount" name="reference_amount" type="number" min="1" step="1" value={amount} onChange={e=>setAmount(e.target.value)} required/></div>
   <input type="hidden" name="source_debit" value={calculated?.debit??""}/>
   <input type="hidden" name="destination_credit" value={calculated?.credit??""}/>
@@ -56,7 +46,7 @@ export function InternalTransferForm({accounts,requestKey,action}:Props){
    <p>Crédit prévu au destinataire : <strong>{calculated?fmt(calculated.credit):"-"}</strong></p>
    {!operation&&source&&destination&&<p className="error">Tarif de cet opérateur ou de ce parcours non disponible. Aucun frais ne sera inventé.</p>}
    {operation==="bank_other"&&mode==="included"&&<p className="error">Assiette du taux de 1 % à confirmer pour les frais inclus. Calcul et enregistrement indisponibles pour ce cas tant que la règle n'est pas vérifiée.</p>}
-   <small>Vérifie que les frais affichés correspondent exactement au débit réel. Cette fonction ne détecte pas les prélèvements chez l'opérateur.</small>
+   <small>{mode==="included"?"Le montant de référence est le total débité, frais inclus.":"Le montant de référence est le net garanti au destinataire, frais ajoutés."}</small><small>Vérifie que les frais affichés correspondent exactement au débit réel. Cette fonction ne détecte pas les prélèvements chez l'opérateur.</small>
   </div>
   <div className="field"><label htmlFor="internal-date">Date du débit confirmé</label><input id="internal-date" type="date" name="date" value={date} onChange={e=>setDate(e.target.value)} required/></div>
   <div className="field"><label htmlFor="internal-ref">Référence réelle du débit</label><input id="internal-ref" name="reference" value={reference} onChange={e=>setReference(e.target.value)} minLength={2} required/></div>
