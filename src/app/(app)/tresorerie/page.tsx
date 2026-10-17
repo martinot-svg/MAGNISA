@@ -13,34 +13,38 @@ async function createAccount(fd: FormData) {
   const ctx = await requireOrganization();
   await assertPermission(ctx, "treasury.transfer");
 
-  const name = String(fd.get("name") || "").trim();
-  const type = String(fd.get("type") || "");
-  const mobileOperator = String(fd.get("mobile_operator") || "");
-  const mvolaCategory = String(fd.get("mvola_category") || "");
-  if (!name) throw new Error("Nom requis.");
-  if (!["bank", "cash", "mobile_money", "cheque_clearing"].includes(type)) {
-    throw new Error("Type de compte invalide.");
+  const type=String(fd.get("type")||"");
+  if(!["bank","cash","mobile_money","cheque_clearing"].includes(type)) throw new Error("Type de compte invalide.");
+  const field=(key:string)=>String(fd.get(key)||"").trim();
+  const currency=field("currency");
+  if(!["MGA","EUR","USD"].includes(currency)) throw new Error("Devise invalide.");
+  let name=field("name");
+  const details:Record<string,string>={currency};
+  if(type==="mobile_money"){
+    const service=field("service");
+    if(!["MVola","Orange Money","Airtel Money"].includes(service)) throw new Error("Service Mobile Money invalide.");
+    const operator=service==="MVola"?"Yas":service==="Orange Money"?"Orange":"Airtel";
+    const phone=field("phone").replace(/[ .-]/g,"");
+    if(!/^\\+261\\d{9}$/.test(phone)) throw new Error("Numéro Mobile Money invalide (format +261XXXXXXXXX).");
+    const accountType=field("account_category");
+    if(!["personal","business","merchant"].includes(accountType)) throw new Error("Type de compte Mobile Money invalide.");
+    name=service;
+    Object.assign(details,{service,operator,phone,account_type:accountType});
+  }else if(type==="bank"){
+    const bank=field("bank")==="Autre"?field("other_bank"):field("bank");
+    const bankType=field("bank_type"),holder=field("holder"),accountNumber=field("account_number");
+    if(!bank||!holder||!accountNumber||!["current","savings","term","other"].includes(bankType)) throw new Error("Informations bancaires incomplètes.");
+    name=bank;
+    Object.assign(details,{bank,bank_type:bankType,holder,account_number:accountNumber,branch:field("branch"),rib:field("rib"),description:field("description")});
+  }else if(type==="cash"){
+    if(!name||!field("responsible")||!["main","secondary","petty","sales","other"].includes(field("cash_type"))) throw new Error("Informations de caisse incomplètes.");
+    Object.assign(details,{cash_type:field("cash_type"),responsible:field("responsible"),location:field("location"),description:field("description")});
+  }else{
+    if(!name||!["clients","other","all"].includes(field("cheque_category"))) throw new Error("Informations de chèques incomplètes.");
+    Object.assign(details,{category:field("cheque_category"),responsible:field("responsible"),description:field("description")});
   }
-
-  if (type === "mobile_money" && !["mvola", "other"].includes(mobileOperator)) {
-    throw new Error("Opérateur Mobile Money obligatoire.");
-  }
-  if (type === "mobile_money" && mobileOperator === "mvola" && !["personal", "business", "merchant"].includes(mvolaCategory)) {
-    throw new Error("Choisis le type de compte MVola.");
-  }
-  const { error } = type === "mobile_money" && mobileOperator === "mvola"
-    ? await ctx.supabase.rpc("create_mvola_financial_account", {
-      p_org: ctx.organizationId,
-      p_name: name,
-      p_category: mvolaCategory,
-    })
-    : await ctx.supabase.rpc("lot1_create_financial_account", {
-      p_org: ctx.organizationId,
-      p_name: name,
-      p_type: type,
-    });
-
-  if (error) throw new Error(error.message);
+  const {error}=await ctx.supabase.rpc("create_financial_account_detailed",{p_org:ctx.organizationId,p_type:type,p_name:name,p_details:details});
+  if(error) throw new Error(error.message);
   revalidatePath("/tresorerie");
   revalidatePath("/dashboard");
 }
@@ -92,12 +96,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
             Le solde n'est jamais saisi manuellement : il évolue uniquement par les opérations enregistrées.
           </p>
           <form action={createAccount} className="form">
-            <div className="field">
-              <label>Nom du compte</label>
-              <input name="name" required />
-            </div>
             <FinancialAccountCreationFields />
-            <button className="button primary">Créer le compte</button>
           </form>
         </section>
       </div>
