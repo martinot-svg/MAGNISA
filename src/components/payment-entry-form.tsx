@@ -5,6 +5,20 @@ import { reserveCashReceiptReference } from "@/server/actions/core";
 
 type InvoiceOption = { id: string; number: string; balance_due: number; customerName: string };
 type AccountOption = { id: string; name: string; type: string };
+// Tranches Cash Point MVola communiquées pour une estimation du remboursement.
+const withdrawalBands: ReadonlyArray<readonly [number, number]> = [
+  [1000,100],[5000,150],[10000,275],[20000,550],[25000,650],
+  [50000,1300],[100000,1900],[250000,3400],[500000,4700],
+  [1000000,8800],[2000000,14700],[3000000,19600],[4000000,24500],
+  [5000000,29400],[6000000,34300],[7000000,39200],[8000000,44100],
+  [9000000,49000],[10000000,53900],[11000000,59000],[12000000,64000],
+  [13000000,69000],[14000000,74000],[15000000,79000],[16000000,84000],
+  [17000000,89000],[18000000,94000],[19000000,98000],[20000000,100000],
+];
+function feeEstimate(amount: number) {
+  if (!Number.isInteger(amount) || amount < 100 || amount > 20000000) return null;
+  return withdrawalBands.find(([limit]) => amount <= limit)?.[1] ?? null;
+}
 
 export function PaymentEntryForm({
   invoices,
@@ -25,6 +39,8 @@ export function PaymentEntryForm({
   const [paidAt, setPaidAt] = useState("");
   const [mobileOperator, setMobileOperator] = useState("");
   const [mvolaFeeOption, setMvolaFeeOption] = useState("");
+  const [mvolaFeeAmount, setMvolaFeeAmount] = useState("");
+  const [accountId, setAccountId] = useState("");
   const [requestId, setRequestId] = useState(requestKey);
   const [cashReference, setCashReference] = useState("");
   const [cashReferenceLoading, setCashReferenceLoading] = useState(false);
@@ -51,6 +67,10 @@ export function PaymentEntryForm({
   const received = amount.trim() === "" ? NaN : Number(amount);
   const valid = !!invoice && Number.isFinite(received) && received > 0 && received <= due;
   const showMvola = method === "mobile_money" && mobileOperator === "mvola";
+  const estimatedFee = valid && currency === "MGA" ? feeEstimate(received) : null;
+  const feeAmount = Number(mvolaFeeAmount);
+  const feeValid = !showMvola || mvolaFeeOption === "without_fees" || (mvolaFeeOption === "with_fees" && mvolaFeeAmount.trim() !== "" && Number.isFinite(feeAmount) && feeAmount > 0 && Math.round(feeAmount * 100) === feeAmount * 100);
+  const selectedAccount = accounts.find((a) => a.id === accountId);
   const remaining = valid ? Math.max(0, Math.round((due - received) * 100) / 100) : null;
   const formatter = new Intl.NumberFormat("fr-FR", {
     style: "currency",
@@ -137,7 +157,7 @@ export function PaymentEntryForm({
             id="payment-mobile-operator"
             name="mobile_operator"
             value={mobileOperator}
-            onChange={(event) => { setMobileOperator(event.target.value); setMvolaFeeOption(""); }}
+            onChange={(event) => { setMobileOperator(event.target.value); setMvolaFeeOption(""); setMvolaFeeAmount(""); }}
             required
           >
             <option value="">Sélectionner</option>
@@ -153,7 +173,7 @@ export function PaymentEntryForm({
             id="payment-mvola-fee-option"
             name="mvola_fee_option"
             value={mvolaFeeOption}
-            onChange={(event) => setMvolaFeeOption(event.target.value)}
+            onChange={(event) => { setMvolaFeeOption(event.target.value); setMvolaFeeAmount(event.target.value === "with_fees" && estimatedFee !== null ? String(estimatedFee) : ""); }}
             required
           >
             <option value="">Sélectionner</option>
@@ -162,9 +182,18 @@ export function PaymentEntryForm({
           </select>
         </div>
       )}
+      {showMvola && mvolaFeeOption === "with_fees" && (
+        <div className="field">
+          <label htmlFor="payment-mvola-fee-amount">Remboursement des frais réellement reçu (Ar)</label>
+          <input id="payment-mvola-fee-amount" name="mvola_fee_amount" type="number" min="0.01" step="0.01"
+            value={mvolaFeeAmount} onChange={(event) => setMvolaFeeAmount(event.target.value)} required />
+          {valid && feeValid && <small>Total à vérifier sur le SMS MVola : {formatter.format(received + feeAmount)} (dont {formatter.format(received)} affectés à la facture).</small>}
+          <small>Montant suggéré selon la grille Cash Point, à confirmer avec le crédit réellement reçu. Aucun retrait n'est enregistré ici.</small>
+        </div>
+      )}
       <div className="field">
         <label htmlFor="payment-account">Compte destinataire</label>
-        <select id="payment-account" name="financial_account_id" required>
+        <select id="payment-account" name="financial_account_id" value={accountId} onChange={(event) => setAccountId(event.target.value)} required>
           <option value="">Sélectionner</option>
           {accounts.map((item) => (
             <option key={item.id} value={item.id}>{item.name} ({item.type})</option>
@@ -219,7 +248,7 @@ export function PaymentEntryForm({
           </>
         )}
       </div>
-      <button className="button primary" disabled={!valid || !accounts.length || !method || (method === "mobile_money" && !mobileOperator) || (showMvola && !mvolaFeeOption) || (method === "cash" && (!cashReference || cashReferenceLoading))}>
+      <button className="button primary" disabled={!valid || !accounts.length || !method || (method === "mobile_money" && !mobileOperator) || (showMvola && (!mvolaFeeOption || !feeValid || selectedAccount?.type !== "mobile_money")) || (method === "cash" && (!cashReference || cashReferenceLoading))}>
         Enregistrer
       </button>
     </form>
