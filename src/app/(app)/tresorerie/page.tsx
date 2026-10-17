@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
 import { TreasuryAccountDialog } from "@/components/treasury-account-dialog";
 import { TreasuryNavigation } from "@/components/treasury-navigation";
+import { TreasuryDashboardChart } from "@/components/treasury-dashboard-chart";
 import { transferFunds } from "@/server/actions/core";
 
 async function createAccount(fd: FormData) {
@@ -75,12 +76,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
       <TreasuryNavigation
         dashboard={<section className="section">
           <h2>Tableau de bord de trésorerie</h2>
-          <div className="grid2">
-            <div className="card"><div className="muted">Comptes actifs</div><div className="metric">{accounts.filter((a:any)=>a.is_active).length}</div></div>
-            <div className="card"><div className="muted">Comptes de trésorerie</div><div className="metric">{accounts.length}</div></div>
-            <div className="card"><div className="muted">Entrées enregistrées</div><div className="metric">{transactions.filter((t:any)=>t.kind==="inflow").length}</div></div>
-            <div className="card"><div className="muted">Sorties enregistrées</div><div className="metric">{transactions.filter((t:any)=>t.kind==="outflow").length}</div></div>
-          </div>
+          <TreasuryDashboardChart active={accounts.filter((a:any)=>a.is_active).length} total={accounts.length} inflows={transactions.filter((t:any)=>t.kind==="inflow").length} outflows={transactions.filter((t:any)=>t.kind==="outflow").length}/>
           <p className="muted">Les soldes de comptes sont consultables dans Comptes. Les montants en devises différentes ne sont pas additionnés.</p>
           <h3>Activité récente</h3>
           {!transactions.length?<EmptyState title="Aucun mouvement" description="Les opérations réelles enregistrées apparaîtront ici."/>:
