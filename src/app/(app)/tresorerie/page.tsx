@@ -5,7 +5,7 @@ import { requireOrganization } from "@/lib/current-org";
 import {assertPermission, requirePermission } from "@/lib/permissions";
 import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
-import { FinancialAccountCreationFields } from "@/components/financial-account-creation-fields";
+import { TreasuryAccountDialog } from "@/components/treasury-account-dialog";
 import { transferFunds } from "@/server/actions/core";
 
 async function createAccount(fd: FormData) {
@@ -25,7 +25,7 @@ async function createAccount(fd: FormData) {
     if(!["MVola","Orange Money","Airtel Money"].includes(service)) throw new Error("Service Mobile Money invalide.");
     const operator=service==="MVola"?"Yas":service==="Orange Money"?"Orange":"Airtel";
     const phone=field("phone").replace(/[ .-]/g,"");
-    if(!/^\\+261\\d{9}$/.test(phone)) throw new Error("Numéro Mobile Money invalide (format +261XXXXXXXXX).");
+    if(!/^\+261\d{9}$/.test(phone)) throw new Error("Numéro Mobile Money invalide (format +261XXXXXXXXX).");
     const accountType=field("account_category");
     if(!["personal","business","merchant"].includes(accountType)) throw new Error("Type de compte Mobile Money invalide.");
     name=service;
@@ -66,9 +66,10 @@ export default async function Treasury(){const ctx=await requireOrganization();a
           <h1>Trésorerie</h1>
           <p>Banque, caisse, Mobile Money, chèques et transferts internes.</p>
         </div>
+        <TreasuryAccountDialog createAccount={createAccount} />
       </div>
 
-      <div className="twoCols">
+      <div>
         <section>
           {!accounts.length ? (
             <EmptyState
@@ -90,15 +91,6 @@ export default async function Treasury(){const ctx=await requireOrganization();a
           )}
         </section>
 
-        <section className="card">
-          <h2>Nouveau compte</h2>
-          <p className="muted">
-            Le solde n'est jamais saisi manuellement : il évolue uniquement par les opérations enregistrées.
-          </p>
-          <form action={createAccount} className="form">
-            <FinancialAccountCreationFields />
-          </form>
-        </section>
       </div>
 
       {accounts.filter((a: any) => a.is_active).length >= 2 && (
