@@ -140,16 +140,16 @@ export default async function AccountStatement({
         <div>
           <Link href="/tresorerie">← Retour à la trésorerie</Link>
           <h1>Relevé du compte : {account.name}</h1>
-          <p>{account.type === "mobile_money" ? "Historique Mobile Money" : "Historique financier"} — mouvements réellement enregistrés.</p>
+          <p>{account.type === "mobile_money" ? "Historique Mobile Money" : "Historique financier"} - mouvements réellement enregistrés.</p>
         </div>
       </div>
 
       {account.type === "mobile_money" && (
-        <section className="section" aria-label="Gestion Mobile Money — Trésorerie">
+        <section className="section" aria-label="Gestion Mobile Money - Trésorerie">
           <div className="pageHead">
             <div>
               <h2>Compte {mobileOperator}</h2>
-              <p>Gestion Mobile Money — Trésorerie</p>
+              <p>Gestion Mobile Money - Trésorerie</p>
             </div>
             <span className="muted">{account.is_active ? "Compte actif" : "Compte inactif"}</span>
           </div>
@@ -175,7 +175,7 @@ export default async function AccountStatement({
         <section className="card">
           <h2>Solde du compte</h2>
           <div className="metric">{money(account.balance, currency)}</div>
-          <p className="muted">{account.type === "mobile_money" ? "Mobile Money" : account.type} — {account.is_active ? "Actif" : "Inactif"}</p>
+          <p className="muted">{account.type === "mobile_money" ? "Mobile Money" : account.type} - {account.is_active ? "Actif" : "Inactif"}</p>
         </section>
         <section className="card">
           <h2>Mouvements affichés</h2>
@@ -220,17 +220,17 @@ export default async function AccountStatement({
                         : payment.mvola_withdrawal_fee_option === "without_fees"
                           ? "Sans remboursement du client"
                           : "Non renseigné"
-                    : "—";
+                    : "-";
                   const amount = Number(entry.amount);
                   return (
                     <tr key={entry.id}>
                       <td>{entry.transaction_date}</td>
                       <td>{itemLabel(entry)}{entry.description && <div className="muted">{entry.description}</div>}</td>
-                      <td>{detail || "—"}</td>
+                      <td>{detail || "-"}</td>
                       <td>{feeLabel}</td>
-                      <td>{payment?.reference || entry.reference || "—"}</td>
-                      <td className="right">{amount > 0 ? money(amount, currency) : "—"}</td>
-                      <td className="right">{amount < 0 ? money(-amount, currency) : "—"}</td>
+                      <td>{payment?.reference || entry.reference || "-"}</td>
+                      <td className="right">{amount > 0 ? money(amount, currency) : "-"}</td>
+                      <td className="right">{amount < 0 ? money(-amount, currency) : "-"}</td>
                     </tr>
                   );
                 })}
