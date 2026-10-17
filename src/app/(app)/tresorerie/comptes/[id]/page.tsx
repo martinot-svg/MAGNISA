@@ -50,7 +50,7 @@ export default async function AccountStatement({
   const { supabase, organizationId } = ctx;
   const [{ data: account, error: accountError }, { data: org }] = await Promise.all([
     supabase.from("financial_accounts")
-      .select("id,name,type,balance,is_active")
+      .select("id,name,type,balance,is_active,details")
       .eq("organization_id", organizationId).eq("id", id).maybeSingle(),
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
   ]);
@@ -81,6 +81,47 @@ export default async function AccountStatement({
     for (const payment of (payments ?? []) as PaymentInfo[]) paymentById.set(payment.id, payment);
   }
 
+  // Les indicateurs Mobile Money couvrent l'ensemble des mouvements, pas uniquement les 200 affichés.
+  let mobileCredits = 0;
+  let mobileDebits = 0;
+  let mobileFees = 0;
+  let mobileFeeCount = 0;
+  if (account.type === "mobile_money") {
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data: page, error: totalError } = await supabase
+        .from("financial_transactions")
+        .select("amount,kind,source_type")
+        .eq("organization_id", organizationId)
+        .eq("financial_account_id", id)
+        .range(offset, offset + pageSize - 1);
+      if (totalError) throw new Error(totalError.message);
+      for (const entry of page ?? []) {
+        const amount = Number(entry.amount);
+        if (amount > 0) mobileCredits += amount;
+        if (amount < 0) mobileDebits += -amount;
+        // Seuls les frais opérateur explicitement catégorisés sont des frais.
+        // Les remboursements client (mvola_fee_contribution) en sont exclus.
+        if (amount < 0 && (
+          entry.kind === "mobile_money_fee" ||
+          entry.kind === "operator_fee" ||
+          entry.source_type === "mobile_money_fee" ||
+          entry.source_type === "operator_fee" ||
+          entry.source_type === "mvola_fee"
+        )) {
+          mobileFees += -amount;
+          mobileFeeCount++;
+        }
+      }
+      if ((page ?? []).length < pageSize) break;
+    }
+  }
+  const accountCurrency = (account.details && typeof account.details === "object" &&
+    "currency" in account.details && typeof account.details.currency === "string" &&
+    ["MGA", "EUR", "USD"].includes(account.details.currency))
+    ? account.details.currency : (org?.currency || "MGA");
+  const mobileOperator = ["MVola", "Orange Money", "Airtel Money"].includes(account.name)
+    ? account.name : "Mobile Money";
   const currency = org?.currency || "MGA";
   const credits = movements.reduce((sum, movement) => sum + Math.max(0, Number(movement.amount)), 0);
   const debits = movements.reduce((sum, movement) => sum + Math.max(0, -Number(movement.amount)), 0);
@@ -95,7 +136,28 @@ export default async function AccountStatement({
         </div>
       </div>
 
-      <div className="grid2">
+      {account.type === "mobile_money" && (
+        <section className="section" aria-label="Gestion Mobile Money — Trésorerie">
+          <div className="pageHead">
+            <div>
+              <h2>Compte {mobileOperator}</h2>
+              <p>Gestion Mobile Money — Trésorerie</p>
+            </div>
+            <span className="muted">{account.is_active ? "Compte actif" : "Compte inactif"}</span>
+          </div>
+          <div className="grid2">
+            <div className="card"><h3>Solde disponible</h3><div className="metric">{money(account.balance, accountCurrency)}</div></div>
+            <div className="card"><h3>Total encaissé</h3><div className="metric">{money(mobileCredits, accountCurrency)}</div></div>
+            <div className="card"><h3>Total décaissé</h3><div className="metric">{money(mobileDebits, accountCurrency)}</div></div>
+            <div className="card"><h3>Frais {mobileOperator}</h3><div className="metric">{mobileFeeCount ? money(mobileFees, accountCurrency) : "—"}</div>
+              {!mobileFeeCount && <p className="muted">Aucun frais opérateur distinctement identifié dans les mouvements enregistrés.</p>}
+            </div>
+          </div>
+          <p className="muted">Indicateurs calculés automatiquement sur tous les mouvements du compte. Les frais remboursés par les clients ne sont pas comptés comme frais opérateur.</p>
+        </section>
+      )}
+
+      {account.type !== "mobile_money" && <div className="grid2">
         <section className="card">
           <h2>Solde du compte</h2>
           <div className="metric">{money(account.balance, currency)}</div>
@@ -107,7 +169,7 @@ export default async function AccountStatement({
           <div className="field"><span className="muted">Sorties</span><strong>{money(debits, currency)}</strong></div>
           <small>Totaux calculés sur les {movements.length} derniers mouvements affichés, pas nécessairement sur toute la vie du compte.</small>
         </section>
-      </div>
+      </div>}
 
       <section className="card section">
         <h2>Historique des transactions</h2>
