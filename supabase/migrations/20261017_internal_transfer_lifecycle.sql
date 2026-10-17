@@ -65,14 +65,17 @@ BEGIN
  VALUES(p_org,p_source,p_date,-p_destination_credit,'transfer_out','internal_transfer',v_id,btrim(p_reference),'Transfert en transit vers '||v_dest.name);
  IF p_fee>0 THEN
   INSERT INTO public.financial_transactions(organization_id,financial_account_id,transaction_date,amount,kind,source_type,source_id,reference,description)
-  VALUES(p_org,p_source,p_date,-p_fee,'operator_fee','internal_transfer_fee',v_id,btrim(p_reference),'Frais reels de transfert vers '||v_dest.name);
+  VALUES(p_org,p_source,p_date,-p_fee,'expense','operator_fee',v_id,btrim(p_reference),'Frais reels de transfert vers '||v_dest.name);
  END IF;
  INSERT INTO public.journal_entries(organization_id,entry_date,reference,description,source_type,source_id,total_debit,total_credit,status)
  VALUES(p_org,p_date,btrim(p_reference),'Debit source confirme - fonds en transit','internal_transfer_debit',v_id,p_source_debit,p_source_debit,'posted') RETURNING id INTO v_entry;
  INSERT INTO public.journal_entry_lines(organization_id,journal_entry_id,account_key,account_label,debit,credit,financial_account_id)
  VALUES (p_org,v_entry,'TRANSIT:'||v_id::text,'Fonds en transit',p_destination_credit,0,null),
- (p_org,v_entry,'TREASURY:'||p_source::text,v_source.name,0,p_source_debit,p_source),
- (p_org,v_entry,'TRANSFER_FEES','Frais de transfert reels',p_fee,0,null);
+ (p_org,v_entry,'TREASURY:'||p_source::text,v_source.name,0,p_source_debit,p_source);
+ IF p_fee>0 THEN
+  INSERT INTO public.journal_entry_lines(organization_id,journal_entry_id,account_key,account_label,debit,credit,financial_account_id)
+  VALUES(p_org,v_entry,'TRANSFER_FEES','Frais de transfert reels',p_fee,0,null);
+ END IF;
  RETURN v_id;
 END;$$;
 
