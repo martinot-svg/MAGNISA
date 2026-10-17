@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireOrganization } from "@/lib/current-org";
 import { requirePermission } from "@/lib/permissions";
 import { money } from "@/lib/money";
+import { estimateMvolaFee, MVOLA_RATE_VERSION } from "@/lib/mvola-tariffs";
 
 type Movement = {
   id: string;
@@ -20,6 +21,7 @@ type PaymentInfo = {
   id: string;
   reference: string | null;
   mvola_withdrawal_fee_option: string | null;
+  mvola_fee_reimbursement: number | null;
   invoices: { number: string } | { number: string }[] | null;
   customers: { name: string } | { name: string }[] | null;
 };
@@ -75,7 +77,7 @@ export default async function AccountStatement({
   if (paymentIds.length) {
     const { data: payments, error: paymentError } = await supabase
       .from("payments")
-      .select("id,reference,mvola_withdrawal_fee_option,invoices(number),customers(name)")
+      .select("id,reference,mvola_withdrawal_fee_option,mvola_fee_reimbursement,invoices(number),customers(name)")
       .eq("organization_id", organizationId).in("id", paymentIds);
     if (paymentError) throw new Error(paymentError.message);
     for (const payment of (payments ?? []) as PaymentInfo[]) paymentById.set(payment.id, payment);
@@ -210,12 +212,14 @@ export default async function AccountStatement({
                   const invoice = payment ? relatedName(payment.invoices) : null;
                   const customer = payment ? relatedName(payment.customers) : null;
                   const detail = [invoice?.number, customer?.name].filter(Boolean).join(" · ");
-                  const feeLabel = account.type === "mobile_money" && payment
-                    ? payment.mvola_withdrawal_fee_option === "with_fees"
-                      ? "Avec remboursement client"
-                      : payment.mvola_withdrawal_fee_option === "without_fees"
-                        ? "Non pris en charge par le client"
-                        : "Non renseigné"
+                  const feeLabel = account.name.trim().toLowerCase() === "mvola" && payment
+                    ? entry.source_type === "mvola_fee_contribution"
+                      ? "Remboursement encaissé (sans retrait constaté)"
+                      : payment.mvola_withdrawal_fee_option === "with_fees"
+                        ? `Client : ${money(payment.mvola_fee_reimbursement ?? 0, accountCurrency)} remboursés · Tarif retrait estimé : ${(() => { const fee=estimateMvolaFee("withdrawal",Number(entry.amount)); return fee===null?"non disponible":money(fee,accountCurrency); })()} (${MVOLA_RATE_VERSION})`
+                        : payment.mvola_withdrawal_fee_option === "without_fees"
+                          ? "Sans remboursement du client"
+                          : "Non renseigné"
                     : "—";
                   const amount = Number(entry.amount);
                   return (
