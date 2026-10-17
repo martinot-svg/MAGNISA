@@ -96,11 +96,11 @@ export default async function Treasury(){const ctx=await requireOrganization();a
         movements={<section className="section"><h2>Mouvements de trésorerie</h2>
           {!transactions.length?<EmptyState title="Aucun mouvement" description="Les entrées, sorties et transferts validés apparaîtront ici."/>:
           <div className="card" style={{overflowX:"auto"}}><table style={{width:"100%"}}><thead><tr><th>Date</th><th>Compte</th><th>Opération</th><th>Référence</th><th>Montant</th></tr></thead><tbody>
-            {transactions.map((t:any)=><tr key={t.id}><td>{t.transaction_date}</td><td>{accounts.find((a:any)=>a.id===t.financial_account_id)?.name||"Compte indisponible"}</td><td>{t.description||t.kind}</td><td>{t.reference||"—"}</td><td>{money(t.amount,org?.currency||"MGA")}</td></tr>)}
+            {transactions.map((t:any)=><tr key={t.id}><td>{t.transaction_date}</td><td>{accounts.find((a:any)=>a.id===t.financial_account_id)?.name||"Compte indisponible"}</td><td>{t.description||t.kind}</td><td>{t.reference||"-"}</td><td>{money(t.amount,org?.currency||"MGA")}</td></tr>)}
           </tbody></table></div>}
         </section>}
         transfers={<section className="section">
-          <h2>Transferts internes — opérations réelles</h2>
+          <h2>Transferts internes - opérations réelles</h2>
           <p className="muted">Enregistre uniquement un débit déjà constaté sur le compte source. Le destinataire n'est crédité dans MAGNISA qu'après confirmation de son crédit réel.</p>
           <div>
             <form action={recordInternalTransferDebit} className="card form">
@@ -113,7 +113,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
               <div className="field"><label htmlFor="internal-net">Montant attendu sur le compte destinataire (Ar)</label><input id="internal-net" name="destination_credit" type="number" min="0.01" step="0.01" required/><small>Total débité = montant attendu + frais réellement prélevés. Le compte destinataire ne sera pas crédité à cette étape.</small></div>
               <div className="field"><label htmlFor="internal-date">Date réelle du débit</label><input id="internal-date" type="date" name="date" required/></div>
               <div className="field"><label htmlFor="internal-ref">Référence réelle du débit</label><input id="internal-ref" name="reference" required minLength={2} placeholder="Référence sur le SMS ou le relevé"/></div>
-              <button className="button primary" type="submit">Enregistrer — placer en transit</button>
+              <button className="button primary" type="submit">Enregistrer - placer en transit</button>
             </form>
 
           </div>
