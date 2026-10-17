@@ -19,3 +19,40 @@ export function estimateMvolaFee(operation:MvolaFeeOperation, amount:number):num
  const band=bands.find(b=>amount>=b[0]&&amount<=b[1]);
  return band?.[2]??null; // unavailable is not free
 }
+
+/** The reference is a total debit for included mode, and a guaranteed net credit
+ * for added mode. For tiered rates, included fees are based on the net amount
+ * delivered, not automatically on the source debit.
+ */
+export function calculateMvolaTransfer(
+ operation:MvolaFeeOperation, reference:number, mode:"included"|"added"
+):{fee:number;debit:number;credit:number}|null {
+ if(!Number.isInteger(reference)||reference<=0)return null;
+ if(operation==="bank_other"&&mode==="included")return null; // Percentage base requires verification.
+ if(mode==="added"){
+  const fee=estimateMvolaFee(operation,reference);
+  return fee===null?null:{fee,debit:reference+fee,credit:reference};
+ }
+ // Fixed tier tariffs: find the largest net amount satisfying net + fee(net)=gross.
+ // Some amounts at tier boundaries have no exact solution and must not be guessed.
+ if(operation==="bank_other")return null;
+ let best:{fee:number;debit:number;credit:number}|null=null;
+ const candidates=new Set<number>();
+ // Iteratively approach discontinuous tier boundaries from the gross amount.
+ candidates.add(reference);
+ let test=reference;
+ for(let i=0;i<12;i++){
+  const fee=estimateMvolaFee(operation,test);
+  if(fee===null)break;
+  const net=reference-fee;
+  if(net<=0)break;
+  candidates.add(net);
+  test=net;
+ }
+ for(const net of candidates){
+  const fee=estimateMvolaFee(operation,net);
+  if(fee!==null&&net>0&&net+fee===reference&&(!best||net>best.credit))
+   best={fee,debit:reference,credit:net};
+ }
+ return best;
+}
