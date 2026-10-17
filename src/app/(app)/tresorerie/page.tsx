@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
@@ -8,7 +7,6 @@ import { money } from "@/lib/money";
 import { TreasuryAccountDialog } from "@/components/treasury-account-dialog";
 import { TreasuryNavigation } from "@/components/treasury-navigation";
 import { TreasuryDashboardChart } from "@/components/treasury-dashboard-chart";
-import { transferFunds } from "@/server/actions/core";
 
 async function createAccount(fd: FormData) {
   "use server";
@@ -76,7 +74,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
       <TreasuryNavigation
         dashboard={<section className="section">
           <h2>Tableau de bord de trésorerie</h2>
-          <TreasuryDashboardChart active={accounts.filter((a:any)=>a.is_active).length} total={accounts.length} inflows={transactions.filter((t:any)=>t.kind==="inflow").length} outflows={transactions.filter((t:any)=>t.kind==="outflow").length}/>
+          <TreasuryDashboardChart active={accounts.filter((a:any)=>a.is_active).length} total={accounts.length} inflows={transactions.filter((t:any)=>Number(t.amount)>0).length} outflows={transactions.filter((t:any)=>Number(t.amount)<0).length}/>
           <p className="muted">Les soldes de comptes sont consultables dans Comptes. Les montants en devises différentes ne sont pas additionnés.</p>
           <h3>Activité récente</h3>
           {!transactions.length?<EmptyState title="Aucun mouvement" description="Les opérations réelles enregistrées apparaîtront ici."/>:
@@ -99,15 +97,12 @@ export default async function Treasury(){const ctx=await requireOrganization();a
           </tbody></table></div>}
         </section>}
         transfers={<section className="section"><h2>Transferts internes</h2>
-          <p className="muted">Un transfert déplace la trésorerie entre deux comptes sans créer de chiffre d'affaires ni de charge.</p>
-          {accounts.filter((a:any)=>a.is_active).length<2?<EmptyState title="Deux comptes requis" description="Crée au moins deux comptes actifs pour réaliser un transfert."/>:
-          <div className="card"><form action={transferFunds} className="form">
-            <input type="hidden" name="idempotency_key" value={randomUUID()}/>
-            <div className="grid2"><div className="field"><label>Depuis</label><select name="from" required><option value="">Sélectionner</option>{accounts.filter((a:any)=>a.is_active).map((a:any)=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
-            <div className="field"><label>Vers</label><select name="to" required><option value="">Sélectionner</option>{accounts.filter((a:any)=>a.is_active).map((a:any)=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div></div>
-            <div className="grid2"><div className="field"><label>Montant</label><input name="amount" type="number" min="0.01" step="0.01" required/></div><div className="field"><label>Date</label><input name="date" type="date" required/></div></div>
-            <div className="field"><label>Référence</label><input name="reference"/></div><button className="button primary">Transférer</button>
-          </form></div>}
+          <p className="muted">Cette section est en consultation seule. Les transferts sont enregistrés depuis les circuits financiers autorisés, sans saisie manuelle en Trésorerie.</p>
+          {!transactions.filter((t:any)=>t.kind==="transfer_in"||t.kind==="transfer_out").length
+            ? <EmptyState title="Aucun transfert récent" description="Les transferts enregistrés apparaîtront ici automatiquement."/>
+            : <div className="card" style={{overflowX:"auto"}}><table style={{width:"100%"}}><thead><tr><th>Date</th><th>Compte</th><th>Nature</th><th>Référence</th><th>Montant</th></tr></thead><tbody>
+              {transactions.filter((t:any)=>t.kind==="transfer_in"||t.kind==="transfer_out").map((t:any)=><tr key={t.id}><td>{t.transaction_date}</td><td>{accounts.find((a:any)=>a.id===t.financial_account_id)?.name||"Compte indisponible"}</td><td>{t.kind==="transfer_in"?"Transfert entrant":"Transfert sortant"}</td><td>{t.reference||"—"}</td><td>{money(t.amount,org?.currency||"MGA")}</td></tr>)}
+            </tbody></table></div>}
         </section>}
         reconciliation={<section className="section"><h2>Rapprochement des comptes</h2>
           <p className="muted">Contrôle de cohérence entre les soldes MAGNISA et les mouvements enregistrés. Ce contrôle ne constitue pas un rapprochement avec un relevé bancaire externe.</p>
