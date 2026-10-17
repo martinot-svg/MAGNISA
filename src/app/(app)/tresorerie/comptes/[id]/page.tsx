@@ -157,15 +157,15 @@ export default async function AccountStatement({
             <div className="card"><h3>Solde disponible</h3><div className="metric">{money(account.balance, accountCurrency)}</div></div>
             <div className="card"><h3>Total encaissé</h3><div className="metric">{money(mobileCredits, accountCurrency)}</div></div>
             <div className="card"><h3>Total décaissé</h3><div className="metric">{money(mobileDebits, accountCurrency)}</div></div>
-            <div className="card"><h3>Frais {mobileOperator}</h3><div className="metric">{mobileFeeCount ? money(mobileFees, accountCurrency) : "—"}</div>
-              {!mobileFeeCount && <p className="muted">Aucun frais opérateur distinctement identifié dans les mouvements enregistrés.</p>}
+            <div className="card"><h3>Frais Mobile Money perçus</h3><div className="metric">{money(mobileReimbursements, accountCurrency)}</div>
+              <p className="muted">Remboursements réellement encaissés des clients, indépendamment de tout retrait.</p>
             </div>
           </div>
           <section className="card">
             <h3>Suivi des frais et remboursements</h3>
-            <div className="field"><span className="muted">Remboursements de frais reçus des clients</span><strong>{mobileReimbursementCount ? money(mobileReimbursements, accountCurrency) : "—"}</strong></div>
-            <div className="field"><span className="muted">Frais opérateur identifiés</span><strong>{mobileFeeCount ? money(mobileFees, accountCurrency) : "—"}</strong></div>
-            <p className="muted">Un remboursement n’est pas un frais réellement prélevé. En l’absence de frais identifiés, aucun rapprochement automatique n’est supposé. Les montants proviennent exclusivement des mouvements existants.</p>
+            <div className="field"><span className="muted">Remboursements clients encaissés ({mobileReimbursementCount} opération(s))</span><strong>{money(mobileReimbursements, accountCurrency)}</strong></div>
+            <div className="field"><span className="muted">Frais opérateur effectivement enregistrés ({mobileFeeCount} opération(s))</span><strong>{money(mobileFees, accountCurrency)}</strong></div>
+            <p className="muted">Les remboursements encaissés ne constituent pas des charges MVola. Sans frais de retrait constatés et opérations rapprochées, ils restent à justifier et à affecter comptablement ; MAGNISA ne crée aucun retrait automatiquement.</p>
           </section>
           <p className="muted">Indicateurs calculés automatiquement sur tous les mouvements du compte. Les frais remboursés par les clients ne sont pas comptés comme frais opérateur.</p>
         </section>
