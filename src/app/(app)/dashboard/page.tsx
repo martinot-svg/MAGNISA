@@ -41,7 +41,8 @@ export default async function Dashboard(){
     {id:"receivables",label:"Créances clients",value:money(Number(m.receivables||0),currency)},
     {id:"cash",label:"Trésorerie disponible",value:money(Number(m.cash_available||0),currency)},
     {id:"overdue",label:"Factures en retard",value:String(m.overdue_invoice_count??0)},
-    {id:"quotes",label:"Devis acceptés",value:String(m.accepted_quote_count??0)}
+    {id:"quotes",label:"Devis acceptés",value:String(m.accepted_quote_count??0)},
+    {id:"debts",label:"Dettes et engagements",value:money(debtBreakdown.reduce((s,x)=>s+x.value,0),currency)}
   ];
   return <><div className="pageHead"><div><p className="eyebrow">Cockpit de pilotage</p><h1>Vue d'ensemble</h1><p>Choisis l'affichage et les indicateurs issus des opérations réellement enregistrées.</p></div></div>{!hasData?<EmptyState title="Aucune donnée financière" description="Crée d'abord un client, une prestation puis un devis ou une facture. MAGNISA n'affiche aucune statistique fictive."/>:<DashboardView organizationId={organizationId} items={items} months={months} age={age} cashByType={cashByType} debtBreakdown={debtBreakdown} currency={currency} mixedCurrencyAccounts={mixedCurrencyAccounts}/>}</>;
 }
