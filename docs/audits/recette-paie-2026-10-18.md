@@ -85,3 +85,13 @@ FMFP : taux confirmé et anomalie corrigée. Référentiel général 2026 : para
 - Mise à jour appliquée : colonne `employees.irsa_dependants` sur staging/production ; actions de création et modification de salariés ; calcul et vérification de l'IRSA synchronisés dans application et trigger de production. Aucun bulletin historique retouché.
 - Test arithmétique staging : 0 personne -> réduction 0, 2 personnes -> 4 000 Ar au-delà du seuil, 2 personnes avec revenu imposable inférieur au seuil -> 0. Ce test ne remplace pas l'essai end-to-end des RPC.
 - Réserve : cas fiscaux spéciaux, paramètres d'organisme sanitaire, barème consolidé et déploiement opérationnel à tester. Ce rapport ne vaut pas validation intégrale.
+
+
+## Audit Paie-Comptabilité - contrôle de production (18 octobre 2026)
+- Vérification de 45 écritures existantes dans `journal_entries` : 0 écriture dont le total des débits est différent du total des crédits.
+- Rapprochement de ces 45 écritures avec leurs lignes réelles dans `journal_entry_lines` : 0 écart entre les totaux d'en-tête et les sommes des lignes.
+- Index `payslips_payroll_run_id_employee_id_key` unique pour chaque couple période-salarié : protège contre les doublons de bulletin.
+- Interface Comptabilité : nouvel aperçu du grand livre détaillé sur les données réellement stockées (limite explicite de 1 000 lignes). Commit `2eaa66b`. Les journaux, balances et contrôles précédents restent conservés.
+- Tests end-to-end de création/validation/paiement de paie toujours indisponibles tant que le schéma de staging ne dispose pas des mêmes fonctions et colonnes que production; aucun jeu réglementaire n'a été déclaré validé.
+- Validation des taux selon organisme sanitaire, plafond CNaPS, retenues spéciales et cas IRSA : en attente des données qui conditionnent l'entreprise. Pas d'activation de règle par supposition.
+- Le résultat 0 anomalie concerne les écritures existantes vérifiées : il ne certifie ni les états financiers complets ni les futurs flux de paie.
