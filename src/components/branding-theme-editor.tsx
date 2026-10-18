@@ -4,7 +4,7 @@ import {defaultDocumentTheme,parseDocumentTheme,type DocumentTheme} from "@/lib/
 export function BrandingThemeEditor({initial,company}:{initial:unknown;company:string}){
  const [draft,setDraft]=useState<DocumentTheme>(()=>parseDocumentTheme(initial));
  const [reset,setReset]=useState(false);
- const set=<K extends keyof DocumentTheme>(k:K,v:DocumentTheme[K])=>setDraft(old=>({...old,[k]:v}));
+ const set=<K extends keyof DocumentTheme,>(k:K,v:DocumentTheme[K])=>setDraft(old=>({...old,[k]:v}));
  const colors=[["primaryColor","Couleur principale"],["secondaryColor","Secondaire"],["accentColor","Accent"],["textColor","Texte"],["headingColor","Titres"],["borderColor","Bordures"],["tableHeaderColor","En-tête du tableau"],["backgroundColor","Arrière-plan"]] as const;
  return <div className="grid2"><div className="card"><h2>Charte documentaire globale</h2><p className="muted">Modifications en cours : aperçu ci-contre. Elles ne seront enregistrées qu'après validation.</p><div className="form">
  <div className="field"><label>Style</label><select name="style" form="brand-theme-form" value={draft.style} onChange={e=>set("style",e.target.value as DocumentTheme["style"])}>{[["classic","Classique"],["modern","Moderne"],["minimal","Minimaliste"],["institutional","Institutionnel"]].map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></div>
