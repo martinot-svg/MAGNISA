@@ -348,6 +348,7 @@ export default async function Payroll() {
                   <th>Net</th>
                   <th>Payé</th>
                   <th>Statut</th>
+                  <th>Document</th>
                   <th />
                 </tr>
               </thead>
@@ -370,7 +371,7 @@ export default async function Payroll() {
                       <td>
                         <span className="badge">{s.status}</span>
                       </td>
-                      <td className="right">
+                      <td className="right"><Link className="button" href={`/paie/bulletins/${s.id}`}>Ouvrir le bulletin</Link></td><td className="right">
                         {s.status === "calculated" ? (
                           <form action={validatePayslip}>
                             <input type="hidden" name="payslip_id" value={s.id} />
