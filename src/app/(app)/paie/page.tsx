@@ -264,22 +264,21 @@ export default async function Payroll() {
         <Link className="button" href="/paie/parametres">Paramètres de paie - Madagascar</Link>
       </div>
 
-      {employees.length>0 && <div className="card section">
-        <h2>Personnes à charge IRSA - salariés existants</h2>
-        <p className="muted">Indiquer uniquement le nombre de personnes éligibles avec justificatifs. La modification n'affecte pas les bulletins historiques.</p>
-        <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Personnes à charge</th><th>Action</th></tr></thead><tbody>
-          {employees.map((e:any)=><tr key={e.id}><td>{e.first_name} {e.last_name}</td><td>{e.irsa_dependants??0}</td><td>
-            <form action={updateEmployeeDependants} style={{display:"flex",gap:8,alignItems:"center"}}>
-              <input type="hidden" name="employee_id" value={e.id}/>
-              <input aria-label="Personnes à charge IRSA" type="number" name="irsa_dependants" min="0" max="30" step="1" defaultValue={e.irsa_dependants??0} required style={{width:80}}/>
-              <button className="button">Mettre à jour</button>
-            </form></td></tr>)}
-        </tbody></table></div>
-      </div>}
+      <section className="card section" aria-label="Personnel">
+        <div className="pageHead"><div><h2>Personnel</h2><p className="muted">{employees.length} salarié(s) enregistré(s) - {employees.filter((e:any)=>e.status==="active").length} actif(s).</p></div></div>
+        {!employees.length ? <p className="muted">Aucun salarié enregistré. Utilisez le formulaire ci-dessous pour commencer.</p> :
+        <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Matricule</th><th>Poste</th><th>Statut</th><th>Gestion</th></tr></thead><tbody>
+          {employees.map((e:any)=><tr key={e.id}><td><strong>{e.first_name} {e.last_name}</strong></td><td>{e.employee_number||"Non renseigné"}</td><td>{e.job_title||"Non renseigné"}</td><td>{e.status==="active"?"Actif":e.status}</td><td>
+            <details><summary style={{cursor:"pointer"}}>Détails et IRSA</summary><div className="field"><p className="muted">Salaire de base : {money(e.base_salary,c)}. Personnes à charge : {e.irsa_dependants??0}.</p>
+              <form action={updateEmployeeDependants} className="form"><input type="hidden" name="employee_id" value={e.id}/><label>Personnes à charge IRSA éligibles</label><input aria-label={`Personnes à charge de ${e.first_name} ${e.last_name}`} type="number" name="irsa_dependants" min="0" max="30" step="1" defaultValue={e.irsa_dependants??0} required/><button className="button">Enregistrer</button></form>
+            </div></details>
+          </td></tr>)}
+        </tbody></table></div>}
+      </section>
 
-      <div className="grid3">
+      <div className="grid2">
         <div className="card">
-          <h2>Nouveau salarié</h2>
+          <details><summary style={{cursor:"pointer",fontWeight:600}}>Ajouter un salarié</summary>
           <form action={createEmployee} className="form">
             <div className="grid2">
               <div className="field">
@@ -320,7 +319,7 @@ export default async function Payroll() {
               </div>
             </div>
             <button className="button primary">Ajouter le salarié</button>
-          </form>
+          </form></details>
         </div>
 
         <div className="card">
@@ -338,8 +337,9 @@ export default async function Payroll() {
           </form>
         </div>
 
-        <div className="card">
-          <h2>Calculer un bulletin</h2>
+      </div>
+      <div className="section"><div className="card">
+          <h2>Calcul d’un bulletin</h2>
           {employees.length === 0 || editableRuns.length === 0 ? (
             <p className="muted">Crée au moins un salarié et une période de paie modifiable.</p>
           ) : (
