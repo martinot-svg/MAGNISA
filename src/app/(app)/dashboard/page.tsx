@@ -7,16 +7,32 @@ function monthKey(d:Date){return `${d.getFullYear()}-${String(d.getMonth()+1).pa
 function labelMonth(d:Date){return new Intl.DateTimeFormat("fr-FR",{month:"short"}).format(d).replace(".","")}
 export default async function Dashboard(){
   const {supabase,organizationId}=await requireOrganization();const {data:org}=await supabase.from("organizations").select("currency").eq("id",organizationId).single();const currency=org?.currency||"MGA";const {data:metrics}=await supabase.rpc("dashboard_metrics",{p_org:organizationId});const m=(metrics??{}) as any;
-  const from=new Date();from.setDate(1);from.setMonth(from.getMonth()-5);const fromIso=from.toISOString().slice(0,10);
-  const [{data:invoices=[]},{data:payments=[]},{data:expenses=[]},{data:openInvoices=[]}]=await Promise.all([
+  const from=new Date();from.setDate(1);from.setMonth(from.getMonth()-11);const fromIso=from.toISOString().slice(0,10);
+  const [{data:invoices=[]},{data:payments=[]},{data:expenses=[]},{data:openInvoices=[]},{data:accounts=[]},{data:suppliers=[]},{data:tax=[]},{data:social=[]},{data:loans=[]},{data:partners=[]}]=await Promise.all([
     supabase.from("invoices").select("issue_date,total,status").eq("organization_id",organizationId).gte("issue_date",fromIso).neq("status","cancelled"),
     supabase.from("payments").select("paid_at,amount,status").eq("organization_id",organizationId).gte("paid_at",fromIso).in("status",["confirmed","reconciled"]),
     supabase.from("expenses").select("expense_date,amount,status").eq("organization_id",organizationId).gte("expense_date",fromIso).neq("status","cancelled"),
-    supabase.from("invoices").select("due_date,balance_due,status").eq("organization_id",organizationId).gt("balance_due",0).neq("status","cancelled")
+    supabase.from("invoices").select("due_date,balance_due,status").eq("organization_id",organizationId).gt("balance_due",0).neq("status","cancelled"),
+    supabase.from("financial_accounts").select("type,balance,details").eq("organization_id",organizationId),
+    supabase.from("supplier_invoices").select("balance_due").eq("organization_id",organizationId).gt("balance_due",0).neq("status","cancelled"),
+    supabase.from("tax_obligations").select("amount,paid_amount").eq("organization_id",organizationId).neq("status","cancelled"),
+    supabase.from("social_obligations").select("amount,paid_amount").eq("organization_id",organizationId).neq("status","cancelled"),
+    supabase.from("loans").select("outstanding_principal").eq("organization_id",organizationId).eq("status","active"),
+    supabase.from("partner_account_movements").select("partner_account_id,direction,amount").eq("organization_id",organizationId)
   ]);
-  const months=Array.from({length:6},(_,i)=>{const d=new Date(from.getFullYear(),from.getMonth()+i,1);return{key:monthKey(d),label:labelMonth(d),revenue:0,receipts:0,expenses:0}});const mm=new Map(months.map(x=>[x.key,x]));
+  const months=Array.from({length:12},(_,i)=>{const d=new Date(from.getFullYear(),from.getMonth()+i,1);return{key:monthKey(d),label:labelMonth(d),revenue:0,receipts:0,expenses:0}});const mm=new Map(months.map(x=>[x.key,x]));
   for(const x of invoices as any[]){const r=mm.get(String(x.issue_date).slice(0,7));if(r)r.revenue+=Number(x.total||0)}for(const x of payments as any[]){const r=mm.get(String(x.paid_at).slice(0,7));if(r)r.receipts+=Number(x.amount||0)}for(const x of expenses as any[]){const r=mm.get(String(x.expense_date).slice(0,7));if(r)r.expenses+=Number(x.amount||0)}
   const now=new Date();const age=[{label:"Non échues",value:0},{label:"1–30 jours",value:0},{label:"31–60 jours",value:0},{label:"61–90 jours",value:0},{label:"+90 jours",value:0}];for(const x of openInvoices as any[]){const v=Number(x.balance_due||0);if(!x.due_date){age[0].value+=v;continue}const diff=Math.floor((now.getTime()-new Date(x.due_date).getTime())/86400000);if(diff<=0)age[0].value+=v;else if(diff<=30)age[1].value+=v;else if(diff<=60)age[2].value+=v;else if(diff<=90)age[3].value+=v;else age[4].value+=v}
+  const cashByType=["bank","cash","mobile_money","cheque_clearing"].map(type=>({label:type==="bank"?"Banque":type==="cash"?"Caisse":type==="mobile_money"?"Mobile Money":"Chèques",value:(accounts as any[]).filter(a=>a.type===type&&(a.details?.currency||currency)===currency).reduce((sum,a)=>sum+Number(a.balance||0),0)}));
+  const mixedCurrencyAccounts=(accounts as any[]).some(a=>(a.details?.currency||currency)!==currency);
+  const balances=new Map<string,number>();for(const p of partners as any[]){const k=String(p.partner_account_id);balances.set(k,(balances.get(k)||0)+(p.direction==="company_owes_partner"?Number(p.amount||0):-Number(p.amount||0)))}
+  const debtBreakdown=[
+    {label:"Fournisseurs",value:(suppliers as any[]).reduce((s,x)=>s+Number(x.balance_due||0),0)},
+    {label:"Fiscalité",value:(tax as any[]).reduce((s,x)=>s+Math.max(0,Number(x.amount||0)-Number(x.paid_amount||0)),0)},
+    {label:"Social",value:(social as any[]).reduce((s,x)=>s+Math.max(0,Number(x.amount||0)-Number(x.paid_amount||0)),0)},
+    {label:"Emprunts",value:(loans as any[]).reduce((s,x)=>s+Number(x.outstanding_principal||0),0)},
+    {label:"Dû aux associés",value:[...balances.values()].reduce((s,x)=>s+Math.max(0,x),0)}
+  ];
   const hasData=(m.invoice_count??0)+(m.payment_count??0)+(m.expense_count??0)>0;
   const items=[
     {id:"revenue",label:"Chiffre d'affaires facturé",value:money(Number(m.revenue||0),currency)},
@@ -27,5 +43,5 @@ export default async function Dashboard(){
     {id:"overdue",label:"Factures en retard",value:String(m.overdue_invoice_count??0)},
     {id:"quotes",label:"Devis acceptés",value:String(m.accepted_quote_count??0)}
   ];
-  return <><div className="pageHead"><div><p className="eyebrow">Cockpit de pilotage</p><h1>Vue d'ensemble</h1><p>Choisis l'affichage et les indicateurs issus des opérations réellement enregistrées.</p></div></div>{!hasData?<EmptyState title="Aucune donnée financière" description="Crée d'abord un client, une prestation puis un devis ou une facture. MAGNISA n'affiche aucune statistique fictive."/>:<DashboardView organizationId={organizationId} items={items} months={months} age={age}/>}</>;
+  return <><div className="pageHead"><div><p className="eyebrow">Cockpit de pilotage</p><h1>Vue d'ensemble</h1><p>Choisis l'affichage et les indicateurs issus des opérations réellement enregistrées.</p></div></div>{!hasData?<EmptyState title="Aucune donnée financière" description="Crée d'abord un client, une prestation puis un devis ou une facture. MAGNISA n'affiche aucune statistique fictive."/>:<DashboardView organizationId={organizationId} items={items} months={months} age={age} cashByType={cashByType} debtBreakdown={debtBreakdown} currency={currency} mixedCurrencyAccounts={mixedCurrencyAccounts}/>}</>;
 }
