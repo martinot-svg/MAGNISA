@@ -10,10 +10,14 @@ export async function loadPayslip(id:string){
  ]);
  if(error)throw new Error(error.message);
  if(!slip)return null;
+ const periodEnd=String((slip as any).payroll_runs?.period_end||"");
+ const {data:smieRules,error:smieError}=await supabase.from("payroll_rule_sets").select("smie_partner_name,effective_from,effective_to").eq("organization_id",organizationId).eq("status","validated").lte("effective_from",periodEnd).order("effective_from",{ascending:false});
+ if(smieError)throw new Error(smieError.message);
+ const smiePartner=(smieRules||[]).find((r:any)=>!r.effective_to||r.effective_to>=periodEnd)?.smie_partner_name||null;
  const d:any=slip;
  const period=String(d.payroll_runs?.period_start||"")+" au "+String(d.payroll_runs?.period_end||"");
  const employee=[d.employees?.first_name,d.employees?.last_name].filter(Boolean).join(" ");
  const number="BPA-"+String(d.id).slice(0,8).toUpperCase();
- const data={company:settings?.trade_name||settings?.legal_name||org?.name||"Entreprise",address:settings?.address,employee,number,period,currency:org?.currency||"MGA",status:d.status,values:d as Record<string,number>};
+ const data={smiePartner,company:settings?.trade_name||settings?.legal_name||org?.name||"Entreprise",address:settings?.address,employee,number,period,currency:org?.currency||"MGA",status:d.status,values:d as Record<string,number>};
  return {ctx,slip:d,data,email:String(d.employees?.email||"")};
 }
