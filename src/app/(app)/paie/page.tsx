@@ -474,13 +474,14 @@ export default async function Payroll() {
             </table>
           </div>
         )}
+
+      </div>
       <section className="card section" aria-label="Mode préparation de la paie">
         <h2>Mode préparation - sans validation fiscale</h2>
         <p>Tu peux créer les salariés, mettre à jour leurs personnes à charge et préparer les périodes de paie dès maintenant. Ces données sont enregistrées sans créer de bulletin validé, d'écriture comptable ou de paiement.</p>
         <p><strong>À distinguer :</strong> les primes, indemnités et retenues saisies dans « Calculer un bulletin » ne sont pas enregistrées si aucun référentiel réglementaire validé ne couvre la période. Le calcul définitif reste protégé.</p>
         <p><Link href="/paie/parametres">Compléter les paramètres réglementaires lorsque les justificatifs sont disponibles</Link></p>
       </section>
-      </div>
     </>
   );
 }
