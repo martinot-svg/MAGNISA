@@ -46,7 +46,8 @@ async function ruleAction(fd:FormData){
  }else throw new Error("Opération non reconnue.");
  revalidatePath("/paie/parametres");
 }
-\nexport default async function PayrollSettings(){
+
+export default async function PayrollSettings(){
  const ctx=await requireOrganization();await requirePermission(ctx,"payroll.view");
  const [{data:rules,error},{data:org}]=await Promise.all([
  ctx.supabase.from("payroll_rule_sets").select("id,name,effective_from,effective_to,status,cnaps_employee_rate,cnaps_employer_rate,health_employee_rate,health_employer_rate,fmfp_employer_rate,cnaps_monthly_ceiling,health_monthly_ceiling,irsa_brackets,legal_reference").eq("organization_id",ctx.organizationId).order("effective_from",{ascending:false}),
