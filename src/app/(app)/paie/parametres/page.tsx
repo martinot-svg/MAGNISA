@@ -5,6 +5,13 @@ import {requireOrganization} from "@/lib/current-org";
 import {assertPermission,requirePermission} from "@/lib/permissions";
 import {PayrollRulePreview} from "@/components/payroll-rule-preview";
 
+// Barème national IRSA - droit commun, loi n°2025-021, art. 01.03.16.
+// Conservé dans la configuration en attente de contrôle, sans activation automatique.
+const IRSA_2026=[{up_to:350000,rate:0},{up_to:400000,rate:0.05},{up_to:500000,rate:0.10},{up_to:600000,rate:0.15},{up_to:4000000,rate:0.20},{up_to:null,rate:0.25}];
+const IRSA_2026_SOURCE="Loi n°2025-021 portant loi de finances 2026, article 01.03.16";
+const IRSA_2026_URL="https://www.mef.gov.mg/assets/vendor/ckeditor/plugins/kcfinder/upload/files/2026/janv/LOI_n%C2%B0_2025-021_VF_LFI__2026.pdf";
+function usesIrsa2026(date:string){return date>="2026-01-01"&&date<"2027-01-01";}
+
 async function saveRule(fd:FormData){
  "use server";
  const ctx=await requireOrganization();await assertPermission(ctx,"payroll.manage");
@@ -16,7 +23,8 @@ async function saveRule(fd:FormData){
  const data:Record<string,string|number|null>={name,effective_from:from,effective_to:until,status:"pending_review",legal_reference:String(fd.get("legal_reference")||"").trim()||null,rounding_policy:"unverified"};
  for(const key of rates){const raw=Number(fd.get(key));if(!Number.isFinite(raw)||raw<0||raw>100)throw new Error("Taux invalide : "+key);data[key]=raw/100;}
  for(const key of ["cnaps_monthly_ceiling","health_monthly_ceiling"]){const raw=String(fd.get(key)||"").trim();const n=Number(raw);if(raw!==""&&(!Number.isFinite(n)||n<0))throw new Error("Plafond invalide.");data[key]=raw===""?null:n;}
- const {error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,organization_id:ctx.organizationId});
+ if(usesIrsa2026(from)){data.irsa_brackets=JSON.stringify(IRSA_2026);data.irsa_minimum=3000;data.rounding_policy="floor_100";}
+ const {error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,irsa_brackets:usesIrsa2026(from)?IRSA_2026:[],organization_id:ctx.organizationId});
  if(error)throw new Error(error.message);
  revalidatePath("/paie/parametres");
 }
@@ -48,20 +56,10 @@ async function executeRuleAction(fd:FormData){
   for(const key of ["cnaps_monthly_ceiling","health_monthly_ceiling"]){const raw=String(fd.get(key)??"").trim();const val=Number(raw);if(raw!==""&&(!Number.isFinite(val)||val<=0))throw new Error("Plafond invalide : "+key);patch[key]=raw===""?null:val;}
   const minimumRaw=String(fd.get("irsa_minimum")??"").trim();
   if(minimumRaw!==""){const min=Number(minimumRaw);if(!Number.isFinite(min)||min<0)throw new Error("Minimum IRSA invalide.");patch.irsa_minimum=min;}
-  const bracketsRaw=String(fd.get("irsa_brackets")??"").trim();
-  if(bracketsRaw!==""){
-    let parsed:unknown;
-    try{parsed=JSON.parse(bracketsRaw);}catch{throw new Error("Le barème IRSA doit être du JSON valide.");}
-    if(!Array.isArray(parsed))throw new Error("Le barème IRSA doit être une liste de tranches.");
-    let prior=0;let lastOpen=false;
-    for(let i=0;i<parsed.length;i++){const b=parsed[i];if(!b||typeof b!=="object")throw new Error("Tranche IRSA invalide.");
-      if(typeof b.rate!=="number"||!Number.isFinite(b.rate)||b.rate<0||b.rate>1)throw new Error("Taux de tranche IRSA invalide.");
-      if(b.up_to===null){if(i!==parsed.length-1)throw new Error("La tranche supérieure ouverte doit être la dernière.");lastOpen=true;}
-      else if(typeof b.up_to!=="number"||!Number.isFinite(b.up_to)||b.up_to<=prior)throw new Error("Bornes des tranches IRSA invalides.");
-      else prior=b.up_to;
-    }
-    if(parsed.length>0&&!lastOpen)throw new Error("La dernière tranche IRSA doit être ouverte.");
-    patch.irsa_brackets=parsed;
+  // Les tranches nationales sont intégrées au logiciel : aucun JSON à saisir.
+  // Ne pas écraser un ancien barème déjà saisi lors d'une modification ordinaire.
+  if(usesIrsa2026(date)&&(!Array.isArray(current.irsa_brackets)||current.irsa_brackets.length===0)){
+    patch.irsa_brackets=IRSA_2026;
   }
   const rounding=String(fd.get("rounding_policy")??"unverified");
   if(!["floor_100","unverified"].includes(rounding))throw new Error("Règle d'arrondi inconnue.");
@@ -113,6 +111,12 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <div className="field"><label>Plafond organisme santé (Ar)</label><input name="health_monthly_ceiling" type="number" min="0" step="0.01" placeholder="À confirmer"/></div>
  </div><button className="button primary">Enregistrer pour vérification</button></form>
  </details></div>
+ <section className="card section" aria-label="Barème IRSA national">
+ <h2>Barème IRSA intégré - 2026</h2><p>Applicable au régime de droit commun, sous réserve des changements ultérieurs et de la période exacte. Les taux s'appliquent par tranche et non au salaire entier.</p>
+ <div className="tableWrap"><table><thead><tr><th>Revenu imposable mensuel</th><th>Taux de la tranche</th></tr></thead><tbody>
+ {IRSA_2026.map((b,i)=><tr key={i}><td>{b.up_to===null?"Au-delà de 4 000 000 Ar":i===0?"Jusqu'à 350 000 Ar":`${(Number(IRSA_2026[i-1].up_to)+1).toLocaleString("fr-FR")} à ${Number(b.up_to).toLocaleString("fr-FR")} Ar`}</td><td>{b.rate*100} %</td></tr>)}
+ </tbody></table></div><p className="muted">Assiette arrondie à la centaine inférieure ; minimum de perception : 3 000 Ar. Source : <a href={IRSA_2026_URL} target="_blank" rel="noreferrer">{IRSA_2026_SOURCE}</a>. La validation des règles de paie reste distincte.</p>
+ </section>
  <div className="section card"><h2>Historique des règles</h2>{!rules?.length?<p className="muted">Aucun paramètre enregistré.</p>:<div className="tableWrap"><table><thead><tr><th>Version</th><th>Début</th><th>Fin</th><th>Statut</th><th>Référence</th><th>Actions</th></tr></thead><tbody>{rules.map((r:any)=><tr key={r.id}><td>{r.name}</td><td>{r.effective_from}</td><td>{r.effective_to||"Sans date de fin"}</td><td><span className="badge">{r.status==="pending_review"?"À vérifier":r.status}</span></td><td>{r.legal_reference||"Non renseignée"}</td><td><details><summary style={{cursor:"pointer"}}>Consulter / Actions</summary><p className="muted">CNaPS salarié : {Number(r.cnaps_employee_rate)*100}% - employeur : {Number(r.cnaps_employer_rate)*100}%</p><p className="muted">Santé salarié : {Number(r.health_employee_rate)*100}% - employeur : {Number(r.health_employer_rate)*100}% - FMFP : {Number(r.fmfp_employer_rate)*100}%</p><p className="muted">Plafonds : CNaPS {r.cnaps_monthly_ceiling??"Non confirmé"} Ar - Santé {r.health_monthly_ceiling??"Non confirmé"} Ar</p>{["draft","pending_review"].includes(r.status)&&<>
 <form action={ruleAction} className="form" style={{minWidth:260}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="edit"/><div className="field"><label>Version</label><input name="name" defaultValue={r.name} required/></div><div className="field"><label>Début</label><input type="date" name="effective_from" defaultValue={r.effective_from} required/></div><div className="field"><label>Fin</label><input type="date" name="effective_to" defaultValue={r.effective_to||""}/></div><div className="field"><label>Référence</label><textarea name="legal_reference" defaultValue={r.legal_reference||""}/></div><div className="grid2">
 {(["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate"] as const).map(key=><div className="field" key={key}><label>{key.replaceAll("_"," ")} (%)</label><input type="number" min="0" max="100" step="0.0001" name={key} defaultValue={Number(r[key])*100} required/></div>)}
@@ -121,7 +125,8 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
 <div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" defaultValue={r.irsa_minimum??0}/></div>
 <div className="field"><label>Arrondi de l'assiette IRSA</label><select name="rounding_policy" defaultValue={r.rounding_policy||"unverified"}><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d'ariary inférieure - vérifié</option></select></div>
 </div>
-<div className="field"><label>Tranches IRSA - JSON (bornes Ar, taux décimaux)</label><textarea rows={7} spellCheck={false} name="irsa_brackets" defaultValue={JSON.stringify(r.irsa_brackets??[],null,2)} placeholder={'[{"up_to":350000,"rate":0},{"up_to":null,"rate":0.2}]'}/><small>Renseigner uniquement un barème contrôlé. La dernière tranche doit utiliser up_to:null. Aucun chiffre d'exemple n'est activé.</small></div>
+<div className="field"><strong>Barème IRSA appliqué au référentiel</strong><p className="muted">{usesIrsa2026(r.effective_from)?"Barème national 2026 intégré pour les nouveaux réglages. En modifiant cette fiche, les tranches seront renseignées si elles sont absentes.":"Aucun barème national automatique pour cette période : conserver les paramètres historiques existants."}</p>
+{Array.isArray(r.irsa_brackets)&&r.irsa_brackets.length>0?<div className="tableWrap"><table><thead><tr><th>Plafond de tranche (Ar)</th><th>Taux</th></tr></thead><tbody>{r.irsa_brackets.map((b:any,i:number)=><tr key={i}><td>{b.up_to===null?"Au-delà de la dernière tranche":Number(b.up_to).toLocaleString("fr-FR")}</td><td>{Number(b.rate)*100} %</td></tr>)}</tbody></table></div>:<p className="muted">Aucune tranche enregistrée pour ce référentiel.</p>}</div>
 <button className="button">Corriger les paramètres</button></form>
 <div className="actions" style={{marginTop:10}}><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="review"/><button className="button">Maintenir à vérifier</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="activate"/><button className="button primary">Activer - après contrôle des textes</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="delete"/><button className="button">Supprimer</button></form></div></>}</details></td></tr>)}</tbody></table></div>}</div>
  <PayrollRulePreview rules={(rules||[]) as any[]} currency={org?.currency||"MGA"}/>
