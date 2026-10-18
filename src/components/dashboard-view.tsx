@@ -30,9 +30,9 @@ export function DashboardView({organizationId,items,months,age,cashByType,debtBr
  const windowMonths=months.slice(-period);
  const chartOptions:[VisualizationType,string][]=[["bar","Colonnes groupées"],["horizontal","Barres horizontales"],["line","Courbes"],["donut","Anneau"],["stacked","Colonnes empilées"],["area","Aires"]];
  const showKpi=mode!=="charts",showCharts=mode!=="kpi";
- return <div className="section">
-  <div className="card" style={{marginBottom:16}}>
-   <div style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"end"}}>
+ return <div className="section magnisa-dashboard">
+  <div className="card magnisa-dashboard-toolbar" style={{marginBottom:16}}>
+   <div className="magnisa-toolbar-fields" style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"end"}}>
     <label style={{display:"grid",gap:6,flex:"1 1 200px"}}>Mode de visualisation
      <select className="input" aria-label="Mode de visualisation" value={mode} onChange={e=>setMode(e.target.value as Mode)}>
       <option value="mixed">Vue combinée - KPI et graphiques</option><option value="kpi">Indicateurs KPI</option><option value="charts">Graphiques</option>
@@ -44,9 +44,9 @@ export function DashboardView({organizationId,items,months,age,cashByType,debtBr
      </select>
     </label>
     <label style={{display:"grid",gap:6,flex:"1 1 130px"}}>Période des flux<select className="input" value={period} onChange={e=>setPeriod(Number(e.target.value) as 3|6|12)}><option value={3}>3 derniers mois</option><option value={6}>6 derniers mois</option><option value={12}>12 derniers mois</option></select></label>
-    <button className="btn" type="button" onClick={()=>{setPeriod(6);setChartTypes({activity:"bar",aging:"horizontal",cash:"donut",debts:"stacked",commercial:"bar"});setMode("mixed");setArrangement("standard");setSelected(initial);setOrder(initial);setSizes({});setGraphOrder(["activity","aging","cash","commercial"])}}>Réinitialiser la vue</button>
+    <button className="btn" type="button" onClick={()=>{setPeriod(6);setChartTypes({activity:"bar",aging:"horizontal",cash:"donut",debts:"stacked",commercial:"bar"});setMode("mixed");setArrangement("standard");setSelected(initial);setOrder(initial);setSizes({});setGraphOrder(["activity","aging","cash","commercial","debts"])}}>Réinitialiser la vue</button>
    </div>
-   <details style={{marginTop:14}}><summary style={{cursor:"pointer",fontWeight:600}}>Personnaliser les indicateurs ({selected.length}/{items.length})</summary>
+   <details className="magnisa-dashboard-customize" style={{marginTop:14}}><summary style={{cursor:"pointer",fontWeight:600}}>Personnaliser les indicateurs ({selected.length}/{items.length})</summary>
     <p className="muted" style={{margin:"8px 0"}}>Choisis plusieurs indicateurs. Déplace les cartes par glisser-déposer ou utilise les flèches. Agrandis-les selon tes besoins.</p>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8}}>
      {order.map(id=>{const item=items.find(x=>x.id===id);if(!item)return null;return <div key={id} style={{display:"flex",gap:8,alignItems:"center",padding:"8px",border:"1px solid var(--border, #ddd)",borderRadius:8}}>
@@ -57,15 +57,15 @@ export function DashboardView({organizationId,items,months,age,cashByType,debtBr
     </div>
    </details>
   </div>
-  <p className="muted" style={{marginBottom:12}}>Le filtre de période concerne les flux mensuels. Les KPI, soldes de trésorerie, créances et dettes sont des positions actuelles, sans reconstitution historique.</p>
+  <p className="muted magnisa-dashboard-note" style={{marginBottom:12}}>Le filtre de période concerne les flux mensuels. Les KPI, soldes de trésorerie, créances et dettes sont des positions actuelles, sans reconstitution historique.</p>
   <style>{`@media(max-width:750px){.magnisa-tile{grid-column:span 12!important}} .magnisa-tile[draggable="true"]{cursor:grab}.magnisa-tile:focus-within{outline-offset:2px}`}</style>
-  {showKpi&&(ordered.length?<div style={{display:"grid",gridTemplateColumns:"repeat(12,minmax(0,1fr))",gap:12,marginBottom:16}}>{ordered.map(item=><div className="card magnisa-tile" key={item.id} style={{gridColumn:`span ${widthOf(item.id)}`,minWidth:0}} draggable onDragStart={()=>setDragging("kpi:"+item.id)} onDragEnd={()=>setDragging(null)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();dropCard(item.id,"kpi")}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}><div className="muted">{item.label}</div>{resizeControl(item.id)}</div><div className="metric" style={{overflowWrap:"anywhere"}}>{item.value}</div></div>)}</div>:<div className="card muted">Aucun indicateur KPI sélectionné.</div>)}
-  {showCharts&&<div className="section" style={{display:"grid",gridTemplateColumns:"repeat(12,minmax(0,1fr))",gap:12}}>
+  {showKpi&&(ordered.length?<div className="magnisa-dashboard-kpis" style={{display:"grid",gridTemplateColumns:"repeat(12,minmax(0,1fr))",gap:12,marginBottom:16}}>{ordered.map(item=><div className={`card magnisa-tile magnisa-kpi-card magnisa-kpi-${item.id}`} key={item.id} style={{gridColumn:`span ${widthOf(item.id)}`,minWidth:0}} draggable onDragStart={()=>setDragging("kpi:"+item.id)} onDragEnd={()=>setDragging(null)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();dropCard(item.id,"kpi")}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}><div className="muted magnisa-kpi-label">{item.label}</div>{resizeControl(item.id)}</div><div className="metric magnisa-kpi-value" style={{overflowWrap:"anywhere"}}>{item.value}</div><div className="magnisa-kpi-foot"><span>Position enregistrée</span><span className="magnisa-kpi-spark" aria-hidden="true"/></div></div>)}</div>:<div className="card muted">Aucun indicateur KPI sélectionné.</div>)}
+  {showCharts&&<div className="section magnisa-dashboard-charts" style={{display:"grid",gridTemplateColumns:"repeat(12,minmax(0,1fr))",gap:12}}>
    {graphOrder.map(id=>{
     const active=id==="activity"?selected.some(x=>["revenue","receipts","expenses"].includes(x)):id==="aging"?selected.includes("receivables"):id==="cash"?selected.includes("cash"):id==="debts"?selected.includes("debts"):selected.includes("overdue")||selected.includes("quotes");
     if(!active)return null;
-    return <div key={id} className="card magnisa-tile" style={{gridColumn:`span ${sizes[id]===2?12:6}`,minWidth:0}} draggable onDragStart={()=>setDragging("chart:"+id)} onDragEnd={()=>setDragging(null)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();dropCard(id,"chart")}}>
-     <div style={{display:"flex",justifyContent:"flex-end",gap:8,flexWrap:"wrap"}}><label style={{display:"flex",alignItems:"center",gap:6,fontSize:12}}>Graphique<select aria-label={"Type de graphique "+id} className="input" value={chartTypes[id]||"bar"} onChange={e=>setChartTypes(old=>({...old,[id]:e.target.value as VisualizationType}))}>{chartOptions.map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label>{resizeControl(id)}</div>
+    return <div key={id} className="card magnisa-tile magnisa-chart-card" style={{gridColumn:`span ${sizes[id]===2?12:6}`,minWidth:0}} draggable onDragStart={()=>setDragging("chart:"+id)} onDragEnd={()=>setDragging(null)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();dropCard(id,"chart")}}>
+     <div className="magnisa-chart-tools" style={{display:"flex",justifyContent:"flex-end",gap:8,flexWrap:"wrap"}}><label style={{display:"flex",alignItems:"center",gap:6,fontSize:12}}>Graphique<select aria-label={"Type de graphique "+id} className="input" value={chartTypes[id]||"bar"} onChange={e=>setChartTypes(old=>({...old,[id]:e.target.value as VisualizationType}))}>{chartOptions.map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label>{resizeControl(id)}</div>
      {id==="activity"&&<><h2>Activité - {period} derniers mois</h2><p className="muted">Montants sur la période : chiffre d'affaires facturé, encaissements confirmés et charges enregistrées.</p><FinanceChart labels={windowMonths.map(m=>m.label)} type={chartTypes[id]||"bar"} unit={currency} series={[{key:"revenue",name:"CA facturé"},{key:"receipts",name:"Encaissements"},{key:"expenses",name:"Charges"}].filter(s=>selected.includes(s.key)).map(s=>({name:s.name,values:windowMonths.map(m=>m[s.key as "revenue"|"receipts"|"expenses"])}))}/></>}
      {id==="aging"&&<><h2>Ancienneté des créances</h2><p className="muted">Montants restant dus à ce jour, non filtrés par date de facture.</p><FinanceChart labels={age.map(x=>x.label)} series={[{name:"Créances",values:age.map(x=>x.value)}]} type={chartTypes[id]||"horizontal"} unit={currency}/></>}
      {id==="cash"&&<><h2>Trésorerie par compte</h2><p className="muted">Soldes actuels en {currency}, hors comptes d'autres devises. {mixedCurrencyAccounts?"Certains comptes en devise différente sont exclus.":""}</p><FinanceChart labels={cashByType.map(x=>x.label)} series={[{name:"Solde",values:cashByType.map(x=>x.value)}]} type={chartTypes[id]||"donut"} unit={currency}/></>}
