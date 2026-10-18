@@ -63,3 +63,16 @@ Aucun référentiel réel activé, aucune paie réelle ou donnée financière de
 - Aucun taux/plafond non contrôlé n'a été marqué validé. L'analyse de conformité complète, notamment le régime santé, reste ouverte.
 - Test d'autorisations : tentative d'inspection des politiques dans Supabase de production bloquée par l'accès disponible. Aucun token de deux sessions utilisateurs distinctes et aucun test de connexion contrôlé; résultat **NON EXÉCUTÉ**, non « réussi ».
 - Décision : ne pas activer la paie réglementaire tant que les éléments ci-dessus et les essais réels n'ont pas été levés. Aucun utilisateur fictif ni mot de passe n'a été créé.
+
+
+## Revue complémentaire des paramètres fiscaux et sociaux 2026 - 18 octobre
+### Sources et paramètres
+1. FMFP : taux employeur 1 %, assiette brute soumise aux cotisations sociales plafonnées. https://www.fmfp.mg/faq/la-cotisation-fmfp/ et https://www.fmfp.mg/fondement-legal/ . Le guide de 2019 contient un ancien plafond et ne doit pas déterminer le plafond 2026.
+2. CNaPS : taux général employeur 13 % et salarié 1 % (CLEISS 01/01/2026 : https://cleiss.fr/docs/cotisations/madagascar.html). Page CNaPS https://www.cnaps.mg/historique-sme affiche un plafond mensuel 2 400 000 Ar en régime général et 2 434 400 Ar agricole dès le 01/03/2026. Son actualité datée du 31/07/2026 https://www.cnaps.mg/actualites/102 donne 2 101 440 Ar général et 2 132 000 Ar agricole, reprenant apparemment les SME antérieurs ; incohérence institutionnelle non résolue, application automatique bloquée.
+3. Santé/SMIE : décret officiel https://cnlegis.gov.mg/page_acces_pdf/dnWisR33gqT article 25 : minima 1 % salarié et 5 % employeur, assiette salaires et accessoires ; adhésion et conditions de l'organisme effectif à contrôler avant d'imposer un plafond uniforme.
+4. IRSA : CGI 2026 https://textes.lexxika.com/lois-malagasy/code-des-impots-2026-2/ et loi de finances 2026 https://fr.scribd.com/document/1053983019/Loi-n-2025-021-Loi-de-finance-2026 : 0 % jusqu'à 350 000 Ar ; 5 % entre 350 000 et 400 000 ; 10 % 400 000-500 000 ; 15 % 500 000-600 000 ; 20 % 600 000-4 000 000 ; 25 % au-dessus ; base arrondie à la centaine inférieure ; minimum annoncé 3 000 Ar. Le texte https://portal.impots.mg/textes/textes/2024-10-18--N----undefined-Ref-DNXHEZ-SSLX6G.pdf prévoit des réductions selon personnes à charge ; il faut vérifier leur version 2026 et les exonérations/régimes spéciaux. LFR 2026 https://www.assemblee-nationale.mg/fr/textes/loi-n-2026-004portant-loi-de-finances-rectificative-pour-2026/ à contrôler contre version consolidée CGI.
+### Correction matérielle effectuée
+- En production, règle **Melaka Entreprise** encore `pending_review` avait une cotisation FMFP de **3 %**. Modifiée à **1 %**, sur source institutionnelle FMFP. Aucun statut activé, aucune paie réécrite.
+- Aucune autre valeur (plafond ou IRSA) introduite par supposition. La configuration reste en attente.
+### Verdict
+FMFP : taux confirmé et anomalie corrigée. Référentiel général 2026 : paramètres partiellement confirmés mais **pas complet / pas validé**, assiette sanitaire variable, divergence CNaPS et cas spécifiques IRSA à traiter avant activation. Pas de déclaration de conformité intégrale.
