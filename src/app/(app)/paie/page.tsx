@@ -7,6 +7,7 @@ import { assertPermission, requirePermission } from "@/lib/permissions";
 import { money } from "@/lib/money";
 import { EmptyState } from "@/components/empty-state";
 import { PayrollGrossPreview } from "@/components/payroll-gross-preview";
+import { computeHealthContribution } from "@/lib/payroll/health-contribution";
 
 async function createEmployee(fd: FormData) {
   "use server";
@@ -147,9 +148,10 @@ async function createPayslip(fd: FormData) {
     if (!Number.isFinite(value) || value < 0 || (key.endsWith("_rate") && value > 1)) throw new Error("Paramètre réglementaire invalide : "+key);
   }
   const cnapsBase=Math.min(gross,Number(rule.cnaps_monthly_ceiling));
-  const healthBase=Math.min(gross,Number(rule.health_monthly_ceiling));
+  const healthContribution=computeHealthContribution(gross,Number(rule.health_monthly_ceiling),Number(rule.health_employee_rate),Number(rule.health_employer_rate));
+  const healthBase=healthContribution.base;
   const social=Math.round(cnapsBase*Number(rule.cnaps_employee_rate)*100)/100;
-  const health=Math.round(healthBase*Number(rule.health_employee_rate)*100)/100;
+  const health=healthContribution.employee;
   const taxable=Math.floor(Math.max(0,gross-social-health)/100)*100;
   let incomeTax=0;let previous=0;
   for(const bracket of rule.irsa_brackets as {up_to:number|null;rate:number}[]){const cap=bracket.up_to==null?Infinity:Number(bracket.up_to);const rate=Number(bracket.rate);if(!Number.isFinite(rate)||rate<0||rate>1||!(cap>previous))throw new Error("Barème IRSA invalide.");incomeTax+=Math.max(0,Math.min(taxable,cap)-previous)*rate;previous=cap;if(taxable<=cap)break;}
@@ -163,7 +165,7 @@ async function createPayslip(fd: FormData) {
   if (taxable>350000 && dependants>0) incomeTax=Math.max(minimumIrsa,incomeTax-2000*dependants);
   amounts.employee_social=social;amounts.employee_health=health;amounts.income_tax=incomeTax;
   amounts.employer_social=Math.round(cnapsBase*Number(rule.cnaps_employer_rate)*100)/100;
-  amounts.employer_health=Math.round(healthBase*Number(rule.health_employer_rate)*100)/100;
+  amounts.employer_health=healthContribution.employer;
   if(gross-social-health-incomeTax-amounts.advances_recovered-amounts.other_deductions<0)throw new Error("Le net calculé serait négatif.");
   // Le FMFP est calculé côté Supabase à partir du référentiel validé et comptabilisé séparément.
   const { error } = await ctx.supabase.rpc("create_payslip", {
