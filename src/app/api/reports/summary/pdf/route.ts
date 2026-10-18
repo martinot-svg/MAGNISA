@@ -1,4 +1,5 @@
 import React from "react";
+import {formatDocumentAmount} from "@/lib/format-document-amount";
 import { NextResponse } from "next/server";
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import { requireOrganization } from "@/lib/current-org";
@@ -19,12 +20,7 @@ const s = StyleSheet.create({
 });
 
 function Report({ company, currency, m }: { company: string; currency: string; m: any }) {
-  const format = (value: any) =>
-    new Intl.NumberFormat("fr-FR", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 2,
-    }).format(Number(value || 0));
+  const format = (value: any) => formatDocumentAmount(Number(value || 0),{currency});
 
   const rows = [
     ["Chiffre d’affaires facturé", format(m.revenue)],
