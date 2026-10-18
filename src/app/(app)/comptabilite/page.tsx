@@ -35,7 +35,7 @@ async function assignAccountMapping(formData: FormData) {
  * La balance est issue des ecritures en partie double, jamais des seuls flux bancaires.
  * Une cle metier non mappee doit rester visible comme NON_CLASSE.
  */
-export default async function Accounting({ searchParams }: { searchParams: Promise<{ ledger_page?: string; ledger_account?: string }> }) {
+export default async function Accounting({ searchParams }: { searchParams: Promise<{ ledger_page?: string; ledger_account?: string; reversal_id?: string }> }) {
   const params = await searchParams;
   const rawPage=Number(params.ledger_page ?? "1");
   const ledgerPage=Number.isSafeInteger(rawPage) && rawPage>=1 ? rawPage : 1;
@@ -81,6 +81,17 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
   }
 
   const canManage = await hasPermission(ctx, "accounting.manage");
+  const requestedReversal=String(params.reversal_id||"");
+  const reversalId=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedReversal)?requestedReversal:null;
+  let reversalPreview: {entry:any;lines:any[]} | null=null;
+  if(reversalId){
+    const [{data:entry,error:entryPreviewError},{data:lines,error:linesPreviewError}]=await Promise.all([
+      supabase.from("journal_entries").select("id,entry_date,reference,status,total_debit,total_credit,description").eq("organization_id",organizationId).eq("id",reversalId).maybeSingle(),
+      supabase.from("journal_entry_lines").select("id,account_key,account_label,debit,credit").eq("organization_id",organizationId).eq("journal_entry_id",reversalId).order("id")
+    ]);
+    if(entryPreviewError||linesPreviewError)throw new Error("Prévisualisation impossible : "+(entryPreviewError?.message||linesPreviewError?.message));
+    if(entry && lines)reversalPreview={entry,lines};
+  }
   const currency = organization?.currency || "MGA";
   const rows = balance || [];
   const unmapped = rows.filter((r: any) => r.mapping_status === "a_mapper");
@@ -178,6 +189,18 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
           </table>
         </div>
       </section>
+      <section className="card section">
+        <h2>Prévisualisation de contrepassation (sans enregistrement)</h2>
+        <p className="muted">Une contrepassation inverse les débits et crédits sans modifier la pièce originale. Cet aperçu ne crée aucune écriture, ne change aucun statut et n'effectue aucun règlement.</p>
+        {reversalPreview ? <>
+          <p>Pièce d'origine : <strong>{reversalPreview.entry.reference}</strong> - {reversalPreview.entry.entry_date} - statut : {reversalPreview.entry.status}</p>
+          <div className="tableWrap"><table><thead><tr><th>Compte</th><th>Libellé</th><th className="right">Débit correctif</th><th className="right">Crédit correctif</th></tr></thead>
+          <tbody>{reversalPreview.lines.map((l:any)=><tr key={l.id}><td>{l.account_key}</td><td>{l.account_label}</td><td className="right">{money(l.credit,currency)}</td><td className="right">{money(l.debit,currency)}</td></tr>)}</tbody>
+          </table></div>
+          <p><strong>Totaux inversés : débit {money(reversalPreview.lines.reduce((n:number,l:any)=>n+Number(l.credit||0),0),currency)} ; crédit {money(reversalPreview.lines.reduce((n:number,l:any)=>n+Number(l.debit||0),0),currency)}</strong>.</p>
+          <p className="muted">Exécution désactivée tant que les clôtures, autorisations et procédures de restauration ne sont pas vérifiées.</p>
+        </> : <p>Sélectionne une pièce du journal ci-dessous pour prévisualiser sa contrepassation.</p>}
+      </section>
       <section className="section">
         <h2>Grand livre - écritures détaillées</h2>
         <p className="muted">Lignes réellement enregistrées, paginées par identifiant unique stable. La balance reste calculée séparément sur toutes les écritures.</p>
@@ -200,7 +223,7 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
           <thead><tr><th>Date</th><th>Reference</th><th>Description</th><th>Statut</th><th className="right">Debit</th><th className="right">Credit</th></tr></thead>
           <tbody>{entries.map((entry: any) => (
             <tr key={entry.id}><td>{entry.entry_date}</td><td>{entry.reference}</td>
-              <td>{entry.description}</td><td>{entry.status}</td>
+              <td>{entry.description} <a href={`/comptabilite?reversal_id=${entry.id}`}>Prévisualiser contrepassation</a></td><td>{entry.status}</td>
               <td className="right">{money(entry.total_debit, currency)}</td>
               <td className="right">{money(entry.total_credit, currency)}</td>
             </tr>
