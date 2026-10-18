@@ -96,7 +96,14 @@ async function createPayslip(fd: FormData) {
   if(applicable.length!==1)throw new Error("Le calcul automatique exige un unique référentiel réglementaire validé pour cette période. Consulte Paramètres de paie - Madagascar.");
   const rule=applicable[0];
   if(rule.rounding_policy!=="floor_100"||!Array.isArray(rule.irsa_brackets)||rule.irsa_brackets.length===0||rule.cnaps_monthly_ceiling==null||rule.health_monthly_ceiling==null)throw new Error("Référentiel incomplet : l'IRSA, les arrondis et les plafonds doivent être contrôlés avant calcul.");
-  const gross=Number(employee.base_salary)+amounts.bonuses+amounts.overtime+amounts.other_earnings;
+  const baseSalary=Number(employee.base_salary);
+  if (!Number.isFinite(baseSalary) || baseSalary < 0) throw new Error("Salaire de base invalide.");
+  const gross=baseSalary+amounts.bonuses+amounts.overtime+amounts.other_earnings;
+  if (!Number.isFinite(gross) || gross < 0) throw new Error("Salaire brut invalide.");
+  for (const key of ["cnaps_monthly_ceiling","health_monthly_ceiling","cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate"] as const) {
+    const value=Number(rule[key]);
+    if (!Number.isFinite(value) || value < 0 || (key.endsWith("_rate") && value > 1)) throw new Error("Paramètre réglementaire invalide : "+key);
+  }
   const cnapsBase=Math.min(gross,Number(rule.cnaps_monthly_ceiling));
   const healthBase=Math.min(gross,Number(rule.health_monthly_ceiling));
   const social=Math.round(cnapsBase*Number(rule.cnaps_employee_rate)*100)/100;
@@ -104,7 +111,11 @@ async function createPayslip(fd: FormData) {
   const taxable=Math.floor(Math.max(0,gross-social-health)/100)*100;
   let incomeTax=0;let previous=0;
   for(const bracket of rule.irsa_brackets as {up_to:number|null;rate:number}[]){const cap=bracket.up_to==null?Infinity:Number(bracket.up_to);const rate=Number(bracket.rate);if(!Number.isFinite(rate)||rate<0||rate>1||!(cap>previous))throw new Error("Barème IRSA invalide.");incomeTax+=Math.max(0,Math.min(taxable,cap)-previous)*rate;previous=cap;if(taxable<=cap)break;}
-  incomeTax=Math.max(Number(rule.irsa_minimum)||0,Math.round(incomeTax*100)/100);
+  // Un barème sans tranche couvrant le revenu imposable ne doit jamais produire une taxe sous-estimée.
+  if (taxable > previous) throw new Error("Barème IRSA incomplet : aucune tranche ne couvre le revenu imposable.");
+  const minimumIrsa = Number(rule.irsa_minimum);
+  if (!Number.isFinite(minimumIrsa) || minimumIrsa < 0) throw new Error("Minimum IRSA invalide.");
+  incomeTax=Math.max(minimumIrsa,Math.round(incomeTax*100)/100);
   amounts.employee_social=social;amounts.employee_health=health;amounts.income_tax=incomeTax;
   amounts.employer_social=Math.round(cnapsBase*Number(rule.cnaps_employer_rate)*100)/100;
   amounts.employer_health=Math.round(healthBase*Number(rule.health_employer_rate)*100)/100;
