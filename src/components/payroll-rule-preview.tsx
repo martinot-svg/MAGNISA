@@ -2,7 +2,7 @@
 import {useState} from "react";
 
 type Bracket={up_to:number|null;rate:number};
-type Rule={id:string;name:string;effective_from:string;effective_to:string|null;status:string;cnaps_employee_rate:number;cnaps_employer_rate:number;health_employee_rate:number;health_employer_rate:number;fmfp_employer_rate:number;cnaps_monthly_ceiling:number|null;health_monthly_ceiling:number|null;irsa_brackets:unknown;irsa_minimum:number|null;rounding_policy:string|null;legal_reference:string|null;smie_partner_name?:string|null;
+type Rule={id:string;name:string;effective_from:string;effective_to:string|null;status:string;cnaps_employee_rate:number;cnaps_employer_rate:number;health_employee_rate:number;health_employer_rate:number;fmfp_employer_rate:number;cnaps_monthly_ceiling:number|null;health_monthly_ceiling:number|null;irsa_brackets:unknown;irsa_minimum:number|null;rounding_policy:string|null;legal_reference:string|null;smie_partner_name?:string|null;};
 const round=(n:number)=>Math.round(n*100)/100;
 export function PayrollRulePreview({rules,currency}:{rules:Rule[];currency:string}){
  const [date,setDate]=useState(new Date().toISOString().slice(0,10));
