@@ -1,11 +1,13 @@
 import {NextRequest,NextResponse} from "next/server";
 import {loadPayslip} from "@/lib/payroll/payslip-document";
+import {requirePermission} from "@/lib/permissions";
 import {renderPayslipPdf} from "@/lib/pdf/payslip";
 import {buildMimeMessage,getGmailAccess,sendGmailRaw} from "@/lib/google/gmail";
 import {recordMailHistory} from "@/lib/magnimail/history";
 export async function POST(request:NextRequest,{params}:{params:Promise<{id:string}>}){
  try{
  const {id}=await params;const result=await loadPayslip(id);if(!result)return NextResponse.json({error:"Bulletin introuvable"},{status:404});
+ await requirePermission(result.ctx,"payroll.manage");
  if(!["validated","partially_paid","paid"].includes(result.slip.status))return NextResponse.json({error:"Le bulletin doit être validé avant envoi."},{status:409});
  const p=(await request.json()) as {to?:string;subject?:string;body?:string};
  const to=String(p.to||"").trim().toLowerCase(),subject=String(p.subject||"").trim(),body=String(p.body||"").trim();
