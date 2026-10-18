@@ -1,4 +1,5 @@
 import Link from "next/link";
+import {redirect} from "next/navigation";
 import {revalidatePath} from "next/cache";
 import {requireOrganization} from "@/lib/current-org";
 import {assertPermission,requirePermission} from "@/lib/permissions";
@@ -20,7 +21,7 @@ async function saveRule(fd:FormData){
  revalidatePath("/paie/parametres");
 }
 
-async function ruleAction(fd:FormData){
+async function executeRuleAction(fd:FormData){
  "use server";
  const ctx=await requireOrganization();await assertPermission(ctx,"payroll.manage");
  const id=String(fd.get("id")||""),action=String(fd.get("operation")||"");
@@ -71,14 +72,32 @@ async function ruleAction(fd:FormData){
  revalidatePath("/paie/parametres");
 }
 
-export default async function PayrollSettings(){
+async function ruleAction(fd:FormData){
+ "use server";
+ const operation=String(fd.get("operation")||"");
+ let outcome:"success"|"error"="success";
+ let message="Paramètres mis à jour.";
+ try {
+   await executeRuleAction(fd);
+   message=operation==="edit"?"Modifications enregistrées. Le référentiel reste à vérifier.":operation==="review"?"Référentiel maintenu à vérifier.":operation==="delete"?"Référentiel non validé supprimé.":operation==="activate"?"Référentiel validé après contrôle des conditions.":"Opération effectuée.";
+ } catch(error) {
+   outcome="error";
+   message=error instanceof Error?error.message:"Impossible de traiter la demande.";
+ }
+ const params=new URLSearchParams({result:outcome,message});
+ redirect("/paie/parametres?"+params.toString());
+}
+
+export default async function PayrollSettings({searchParams}:{searchParams:Promise<{result?:string;message?:string}>}){
  const ctx=await requireOrganization();await requirePermission(ctx,"payroll.view");
  const [{data:rules,error},{data:org}]=await Promise.all([
  ctx.supabase.from("payroll_rule_sets").select("id,name,effective_from,effective_to,status,cnaps_employee_rate,cnaps_employer_rate,health_employee_rate,health_employer_rate,fmfp_employer_rate,cnaps_monthly_ceiling,health_monthly_ceiling,irsa_brackets,irsa_minimum,rounding_policy,legal_reference").eq("organization_id",ctx.organizationId).order("effective_from",{ascending:false}),
  ctx.supabase.from("organizations").select("currency").eq("id",ctx.organizationId).single()
  ]);
  if(error)throw new Error(error.message);
+ const notice=await searchParams;
  return <><div className="pageHead"><div><p className="eyebrow">Personnel & Paie</p><h1>Paramètres de paie - Madagascar</h1><p>Règles datées par organisation, contrôle de conformité et prévisualisation non comptable.</p></div><Link className="button" href="/paie">Retour aux bulletins</Link></div>
+ {notice.result && notice.message && <div role="status" aria-live="polite" className="card section" style={{borderLeft:notice.result==="error"?"4px solid #b45309":"4px solid #15803d"}}><strong>{notice.result==="error"?"Opération non effectuée":"Opération effectuée"}</strong><p>{notice.message.slice(0,450)}</p></div>}
  <div className="card"><details><summary style={{cursor:"pointer",fontWeight:600}}>Créer un référentiel réglementaire</summary><h2>Nouveau jeu de paramètres - à vérifier</h2><p className="muted">Saisis uniquement des taux contrôlés auprès des organismes et du Code général des impôts. Aucune valeur réglementaire n'est préremplie. Une configuration enregistrée ne devient jamais automatiquement validée. Le bouton « Maintenir à vérifier » ne constitue pas une vérification juridique.</p>
  <form action={saveRule} className="form"><div className="grid2">
  <div className="field"><label>Nom / version</label><input name="name" placeholder="Ex. Référentiel 2026 à vérifier" required/></div>
