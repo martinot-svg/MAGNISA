@@ -74,6 +74,29 @@ async function createRun(fd: FormData) {
   revalidatePath("/paie");
 }
 
+async function saveVariableDraft(fd: FormData) {
+  "use server";
+  const ctx=await requireOrganization();
+  await assertPermission(ctx,"payroll.manage");
+  const runId=String(fd.get("payroll_run_id")||"");
+  const employeeId=String(fd.get("employee_id")||"");
+  const keys=["bonuses","overtime","other_earnings","advances_recovered","other_deductions"] as const;
+  const amounts=Object.fromEntries(keys.map(key=>[key,Number(fd.get(key)??0)]));
+  if(Object.values(amounts).some(v=>!Number.isFinite(v)||v<0||v>1000000000000))throw new Error("Montants du brouillon invalides.");
+  const [{data:run},{data:employee}]=await Promise.all([
+    ctx.supabase.from("payroll_runs").select("id,status").eq("id",runId).eq("organization_id",ctx.organizationId).maybeSingle(),
+    ctx.supabase.from("employees").select("id,status").eq("id",employeeId).eq("organization_id",ctx.organizationId).maybeSingle(),
+  ]);
+  if(!run||!["draft","calculated","review"].includes(run.status)||!employee||employee.status!=="active")
+    throw new Error("Sélectionnez un salarié actif et une période de paie modifiable.");
+  const {error}=await ctx.supabase.from("payroll_variable_drafts").upsert({
+    organization_id:ctx.organizationId,payroll_run_id:runId,employee_id:employeeId,
+    ...amounts,created_by:ctx.user.id,updated_at:new Date().toISOString()
+  },{onConflict:"organization_id,payroll_run_id,employee_id"});
+  if(error)throw new Error("Brouillon non enregistré : "+error.message);
+  revalidatePath("/paie");
+}
+
 async function createPayslip(fd: FormData) {
   "use server";
   const ctx = await requireOrganization();
@@ -217,7 +240,7 @@ async function payPayslip(fd: FormData) {
   revalidatePath("/dashboard");
 }
 
-export default async function Payroll() {
+export default async function Payroll({searchParams}:{searchParams:Promise<{draft?:string}>}) {
   const ctx = await requireOrganization();
   await requirePermission(ctx, "payroll.view");
   const { supabase, organizationId } = ctx;
@@ -227,6 +250,7 @@ export default async function Payroll() {
     { data: runs = [] },
     { data: slips = [] },
     { data: accounts = [] },
+    { data: variableDrafts = [], error: draftsError },
   ] = await Promise.all([
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
     supabase.from("employees").select("*").eq("organization_id", organizationId).order("last_name"),
@@ -246,8 +270,12 @@ export default async function Payroll() {
       .eq("organization_id", organizationId)
       .eq("is_active", true)
       .order("name"),
+    supabase.from("payroll_variable_drafts").select("*").eq("organization_id",organizationId).order("updated_at",{ascending:false}),
   ]);
 
+  if(draftsError)throw new Error("Impossible de charger les brouillons : "+draftsError.message);
+  const params=await searchParams;
+  const selectedDraft=variableDrafts.find((d:any)=>d.id===params.draft);
   const c = org?.currency || "MGA";
   const editableRuns = runs.filter((r: any) => ["draft", "calculated", "review"].includes(r.status));
   const toValidate = slips.filter((slip: any) => slip.status === "calculated").length;
@@ -358,6 +386,23 @@ export default async function Payroll() {
       </div>
       <PayrollGrossPreview currency={c} employees={employees.filter((e:any)=>e.status==="active").map((e:any)=>({id:e.id,name:`${e.first_name} ${e.last_name}`,baseSalary:Number(e.base_salary)}))}/>
 
+      <section className="card section" aria-label="Brouillons des éléments variables">
+        <h2>Éléments variables - brouillons enregistrés</h2>
+        <p className="muted">Enregistre les primes et retenues sans calcul de cotisations, sans bulletin définitif et sans écriture comptable.</p>
+        {employees.some((e:any)=>e.status==="active") && editableRuns.length>0 ? <details><summary style={{cursor:"pointer",fontWeight:600}}>Créer ou modifier un brouillon</summary>
+        <form action={saveVariableDraft} className="form">
+          <div className="grid2"><div className="field"><label>Salarié actif</label><select name="employee_id" required>{employees.filter((e:any)=>e.status==="active").map((e:any)=><option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}</select></div>
+          <div className="field"><label>Période modifiable</label><select name="payroll_run_id" required>{editableRuns.map((r:any)=><option key={r.id} value={r.id}>{r.period_start} au {r.period_end}</option>)}</select></div></div>
+          <div className="grid2"><MoneyInput name="bonuses" label="Primes"/><MoneyInput name="overtime" label="Heures supplémentaires"/><MoneyInput name="other_earnings" label="Autres gains"/><MoneyInput name="advances_recovered" label="Avances récupérées"/><MoneyInput name="other_deductions" label="Autres retenues"/></div>
+          <button className="button primary">Enregistrer le brouillon</button>
+        </form></details> : <p className="muted">Un salarié actif et une période modifiable sont nécessaires pour enregistrer un brouillon.</p>}
+        {variableDrafts.length>0 && <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Période</th><th>Primes</th><th>Heures</th><th>Autres gains</th><th>Retenues et avances</th><th>Action</th></tr></thead><tbody>{variableDrafts.map((d:any)=>{
+          const e=employees.find((x:any)=>x.id===d.employee_id);
+          const r=runs.find((x:any)=>x.id===d.payroll_run_id);
+          return <tr key={d.id}><td>{e?`${e.first_name} ${e.last_name}`:"Salarié indisponible"}</td><td>{r?`${r.period_start} au ${r.period_end}`:"Période indisponible"}</td><td>{money(d.bonuses,c)}</td><td>{money(d.overtime,c)}</td><td>{money(d.other_earnings,c)}</td><td>{money(Number(d.advances_recovered)+Number(d.other_deductions),c)}</td><td><Link href={`/paie?draft=${d.id}`}>Reprendre dans le calcul</Link></td></tr>;
+        })}</tbody></table></div>}
+      </section>
+
       <div className="section"><div className="card">
           <h2>Calcul d’un bulletin</h2>
           {employees.length === 0 || editableRuns.length === 0 ? (
@@ -366,7 +411,7 @@ export default async function Payroll() {
             <form action={createPayslip} className="form">
               <div className="field">
                 <label>Salarié</label>
-                <select name="employee_id" required>
+                <select name="employee_id" defaultValue={selectedDraft?.employee_id} required>
                   {employees
                     .filter((e: any) => e.status === "active")
                     .map((e: any) => (
@@ -378,7 +423,7 @@ export default async function Payroll() {
               </div>
               <div className="field">
                 <label>Période</label>
-                <select name="payroll_run_id" required>
+                <select name="payroll_run_id" defaultValue={selectedDraft?.payroll_run_id} required>
                   {editableRuns.map((r: any) => (
                     <option key={r.id} value={r.id}>
                       {r.period_start} → {r.period_end}
@@ -387,11 +432,11 @@ export default async function Payroll() {
                 </select>
               </div>
               <div className="grid2">
-                <MoneyInput name="bonuses" label="Primes" />
-                <MoneyInput name="overtime" label="Heures supplémentaires" />
-                <MoneyInput name="other_earnings" label="Autres gains" />
-                <MoneyInput name="advances_recovered" label="Avances récupérées" />
-                <MoneyInput name="other_deductions" label="Autres retenues" />
+                <MoneyInput name="bonuses" label="Primes" defaultAmount={selectedDraft?.bonuses} />
+                <MoneyInput name="overtime" label="Heures supplémentaires" defaultAmount={selectedDraft?.overtime} />
+                <MoneyInput name="other_earnings" label="Autres gains" defaultAmount={selectedDraft?.other_earnings} />
+                <MoneyInput name="advances_recovered" label="Avances récupérées" defaultAmount={selectedDraft?.advances_recovered} />
+                <MoneyInput name="other_deductions" label="Autres retenues" defaultAmount={selectedDraft?.other_deductions} />
               </div>
               <p className="muted">CNaPS, santé et IRSA sont calculés automatiquement selon le référentiel validé. Le calcul est refusé si les règles réglementaires sont incomplètes. Les primes et heures restent variables.</p><button className="button primary">Calculer le bulletin</button>
             </form>
@@ -506,11 +551,11 @@ export default async function Payroll() {
   );
 }
 
-function MoneyInput({ name, label }: { name: string; label: string }) {
+function MoneyInput({ name, label, defaultAmount = 0 }: { name: string; label: string; defaultAmount?: number | string }) {
   return (
     <div className="field">
       <label>{label}</label>
-      <input name={name} type="number" min="0" step="0.01" defaultValue="0" />
+      <input name={name} type="number" min="0" step="0.01" defaultValue={defaultAmount} />
     </div>
   );
 }
