@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
@@ -95,6 +96,7 @@ async function saveVariableDraft(fd: FormData) {
   },{onConflict:"organization_id,payroll_run_id,employee_id"});
   if(error)throw new Error("Brouillon non enregistré : "+error.message);
   revalidatePath("/paie");
+  redirect("/paie?draft_saved=1");
 }
 
 async function createPayslip(fd: FormData) {
@@ -240,7 +242,7 @@ async function payPayslip(fd: FormData) {
   revalidatePath("/dashboard");
 }
 
-export default async function Payroll({searchParams}:{searchParams:Promise<{draft?:string}>}) {
+export default async function Payroll({searchParams}:{searchParams:Promise<{draft?:string;draft_saved?:string}>}) {
   const ctx = await requireOrganization();
   await requirePermission(ctx, "payroll.view");
   const { supabase, organizationId } = ctx;
@@ -299,6 +301,8 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
         </div>
         <Link className="button" href="/paie/parametres">Paramètres de paie - Madagascar</Link>
       </div>
+
+      {params.draft_saved==="1" && <div role="status" aria-live="polite" className="card section"><strong>Brouillon enregistré dans MAGNISA.</strong><p className="muted">Les montants sont conservés pour la période et le salarié sélectionnés. Aucun bulletin ni règlement n'a été créé.</p></div>}
 
       <section className="card section" aria-label="Situation de la paie">
         <h2>Suivi de la paie</h2>
