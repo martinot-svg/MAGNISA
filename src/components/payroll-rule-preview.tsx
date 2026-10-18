@@ -1,5 +1,5 @@
-import {formatDocumentAmount} from "@/lib/format-document-amount";
 "use client";
+import {formatDocumentAmount} from "@/lib/format-document-amount";
 import {useState} from "react";
 
 type Bracket={up_to:number|null;rate:number};
