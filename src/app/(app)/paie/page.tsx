@@ -109,7 +109,7 @@ async function createPayslip(fd: FormData) {
   amounts.employer_social=Math.round(cnapsBase*Number(rule.cnaps_employer_rate)*100)/100;
   amounts.employer_health=Math.round(healthBase*Number(rule.health_employer_rate)*100)/100;
   if(gross-social-health-incomeTax-amounts.advances_recovered-amounts.other_deductions<0)throw new Error("Le net calculé serait négatif.");
-  if(Math.abs(Number(rule.fmfp_employer_rate))>0)throw new Error("FMFP : la comptabilisation séparée n'est pas encore intégrée. Aucun bulletin ne peut être validé avec un coût patronal incomplet.");
+  // Le FMFP est calculé côté Supabase à partir du référentiel validé et comptabilisé séparément.
   const { error } = await ctx.supabase.rpc("create_payslip", {
     p_org: ctx.organizationId,
     p_run: String(fd.get("payroll_run_id") || ""),
