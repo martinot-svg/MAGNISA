@@ -170,7 +170,10 @@ async function validatePayslip(fd: FormData) {
     p_payslip: String(fd.get("payslip_id") || ""),
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23505") throw new Error("Cette validation comptable existe déjà. Actualise la page avant de réessayer.");
+    throw new Error(error.message);
+  }
   revalidatePath("/paie");
   revalidatePath("/comptabilite");
   revalidatePath("/dettes");
@@ -203,7 +206,10 @@ async function payPayslip(fd: FormData) {
     p_reference: String(fd.get("reference") || "") || null,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23505") throw new Error("Un règlement identique est déjà enregistré. Vérifie les paiements avant de recommencer.");
+    throw new Error(error.message);
+  }
   revalidatePath("/paie");
   revalidatePath("/tresorerie");
   revalidatePath("/comptabilite");
