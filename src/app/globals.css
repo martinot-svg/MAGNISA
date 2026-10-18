@@ -100,3 +100,17 @@
 .magnisa-dashboard-meta strong{background:#e9efff;color:#3459ab}
 @media(max-width:720px){.magnisa-dashboard-header{padding:22px 19px!important;align-items:flex-start;flex-direction:column;gap:14px}}
 @media(prefers-reduced-motion:reduce){.magnisa-dashboard-header *{animation:none!important;transition:none!important}}
+
+
+/* Financial collections: scoped invoice tracking */
+.invoice-tracker{display:grid;gap:18px}.invoice-tracker-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.invoice-tracker-metrics>.card{border:1px solid #e0e7f3;border-radius:19px;background:linear-gradient(145deg,#fff,#f8faff);box-shadow:0 10px 30px rgba(22,49,99,.045);padding:24px}
+.invoice-tracker-metrics .metric{font-size:clamp(22px,2.5vw,31px);letter-spacing:-.04em;margin:12px 0}.invoice-tracker-metrics small{color:#7d8da5}
+.invoice-tracker-panel{padding:22px!important;border-radius:20px;border:1px solid #e2e9f4;background:#fff;box-shadow:0 14px 40px rgba(26,51,101,.05)}
+.invoice-tracker-controls{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:13px}
+.invoice-tracker-tabs{display:flex;gap:5px;padding:5px;border-radius:12px;background:#f0f4fa;border:1px solid #e1e9f4;flex-wrap:wrap}
+.invoice-tracker-tabs button{display:flex;gap:8px;align-items:center;cursor:pointer;padding:10px 14px;border:0;background:transparent;color:#65758e;border-radius:9px;font-weight:700;font-size:12px;transition:background .18s,color .18s,box-shadow .18s}
+.invoice-tracker-tabs button:hover{color:#1c4fbb}.invoice-tracker-tabs button.active{background:#fff;color:#2157c9;box-shadow:0 2px 10px rgba(34,68,132,.1)}.invoice-tracker-tabs span{font-size:10px;padding:3px 6px;border-radius:7px;background:#e7edf7}
+.invoice-tracker-search{flex:1 1 230px;max-width:350px}.invoice-tracker-search input{min-width:0;font-size:13px;background:#fbfcff}.invoice-tracker-helper{font-size:12px;line-height:1.65;margin:18px 0}.invoice-tracker .tableWrap{border:1px solid #ebeff5;border-radius:13px;overflow:auto}.invoice-tracker th{white-space:nowrap}.invoice-tracker td{vertical-align:middle}.invoice-tracker .actions{gap:12px;flex-wrap:nowrap}.invoice-tracker .actions a{color:#245ed2;font-weight:700;font-size:12px}.invoice-status-late{background:#fff0eb;color:#ae442b}.invoice-tracker-empty{text-align:center;padding:38px!important;color:#7b889c}.invoice-tracker-foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:16px;font-size:12px;color:#697a94}.magnisa-dashboard .magnisa-kpi-link{font-size:11px;font-weight:750;color:#285cd4;text-decoration:none}.magnisa-dashboard .magnisa-kpi-link:hover{text-decoration:underline}
+@media(max-width:720px){.invoice-tracker-metrics{grid-template-columns:1fr}.invoice-tracker-panel{padding:14px!important}.invoice-tracker-tabs{width:100%;justify-content:space-between}.invoice-tracker-tabs button{padding:9px 10px}.invoice-tracker-search{max-width:none}}
+@media(prefers-reduced-motion:reduce){.invoice-tracker *{animation:none!important;transition:none!important}}
