@@ -88,3 +88,15 @@
 @media(max-width:1100px){.magnisa-dashboard .magnisa-kpi-card{grid-column:span 6!important}.magnisa-dashboard .magnisa-chart-card{grid-column:span 12!important}}
 @media(max-width:660px){.magnisa-dashboard .magnisa-dashboard-toolbar{padding:18px!important}.magnisa-dashboard .magnisa-toolbar-fields{gap:10px!important}.magnisa-dashboard .magnisa-toolbar-fields>label{flex-basis:100%!important}.magnisa-dashboard .magnisa-kpi-card{grid-column:span 12!important;min-height:140px}.magnisa-dashboard .magnisa-kpi-value{font-size:25px}.magnisa-dashboard .magnisa-chart-card{padding:17px!important;min-height:250px}.magnisa-dashboard .magnisa-chart-tools{justify-content:flex-start!important}}
 @media(prefers-reduced-motion:reduce){.magnisa-dashboard *,.magnisa-dashboard *:before,.magnisa-dashboard *:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.magnisa-dashboard .magnisa-tile:hover{transform:none}}
+
+
+.magnisa-dashboard-header{padding:24px 28px!important;border:1px solid rgba(84,109,177,.14);border-radius:24px;background:linear-gradient(120deg,#fff,#f3f6ff 68%,#f7f4ff);box-shadow:0 12px 40px rgba(34,58,113,.04);display:flex;justify-content:space-between;gap:25px;align-items:center;margin-bottom:24px}
+.magnisa-dashboard-header .eyebrow{font-size:10px;letter-spacing:.19em;margin-bottom:12px}
+.magnisa-dashboard-header h1{letter-spacing:-.045em;font-weight:800;font-size:clamp(27px,3vw,38px);margin:0 0 7px}
+.magnisa-dashboard-header p:not(.eyebrow){font-size:13px;color:#687a97;margin:0}
+.magnisa-dashboard-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.magnisa-dashboard-meta span,.magnisa-dashboard-meta strong{font-size:10px;letter-spacing:.05em;border:1px solid #dfe7f3;border-radius:999px;padding:9px 12px;background:#fff;color:#51637e;white-space:nowrap}
+.magnisa-dashboard-meta span:before{content:"";display:inline-block;width:6px;height:6px;background:#19a38d;border-radius:50%;margin-right:7px}
+.magnisa-dashboard-meta strong{background:#e9efff;color:#3459ab}
+@media(max-width:720px){.magnisa-dashboard-header{padding:22px 19px!important;align-items:flex-start;flex-direction:column;gap:14px}}
+@media(prefers-reduced-motion:reduce){.magnisa-dashboard-header *{animation:none!important;transition:none!important}}
