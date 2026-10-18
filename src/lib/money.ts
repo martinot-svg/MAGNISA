@@ -1,6 +1,7 @@
+import {formatDocumentAmount} from "@/lib/format-document-amount";
 export const money = (value: number | string | null | undefined, currency = "MGA") => {
   const amount = Number(value ?? 0);
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency, maximumFractionDigits: 2 }).format(amount);
+  return formatDocumentAmount(amount,{currency});
 };
 
 export function roundMoney(value: number) { return Math.round((value + Number.EPSILON) * 100) / 100; }
