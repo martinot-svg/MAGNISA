@@ -83,6 +83,33 @@ async function createPayslip(fd: FormData) {
     throw new Error("Les éléments de paie doivent être des montants positifs ou nuls.");
   }
 
+  const runId=String(fd.get("payroll_run_id")||"");
+  const employeeId=String(fd.get("employee_id")||"");
+  const [{data:run,error:runError},{data:employee,error:employeeError}]=await Promise.all([
+    ctx.supabase.from("payroll_runs").select("period_end").eq("organization_id",ctx.organizationId).eq("id",runId).single(),
+    ctx.supabase.from("employees").select("base_salary").eq("organization_id",ctx.organizationId).eq("id",employeeId).single(),
+  ]);
+  if(runError||employeeError||!run||!employee)throw new Error("Salarié ou période introuvable.");
+  const {data:rules,error:ruleError}=await ctx.supabase.from("payroll_rule_sets").select("*").eq("organization_id",ctx.organizationId).eq("status","validated").lte("effective_from",run.period_end).order("effective_from",{ascending:false});
+  if(ruleError)throw new Error(ruleError.message);
+  const applicable=(rules||[]).filter((r:any)=>!r.effective_to||r.effective_to>=run.period_end);
+  if(applicable.length!==1)throw new Error("Le calcul automatique exige un unique référentiel réglementaire validé pour cette période. Consulte Paramètres de paie - Madagascar.");
+  const rule=applicable[0];
+  if(rule.rounding_policy!=="floor_100"||!Array.isArray(rule.irsa_brackets)||rule.irsa_brackets.length===0||rule.cnaps_monthly_ceiling==null||rule.health_monthly_ceiling==null)throw new Error("Référentiel incomplet : l'IRSA, les arrondis et les plafonds doivent être contrôlés avant calcul.");
+  const gross=Number(employee.base_salary)+amounts.bonuses+amounts.overtime+amounts.other_earnings;
+  const cnapsBase=Math.min(gross,Number(rule.cnaps_monthly_ceiling));
+  const healthBase=Math.min(gross,Number(rule.health_monthly_ceiling));
+  const social=Math.round(cnapsBase*Number(rule.cnaps_employee_rate)*100)/100;
+  const health=Math.round(healthBase*Number(rule.health_employee_rate)*100)/100;
+  const taxable=Math.floor(Math.max(0,gross-social-health)/100)*100;
+  let incomeTax=0;let previous=0;
+  for(const bracket of rule.irsa_brackets as {up_to:number|null;rate:number}[]){const cap=bracket.up_to==null?Infinity:Number(bracket.up_to);const rate=Number(bracket.rate);if(!Number.isFinite(rate)||rate<0||rate>1||!(cap>previous))throw new Error("Barème IRSA invalide.");incomeTax+=Math.max(0,Math.min(taxable,cap)-previous)*rate;previous=cap;if(taxable<=cap)break;}
+  incomeTax=Math.max(Number(rule.irsa_minimum)||0,Math.round(incomeTax*100)/100);
+  amounts.employee_social=social;amounts.employee_health=health;amounts.income_tax=incomeTax;
+  amounts.employer_social=Math.round(cnapsBase*Number(rule.cnaps_employer_rate)*100)/100;
+  amounts.employer_health=Math.round(healthBase*Number(rule.health_employer_rate)*100)/100;
+  if(gross-social-health-incomeTax-amounts.advances_recovered-amounts.other_deductions<0)throw new Error("Le net calculé serait négatif.");
+  if(Math.abs(Number(rule.fmfp_employer_rate))>0)throw new Error("FMFP : la comptabilisation séparée n'est pas encore intégrée. Aucun bulletin ne peut être validé avec un coût patronal incomplet.");
   const { error } = await ctx.supabase.rpc("create_payslip", {
     p_org: ctx.organizationId,
     p_run: String(fd.get("payroll_run_id") || ""),
@@ -294,15 +321,10 @@ export default async function Payroll() {
                 <MoneyInput name="bonuses" label="Primes" />
                 <MoneyInput name="overtime" label="Heures supplémentaires" />
                 <MoneyInput name="other_earnings" label="Autres gains" />
-                <MoneyInput name="employee_social" label="Cotisations salariales" />
-                <MoneyInput name="employee_health" label="Cotisation sanitaire" />
-                <MoneyInput name="income_tax" label="IRSA / retenue fiscale" />
                 <MoneyInput name="advances_recovered" label="Avances récupérées" />
                 <MoneyInput name="other_deductions" label="Autres retenues" />
-                <MoneyInput name="employer_social" label="Charges sociales patronales" />
-                <MoneyInput name="employer_health" label="Charges santé patronales" />
               </div>
-              <button className="button primary">Calculer le bulletin</button>
+              <p className="muted">CNaPS, santé et IRSA sont calculés automatiquement selon le référentiel validé. Le calcul est refusé si les règles réglementaires sont incomplètes. Les primes et heures restent variables.</p><button className="button primary">Calculer le bulletin</button>
             </form>
           )}
         </div>
