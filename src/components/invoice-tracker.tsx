@@ -5,8 +5,8 @@ type Invoice={id:string;number:string;status:string;issue_date:string|null;due_d
 type View="all"|"unpaid"|"overdue";
 const excluded=["draft","cancelled","paid"];
 const formats:Record<string,string>={draft:"Brouillon",issued:"Émise",sent:"Envoyée",partially_paid:"Partiellement payée",paid:"Payée",cancelled:"Annulée",overdue:"En retard"};
-export function InvoiceTracker({invoices,currency,today}:{invoices:Invoice[];currency:string;today:string}){
- const [view,setView]=useState<View>("all"),[search,setSearch]=useState("");
+export function InvoiceTracker({invoices,currency,today,initialView="all"}:{invoices:Invoice[];currency:string;today:string;initialView?:"all"|"unpaid"|"overdue"}){
+ const [view,setView]=useState<View>(initialView),[search,setSearch]=useState("");
  const outstanding=(r:Invoice)=>!excluded.includes(r.status)&&r.balance_due>0;
  const overdue=(r:Invoice)=>outstanding(r)&&Boolean(r.due_date&&r.due_date<today);
  const unpaid=invoices.filter(outstanding),late=unpaid.filter(overdue);
