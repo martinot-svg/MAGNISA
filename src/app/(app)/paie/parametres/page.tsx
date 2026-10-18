@@ -13,6 +13,13 @@ const IRSA_2026_SOURCE="Loi n°2025-021 portant loi de finances 2026, article 01
 const IRSA_2026_URL="https://www.mef.gov.mg/assets/vendor/ckeditor/plugins/kcfinder/upload/files/2026/janv/LOI_n%C2%B0_2025-021_VF_LFI__2026.pdf";
 function usesIrsa2026(date:string){return date>="2026-01-01"&&date<"2027-01-01";}
 
+function smieFields(fd:FormData){
+ const limits={smie_partner_name:160,smie_partner_contact:500,smie_affiliation_number:120,smie_contract_reference:200} as const;
+ const result:Record<string,string|null>={};
+ for(const [key,max] of Object.entries(limits)){const value=String(fd.get(key)||"").trim();if(value.length>max)throw new Error("Information SMIE trop longue : "+key);result[key]=value||null;}
+ return result;
+}
+
 async function saveRule(fd:FormData){
  "use server";
  const ctx=await requireOrganization();await assertPermission(ctx,"payroll.manage");
@@ -25,7 +32,7 @@ async function saveRule(fd:FormData){
  for(const key of rates){const raw=Number(fd.get(key));if(!Number.isFinite(raw)||raw<0||raw>100)throw new Error("Taux invalide : "+key);data[key]=raw/100;}
  for(const key of ["cnaps_monthly_ceiling","health_monthly_ceiling"]){const raw=String(fd.get(key)||"").trim();const n=Number(raw);if(raw!==""&&(!Number.isFinite(n)||n<0))throw new Error("Plafond invalide.");data[key]=raw===""?null:n;}
  if(usesIrsa2026(from)){data.irsa_brackets=JSON.stringify(IRSA_2026);data.irsa_minimum=3000;data.rounding_policy="floor_100";}
- const {error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,irsa_brackets:usesIrsa2026(from)?IRSA_2026:[],organization_id:ctx.organizationId});
+ const {error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,...smieFields(fd),irsa_brackets:usesIrsa2026(from)?IRSA_2026:[],organization_id:ctx.organizationId});
  if(error)throw new Error(error.message);
  revalidatePath("/paie/parametres");
 }
@@ -43,7 +50,7 @@ async function executeRuleAction(fd:FormData){
   const newFrom=String(fd.get("new_effective_from")||"");
   const newName=String(fd.get("new_name")||"").trim();
   if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(newFrom)||!newName||newFrom<=current.effective_from)throw new Error("Nouvelle date ou nom de version invalide.");
-  const copiedFields=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate","cnaps_monthly_ceiling","health_monthly_ceiling","irsa_brackets","irsa_minimum","rounding_policy","legal_reference"] as const;
+  const copiedFields=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate","cnaps_monthly_ceiling","health_monthly_ceiling","irsa_brackets","irsa_minimum","rounding_policy","legal_reference","smie_partner_name","smie_partner_contact","smie_affiliation_number","smie_contract_reference"] as const;
   const copy:Record<string,unknown>={organization_id:ctx.organizationId,name:newName,effective_from:newFrom,effective_to:null,status:"pending_review"};
   for(const key of copiedFields)copy[key]=current[key];
   copy.legal_reference="À vérifier pour la nouvelle période. Référence précédente : "+String(current.legal_reference||"Non renseignée");
@@ -62,7 +69,7 @@ async function executeRuleAction(fd:FormData){
   if(!["draft","pending_review"].includes(current.status))throw new Error("Seuls les brouillons et paramètres à vérifier sont modifiables.");
   const name=String(fd.get("name")||"").trim(),date=String(fd.get("effective_from")||""),end=String(fd.get("effective_to")||"")||null,reference=String(fd.get("legal_reference")||"").trim();
   if(!name||!/^\d{4}-\d{2}-\d{2}$/.test(date)||end&&end<date)throw new Error("Nom ou dates invalides.");
-  const patch:Record<string,unknown>={name,effective_from:date,effective_to:end,legal_reference:reference||null,status:"pending_review",updated_at:new Date().toISOString()};
+  const patch:Record<string,unknown>={...smieFields(fd),name,effective_from:date,effective_to:end,legal_reference:reference||null,status:"pending_review",updated_at:new Date().toISOString()};
   const rateKeys=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate"];
   for(const key of rateKeys){const raw=String(fd.get(key)??"").trim();if(raw==="")throw new Error("Taux obligatoire pour la validation : "+key);const val=Number(raw);if(!Number.isFinite(val)||val<0||val>100)throw new Error("Taux invalide : "+key);patch[key]=val/100;}
   for(const key of ["cnaps_monthly_ceiling","health_monthly_ceiling"]){const raw=String(fd.get(key)??"").trim();const val=Number(raw);if(raw!==""&&(!Number.isFinite(val)||val<=0))throw new Error("Plafond invalide : "+key);patch[key]=raw===""?null:val;}
@@ -116,7 +123,7 @@ async function ruleAction(fd:FormData){
 export default async function PayrollSettings({searchParams}:{searchParams:Promise<{result?:string;message?:string}>}){
  const ctx=await requireOrganization();await requirePermission(ctx,"payroll.view");
  const [{data:rules,error},{data:org}]=await Promise.all([
- ctx.supabase.from("payroll_rule_sets").select("id,name,effective_from,effective_to,status,cnaps_employee_rate,cnaps_employer_rate,health_employee_rate,health_employer_rate,fmfp_employer_rate,cnaps_monthly_ceiling,health_monthly_ceiling,irsa_brackets,irsa_minimum,rounding_policy,legal_reference").eq("organization_id",ctx.organizationId).order("effective_from",{ascending:false}),
+ ctx.supabase.from("payroll_rule_sets").select("id,name,effective_from,effective_to,status,cnaps_employee_rate,cnaps_employer_rate,health_employee_rate,health_employer_rate,fmfp_employer_rate,cnaps_monthly_ceiling,health_monthly_ceiling,irsa_brackets,irsa_minimum,rounding_policy,legal_reference,smie_partner_name,smie_partner_contact,smie_affiliation_number,smie_contract_reference").eq("organization_id",ctx.organizationId).order("effective_from",{ascending:false}),
  ctx.supabase.from("organizations").select("currency").eq("id",ctx.organizationId).single()
  ]);
  if(error)throw new Error(error.message);
@@ -129,6 +136,10 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <div className="field"><label>Référence officielle contrôlée</label><input name="legal_reference" placeholder="Texte, article et date de publication"/></div>
  <div className="field"><label>Applicable du</label><input name="effective_from" type="date" required/></div>
  <div className="field"><label>Jusqu'au (facultatif)</label><input name="effective_to" type="date"/></div>
+ <div className="field"><label>SMIE partenaire de l'entreprise</label><input name="smie_partner_name" maxLength={160} placeholder="Nom libre, ex. OMIT"/></div>
+ <div className="field"><label>Coordonnées de la SMIE (facultatif)</label><textarea name="smie_partner_contact" maxLength={500} placeholder="Adresse, téléphone, courriel"/></div>
+ <div className="field"><label>Numéro d'affiliation (facultatif)</label><input name="smie_affiliation_number" maxLength={120}/></div>
+ <div className="field"><label>Référence contractuelle (facultatif)</label><input name="smie_contract_reference" maxLength={200}/></div>
  <div className="field"><label>CNaPS salarié (%)</label><input name="cnaps_employee_rate" type="number" min="0" max="100" step="0.0001" required/></div>
  <div className="field"><label>CNaPS employeur (%)</label><input name="cnaps_employer_rate" type="number" min="0" max="100" step="0.0001" required/></div>
  <div className="field"><label>Santé salarié (%)</label><input name="health_employee_rate" type="number" min="0" max="100" step="0.0001" required/></div>
@@ -151,8 +162,11 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <h3>Calendrier déclaratif SMIE - 2026</h3><p className="muted">Échéances indicatives : déclaration durant le mois suivant chaque trimestre civil. Ce calendrier ne constitue pas une déclaration envoyée ni une preuve de règlement.</p>
  <div className="tableWrap"><table><thead><tr><th>Trimestre</th><th>Période concernée</th><th>Fenêtre de déclaration</th></tr></thead><tbody>{smieDeadlines(2026).map(d=><tr key={d.quarter}><td>T{d.quarter}</td><td>{d.period}</td><td>{d.windowStart} au {d.windowEnd}</td></tr>)}</tbody></table></div>
  </section>
- <div className="section card"><h2>Historique des règles</h2>{!rules?.length?<p className="muted">Aucun paramètre enregistré.</p>:<div className="tableWrap"><table><thead><tr><th>Version</th><th>Début</th><th>Fin</th><th>Statut</th><th>Référence</th><th>Actions</th></tr></thead><tbody>{rules.map((r:any)=><tr key={r.id}><td>{r.name}</td><td>{r.effective_from}</td><td>{r.effective_to||"Sans date de fin"}</td><td><span className="badge">{r.status==="pending_review"?"À vérifier":r.status}</span></td><td>{r.legal_reference||"Non renseignée"}</td><td><details><summary style={{cursor:"pointer"}}>Consulter / Actions</summary><p className="muted">CNaPS salarié : {Number(r.cnaps_employee_rate)*100}% - employeur : {Number(r.cnaps_employer_rate)*100}%</p><p className="muted">Santé salarié : {Number(r.health_employee_rate)*100}% - employeur : {Number(r.health_employer_rate)*100}% - FMFP : {Number(r.fmfp_employer_rate)*100}%</p><p className="muted">Plafonds : CNaPS {r.cnaps_monthly_ceiling??"Non confirmé"} Ar - Santé {r.health_monthly_ceiling??"Non confirmé"} Ar</p><form action={ruleAction} className="form" style={{marginTop:12}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="duplicate"/><div className="field"><label>Nom de la nouvelle version</label><input name="new_name" defaultValue={r.name+" - nouvelle version"} required/></div><div className="field"><label>Nouvelle date d'effet</label><input type="date" name="new_effective_from" min={r.effective_from} required/></div><button className="button">Créer une nouvelle version à vérifier</button></form>{["draft","pending_review"].includes(r.status)&&<>
-<form action={ruleAction} className="form" style={{minWidth:260}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="edit"/><div className="field"><label>Version</label><input name="name" defaultValue={r.name} required/></div><div className="field"><label>Début</label><input type="date" name="effective_from" defaultValue={r.effective_from} required/></div><div className="field"><label>Fin</label><input type="date" name="effective_to" defaultValue={r.effective_to||""}/></div><div className="field"><label>Référence</label><textarea name="legal_reference" defaultValue={r.legal_reference||""}/></div><div className="grid2">
+ <div className="section card"><h2>Historique des règles</h2>{!rules?.length?<p className="muted">Aucun paramètre enregistré.</p>:<div className="tableWrap"><table><thead><tr><th>Version</th><th>Début</th><th>Fin</th><th>Statut</th><th>Référence</th><th>Actions</th></tr></thead><tbody>{rules.map((r:any)=><tr key={r.id}><td>{r.name}</td><td>{r.effective_from}</td><td>{r.effective_to||"Sans date de fin"}</td><td><span className="badge">{r.status==="pending_review"?"À vérifier":r.status}</span></td><td>{r.legal_reference||"Non renseignée"}</td><td><details><summary style={{cursor:"pointer"}}>Consulter / Actions</summary><p className="muted">SMIE partenaire : <strong>{r.smie_partner_name||"Non renseigné"}</strong> - Coordonnées : {r.smie_partner_contact||"Non renseignées"} - Affiliation : {r.smie_affiliation_number||"Non renseignée"} - Contrat : {r.smie_contract_reference||"Non renseigné"}</p><p className="muted">CNaPS salarié : {Number(r.cnaps_employee_rate)*100}% - employeur : {Number(r.cnaps_employer_rate)*100}%</p><p className="muted">Santé salarié : {Number(r.health_employee_rate)*100}% - employeur : {Number(r.health_employer_rate)*100}% - FMFP : {Number(r.fmfp_employer_rate)*100}%</p><p className="muted">Plafonds : CNaPS {r.cnaps_monthly_ceiling??"Non confirmé"} Ar - Santé {r.health_monthly_ceiling??"Non confirmé"} Ar</p><form action={ruleAction} className="form" style={{marginTop:12}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="duplicate"/><div className="field"><label>Nom de la nouvelle version</label><input name="new_name" defaultValue={r.name+" - nouvelle version"} required/></div><div className="field"><label>Nouvelle date d'effet</label><input type="date" name="new_effective_from" min={r.effective_from} required/></div><button className="button">Créer une nouvelle version à vérifier</button></form>{["draft","pending_review"].includes(r.status)&&<>
+<form action={ruleAction} className="form" style={{minWidth:260}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="edit"/><div className="field"><label>Version</label><input name="name" defaultValue={r.name} required/></div><div className="field"><label>Début</label><input type="date" name="effective_from" defaultValue={r.effective_from} required/></div><div className="field"><label>Fin</label><input type="date" name="effective_to" defaultValue={r.effective_to||""}/></div><div className="field"><label>Référence</label><textarea name="legal_reference" defaultValue={r.legal_reference||""}/></div><div className="field"><label>SMIE partenaire de l'entreprise</label><input name="smie_partner_name" maxLength={160} defaultValue={r.smie_partner_name||""} placeholder="Saisie libre"/></div>
+<div className="field"><label>Coordonnées SMIE (facultatif)</label><textarea name="smie_partner_contact" maxLength={500} defaultValue={r.smie_partner_contact||""}/></div>
+<div className="field"><label>Numéro d'affiliation (facultatif)</label><input name="smie_affiliation_number" maxLength={120} defaultValue={r.smie_affiliation_number||""}/></div>
+<div className="field"><label>Référence contractuelle (facultatif)</label><input name="smie_contract_reference" maxLength={200} defaultValue={r.smie_contract_reference||""}/></div><div className="grid2">
 {(["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate"] as const).map(key=><div className="field" key={key}><label>{key.replaceAll("_"," ")} (%)</label><input type="number" min="0" max="100" step="0.0001" name={key} defaultValue={Number(r[key])*100} required/></div>)}
 <div className="field"><label>Plafond CNaPS (Ar)</label><input name="cnaps_monthly_ceiling" type="number" step="0.01" min="0.01" defaultValue={r.cnaps_monthly_ceiling??""}/></div>
 <div className="field"><label>Plafond organisme sanitaire (Ar)</label><input name="health_monthly_ceiling" type="number" step="0.01" min="0.01" defaultValue={r.health_monthly_ceiling??""}/></div>
