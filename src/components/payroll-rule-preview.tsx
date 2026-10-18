@@ -2,7 +2,7 @@
 import {useState} from "react";
 
 type Bracket={up_to:number|null;rate:number};
-type Rule={id:string;name:string;effective_from:string;effective_to:string|null;status:string;cnaps_employee_rate:number;cnaps_employer_rate:number;health_employee_rate:number;health_employer_rate:number;fmfp_employer_rate:number;cnaps_monthly_ceiling:number|null;health_monthly_ceiling:number|null;irsa_brackets:unknown;irsa_minimum:number|null;rounding_policy:string|null;legal_reference:string|null};
+type Rule={id:string;name:string;effective_from:string;effective_to:string|null;status:string;cnaps_employee_rate:number;cnaps_employer_rate:number;health_employee_rate:number;health_employer_rate:number;fmfp_employer_rate:number;cnaps_monthly_ceiling:number|null;health_monthly_ceiling:number|null;irsa_brackets:unknown;irsa_minimum:number|null;rounding_policy:string|null;legal_reference:string|null;smie_partner_name?:string|null;
 const round=(n:number)=>Math.round(n*100)/100;
 export function PayrollRulePreview({rules,currency}:{rules:Rule[];currency:string}){
  const [date,setDate]=useState(new Date().toISOString().slice(0,10));
@@ -64,14 +64,14 @@ export function PayrollRulePreview({rules,currency}:{rules:Rule[];currency:strin
  <p>Assiette CNaPS : <strong>{fmt(baseCnaps)}</strong></p>
  <p>Retenue CNaPS salarié : <strong>{fmt(social)}</strong></p>
  <p>Assiette santé SMIE : <strong>{fmt(baseHealth)}</strong></p>
- <p>Retenue SMIE salarié : <strong>{fmt(health)}</strong></p>
+ <p>SMIE partenaire : <strong>{applicable.smie_partner_name||"Non renseignée"}</strong></p><p>{applicable.smie_partner_name||"SMIE"} salarié : <strong>{fmt(health)}</strong></p>
  <p>Base imposable IRSA arrondie : <strong>{configured?fmt(taxable):"Non calculée"}</strong></p>
  <p>IRSA estimé : <strong>{tax!==null?fmt(tax):"Non calculé"}</strong></p>
  {error&&<p className="error">{error}</p>}
  <p><strong>Salaire net estimé : {tax!==null?fmt(brut-social-health-tax):"Indisponible"}</strong></p>
  </div><div>
  <p>CNaPS employeur : <strong>{fmt(patronCnaps)}</strong></p>
- <p>SMIE employeur : <strong>{fmt(patronHealth)}</strong></p>
+ <p>{applicable.smie_partner_name||"SMIE"} employeur : <strong>{fmt(patronHealth)}</strong></p>
  <p>FMFP employeur : <strong>{fmt(patronFmfp)}</strong></p>
  <p>Total charges patronales : <strong>{fmt(employer)}</strong></p>
  <p><strong>Coût total employeur : {fmt(brut+employer)}</strong></p>
