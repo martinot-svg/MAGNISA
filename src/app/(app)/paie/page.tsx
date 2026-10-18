@@ -18,6 +18,9 @@ async function createEmployee(fd: FormData) {
   const base = Number(fd.get("base_salary") || 0);
   if (!Number.isFinite(base) || base < 0) throw new Error("Salaire invalide.");
 
+  const dependants=Number(fd.get("irsa_dependants") || 0);
+  if (!Number.isInteger(dependants) || dependants<0 || dependants>30) throw new Error("Nombre de personnes à charge invalide.");
+
   const { error } = await ctx.supabase.from("employees").insert({
     organization_id: ctx.organizationId,
     employee_number: String(fd.get("employee_number") || "") || null,
@@ -29,6 +32,7 @@ async function createEmployee(fd: FormData) {
     contract_type: String(fd.get("contract_type") || "") || null,
     hire_date: String(fd.get("hire_date") || "") || null,
     base_salary: base,
+    irsa_dependants: dependants,
     payment_method: String(fd.get("payment_method") || "bank_transfer"),
   });
 
@@ -87,7 +91,7 @@ async function createPayslip(fd: FormData) {
   const employeeId=String(fd.get("employee_id")||"");
   const [{data:run,error:runError},{data:employee,error:employeeError}]=await Promise.all([
     ctx.supabase.from("payroll_runs").select("period_end").eq("organization_id",ctx.organizationId).eq("id",runId).single(),
-    ctx.supabase.from("employees").select("base_salary").eq("organization_id",ctx.organizationId).eq("id",employeeId).single(),
+    ctx.supabase.from("employees").select("base_salary,irsa_dependants").eq("organization_id",ctx.organizationId).eq("id",employeeId).single(),
   ]);
   if(runError||employeeError||!run||!employee)throw new Error("Salarié ou période introuvable.");
   const {data:rules,error:ruleError}=await ctx.supabase.from("payroll_rule_sets").select("*").eq("organization_id",ctx.organizationId).eq("status","validated").lte("effective_from",run.period_end).order("effective_from",{ascending:false});
@@ -116,6 +120,9 @@ async function createPayslip(fd: FormData) {
   const minimumIrsa = Number(rule.irsa_minimum);
   if (!Number.isFinite(minimumIrsa) || minimumIrsa < 0) throw new Error("Minimum IRSA invalide.");
   incomeTax=Math.max(minimumIrsa,Math.round(incomeTax*100)/100);
+  const dependants=Number(employee.irsa_dependants);
+  if (!Number.isInteger(dependants) || dependants<0 || dependants>30) throw new Error("Personnes à charge IRSA invalides.");
+  if (taxable>350000 && dependants>0) incomeTax=Math.max(minimumIrsa,incomeTax-2000*dependants);
   amounts.employee_social=social;amounts.employee_health=health;amounts.income_tax=incomeTax;
   amounts.employer_social=Math.round(cnapsBase*Number(rule.cnaps_employer_rate)*100)/100;
   amounts.employer_health=Math.round(healthBase*Number(rule.health_employer_rate)*100)/100;
@@ -265,7 +272,7 @@ export default async function Payroll() {
                 <input name="base_salary" type="number" min="0" step="0.01" required />
               </div>
               <div className="field">
-                <label>Date d'embauche</label>
+                <label>Personnes à charge IRSA éligibles</label><input name="irsa_dependants" type="number" min="0" max="30" step="1" defaultValue="0" required /><small>Vérifier les justificatifs et l’attribution des allocations familiales.</small></div><div className="field"><label>Date d'embauche</label>
                 <input name="hire_date" type="date" />
               </div>
               <div className="field">
