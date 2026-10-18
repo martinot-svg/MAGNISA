@@ -100,7 +100,7 @@ export default async function PayrollSettings(){
 <div className="field"><label>Plafond CNaPS (Ar)</label><input name="cnaps_monthly_ceiling" type="number" step="0.01" min="0.01" defaultValue={r.cnaps_monthly_ceiling??""}/></div>
 <div className="field"><label>Plafond organisme sanitaire (Ar)</label><input name="health_monthly_ceiling" type="number" step="0.01" min="0.01" defaultValue={r.health_monthly_ceiling??""}/></div>
 <div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" defaultValue={r.irsa_minimum??0}/></div>
-<div className="field"><label>Arrondi de l'assiette IRSA</label><select name="rounding_policy" defaultValue={r.rounding_policy||"unverified"}><option value="unverified">Non vérifié</option><option value="floor_100">Cent francs inférieurs - vérifié</option></select></div>
+<div className="field"><label>Arrondi de l'assiette IRSA</label><select name="rounding_policy" defaultValue={r.rounding_policy||"unverified"}><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d'ariary inférieure - vérifié</option></select></div>
 </div>
 <div className="field"><label>Tranches IRSA - JSON (bornes Ar, taux décimaux)</label><textarea rows={7} spellCheck={false} name="irsa_brackets" defaultValue={JSON.stringify(r.irsa_brackets??[],null,2)} placeholder={'[{"up_to":350000,"rate":0},{"up_to":null,"rate":0.2}]'}/><small>Renseigner uniquement un barème contrôlé. La dernière tranche doit utiliser up_to:null. Aucun chiffre d'exemple n'est activé.</small></div>
 <button className="button">Corriger les paramètres</button></form>
