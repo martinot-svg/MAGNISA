@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
@@ -197,6 +198,7 @@ export default async function Payroll() {
             n'est codé en dur.
           </p>
         </div>
+        <Link className="button" href="/paie/parametres">Paramètres de paie - Madagascar</Link>
       </div>
 
       <div className="grid3">
