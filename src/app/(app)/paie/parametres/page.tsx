@@ -52,7 +52,7 @@ async function executeRuleAction(fd:FormData){
   if(bracketsRaw!==""){
     let parsed:unknown;
     try{parsed=JSON.parse(bracketsRaw);}catch{throw new Error("Le barème IRSA doit être du JSON valide.");}
-    if(!Array.isArray(parsed)||!parsed.length)throw new Error("Le barème doit comporter des tranches.");
+    if(!Array.isArray(parsed))throw new Error("Le barème IRSA doit être une liste de tranches.");
     let prior=0;let lastOpen=false;
     for(let i=0;i<parsed.length;i++){const b=parsed[i];if(!b||typeof b!=="object")throw new Error("Tranche IRSA invalide.");
       if(typeof b.rate!=="number"||!Number.isFinite(b.rate)||b.rate<0||b.rate>1)throw new Error("Taux de tranche IRSA invalide.");
@@ -60,7 +60,7 @@ async function executeRuleAction(fd:FormData){
       else if(typeof b.up_to!=="number"||!Number.isFinite(b.up_to)||b.up_to<=prior)throw new Error("Bornes des tranches IRSA invalides.");
       else prior=b.up_to;
     }
-    if(!lastOpen)throw new Error("La dernière tranche IRSA doit être ouverte.");
+    if(parsed.length>0&&!lastOpen)throw new Error("La dernière tranche IRSA doit être ouverte.");
     patch.irsa_brackets=parsed;
   }
   const rounding=String(fd.get("rounding_policy")??"unverified");
