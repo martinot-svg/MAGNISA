@@ -54,3 +54,12 @@ Aucun référentiel réel activé, aucune paie réelle ou donnée financière de
 - Production : fonctions `create_payslip`, `validate_payslip`, `payroll_compute_fmfp_on_insert`, `activate_payroll_rule` présentes. Présence != résultat de tests.
 - Sécurité : RLS activée sur `organization_members`, `payroll_rule_sets`, `payroll_runs`, `payslips`; aucune surcharge de permission de paie dans `role_permissions`. Aucun test de connexion multi-rôles n'a été effectué.
 - Décision : **NON PRÊT pour exploitation paie complète**. Prochaine priorité : parité de schéma et de fonctions staging, contrôles des règles 2026, tests transactionnels fictifs et tests RLS authentifiés.
+
+
+## Vérification ciblée du 18 octobre 2026 - demande de clôture réglementaire et permissions
+- Source CNaPS officielle: https://www.cnaps.mg/historique-sme - régime général à partir du 01/03/2026, salaire minimum 300 000 Ar, plafond affiché 2 400 000 Ar. L'actualité concurrente https://www.cnaps.mg/actualites/102 doit être rapprochée avec sa période et son régime, et non supprimée arbitrairement.
+- Source FMFP officielle : https://www.fmfp.mg/faq/la-cotisation-fmfp/ - contribution 1% exclusivement employeur, brut plafonné. Son guide de 2019 contient un plafond historique et ne doit pas servir au plafonnement 2026 : https://www.fmfp.mg/guide-de-paiement-de-la-cotisation-du-fmfp/
+- Loi de finances rectificative adoptée n°2026-004 : https://www.assemblee-nationale.mg/fr/textes/loi-n-2026-004portant-loi-de-finances-rectificative-pour-2026/ ; accès ministériel aux textes 2026 : https://www.mef.gov.mg/page_personnalisee/index/menu/17 . À comparer article par article avec le CGI pour l'IRSA, les revenus exonérés et les réductions éventuelles.
+- Aucun taux/plafond non contrôlé n'a été marqué validé. L'analyse de conformité complète, notamment le régime santé, reste ouverte.
+- Test d'autorisations : tentative d'inspection des politiques dans Supabase de production bloquée par l'accès disponible. Aucun token de deux sessions utilisateurs distinctes et aucun test de connexion contrôlé; résultat **NON EXÉCUTÉ**, non « réussi ».
+- Décision : ne pas activer la paie réglementaire tant que les éléments ci-dessus et les essais réels n'ont pas été levés. Aucun utilisateur fictif ni mot de passe n'a été créé.
