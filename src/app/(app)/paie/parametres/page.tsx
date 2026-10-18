@@ -39,6 +39,17 @@ async function executeRuleAction(fd:FormData){
  if(action==="activate"){
   const {error}=await ctx.supabase.rpc("activate_payroll_rule",{p_org:ctx.organizationId,p_rule:id});
   if(error)throw new Error(error.message);
+ }else if(action==="duplicate"){
+  const newFrom=String(fd.get("new_effective_from")||"");
+  const newName=String(fd.get("new_name")||"").trim();
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(newFrom)||!newName||newFrom<=current.effective_from)throw new Error("Nouvelle date ou nom de version invalide.");
+  const copiedFields=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate","cnaps_monthly_ceiling","health_monthly_ceiling","irsa_brackets","irsa_minimum","rounding_policy","legal_reference"] as const;
+  const copy:Record<string,unknown>={organization_id:ctx.organizationId,name:newName,effective_from:newFrom,effective_to:null,status:"pending_review"};
+  for(const key of copiedFields)copy[key]=current[key];
+  copy.legal_reference="À vérifier pour la nouvelle période. Référence précédente : "+String(current.legal_reference||"Non renseignée");
+  // Copier dans un nouveau brouillon sans clôturer, écraser ni recalculer une version existante.
+  const {error}=await ctx.supabase.from("payroll_rule_sets").insert(copy);
+  if(error)throw new Error(error.message);
  }else if(action==="delete"){
   if(!["draft","pending_review"].includes(current.status))throw new Error("Une version validée ou archivée ne peut pas être supprimée.");
   const {error}=await ctx.supabase.from("payroll_rule_sets").delete().eq("organization_id",ctx.organizationId).eq("id",id).in("status",["draft","pending_review"]);
@@ -62,6 +73,21 @@ async function executeRuleAction(fd:FormData){
   if(usesIrsa2026(date)&&(!Array.isArray(current.irsa_brackets)||current.irsa_brackets.length===0)){
     patch.irsa_brackets=IRSA_2026;
   }
+  const bracketCount=Number(fd.get("irsa_bracket_count")??0);
+  if(Number.isInteger(bracketCount)&&bracketCount>0&&bracketCount<=20){
+    const brackets:{up_to:number|null;rate:number}[]=[];
+    let prior=0;
+    for(let i=0;i<bracketCount;i++){
+      const raw=String(fd.get("irsa_cap_"+i)??"").trim();
+      const rateRaw=String(fd.get("irsa_rate_"+i)??"").trim();
+      const rate=Number(rateRaw), cap=raw===""?null:Number(raw);
+      if(rateRaw===""||!Number.isFinite(rate)||rate<0||rate>100||cap!==null&&(!Number.isFinite(cap)||cap<=prior)||cap===null&&i!==bracketCount-1)throw new Error("Tranche IRSA "+(i+1)+" invalide.");
+      brackets.push({up_to:cap,rate:rate/100});
+      if(cap!==null)prior=cap;
+    }
+    if(brackets[brackets.length-1].up_to!==null)throw new Error("La dernière tranche IRSA doit être sans plafond.");
+    patch.irsa_brackets=brackets;
+  }
   const rounding=String(fd.get("rounding_policy")??"unverified");
   if(!["floor_100","unverified"].includes(rounding))throw new Error("Règle d'arrondi inconnue.");
   patch.rounding_policy=rounding;
@@ -78,7 +104,7 @@ async function ruleAction(fd:FormData){
  let message="Paramètres mis à jour.";
  try {
    await executeRuleAction(fd);
-   message=operation==="edit"?"Modifications enregistrées. Le référentiel reste à vérifier.":operation==="review"?"Référentiel maintenu à vérifier.":operation==="delete"?"Référentiel non validé supprimé.":operation==="activate"?"Référentiel validé après contrôle des conditions.":"Opération effectuée.";
+   message=operation==="duplicate"?"Nouvelle version créée, à vérifier avant activation.":operation==="edit"?"Modifications enregistrées. Le référentiel reste à vérifier.":operation==="review"?"Référentiel maintenu à vérifier.":operation==="delete"?"Référentiel non validé supprimé.":operation==="activate"?"Référentiel validé après contrôle des conditions.":"Opération effectuée.";
  } catch(error) {
    outcome="error";
    message=error instanceof Error?error.message:"Impossible de traiter la demande.";
@@ -125,7 +151,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <h3>Calendrier déclaratif SMIE - 2026</h3><p className="muted">Échéances indicatives : déclaration durant le mois suivant chaque trimestre civil. Ce calendrier ne constitue pas une déclaration envoyée ni une preuve de règlement.</p>
  <div className="tableWrap"><table><thead><tr><th>Trimestre</th><th>Période concernée</th><th>Fenêtre de déclaration</th></tr></thead><tbody>{smieDeadlines(2026).map(d=><tr key={d.quarter}><td>T{d.quarter}</td><td>{d.period}</td><td>{d.windowStart} au {d.windowEnd}</td></tr>)}</tbody></table></div>
  </section>
- <div className="section card"><h2>Historique des règles</h2>{!rules?.length?<p className="muted">Aucun paramètre enregistré.</p>:<div className="tableWrap"><table><thead><tr><th>Version</th><th>Début</th><th>Fin</th><th>Statut</th><th>Référence</th><th>Actions</th></tr></thead><tbody>{rules.map((r:any)=><tr key={r.id}><td>{r.name}</td><td>{r.effective_from}</td><td>{r.effective_to||"Sans date de fin"}</td><td><span className="badge">{r.status==="pending_review"?"À vérifier":r.status}</span></td><td>{r.legal_reference||"Non renseignée"}</td><td><details><summary style={{cursor:"pointer"}}>Consulter / Actions</summary><p className="muted">CNaPS salarié : {Number(r.cnaps_employee_rate)*100}% - employeur : {Number(r.cnaps_employer_rate)*100}%</p><p className="muted">Santé salarié : {Number(r.health_employee_rate)*100}% - employeur : {Number(r.health_employer_rate)*100}% - FMFP : {Number(r.fmfp_employer_rate)*100}%</p><p className="muted">Plafonds : CNaPS {r.cnaps_monthly_ceiling??"Non confirmé"} Ar - Santé {r.health_monthly_ceiling??"Non confirmé"} Ar</p>{["draft","pending_review"].includes(r.status)&&<>
+ <div className="section card"><h2>Historique des règles</h2>{!rules?.length?<p className="muted">Aucun paramètre enregistré.</p>:<div className="tableWrap"><table><thead><tr><th>Version</th><th>Début</th><th>Fin</th><th>Statut</th><th>Référence</th><th>Actions</th></tr></thead><tbody>{rules.map((r:any)=><tr key={r.id}><td>{r.name}</td><td>{r.effective_from}</td><td>{r.effective_to||"Sans date de fin"}</td><td><span className="badge">{r.status==="pending_review"?"À vérifier":r.status}</span></td><td>{r.legal_reference||"Non renseignée"}</td><td><details><summary style={{cursor:"pointer"}}>Consulter / Actions</summary><p className="muted">CNaPS salarié : {Number(r.cnaps_employee_rate)*100}% - employeur : {Number(r.cnaps_employer_rate)*100}%</p><p className="muted">Santé salarié : {Number(r.health_employee_rate)*100}% - employeur : {Number(r.health_employer_rate)*100}% - FMFP : {Number(r.fmfp_employer_rate)*100}%</p><p className="muted">Plafonds : CNaPS {r.cnaps_monthly_ceiling??"Non confirmé"} Ar - Santé {r.health_monthly_ceiling??"Non confirmé"} Ar</p><form action={ruleAction} className="form" style={{marginTop:12}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="duplicate"/><div className="field"><label>Nom de la nouvelle version</label><input name="new_name" defaultValue={r.name+" - nouvelle version"} required/></div><div className="field"><label>Nouvelle date d'effet</label><input type="date" name="new_effective_from" min={r.effective_from} required/></div><button className="button">Créer une nouvelle version à vérifier</button></form>{["draft","pending_review"].includes(r.status)&&<>
 <form action={ruleAction} className="form" style={{minWidth:260}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="edit"/><div className="field"><label>Version</label><input name="name" defaultValue={r.name} required/></div><div className="field"><label>Début</label><input type="date" name="effective_from" defaultValue={r.effective_from} required/></div><div className="field"><label>Fin</label><input type="date" name="effective_to" defaultValue={r.effective_to||""}/></div><div className="field"><label>Référence</label><textarea name="legal_reference" defaultValue={r.legal_reference||""}/></div><div className="grid2">
 {(["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate"] as const).map(key=><div className="field" key={key}><label>{key.replaceAll("_"," ")} (%)</label><input type="number" min="0" max="100" step="0.0001" name={key} defaultValue={Number(r[key])*100} required/></div>)}
 <div className="field"><label>Plafond CNaPS (Ar)</label><input name="cnaps_monthly_ceiling" type="number" step="0.01" min="0.01" defaultValue={r.cnaps_monthly_ceiling??""}/></div>
@@ -134,7 +160,9 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
 <div className="field"><label>Arrondi de l'assiette IRSA</label><select name="rounding_policy" defaultValue={r.rounding_policy||"unverified"}><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d'ariary inférieure - vérifié</option></select></div>
 </div>
 <div className="field"><strong>Barème IRSA appliqué au référentiel</strong><p className="muted">{usesIrsa2026(r.effective_from)?"Barème national 2026 intégré pour les nouveaux réglages. En modifiant cette fiche, les tranches seront renseignées si elles sont absentes.":"Aucun barème national automatique pour cette période : conserver les paramètres historiques existants."}</p>
-{Array.isArray(r.irsa_brackets)&&r.irsa_brackets.length>0?<div className="tableWrap"><table><thead><tr><th>Plafond de tranche (Ar)</th><th>Taux</th></tr></thead><tbody>{r.irsa_brackets.map((b:any,i:number)=><tr key={i}><td>{b.up_to===null?"Au-delà de la dernière tranche":Number(b.up_to).toLocaleString("fr-FR")}</td><td>{Number(b.rate)*100} %</td></tr>)}</tbody></table></div>:<p className="muted">Aucune tranche enregistrée pour ce référentiel.</p>}</div>
+{Array.isArray(r.irsa_brackets)&&r.irsa_brackets.length>0?<div className="tableWrap"><table><thead><tr><th>Plafond de tranche (Ar)</th><th>Taux</th></tr></thead><tbody>{r.irsa_brackets.map((b:any,i:number)=><tr key={i}><td>{b.up_to===null?"Au-delà de la dernière tranche":Number(b.up_to).toLocaleString("fr-FR")}</td><td>{Number(b.rate)*100} %</td></tr>)}</tbody></table></div>:<p className="muted">Aucune tranche enregistrée pour ce référentiel.</p>}<input type="hidden" name="irsa_bracket_count" value={Array.isArray(r.irsa_brackets)?r.irsa_brackets.length:0}/>
+{Array.isArray(r.irsa_brackets)&&r.irsa_brackets.map((b:any,i:number)=><div className="grid2" key={i}><div className="field"><label>Tranche IRSA {i+1} - plafond (Ar) {b.up_to===null?"(sans plafond)":""}</label><input type="number" min="0" step="1" name={"irsa_cap_"+i} defaultValue={b.up_to??""} placeholder="Dernière tranche sans plafond"/></div><div className="field"><label>Tranche IRSA {i+1} - taux (%)</label><input type="number" min="0" max="100" step="0.01" name={"irsa_rate_"+i} defaultValue={Number(b.rate)*100} required/></div></div>)}
+<p className="muted">Les tranches ci-dessus sont modifiables pour cette version non validée. Conservez la dernière tranche sans plafond. Pour changer le nombre de tranches, une évolution du formulaire sera nécessaire.</p></div>
 <button className="button">Corriger les paramètres</button></form>
 <div className="actions" style={{marginTop:10}}><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="review"/><button className="button">Maintenir à vérifier</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="activate"/><button className="button primary">Activer - après contrôle des textes</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="delete"/><button className="button">Supprimer</button></form></div></>}</details></td></tr>)}</tbody></table></div>}</div>
  <PayrollRulePreview rules={(rules||[]) as any[]} currency={org?.currency||"MGA"}/>
