@@ -34,3 +34,15 @@ Aucun référentiel réel activé, aucune paie réelle ou donnée financière de
 - Sans comptes authentifiés distincts, **aucun test de privilèges multi-rôles ne peut être déclaré exécuté**. Les politiques constatées ne prouvent pas leur application effective.
 - Sans expert-comptable ou fiscaliste indépendant effectivement engagé, **aucune signature professionnelle ni attestation de conformité ne peut être délivrée**.
 - Décision : **NON CERTIFIÉ**, toute activation de production et paiement automatisé fondés sur un référentiel non vérifié restent interdits.
+
+
+## Revue documentaire complémentaire - avis d'audit du 18 octobre 2026
+### Sources juridiques et anomalies
+- Code des impôts 2026 (compilation à confronter à l'édition officielle et à la LFR) : https://textes.lexxika.com/lois-malagasy/code-des-impots-2026-2/ ; loi de finances rectificative publiée : https://www.assemblee-nationale.mg/fr/textes/loi-n-2026-004portant-loi-de-finances-rectificative-pour-2026/
+- FMFP (source institutionnelle) : https://www.fmfp.mg/faq/la-cotisation-fmfp/ ; taux exclusivement patronal 1 % sur la masse salariale brute plafonnée.
+- Divergence non résolue entre deux publications officielles CNaPS : https://www.cnaps.mg/historique-sme (plafond général 2 400 000 Ar à compter de mars 2026) et https://www.cnaps.mg/actualites/102 (2 101 440 Ar dans l'actualité de juillet 2026). AUCUN choix arbitraire de plafond.
+- Audit en lecture seule de la production : deux règles `pending_review`, zéro `validated`. Un trigger `trg_payroll_compute_fmfp_on_insert` existe sur les bulletins; sa présence ne constitue pas une preuve de résultat.
+- Staging : zéro bulletin enregistré. Aucun test bout en bout de validation / paiement ni de rapprochement déclaratif vérifié.
+### Conclusions
+- Avis technique provisoire : NON-CONFORMITÉ NON LEVÉE / RECETTE BLOQUÉE. Ce rapport est une auto-évaluation technique par assistant IA; ni audit tiers indépendant, ni attestation d'une personne physique habilitée.
+- Critères pour lever les réserves : vérifier textes adoptés par période, résoudre divergences, contrôler assiettes et cas particuliers; synchroniser fonctions et protections en staging; jeux de tests traçables; contrôle multi-rôles authentifié; preuve de journalisation équilibrée et déclarations; signature du responsable de recette et, pour revendiquer une revue indépendante, d'un professionnel réellement mandaté.
