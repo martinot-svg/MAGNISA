@@ -5,6 +5,7 @@ import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, requirePermission } from "@/lib/permissions";
 import { money } from "@/lib/money";
 import { EmptyState } from "@/components/empty-state";
+import { PayrollGrossPreview } from "@/components/payroll-gross-preview";
 
 async function createEmployee(fd: FormData) {
   "use server";
@@ -355,6 +356,8 @@ export default async function Payroll() {
         </div>
 
       </div>
+      <PayrollGrossPreview currency={c} employees={employees.filter((e:any)=>e.status==="active").map((e:any)=>({id:e.id,name:`${e.first_name} ${e.last_name}`,baseSalary:Number(e.base_salary)}))}/>
+
       <div className="section"><div className="card">
           <h2>Calcul d’un bulletin</h2>
           {employees.length === 0 || editableRuns.length === 0 ? (
