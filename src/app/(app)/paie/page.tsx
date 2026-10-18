@@ -40,6 +40,18 @@ async function createEmployee(fd: FormData) {
   revalidatePath("/paie");
 }
 
+async function updateEmployeeDependants(fd: FormData) {
+  "use server";
+  const ctx=await requireOrganization();
+  await assertPermission(ctx,"payroll.manage");
+  const id=String(fd.get("employee_id")||"");
+  const count=Number(fd.get("irsa_dependants"));
+  if (!id || !Number.isInteger(count) || count<0 || count>30) throw new Error("Nombre de personnes à charge invalide.");
+  const {error}=await ctx.supabase.from("employees").update({irsa_dependants:count}).eq("organization_id",ctx.organizationId).eq("id",id);
+  if(error) throw new Error(error.message);
+  revalidatePath("/paie");
+}
+
 async function createRun(fd: FormData) {
   "use server";
   const ctx = await requireOrganization();
@@ -246,6 +258,18 @@ export default async function Payroll() {
         <Link className="button" href="/paie/parametres">Paramètres de paie - Madagascar</Link>
       </div>
 
+      {employees.length>0 && <div className="card section">
+        <h2>Personnes à charge IRSA - salariés existants</h2>
+        <p className="muted">Indiquer uniquement le nombre de personnes éligibles avec justificatifs. La modification n'affecte pas les bulletins historiques.</p>
+        <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Personnes à charge</th><th>Action</th></tr></thead><tbody>
+          {employees.map((e:any)=><tr key={e.id}><td>{e.first_name} {e.last_name}</td><td>{e.irsa_dependants??0}</td><td>
+            <form action={updateEmployeeDependants} style={{display:"flex",gap:8,alignItems:"center"}}>
+              <input type="hidden" name="employee_id" value={e.id}/>
+              <input aria-label="Personnes à charge IRSA" type="number" name="irsa_dependants" min="0" max="30" step="1" defaultValue={e.irsa_dependants??0} required style={{width:80}}/>
+              <button className="button">Mettre à jour</button>
+            </form></td></tr>)}
+        </tbody></table></div>
+      </div>}
       <div className="grid3">
         <div className="card">
           <h2>Nouveau salarié</h2>
