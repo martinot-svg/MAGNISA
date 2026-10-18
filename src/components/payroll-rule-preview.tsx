@@ -1,3 +1,4 @@
+import {formatDocumentAmount} from "@/lib/format-document-amount";
 "use client";
 import {useState} from "react";
 
@@ -10,7 +11,7 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  const [dependants,setDependants]=useState("0");
  const [confirm,setConfirm]=useState(false);
  const applicable=rules.filter(r=>r.effective_from<=date&&(!r.effective_to||r.effective_to>=date)).sort((a,b)=>b.effective_from.localeCompare(a.effective_from))[0];
- const money=(v:number)=>new Intl.NumberFormat("fr-FR",{style:"currency",currency}).format(v);
+ const money=(v:number)=>formatDocumentAmount(v,{currency});
  const brut=Number(gross);
  const valid=gross.trim()!==""&&Number.isFinite(brut)&&brut>=0;
  const people=Number(dependants);
