@@ -249,6 +249,13 @@ export default async function Payroll() {
 
   const c = org?.currency || "MGA";
   const editableRuns = runs.filter((r: any) => ["draft", "calculated", "review"].includes(r.status));
+  const toValidate = slips.filter((slip: any) => slip.status === "calculated").length;
+  const remainingToPay = slips.filter((slip: any) =>
+    ["validated", "partially_paid"].includes(slip.status) &&
+    Number(slip.net_pay || 0) > Number(slip.paid_amount || 0)
+  ).length;
+  const latestRun = runs[0];
+
 
   return (
     <>
@@ -263,6 +270,16 @@ export default async function Payroll() {
         </div>
         <Link className="button" href="/paie/parametres">Paramètres de paie - Madagascar</Link>
       </div>
+
+      <section className="card section" aria-label="Situation de la paie">
+        <h2>Suivi de la paie</h2>
+        <div className="grid3">
+          <div><span className="muted">Dernière période enregistrée</span><p><strong>{latestRun ? `${latestRun.period_start} au ${latestRun.period_end}` : "Aucune période"}</strong></p></div>
+          <div><span className="muted">Bulletins calculés à valider</span><p><strong>{toValidate}</strong></p></div>
+          <div><span className="muted">Bulletins avec solde à régler</span><p><strong>{remainingToPay}</strong></p></div>
+        </div>
+        <p className="muted">Indicateurs issus des données enregistrées. Les calculs définitifs restent soumis à la validation du référentiel réglementaire.</p>
+      </section>
 
       <section className="card section" aria-label="Personnel">
         <div className="pageHead"><div><h2>Personnel</h2><p className="muted">{employees.length} salarié(s) enregistré(s) - {employees.filter((e:any)=>e.status==="active").length} actif(s).</p></div></div>
