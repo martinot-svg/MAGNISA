@@ -76,3 +76,12 @@ Aucun référentiel réel activé, aucune paie réelle ou donnée financière de
 - Aucune autre valeur (plafond ou IRSA) introduite par supposition. La configuration reste en attente.
 ### Verdict
 FMFP : taux confirmé et anomalie corrigée. Référentiel général 2026 : paramètres partiellement confirmés mais **pas complet / pas validé**, assiette sanitaire variable, divergence CNaPS et cas spécifiques IRSA à traiter avant activation. Pas de déclaration de conformité intégrale.
+
+
+## Correctifs du 18 octobre 2026 - paramètres CNaPS, santé et IRSA
+- Plafond CNaPS régime général depuis 01/03/2026 : 2 400 000 Ar selon tableau daté https://www.cnaps.mg/historique-sme ; agricole 2 434 400 Ar. Source concurrente du 31/07/2026 https://www.cnaps.mg/actualites/102 donne des valeurs anciennes de 2 101 440 et 2 132 000 Ar. Aucun paramètre de plafond n'a été activé pour éviter une erreur d'application.
+- Médecine interentreprises décret n°2003-1162, art. 25 : 1% salarié et 5% employeur minimum sur salaires et accessoires, https://edbm.mg/wp-content/uploads/2017/12/Decret_2003-1162_medecine_entreprise.pdf. Plafond et spécificités à déterminer selon l'organisme effectivement affilié.
+- IRSA Code impôts 2026 art. 01.03.19 : réduction de 2 000 Ar/mois/personne à charge éligible pour revenu imposable supérieur à 350 000 Ar, sans descendre sous le minimum. Source https://textes.lexxika.com/lois-malagasy/code-des-impots-2026-2/ ; condition d'éligibilité, justificatifs, bénéficiaire allocations familiales indispensables.
+- Mise à jour appliquée : colonne `employees.irsa_dependants` sur staging/production ; actions de création et modification de salariés ; calcul et vérification de l'IRSA synchronisés dans application et trigger de production. Aucun bulletin historique retouché.
+- Test arithmétique staging : 0 personne -> réduction 0, 2 personnes -> 4 000 Ar au-delà du seuil, 2 personnes avec revenu imposable inférieur au seuil -> 0. Ce test ne remplace pas l'essai end-to-end des RPC.
+- Réserve : cas fiscaux spéciaux, paramètres d'organisme sanitaire, barème consolidé et déploiement opérationnel à tester. Ce rapport ne vaut pas validation intégrale.
