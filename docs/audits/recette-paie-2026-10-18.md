@@ -46,3 +46,11 @@ Aucun référentiel réel activé, aucune paie réelle ou donnée financière de
 ### Conclusions
 - Avis technique provisoire : NON-CONFORMITÉ NON LEVÉE / RECETTE BLOQUÉE. Ce rapport est une auto-évaluation technique par assistant IA; ni audit tiers indépendant, ni attestation d'une personne physique habilitée.
 - Critères pour lever les réserves : vérifier textes adoptés par période, résoudre divergences, contrôler assiettes et cas particuliers; synchroniser fonctions et protections en staging; jeux de tests traçables; contrôle multi-rôles authentifié; preuve de journalisation équilibrée et déclarations; signature du responsable de recette et, pour revendiquer une revue indépendante, d'un professionnel réellement mandaté.
+
+
+## Reprise des trois contrôles - 18 octobre 2026
+- Textes : FMFP 1 % patronal sur brut plafonné confirmé par https://www.fmfp.mg/faq/la-cotisation-fmfp/ ; CNaPS page historique donne 2 400 000 Ar au 01/03/2026 (https://www.cnaps.mg/historique-sme), actualité du 31/07/2026 donne 2 101 440 Ar (https://www.cnaps.mg/actualites/102). Divergence à résoudre : aucun plafond configuré automatiquement.
+- Schéma staging : `payslips` sans `employer_fmfp`, fonctions `create_payslip` et `validate_payslip` absentes ; zéro bulletin. Impossible de certifier les scénarios de bout en bout avec cette base non alignée.
+- Production : fonctions `create_payslip`, `validate_payslip`, `payroll_compute_fmfp_on_insert`, `activate_payroll_rule` présentes. Présence != résultat de tests.
+- Sécurité : RLS activée sur `organization_members`, `payroll_rule_sets`, `payroll_runs`, `payslips`; aucune surcharge de permission de paie dans `role_permissions`. Aucun test de connexion multi-rôles n'a été effectué.
+- Décision : **NON PRÊT pour exploitation paie complète**. Prochaine priorité : parité de schéma et de fonctions staging, contrôles des règles 2026, tests transactionnels fictifs et tests RLS authentifiés.
