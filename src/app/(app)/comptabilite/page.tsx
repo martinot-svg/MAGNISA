@@ -35,7 +35,12 @@ async function assignAccountMapping(formData: FormData) {
  * La balance est issue des ecritures en partie double, jamais des seuls flux bancaires.
  * Une cle metier non mappee doit rester visible comme NON_CLASSE.
  */
-export default async function Accounting() {
+export default async function Accounting({ searchParams }: { searchParams: Promise<{ ledger_page?: string; ledger_account?: string }> }) {
+  const params = await searchParams;
+  const rawPage=Number(params.ledger_page ?? "1");
+  const ledgerPage=Number.isSafeInteger(rawPage) && rawPage>=1 ? rawPage : 1;
+  const ledgerAccount=(params.ledger_account ?? "").trim().slice(0,100);
+  const pageSize=100;
   const ctx = await requireOrganization();
   await requirePermission(ctx, "accounting.view");
   const { supabase, organizationId } = ctx;
@@ -49,7 +54,7 @@ export default async function Accounting() {
     { data: supplierReconciliation = [], error: supplierReconciliationError },
     { data: accountReconciliation = [], error: accountReconciliationError },
     { data: payrollReconciliation = [], error: payrollReconciliationError },
-    { data: ledgerLines = [], error: ledgerError },
+    { data: ledgerLines = [], error: ledgerError, count: ledgerCount },
   ] = await Promise.all([
     supabase.from("journal_entries")
       .select("id,entry_date,reference,description,status,total_debit,total_credit")
@@ -66,7 +71,7 @@ export default async function Accounting() {
     supabase.from("magnisa_supplier_reconciliation").select("supplier_invoice_id,supplier_number,reconciliation_status,payment_difference,allocation_difference").eq("organization_id", organizationId),
     supabase.from("magnisa_account_reconciliation").select("financial_account_id,name,reconciliation_status,balance_difference").eq("organization_id", organizationId),
     supabase.from("magnisa_payroll_reconciliation").select("payslip_id,reconciliation_status,payment_difference").eq("organization_id", organizationId),
-    supabase.from("journal_entry_lines").select("id,account_key,account_label,debit,credit,journal_entry_id,journal_entries!inner(entry_date,reference,description,status)").eq("organization_id",organizationId).order("journal_entry_id").limit(1000),
+    (() => { let q=supabase.from("journal_entry_lines").select("id,account_key,account_label,debit,credit,journal_entry_id,journal_entries!inner(entry_date,reference,description,status)",{count:"exact"}).eq("organization_id",organizationId);if(ledgerAccount)q=q.eq("account_key",ledgerAccount);return q.order("id",{ascending:true}).range((ledgerPage-1)*pageSize,ledgerPage*pageSize-1); })(),
   ]);
 
   if (entryError || organizationError || balanceError || integrityError || catalogError || invoiceReconciliationError || supplierReconciliationError || accountReconciliationError || payrollReconciliationError || ledgerError) {
@@ -175,9 +180,14 @@ export default async function Accounting() {
       </section>
       <section className="section">
         <h2>Grand livre - écritures détaillées</h2>
-        <p className="muted">Lignes enregistrées en base, rattachées à leurs pièces de journal. Aperçu des 1 000 premières lignes récupérées ; le total de la balance reste calculé séparément sur toutes les écritures.</p>
+        <p className="muted">Lignes réellement enregistrées, paginées par identifiant unique stable. La balance reste calculée séparément sur toutes les écritures.</p>
         {ledgerLines.length === 1000 && <p role="alert">Affichage limité à 1 000 lignes : ce tableau n'est pas un grand livre exhaustif. Prévoir une extraction paginée pour les clôtures.</p>}
-        {!ledgerLines.length ? <p>Aucune ligne comptable enregistrée.</p> : <div className="tableWrap"><table>
+        <form method="get" className="form"><div className="field"><label>Compte interne (facultatif)</label><input name="ledger_account" defaultValue={ledgerAccount} placeholder="Tous les comptes" /></div><button className="button">Filtrer le grand livre</button></form>
+        <div className="actions">
+          {ledgerPage>1 && <a className="button" href={`/comptabilite?ledger_page=${ledgerPage-1}&ledger_account=${encodeURIComponent(ledgerAccount)}`}>Page précédente</a>}
+          {ledgerPage*pageSize<(ledgerCount??0) && <a className="button" href={`/comptabilite?ledger_page=${ledgerPage+1}&ledger_account=${encodeURIComponent(ledgerAccount)}`}>Page suivante</a>}
+        </div>
+        {!ledgerLines.length ? <p>Aucune ligne comptable pour cette page.</p> : <div className="tableWrap"><table>
           <thead><tr><th>Date</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th className="right">Débit</th><th className="right">Crédit</th></tr></thead>
           <tbody>{(ledgerLines as any[]).map((line:any)=>{const entry=Array.isArray(line.journal_entries)?line.journal_entries[0]:line.journal_entries;return <tr key={line.id}>
             <td>{entry?.entry_date || ""}</td><td>{entry?.reference || ""}</td><td>{line.account_key}</td><td>{line.account_label || entry?.description || ""}</td><td className="right">{money(line.debit,currency)}</td><td className="right">{money(line.credit,currency)}</td>
