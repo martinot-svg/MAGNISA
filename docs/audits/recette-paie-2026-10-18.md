@@ -24,3 +24,13 @@ Statut : NON CERTIFIÉ - tests incomplets.
 ## Décision
 RECETTE REFUSÉE À CE STADE : aucune certification à 100 % possible sans essais authentifiés et validation indépendante.
 Aucun référentiel réel activé, aucune paie réelle ou donnée financière de production modifiée pour cette recette.
+
+
+## Reprise d'audit - synchronisation partielle du 18 octobre 2026
+- Projet de test `jrotsmzkyjsibmbnqxtz` : la table `public.payroll_rule_sets` a été créée avec quatre politiques RLS (SELECT, INSERT, UPDATE, DELETE). Aucun jeu de paramètres n'a été validé ni injecté (0 enregistrements).
+- Cette migration rétablit la présence de la table mais **ne garantit pas une parité intégrale** avec la production : les fonctions de validation réglementaire, FMFP, les protections d'intégrité et l'ensemble du schéma restent à comparer et tester.
+- Sources vérifiées : FMFP https://www.fmfp.mg/faq/la-cotisation-fmfp/ ; CNaPS actualité https://www.cnaps.mg/actualites/102 ; projet de loi fiscale 2026 https://www.mef.gov.mg/assets/vendor/ckeditor/plugins/kcfinder/upload/files/lf_2026/PLF_2026%20N%20015_2025_VF.pdf .
+- D'autres textes adoptés et les modalités fiscales applicables doivent être confrontés avant validation, en particulier les exceptions IRSA, le plafond CNaPS et les régimes particuliers.
+- Sans comptes authentifiés distincts, **aucun test de privilèges multi-rôles ne peut être déclaré exécuté**. Les politiques constatées ne prouvent pas leur application effective.
+- Sans expert-comptable ou fiscaliste indépendant effectivement engagé, **aucune signature professionnelle ni attestation de conformité ne peut être délivrée**.
+- Décision : **NON CERTIFIÉ**, toute activation de production et paiement automatisé fondés sur un référentiel non vérifié restent interdits.
