@@ -29,5 +29,8 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Unit tests (Vitest)
+        run: npm test
+
       - name: Production build
         run: npm run build
