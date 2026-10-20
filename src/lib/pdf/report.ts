@@ -1,5 +1,5 @@
 import React from "react";
-import {Document,Page,Text,View,StyleSheet} from "@react-pdf/renderer";
+import {Document,Page,Text,View,Image,StyleSheet} from "@react-pdf/renderer";
 import {parseDocumentTheme} from "@/lib/document-theme";
 import {formatDocumentAmount} from "@/lib/format-document-amount";
 
@@ -17,7 +17,7 @@ const s = StyleSheet.create({
   value: { fontWeight: 700 },
 });
 
-export function Report({ company, currency, m, themeInput, template }: { company: string; currency: string; m: any; themeInput?:unknown; template?:{primaryColor?:string;fontFamily?:string;footerText?:string} }) {
+export function Report({ company, currency, m, themeInput, template, logoUrl }: { company: string; currency: string; m: any; logoUrl?:string|null; themeInput?:unknown; template?:{primaryColor?:string;fontFamily?:string;footerText?:string} }) {
   const theme=parseDocumentTheme(themeInput);
   const accent=template?.primaryColor&&/^#[0-9a-fA-F]{6}$/.test(template.primaryColor)?template.primaryColor:theme.primaryColor;
   const font=template?.fontFamily&&["Helvetica","Courier","Times-Roman"].includes(template.fontFamily)?template.fontFamily:theme.fontFamily;
@@ -38,6 +38,7 @@ export function Report({ company, currency, m, themeInput, template }: { company
     React.createElement(
       Page,
       { size: "A4", style: [s.page,{padding:theme.pageMargin,color:theme.textColor,backgroundColor:theme.backgroundColor,fontFamily:font}] },
+      ...(logoUrl?[React.createElement(Image,{key:"company-logo",src:logoUrl,style:{width:theme.logoWidth,height:48,objectFit:"contain",alignSelf:theme.logoPosition==="center"?"center":theme.logoPosition==="right"?"flex-end":"flex-start",marginBottom:10}})]:[]),
       React.createElement(Text, { style: [s.title,{color:accent}] }, `Rapport de gestion — ${company}`),
       React.createElement(
         Text,
