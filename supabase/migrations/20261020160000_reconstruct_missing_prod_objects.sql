@@ -185,11 +185,7 @@ create index if not exists payroll_rule_change_log_org_date_idx
 alter table public.payroll_rule_change_log enable row level security;
 drop policy if exists payroll_rule_change_log_read on public.payroll_rule_change_log;
 create policy payroll_rule_change_log_read on public.payroll_rule_change_log for select to authenticated
-using (exists (
-  select 1 from public.organization_members m
-  where m.organization_id=payroll_rule_change_log.organization_id
-    and m.user_id=auth.uid() and m.status='active'
-));
+using (public.has_org_permission(organization_id,'payroll.manage'));
 revoke all on public.payroll_rule_change_log from public, anon, authenticated;
 grant select on public.payroll_rule_change_log to authenticated;
 
