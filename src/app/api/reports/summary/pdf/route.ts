@@ -21,7 +21,7 @@ const s = StyleSheet.create({
   value: { fontWeight: 700 },
 });
 
-function Report({ company, currency, m, themeInput, template }: { company: string; currency: string; m: any; themeInput?:unknown; template?:{primaryColor?:string;fontFamily?:string;footerText?:string} }) {
+export function Report({ company, currency, m, themeInput, template }: { company: string; currency: string; m: any; themeInput?:unknown; template?:{primaryColor?:string;fontFamily?:string;footerText?:string} }) {
   const theme=parseDocumentTheme(themeInput);
   const accent=template?.primaryColor&&/^#[0-9a-fA-F]{6}$/.test(template.primaryColor)?template.primaryColor:theme.primaryColor;
   const font=template?.fontFamily&&["Helvetica","Courier","Times-Roman"].includes(template.fontFamily)?template.fontFamily:theme.fontFamily;
