@@ -6,18 +6,135 @@ import { calculateMvolaTransfer, type MvolaFeeOperation } from "@/lib/mvola-tari
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
 
-const clientSchema = z.object({ name:z.string().min(2), email:z.string().email().optional().or(z.literal("")), phone:z.string().optional(), address:z.string().optional(), tax_id:z.string().optional() });
+const clientSchema = z.object({
+  name: z.string().trim().min(2, "Le nom doit contenir au moins 2 caractères."),
+  email: z.string().trim().email().optional().or(z.literal("")),
+  phone: z.string().trim().optional(),
+  address: z.string().trim().optional(),
+  tax_id: z.string().trim().optional(),
+});
+const entityIdSchema = z.string().uuid("Identifiant invalide.");
+const activeSchema = z.object({ id: entityIdSchema, is_active: z.enum(["true", "false"]) });
+
 export async function createCustomer(formData: FormData) {
   const ctx = await requireOrganization();
-  await assertPermission(ctx,"customers.create");
-  const parsed=clientSchema.safeParse(Object.fromEntries(formData));
-  if(!parsed.success) throw new Error("Vérifie les informations du client.");
-  const {error}=await ctx.supabase.from("customers").insert({ organization_id:ctx.organizationId, ...parsed.data, email:parsed.data.email||null });
-  if(error) throw new Error(error.message); revalidatePath("/clients");
+  await assertPermission(ctx, "customers.create");
+  const parsed = clientSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Vérifie les informations du client.");
+  const { error } = await ctx.supabase.from("customers").insert({
+    organization_id: ctx.organizationId,
+    ...parsed.data,
+    email: parsed.data.email || null,
+    phone: parsed.data.phone || null,
+    address: parsed.data.address || null,
+    tax_id: parsed.data.tax_id || null,
+  });
+  if (error) throw new Error("Impossible de créer le client. Vérifie les champs puis réessaie.");
+  revalidatePath("/clients");
 }
 
-const serviceSchema=z.object({ name:z.string().min(2), description:z.string().optional(), reference:z.string().optional(), unit:z.string().min(1), unit_price:z.coerce.number().nonnegative(), tax_rate:z.coerce.number().nonnegative().max(100) });
-export async function createService(formData:FormData){ const ctx=await requireOrganization(); await assertPermission(ctx,"services.create"); const p=serviceSchema.safeParse(Object.fromEntries(formData)); if(!p.success)throw new Error("Vérifie les informations de la prestation."); const {error}=await ctx.supabase.from("services").insert({organization_id:ctx.organizationId,...p.data}); if(error)throw new Error(error.message); revalidatePath("/services"); }
+export async function updateCustomer(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "customers.create");
+  const raw = Object.fromEntries(formData);
+  const id = entityIdSchema.safeParse(raw.id);
+  const parsed = clientSchema.safeParse(raw);
+  if (!id.success || !parsed.success) throw new Error("Les informations du client sont invalides.");
+  const { data, error } = await ctx.supabase
+    .from("customers")
+    .update({
+      ...parsed.data,
+      email: parsed.data.email || null,
+      phone: parsed.data.phone || null,
+      address: parsed.data.address || null,
+      tax_id: parsed.data.tax_id || null,
+    })
+    .eq("organization_id", ctx.organizationId)
+    .eq("id", id.data)
+    .select("id")
+    .maybeSingle();
+  if (error || !data) throw new Error("Modification impossible : client introuvable ou accès refusé.");
+  revalidatePath("/clients");
+  revalidatePath(`/clients/${id.data}`);
+}
+
+export async function setCustomerActive(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "customers.create");
+  const parsed = activeSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Demande de modification du statut invalide.");
+  const { data, error } = await ctx.supabase
+    .from("customers")
+    .update({ is_active: parsed.data.is_active === "true" })
+    .eq("organization_id", ctx.organizationId)
+    .eq("id", parsed.data.id)
+    .select("id")
+    .maybeSingle();
+  if (error || !data) throw new Error("Impossible de modifier le statut de ce client.");
+  revalidatePath("/clients");
+  revalidatePath(`/clients/${parsed.data.id}`);
+}
+
+const serviceSchema = z.object({
+  name: z.string().trim().min(2),
+  description: z.string().trim().optional(),
+  reference: z.string().trim().optional(),
+  unit: z.string().trim().min(1),
+  unit_price: z.coerce.number().finite().nonnegative(),
+  tax_rate: z.coerce.number().finite().nonnegative().max(100),
+});
+export async function createService(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "services.create");
+  const p = serviceSchema.safeParse(Object.fromEntries(formData));
+  if (!p.success) throw new Error("Vérifie les informations de la prestation.");
+  const { error } = await ctx.supabase.from("services").insert({
+    organization_id: ctx.organizationId,
+    ...p.data,
+    description: p.data.description || null,
+    reference: p.data.reference || null,
+  });
+  if (error) throw new Error("Impossible de créer la prestation. Vérifie les champs puis réessaie.");
+  revalidatePath("/services");
+}
+
+export async function updateService(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "services.create");
+  const raw = Object.fromEntries(formData);
+  const id = entityIdSchema.safeParse(raw.id);
+  const parsed = serviceSchema.safeParse(raw);
+  if (!id.success || !parsed.success) throw new Error("Les informations de la prestation sont invalides.");
+  const { data, error } = await ctx.supabase
+    .from("services")
+    .update({
+      ...parsed.data,
+      description: parsed.data.description || null,
+      reference: parsed.data.reference || null,
+    })
+    .eq("organization_id", ctx.organizationId)
+    .eq("id", id.data)
+    .select("id")
+    .maybeSingle();
+  if (error || !data) throw new Error("Modification impossible : prestation introuvable ou accès refusé.");
+  revalidatePath("/services");
+}
+
+export async function setServiceActive(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "services.create");
+  const parsed = activeSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Demande de modification du statut invalide.");
+  const { data, error } = await ctx.supabase
+    .from("services")
+    .update({ is_active: parsed.data.is_active === "true" })
+    .eq("organization_id", ctx.organizationId)
+    .eq("id", parsed.data.id)
+    .select("id")
+    .maybeSingle();
+  if (error || !data) throw new Error("Impossible de modifier le statut de cette prestation.");
+  revalidatePath("/services");
+}
 
 export async function acceptQuote(quoteId:string){ const ctx=await requireOrganization(); await assertPermission(ctx,"quotes.accept"); const {error}=await ctx.supabase.rpc("accept_quote",{p_org:ctx.organizationId,p_quote:quoteId}); if(error)throw new Error(error.message); revalidatePath("/devis"); revalidatePath(`/devis/${quoteId}`); }
 export async function convertQuoteToInvoice(quoteId:string){ const ctx=await requireOrganization(); await assertPermission(ctx,"invoices.create"); const {data,error}=await ctx.supabase.rpc("convert_quote_to_invoice",{p_org:ctx.organizationId,p_quote:quoteId}); if(error)throw new Error(error.message); revalidatePath("/factures"); revalidatePath(`/devis/${quoteId}`); return data as string; }
