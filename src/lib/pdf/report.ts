@@ -17,7 +17,7 @@ const s = StyleSheet.create({
   value: { fontWeight: 700 },
 });
 
-export function Report({ company, currency, m, themeInput, template, logoUrl }: { company: string; currency: string; m: any; logoUrl?:string|null; themeInput?:unknown; template?:{showLogo?:boolean;primaryColor?:string;fontFamily?:string;footerText?:string} }) {
+export function Report({ company, currency, m, themeInput, template, logoUrl }: { company: string; currency: string; m: any; logoUrl?:string|null; themeInput?:unknown; template?:{showLogo?:boolean;primaryColor?:string;fontFamily?:string;footerText?:string}; companyDetails?:{address?:string|null;phone?:string|null;email?:string|null;website?:string|null;tax_id?:string|null;stat_id?:string|null;registry_id?:string|null} }) {
   const theme=parseDocumentTheme(themeInput);
   const accent=template?.primaryColor&&/^#[0-9a-fA-F]{6}$/.test(template.primaryColor)?template.primaryColor:theme.primaryColor;
   const font=template?.fontFamily&&["Helvetica","Courier","Times-Roman"].includes(template.fontFamily)?template.fontFamily:theme.fontFamily;
@@ -40,6 +40,9 @@ export function Report({ company, currency, m, themeInput, template, logoUrl }: 
       { size: "A4", style: [s.page,{padding:theme.pageMargin,color:theme.textColor,backgroundColor:theme.backgroundColor,fontFamily:font}] },
       ...(logoUrl&&template?.showLogo!==false?[React.createElement(Image,{key:"company-logo",src:logoUrl,style:{width:theme.logoWidth,height:48,objectFit:"contain",alignSelf:theme.logoPosition==="center"?"center":theme.logoPosition==="right"?"flex-end":"flex-start",marginBottom:10}})]:[]),
       React.createElement(Text, { style: [s.title,{color:accent}] }, `Rapport de gestion — ${company}`),
+      ...(companyDetails?.address?[React.createElement(Text,{key:"company-address",style:{fontSize:8,marginBottom:3,color:theme.secondaryColor}},companyDetails.address)]:[]),
+      ...([companyDetails?.phone,companyDetails?.email,companyDetails?.website].filter(Boolean).length?[React.createElement(Text,{key:"company-contact",style:{fontSize:8,marginBottom:3,color:theme.secondaryColor}},[companyDetails?.phone,companyDetails?.email,companyDetails?.website].filter(Boolean).join(" | "))]:[]),
+      ...([companyDetails?.tax_id,companyDetails?.stat_id,companyDetails?.registry_id].filter(Boolean).length?[React.createElement(Text,{key:"company-identifiers",style:{fontSize:8,marginBottom:8,color:theme.secondaryColor}},[companyDetails?.tax_id?`NIF : ${companyDetails.tax_id}`:"",companyDetails?.stat_id?`STAT : ${companyDetails.stat_id}`:"",companyDetails?.registry_id?`RCS : ${companyDetails.registry_id}`:""].filter(Boolean).join(" | "))]:[]),
       React.createElement(
         Text,
         { style: { marginBottom: 16, color: "#667085" } },
