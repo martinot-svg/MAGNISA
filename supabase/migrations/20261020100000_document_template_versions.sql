@@ -20,7 +20,7 @@ create table if not exists public.document_template_versions(
 alter table public.document_template_versions enable row level security;
 -- Enforce both tenant isolation and within-tenant document role permissions.
 create or replace function public.can_view_document_template_version(p_org uuid,p_template uuid)
-returns boolean language plpgsql stable security definer set search_path=public as $
+returns boolean language plpgsql stable security definer set search_path=public as $$
 declare role_name text; doc text; allowed boolean:=false; role_deny boolean;
 begin
  if auth.uid() is null then return false;end if;
@@ -38,7 +38,7 @@ begin
  if role_deny is false then return false;end if;
  if exists(select 1 from public.user_document_permissions u where u.organization_id=p_org and u.user_id=auth.uid() and u.permission_key='documents.history.view' and u.allowed=false) then return false;end if;
  return true;
-end $;
+end $$;
 revoke all on function public.can_view_document_template_version(uuid,uuid) from public;
 grant execute on function public.can_view_document_template_version(uuid,uuid) to authenticated;
 create policy document_template_versions_read on public.document_template_versions for select to authenticated
