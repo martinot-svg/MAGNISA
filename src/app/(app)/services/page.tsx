@@ -43,7 +43,7 @@ export default async function Services({ searchParams }: { searchParams: Promise
                   <div className="pageHead" style={{ marginBottom: 8 }}>
                     <div>
                       <h2>{s.name}</h2>
-                      <p className="muted">{s.reference || "Sans référence"} · {s.unit} · Taxe {s.tax_rate}%</p>
+                      <p className="muted">Réf. MAGNISA : <code>{s.magnisa_reference || "-"}</code> · Code service : {s.reference || "Non défini"} · {s.unit} · Taxe {s.tax_rate}%</p>
                       <strong>{money(s.unit_price, org?.currency || "MGA")}</strong>
                     </div>
                     <span className="badge">{archived ? "Archivée" : "Active"}</span>
