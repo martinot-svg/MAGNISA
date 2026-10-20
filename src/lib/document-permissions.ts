@@ -20,11 +20,16 @@ export function roleDocumentScope(role:string,scope:DocumentScope){
  if(role==="auditor")return scope!=="payslip";
  return false;
 }
-export async function canDocumentAction(ctx:{supabase:any;organizationId:string;role:string},permission:DocumentPermission,scope:DocumentScope){
+export async function canDocumentAction(ctx:{supabase:any;organizationId:string;role:string;user?:{id:string}},permission:DocumentPermission,scope:DocumentScope){
  if(!roleDocumentScope(ctx.role,scope))return false;
  const {data,error}=await ctx.supabase.from("role_permissions").select("allowed").eq("organization_id",ctx.organizationId).eq("role",ctx.role).eq("permission_key",permission).maybeSingle();
  if(error)throw new Error("Échec de contrôle des droits documentaires.");
- return data?data.allowed===true:roleDocumentPermission(ctx.role,permission);
+ const roleAllowed=data?data.allowed===true:roleDocumentPermission(ctx.role,permission);
+ if(!roleAllowed)return false;
+ if(!ctx.user?.id)return roleAllowed;
+ const {data:override,error:overrideError}=await ctx.supabase.from("user_document_permissions").select("allowed").eq("organization_id",ctx.organizationId).eq("user_id",ctx.user.id).eq("permission_key",permission).maybeSingle();
+ if(overrideError)throw new Error("Vérification des droits individuels impossible.");
+ return override?override.allowed===true:roleAllowed;
 }
 export async function assertDocumentAction(ctx:{supabase:any;organizationId:string;role:string},permission:DocumentPermission,scope:DocumentScope){
  if(!(await canDocumentAction(ctx,permission,scope)))throw new Error("Accès documentaire refusé.");
