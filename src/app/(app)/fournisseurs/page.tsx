@@ -176,7 +176,7 @@ export default async function Suppliers(){const ctx=await requireOrganization();
                 <select name="supplier_id" required>
                   {suppliers.map((s: any) => (
                     <option key={s.id} value={s.id}>
-                      {s.name}
+                      {s.name} · {s.magnisa_reference || "Référence en cours de création"}
                     </option>
                   ))}
                 </select>
@@ -222,7 +222,8 @@ export default async function Suppliers(){const ctx=await requireOrganization();
               <thead>
                 <tr>
                   <th>Fournisseur</th>
-                  <th>Référence</th>
+                  <th>Réf. MAGNISA dette</th>
+                  <th>N° facture fournisseur</th>
                   <th>Échéance</th>
                   <th>Statut</th>
                   <th>Total</th>
@@ -234,6 +235,7 @@ export default async function Suppliers(){const ctx=await requireOrganization();
                 {invoices.map((x: any) => (
                   <tr key={x.id}>
                     <td>{x.suppliers?.name}</td>
+                    <td><code>{x.magnisa_reference || "-"}</code></td>
                     <td>{x.supplier_number}</td>
                     <td>{x.due_date || "—"}</td>
                     <td>

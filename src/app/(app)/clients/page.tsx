@@ -12,7 +12,7 @@ export default async function Clients({ searchParams }: { searchParams: Promise<
   const { supabase, organizationId } = ctx;
   const { data = [] } = await supabase
     .from("customers")
-    .select("id,name,email,phone,created_at")
+    .select("id,name,email,phone,created_at,magnisa_reference")
     .eq("organization_id", organizationId)
     .eq("is_active", !archived)
     .order("created_at", { ascending: false });
@@ -40,11 +40,11 @@ export default async function Clients({ searchParams }: { searchParams: Promise<
           ) : (
             <div className="tableWrap">
               <table>
-                <thead><tr><th>Client</th><th>E-mail</th><th>Téléphone</th><th>Statut</th><th>Action</th></tr></thead>
+                <thead><tr><th>Référence MAGNISA</th><th>Client</th><th>E-mail</th><th>Téléphone</th><th>Statut</th><th>Action</th></tr></thead>
                 <tbody>
                   {data.map((c: any) => (
                     <tr key={c.id}>
-                      <td><Link href={`/clients/${c.id}`}><b>{c.name}</b></Link></td>
+                      <td><code>{c.magnisa_reference || "-"}</code></td><td><Link href={`/clients/${c.id}`}><b>{c.name}</b></Link></td>
                       <td>{c.email || "-"}</td>
                       <td>{c.phone || "-"}</td>
                       <td>{archived ? "Archivé" : "Actif"}</td>
