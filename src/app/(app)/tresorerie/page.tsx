@@ -60,9 +60,9 @@ export default async function Treasury(){const ctx=await requireOrganization();a
       .eq("organization_id", organizationId)
       .order("name"),
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
-    supabase.from("financial_transactions").select("id,financial_account_id,transaction_date,amount,kind,description,reference").eq("organization_id",organizationId).order("transaction_date",{ascending:false}).limit(100),
+    supabase.from("financial_transactions").select("id,magnisa_reference,financial_account_id,transaction_date,amount,kind,description,reference").eq("organization_id",organizationId).order("transaction_date",{ascending:false}).limit(100),
     supabase.from("magnisa_account_reconciliation").select("financial_account_id,name,balance,movements_sum,balance_difference,reconciliation_status").eq("organization_id",organizationId),
-    supabase.from("magnisa_internal_transfers").select("id,source_account_id,destination_account_id,transfer_date,received_date,source_debit,destination_credit,operator_fee,source_reference,destination_reference,status").eq("organization_id",organizationId).order("transfer_date",{ascending:false}).limit(100),
+    supabase.from("magnisa_internal_transfers").select("id,magnisa_reference,source_account_id,destination_account_id,transfer_date,received_date,source_debit,destination_credit,operator_fee,source_reference,destination_reference,status").eq("organization_id",organizationId).order("transfer_date",{ascending:false}).limit(100),
   ]);
 
   return (
@@ -96,8 +96,8 @@ export default async function Treasury(){const ctx=await requireOrganization();a
         </section>}
         movements={<section className="section"><h2>Mouvements de trésorerie</h2>
           {!transactions.length?<EmptyState title="Aucun mouvement" description="Les entrées, sorties et transferts validés apparaîtront ici."/>:
-          <div className="card" style={{overflowX:"auto"}}><table style={{width:"100%"}}><thead><tr><th>Date</th><th>Compte</th><th>Opération</th><th>Référence</th><th>Montant</th></tr></thead><tbody>
-            {transactions.map((t:any)=><tr key={t.id}><td>{t.transaction_date}</td><td>{accounts.find((a:any)=>a.id===t.financial_account_id)?.name||"Compte indisponible"}</td><td>{t.description||t.kind}</td><td>{t.reference||"-"}</td><td>{money(t.amount,org?.currency||"MGA")}</td></tr>)}
+          <div className="card" style={{overflowX:"auto"}}><table style={{width:"100%"}}><thead><tr><th>Date</th><th>Réf. MAGNISA</th><th>Compte</th><th>Opération</th><th>Référence source</th><th>Montant</th></tr></thead><tbody>
+            {transactions.map((t:any)=><tr key={t.id}><td>{t.transaction_date}</td><td><code>{t.magnisa_reference||"-"}</code></td><td>{accounts.find((a:any)=>a.id===t.financial_account_id)?.name||"Compte indisponible"}</td><td>{t.description||t.kind}</td><td>{t.reference||"-"}</td><td>{money(t.amount,org?.currency||"MGA")}</td></tr>)}
           </tbody></table></div>}
         </section>}
         transfers={<section className="section">
@@ -109,9 +109,9 @@ export default async function Treasury(){const ctx=await requireOrganization();a
           </div>
           <h3>Suivi et confirmation des crédits</h3>
           {!internalTransfers.length?<EmptyState title="Aucun transfert suivi" description="Le premier transfert réel enregistré apparaîtra ici."/>:
-          <div className="card" style={{overflowX:"auto"}}><table style={{width:"100%"}}><thead><tr><th>Date</th><th>Trajet</th><th>Débit source</th><th>Frais</th><th>Crédit attendu</th><th>État / confirmation</th></tr></thead><tbody>
+          <div className="card" style={{overflowX:"auto"}}><table style={{width:"100%"}}><thead><tr><th>Date / référence</th><th>Trajet</th><th>Débit source</th><th>Frais</th><th>Crédit attendu</th><th>État / confirmation</th></tr></thead><tbody>
           {internalTransfers.map((t:any)=><tr key={t.id}>
-            <td>{t.transfer_date}<div className="muted">{t.source_reference}</div></td>
+            <td>{t.transfer_date}<div><code>{t.magnisa_reference||"-"}</code></div><div className="muted">Source : {t.source_reference}</div></td>
             <td>{accounts.find((a:any)=>a.id===t.source_account_id)?.name||"Source"} → {accounts.find((a:any)=>a.id===t.destination_account_id)?.name||"Destination"}</td>
             <td>{money(t.source_debit,org?.currency||"MGA")}</td><td>{money(t.operator_fee,org?.currency||"MGA")}</td><td>{money(t.destination_credit,org?.currency||"MGA")}</td>
             <td>{t.status==="completed"?<><strong>Crédit confirmé</strong><div className="muted">{t.received_date} · {t.destination_reference}</div></>:
