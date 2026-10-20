@@ -68,6 +68,7 @@ begin
   return NEW;
 end;
 $function$;
+revoke all on function public.magnisa_assign_module_reference() from public, anon, authenticated;
 
 -- The canonical internal reference is distinct from any external reference,
 -- supplier invoice number, bank transaction id, or legally numbered document.
