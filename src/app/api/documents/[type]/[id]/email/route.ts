@@ -1,3 +1,4 @@
+import {canDocumentAction} from "@/lib/document-permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { requireOrganization } from "@/lib/current-org";
 import { requirePermission } from "@/lib/permissions";
@@ -21,6 +22,7 @@ export async function POST(
 
     const ctx = await requireOrganization();
     await requirePermission(ctx, type === "quote" ? "sales.view" : "billing.view");
+    if(!(await canDocumentAction(ctx,"documents.export",type as "quote"|"invoice")))return NextResponse.json({error:"Export non autorisé."},{status:403});
     const { supabase, organizationId, user } = ctx;
 
     const payload = (await request.json().catch((): null => null)) as
