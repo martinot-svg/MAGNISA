@@ -18,7 +18,31 @@ create table if not exists public.document_template_versions(
  unique(template_id,version_number)
 );
 alter table public.document_template_versions enable row level security;
-create policy document_template_versions_read on public.document_template_versions for select to authenticated using(public.is_org_member(organization_id));
+-- Enforce both tenant isolation and within-tenant document role permissions.
+create or replace function public.can_view_document_template_version(p_org uuid,p_template uuid)
+returns boolean language plpgsql stable security definer set search_path=public as $
+declare role_name text; doc text; allowed boolean:=false; role_deny boolean;
+begin
+ if auth.uid() is null then return false;end if;
+ select m.role into role_name from public.organization_members m
+ where m.organization_id=p_org and m.user_id=auth.uid() and m.status='active';
+ if role_name is null then return false;end if;
+ select t.document_type into doc from public.document_templates t where t.id=p_template and t.organization_id=p_org;
+ if doc is null then return false;end if;
+ if role_name in ('owner','admin') then allowed:=true;
+ elsif role_name in ('finance_manager','accountant','director','auditor') and doc<>'payslip' then allowed:=true;
+ elsif role_name='hr' and doc='payslip' then allowed:=true;
+ end if;
+ if not allowed then return false;end if;
+ select rp.allowed into role_deny from public.role_permissions rp where rp.organization_id=p_org and rp.role=role_name and rp.permission_key='documents.history.view';
+ if role_deny is false then return false;end if;
+ if exists(select 1 from public.user_document_permissions u where u.organization_id=p_org and u.user_id=auth.uid() and u.permission_key='documents.history.view' and u.allowed=false) then return false;end if;
+ return true;
+end $;
+revoke all on function public.can_view_document_template_version(uuid,uuid) from public;
+grant execute on function public.can_view_document_template_version(uuid,uuid) to authenticated;
+create policy document_template_versions_read on public.document_template_versions for select to authenticated
+using(public.can_view_document_template_version(organization_id,template_id));
 -- Direct client writes to history are forbidden; only the definer trigger inserts versions.
 create or replace function public.capture_document_template_version()
 returns trigger language plpgsql security definer set search_path=public as $$
