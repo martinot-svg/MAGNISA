@@ -1,10 +1,11 @@
 -- Runs only against temporary PostgreSQL in GitHub Actions; rollback prevents fixture persistence.
 begin;
-insert into auth.users(id) values ('11111111-1111-4111-8111-111111111111'),('22222222-2222-4222-8222-222222222222');
+insert into auth.users(id) values ('11111111-1111-4111-8111-111111111111'),('22222222-2222-4222-8222-222222222222'),('33333333-3333-4333-8333-333333333333');
 insert into public.organizations(id) values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
-insert into public.organization_members(organization_id,user_id,status) values
-('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','11111111-1111-4111-8111-111111111111','active'),
-('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','22222222-2222-4222-8222-222222222222','active');
+insert into public.organization_members(organization_id,user_id,status,role) values
+('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','11111111-1111-4111-8111-111111111111','active','owner'),
+('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','22222222-2222-4222-8222-222222222222','active','owner'),
+('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','33333333-3333-4333-8333-333333333333','active','viewer');
 insert into public.document_templates(id,organization_id,document_type,name,configuration,is_default)
 values('cccccccc-cccc-4ccc-8ccc-cccccccccccc','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','invoice','Défaut','{"primaryColor":"#123456"}',true);
 update public.document_templates set configuration='{"primaryColor":"#654321"}' where id='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -36,5 +37,17 @@ begin
   raise exception 'History unexpectedly writable';
  exception when insufficient_privilege then null;
  end;
-end $$;
+end $;
+-- Same-organization reader must not see the protected history.
+select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
+do $ declare n integer; begin
+ select count(*) into n from public.document_template_versions where organization_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+ if n<>0 then raise exception 'Intra-tenant reader bypassed history permission';end if;
+end $;
+-- The authorized owner may read all retained revisions.
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+do $ declare n integer; begin
+ select count(*) into n from public.document_template_versions where organization_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+ if n<>7 then raise exception 'Authorized owner cannot read historical revisions: %',n;end if;
+end $;
 rollback;
