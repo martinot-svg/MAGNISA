@@ -18,7 +18,7 @@ export async function GET() {
   const [{ data: m }, { data: org }, {data:settings},{data:template}] = await Promise.all([
     supabase.rpc("dashboard_metrics", { p_org: organizationId }),
     supabase.from("organizations").select("name,currency").eq("id", organizationId).single(),
-    supabase.from("company_settings").select("document_theme").eq("organization_id",organizationId).maybeSingle(),
+    supabase.from("company_settings").select("document_theme,logo_url").eq("organization_id",organizationId).maybeSingle(),
     supabase.from("document_templates").select("configuration").eq("organization_id",organizationId).eq("document_type","report").eq("is_default",true).limit(1).maybeSingle(),
   ]);
 
@@ -26,7 +26,7 @@ export async function GET() {
     Report({
       company: org?.name || "Entreprise",
       currency: org?.currency || "MGA",
-      m: m || {},themeInput:settings?.document_theme,template:template?.configuration,
+      m: m || {},themeInput:settings?.document_theme,template:template?.configuration,logoUrl:settings?.logo_url,
     })
   );
 
