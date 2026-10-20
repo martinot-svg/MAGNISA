@@ -4,7 +4,7 @@ import {renderToBuffer} from "@react-pdf/renderer";
 import {DOCUMENT_PRESETS} from "../document-presets";
 import {renderPdf} from "./document";
 import {renderPayslipPdf} from "./payslip";
-import {Report} from "../../app/api/reports/summary/pdf/route";
+import {Report} from "./report";
 import {mkdirSync,writeFileSync} from "node:fs";
 
 const results:Array<{id:string;type:string;bytes:number;pdfHeader:boolean;pdfEof:boolean;ok:boolean;error?:string}>=[];
