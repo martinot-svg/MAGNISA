@@ -18,6 +18,8 @@ describe("Insertion et désactivation du logo par type de document",()=>{
   it(type+" / "+(showLogo?"logo actif":"logo masqué"),async()=>{
    const buffer=await make(type,showLogo);
    expect(buffer.subarray(0,5).toString()).toBe("%PDF-");
+   const pdfText=buffer.toString("latin1");
+   expect(pdfText.includes("/Subtype /Image")).toBe(showLogo);
    mkdirSync("test-results/logos",{recursive:true});
    writeFileSync("test-results/logos/"+type+"-"+(showLogo?"active":"hidden")+".pdf",buffer);
   },45000);

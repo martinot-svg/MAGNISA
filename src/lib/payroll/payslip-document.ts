@@ -10,18 +10,14 @@ export async function loadPayslip(id:string){
   supabase.from("document_templates").select("configuration").eq("organization_id",organizationId).eq("document_type","payslip").eq("is_default",true).limit(1).maybeSingle(),
   supabase.from("document_appearance_snapshots").select("appearance").eq("organization_id",organizationId).eq("document_type","payslip").eq("document_id",id).maybeSingle()
  ]);
- if(error)throw new Error(error.message);
- if(!slip)return null;
+ if(error)throw new Error(error.message);if(!slip)return null;
  const periodEnd=String((slip as any).payroll_runs?.period_end||"");
  const {data:smieRules,error:smieError}=await supabase.from("payroll_rule_sets").select("smie_partner_name,effective_from,effective_to").eq("organization_id",organizationId).eq("status","validated").lte("effective_from",periodEnd).order("effective_from",{ascending:false});
  if(smieError)throw new Error(smieError.message);
  const smiePartner=(smieRules||[]).find((r:any)=>!r.effective_to||r.effective_to>=periodEnd)?.smie_partner_name||org?.smie_partner_name||null;
- const d:any=slip;
- const period=String(d.payroll_runs?.period_start||"")+" au "+String(d.payroll_runs?.period_end||"");
- const employee=[d.employees?.first_name,d.employees?.last_name].filter(Boolean).join(" ");
- const number="BPA-"+String(d.id).slice(0,8).toUpperCase();
- const captured=snapshot?.appearance as {company?:Record<string,any>;template?:Record<string,any>}|undefined;
- const visual=captured?.company||settings;
- const data={theme:visual?.document_theme,template:captured?captured.template:pdfTemplate?.configuration,smiePartner,logoUrl:visual?.logo_url,company:visual?.trade_name||visual?.legal_name||org?.name||"Entreprise",address:visual?.address,employee,number,period,currency:org?.currency||"MGA",status:d.status,values:d as Record<string,number>};
+ const d:any=slip;const period=String(d.payroll_runs?.period_start||"")+" au "+String(d.payroll_runs?.period_end||"");const employee=[d.employees?.first_name,d.employees?.last_name].filter(Boolean).join(" ");const number="BPA-"+String(d.id).slice(0,8).toUpperCase();
+ const captured=snapshot?.appearance as {company?:Record<string,any>;template?:Record<string,any>}|undefined;const visual=captured?.company||settings;
+ const logoUrl=visual?.logo_url||settings?.logo_url||null;
+ const data={theme:visual?.document_theme,template:captured?captured.template:pdfTemplate?.configuration,smiePartner,logoUrl,company:visual?.trade_name||visual?.legal_name||org?.name||"Entreprise",address:visual?.address,employee,number,period,currency:org?.currency||"MGA",status:d.status,values:d as Record<string,number>};
  return {ctx,slip:d,data,email:String(d.employees?.email||"")};
 }
