@@ -6,7 +6,7 @@ import { useEffect } from "react";
  * Adds immediate native-HTML validation feedback to forms across the app.
  * Server actions must still validate every field and permission independently.
  */
-export function FormValidityGuard() {
+export function FormValidityGuard(): null {
   useEffect(() => {
     const syncForm = (form: HTMLFormElement) => {
       const submitters = form.querySelectorAll<HTMLButtonElement | HTMLInputElement>(
