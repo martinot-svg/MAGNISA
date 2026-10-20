@@ -47,6 +47,8 @@ jobs:
             test-results/document-presets-pdf.json
             test-results/pdf/*.pdf
             test-results/previews/*.png
+            test-results/logos/*.pdf
+            test-results/pdf-logo-report.json
             test-results/pdf-geometry-report.json
           if-no-files-found: ignore
 
