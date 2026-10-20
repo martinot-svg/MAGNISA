@@ -56,7 +56,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
   const [{ data: accounts = [] }, { data: org }, {data:transactions=[]},{data:reconciliations=[]},{data:internalTransfers=[]}] = await Promise.all([
     supabase
       .from("financial_accounts")
-      .select("id,name,type,balance,is_active,mvola_account_category,details")
+      .select("id,name,type,balance,is_active,mvola_account_category,details,magnisa_reference")
       .eq("organization_id", organizationId)
       .order("name"),
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
@@ -89,7 +89,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
           {!accounts.length?<EmptyState title="Aucun compte financier" description="Clique sur Nouveau compte en haut à droite pour créer ton premier compte."/>:
           <div className="grid2">{accounts.map((a:any)=><div className="card" key={a.id}>
             <div className="muted">{a.type==="bank"?"Banque":a.type==="cash"?"Caisse":a.type==="mobile_money"?"Mobile Money":"Chèques à encaisser"}</div>
-            <h3>{a.name}</h3><div className="metric">{money(a.balance,org?.currency||"MGA")}</div>
+            <h3>{a.name}</h3><p className="muted"><code>{a.magnisa_reference || "-"}</code></p><div className="metric">{money(a.balance,org?.currency||"MGA")}</div>
             {!a.is_active&&<p className="muted">Compte inactif</p>}
             <Link className="button" href={`/tresorerie/comptes/${a.id}`}>Voir les mouvements</Link>
           </div>)}</div>}
