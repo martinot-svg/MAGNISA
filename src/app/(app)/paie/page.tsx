@@ -319,8 +319,8 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
       <section className="card section" aria-label="Personnel">
         <div className="pageHead"><div><h2>Personnel</h2><p className="muted">{employees.length} salarié(s) enregistré(s) - {employees.filter((e:any)=>e.status==="active").length} actif(s).</p></div></div>
         {!employees.length ? <p className="muted">Aucun salarié enregistré. Utilisez le formulaire ci-dessous pour commencer.</p> :
-        <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Matricule</th><th>Poste</th><th>Statut</th><th>Gestion</th></tr></thead><tbody>
-          {employees.map((e:any)=><tr key={e.id}><td><strong>{e.first_name} {e.last_name}</strong></td><td>{e.employee_number||"Non renseigné"}</td><td>{e.job_title||"Non renseigné"}</td><td>{e.status==="active"?"Actif":e.status}</td><td>
+        <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Réf. MAGNISA</th><th>Matricule saisi</th><th>Poste</th><th>Statut</th><th>Gestion</th></tr></thead><tbody>
+          {employees.map((e:any)=><tr key={e.id}><td><strong>{e.first_name} {e.last_name}</strong></td><td><code>{e.magnisa_reference||"-"}</code></td><td>{e.employee_number||"Non renseigné"}</td><td>{e.job_title||"Non renseigné"}</td><td>{e.status==="active"?"Actif":e.status}</td><td>
             <details><summary style={{cursor:"pointer"}}>Détails et IRSA</summary><div className="field"><p className="muted">Salaire de base : {money(e.base_salary,c)}. Personnes à charge : {e.irsa_dependants??0}.</p>
               <form action={updateEmployeeDependants} className="form"><input type="hidden" name="employee_id" value={e.id}/><label>Personnes à charge IRSA éligibles</label><input aria-label={`Personnes à charge de ${e.first_name} ${e.last_name}`} type="number" name="irsa_dependants" min="0" max="30" step="1" defaultValue={e.irsa_dependants??0} required/><button className="button">Enregistrer</button></form>
             </div></details>
