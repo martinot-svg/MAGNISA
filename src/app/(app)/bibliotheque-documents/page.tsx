@@ -1,3 +1,4 @@
+import {canDocumentAction} from "@/lib/document-permissions";
 import Link from "next/link";
 import {revalidatePath} from "next/cache";
 import {requireOrganization} from "@/lib/current-org";
@@ -7,7 +8,7 @@ import {DOCUMENT_PRESETS,getDocumentPreset} from "@/lib/document-presets";
 async function selectPreset(form:FormData){
  "use server";
  const ctx=await requireOrganization();
- await assertPermission(ctx,"settings.manage");
+ if(!(await canDocumentAction(ctx,"templates.set_default",getDocumentPreset(String(form.get("preset_id")||""))?.type||"report")))throw new Error("Action documentaire interdite.");
  if(!["owner","admin"].includes(ctx.role))throw new Error("Action réservée aux administrateurs de l'entreprise.");
  const id=String(form.get("preset_id")||"");
  const preset=getDocumentPreset(id);if(!preset)throw new Error("Modèle inconnu.");
