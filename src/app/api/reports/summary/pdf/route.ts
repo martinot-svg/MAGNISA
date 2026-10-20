@@ -1,3 +1,4 @@
+import {canDocumentAction} from "@/lib/document-permissions";
 import React from "react";
 import {parseDocumentTheme} from "@/lib/document-theme";
 import {formatDocumentAmount} from "@/lib/format-document-amount";
@@ -63,7 +64,7 @@ function Report({ company, currency, m, themeInput, template }: { company: strin
 
 export async function GET() {
   const ctx = await requireOrganization();
-  if (!(await hasPermission(ctx, "reports.export"))) {
+  if (!(await hasPermission(ctx, "reports.export")) || !(await canDocumentAction(ctx,"documents.export","report"))) {
     return new NextResponse("Accès interdit", { status: 403 });
   }
 
