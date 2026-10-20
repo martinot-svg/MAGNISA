@@ -34,7 +34,7 @@ begin
         updated_at = now()
   returning next_value - 1 into v_value;
 
-  return p_prefix || '-' || lpad(v_value::text, 5, '0');
+  return p_prefix || '-' || lpad(v_value::text, greatest(5, length(v_value::text)), '0');
 end;
 $function$;
 revoke all on function public.magnisa_next_module_reference(uuid, text, text) from public, anon, authenticated;
