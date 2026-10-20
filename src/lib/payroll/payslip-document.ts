@@ -16,8 +16,8 @@ export async function loadPayslip(id:string){
  if(smieError)throw new Error(smieError.message);
  const smiePartner=(smieRules||[]).find((r:any)=>!r.effective_to||r.effective_to>=periodEnd)?.smie_partner_name||org?.smie_partner_name||null;
  const d:any=slip;const period=String(d.payroll_runs?.period_start||"")+" au "+String(d.payroll_runs?.period_end||"");const employee=[d.employees?.first_name,d.employees?.last_name].filter(Boolean).join(" ");const number="BPA-"+String(d.id).slice(0,8).toUpperCase();
- const captured=snapshot?.appearance as {company?:Record<string,any>;template?:Record<string,any>}|undefined;const visual=captured?.company||settings;
+ const captured=snapshot?.appearance as {company?:Record<string,any>;template?:Record<string,any>}|undefined;const isFinalized=String(d.status||"").toLowerCase()!=="draft";const appearance=isFinalized?captured:undefined;const visual=appearance?.company||settings;
  const logoUrl=visual?.logo_url||settings?.logo_url||null;
- const data={theme:visual?.document_theme,template:captured?captured.template:pdfTemplate?.configuration,smiePartner,logoUrl,company:visual?.trade_name||visual?.legal_name||org?.name||"Entreprise",address:visual?.address,employee,number,period,currency:org?.currency||"MGA",status:d.status,values:d as Record<string,number>};
+ const data={theme:visual?.document_theme,template:appearance?appearance.template:pdfTemplate?.configuration,smiePartner,logoUrl,company:visual?.trade_name||visual?.legal_name||org?.name||"Entreprise",address:visual?.address,employee,number,period,currency:org?.currency||"MGA",status:d.status,values:d as Record<string,number>};
  return {ctx,slip:d,data,email:String(d.employees?.email||"")};
 }
