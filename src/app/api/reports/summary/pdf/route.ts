@@ -26,7 +26,7 @@ export async function GET() {
     Report({
       company: settings?.trade_name || settings?.legal_name || org?.name || "Entreprise",
       currency: org?.currency || "MGA",
-      m: m || {},themeInput:settings?.document_theme,template:template?.configuration,logoUrl:settings?.logo_url,
+      m: m || {},themeInput:settings?.document_theme,template:template?.configuration,logoUrl:settings?.logo_url,companyDetails:settings||undefined,
     })
   );
 
