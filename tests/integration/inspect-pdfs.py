@@ -39,4 +39,27 @@ report=dict(count=len(results),passed=sum(not x["errors"] for x in results),fail
 print(f"PDF visual geometry: {report['passed']}/{report['count']} passed")
 for r in results:
     if r["errors"]:print(r["preset"],r["errors"])
+
+# Verify logo insertion and suppression for all four supported families.
+logo_results=[]
+for file in sorted(glob.glob("test-results/logos/*.pdf")):
+    p=Path(file)
+    output=subprocess.check_output(["pdfimages","-list",file],text=True)
+    images=[line.split() for line in output.splitlines() if re.match(r"^\\s*\\d+\\s+\\d+\\s+image\\s",line)]
+    enabled=p.stem.endswith("-active")
+    errors=[]
+    if enabled and not images:errors.append("logo image absent")
+    if not enabled and images:errors.append("logo should be hidden")
+    if enabled and images:
+        if int(images[0][3])!=180 or int(images[0][4])!=60:errors.append("logo source dimensions altered")
+    subprocess.run(["pdftoppm","-f","1","-l","1","-singlefile","-scale-to","900","-png",file,str(base/"previews"/("logo-"+p.stem))],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    logo_results.append(dict(document=p.stem,images=len(images),errors=errors))
+if len(logo_results)!=8:
+    raise SystemExit(f"Expected eight logo PDF fixtures, got {len(logo_results)}")
+(base/"pdf-logo-report.json").write_text(json.dumps(logo_results,ensure_ascii=False,indent=2))
+if any(row["errors"] for row in logo_results):
+    print("Logo QA failed",logo_results)
+    sys.exit(1)
+print("PDF logo QA: 8/8 passed (visible/hidden, source aspect ratio)")
+
 if report["failed"]:sys.exit(1)
