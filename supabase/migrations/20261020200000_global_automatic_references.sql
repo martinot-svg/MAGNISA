@@ -52,6 +52,11 @@ begin
   v_org := (to_jsonb(NEW)->>'organization_id')::uuid;
   v_current := nullif(btrim(to_jsonb(NEW)->>'magnisa_reference'), '');
 
+  if TG_OP = 'UPDATE'
+     and coalesce(NEW.magnisa_reference, '') <> coalesce(OLD.magnisa_reference, '') then
+    raise exception 'La référence MAGNISA est permanente et ne peut pas être modifiée';
+  end if;
+
   if v_org is null then
     raise exception 'organization_id is required for MAGNISA references';
   end if;
