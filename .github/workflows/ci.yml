@@ -37,7 +37,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: document-presets-pdf-evidence
-          path: test-results/document-presets-pdf.json
+          path: |
+            test-results/document-presets-pdf.json
+            test-results/pdf/*.pdf
           if-no-files-found: ignore
 
       - name: Production build
