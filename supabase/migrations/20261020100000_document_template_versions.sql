@@ -8,7 +8,7 @@ alter table public.document_templates
 create table if not exists public.document_template_versions(
  id uuid primary key default gen_random_uuid(),
  organization_id uuid not null references public.organizations(id) on delete cascade,
- template_id uuid not null references public.document_templates(id) on delete cascade,
+ template_id uuid not null references public.document_templates(id) on delete restrict,
  version_number integer not null check(version_number>=1),
  configuration jsonb not null,
  name text not null,
