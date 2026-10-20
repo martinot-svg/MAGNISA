@@ -45,7 +45,7 @@ logo_results=[]
 for file in sorted(glob.glob("test-results/logos/*.pdf")):
     p=Path(file)
     output=subprocess.check_output(["pdfimages","-list",file],text=True)
-    images=[line.split() for line in output.splitlines() if re.match(r"^\\s*\\d+\\s+\\d+\\s+image\\s",line)]
+    images=[line.split() for line in output.splitlines() if re.match(r"^\s*\d+\s+\d+\s+image\s",line)]
     enabled=p.stem.endswith("-active")
     errors=[]
     if enabled and not images:errors.append("logo image absent")
