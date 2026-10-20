@@ -88,3 +88,12 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261020100000_document_template_versions.sql
       - name: Verify version retention, restore and inter-tenant RLS
         run: psql -v ON_ERROR_STOP=1 -f tests/integration/template-version-rls.sql
+      - name: Create synthetic versioned template backup
+        run: |
+          psql -v ON_ERROR_STOP=1 -f tests/integration/template-backup-fixture.sql
+          pg_dump -Fc -f /tmp/magnisa-template-fixture.dump
+      - name: Restore backup to separate PostgreSQL database
+        run: |
+          createdb magnisa_restore_ci
+          pg_restore --no-owner -d magnisa_restore_ci /tmp/magnisa-template-fixture.dump
+          psql -d magnisa_restore_ci -v ON_ERROR_STOP=1 -f tests/integration/template-backup-assert.sql
