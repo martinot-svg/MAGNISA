@@ -97,3 +97,66 @@ jobs:
           createdb magnisa_restore_ci
           pg_restore --no-owner -d magnisa_restore_ci /tmp/magnisa-template-fixture.dump
           psql -d magnisa_restore_ci -v ON_ERROR_STOP=1 -f tests/integration/template-backup-assert.sql
+
+  supabase-migration-replay:
+    name: Clean Supabase migration replay (2 independent runs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify Docker
+        run: docker version
+
+      - name: Install Supabase CLI
+        run: npm install --global supabase@latest
+
+      - name: Initialize local Supabase workspace
+        run: supabase init
+
+      - name: Clean replay A - apply every repository migration
+        run: |
+          supabase start
+          supabase db reset
+          supabase db lint --local
+          supabase db dump --local --schema public --file /tmp/magnisa-replay-a.sql
+
+      - name: Clean replay A - assert migration ledger and reconstructed objects
+        run: |
+          supabase db reset
+          supabase db dump --local --schema public --file /tmp/magnisa-replay-a-repeat.sql
+          cmp /tmp/magnisa-replay-a.sql /tmp/magnisa-replay-a-repeat.sql
+
+      - name: Independent replay B - destroy local stack and rebuild
+        run: |
+          supabase stop --no-backup
+          supabase start
+          supabase db reset
+          supabase db lint --local
+          supabase db dump --local --schema public --file /tmp/magnisa-replay-b.sql
+
+      - name: Compare independent clean reconstructions
+        run: |
+          cmp /tmp/magnisa-replay-a.sql /tmp/magnisa-replay-b.sql
+          test -s /tmp/magnisa-replay-b.sql
+
+      - name: Upload clean-replay schema evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: magnisa-clean-supabase-replay
+          path: |
+            /tmp/magnisa-replay-a.sql
+            /tmp/magnisa-replay-a-repeat.sql
+            /tmp/magnisa-replay-b.sql
+          if-no-files-found: ignore
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup
