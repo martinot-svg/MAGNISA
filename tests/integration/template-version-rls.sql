@@ -37,17 +37,17 @@ begin
   raise exception 'History unexpectedly writable';
  exception when insufficient_privilege then null;
  end;
-end $;
+end $$;
 -- Same-organization reader must not see the protected history.
 select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
-do $ declare n integer; begin
+do $$ declare n integer; begin
  select count(*) into n from public.document_template_versions where organization_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
  if n<>0 then raise exception 'Intra-tenant reader bypassed history permission';end if;
-end $;
+end $$;
 -- The authorized owner may read all retained revisions.
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
-do $ declare n integer; begin
+do $$ declare n integer; begin
  select count(*) into n from public.document_template_versions where organization_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
  if n<>7 then raise exception 'Authorized owner cannot read historical revisions: %',n;end if;
-end $;
+end $$;
 rollback;
