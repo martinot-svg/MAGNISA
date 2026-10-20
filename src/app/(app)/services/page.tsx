@@ -53,7 +53,6 @@ export default async function Services({ searchParams }: { searchParams: Promise
                     <form action={updateService} className="form" style={{ marginTop: 12 }}>
                       <input type="hidden" name="id" value={s.id} />
                       <div className="field"><label>Nom</label><input name="name" defaultValue={s.name} required minLength={2} /></div>
-                      <div className="field"><label>Référence</label><input name="reference" defaultValue={s.reference || ""} /></div>
                       <div className="field"><label>Description</label><textarea name="description" defaultValue={s.description || ""} /></div>
                       <div className="field"><label>Unité</label><input name="unit" defaultValue={s.unit} required /></div>
                       <div className="field"><label>Prix unitaire</label><input name="unit_price" type="number" min="0" step="0.01" defaultValue={s.unit_price} required /></div>
@@ -78,7 +77,6 @@ export default async function Services({ searchParams }: { searchParams: Promise
           <h2>Nouvelle prestation</h2>
           <form action={createService} className="form">
             <div className="field"><label>Nom</label><input name="name" required minLength={2} /></div>
-            <div className="field"><label>Référence</label><input name="reference" /></div>
             <div className="field"><label>Description</label><textarea name="description" /></div>
             <div className="field"><label>Unité</label><input name="unit" defaultValue="forfait" required /></div>
             <div className="field"><label>Prix unitaire</label><input name="unit_price" type="number" min="0" step="0.01" required /></div>
