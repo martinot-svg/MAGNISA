@@ -107,8 +107,8 @@ begin
 end;
 $function$
 ;
-revoke all on function public.create_payslip(uuid,uuid) from public, anon;
-grant execute on function public.create_payslip(uuid,uuid) to authenticated, service_role;
+revoke all on function public.create_payslip(p_org uuid, p_run uuid, p_employee uuid, p_bonuses numeric, p_overtime numeric, p_other_earnings numeric, p_employee_social numeric, p_employee_health numeric, p_income_tax numeric, p_advances_recovered numeric, p_other_deductions numeric, p_employer_social numeric, p_employer_health numeric) from public, anon;
+grant execute on function public.create_payslip(p_org uuid, p_run uuid, p_employee uuid, p_bonuses numeric, p_overtime numeric, p_other_earnings numeric, p_employee_social numeric, p_employee_health numeric, p_income_tax numeric, p_advances_recovered numeric, p_other_deductions numeric, p_employer_social numeric, p_employer_health numeric) to authenticated, service_role;
 CREATE OR REPLACE FUNCTION public.validate_payslip(p_org uuid, p_payslip uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -211,7 +211,7 @@ begin
 end;
 $function$
 ;
-revoke all on function public.validate_payslip(uuid,uuid) from public, anon;
-grant execute on function public.validate_payslip(uuid,uuid) to authenticated, service_role;
+revoke all on function public.validate_payslip(p_org uuid, p_payslip uuid) from public, anon;
+grant execute on function public.validate_payslip(p_org uuid, p_payslip uuid) to authenticated, service_role;
 
 commit;
