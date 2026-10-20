@@ -44,3 +44,37 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+  template-db-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: magnisa_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGPASSWORD: postgres
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGDATABASE: magnisa_ci
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure PostgreSQL client exists
+        run: command -v psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+      - name: Bootstrap isolated schema
+        run: psql -v ON_ERROR_STOP=1 -f tests/integration/bootstrap-postgres.sql
+      - name: Apply staged template history migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261020100000_document_template_versions.sql
+      - name: Verify version retention, restore and inter-tenant RLS
+        run: psql -v ON_ERROR_STOP=1 -f tests/integration/template-version-rls.sql
