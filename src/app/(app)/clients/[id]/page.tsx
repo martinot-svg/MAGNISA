@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireOrganization } from "@/lib/current-org";
 import { requirePermission } from "@/lib/permissions";
+import { setCustomerActive, updateCustomer } from "@/server/actions/core";
 
 export default async function ClientDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -76,6 +77,29 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
       </div>
 
       <div className="grid2">
+        <section className="card">
+          <h2>Modifier les coordonnées</h2>
+          <p className="muted">Les modifications concernent les coordonnées actuelles du client. Les documents déjà émis conservent leur historique.</p>
+          <form action={updateCustomer} className="form">
+            <input type="hidden" name="id" value={customer.id} />
+            <div className="field"><label>Nom / raison sociale</label><input name="name" defaultValue={customer.name} required minLength={2} /></div>
+            <div className="field"><label>E-mail</label><input name="email" type="email" defaultValue={customer.email || ""} /></div>
+            <div className="field"><label>Téléphone</label><input name="phone" defaultValue={customer.phone || ""} /></div>
+            <div className="field"><label>Adresse</label><textarea name="address" defaultValue={customer.address || ""} /></div>
+            <div className="field"><label>Identifiant fiscal</label><input name="tax_id" defaultValue={customer.tax_id || ""} /></div>
+            <button className="button primary">Enregistrer les modifications</button>
+          </form>
+          <hr />
+          <h3>{customer.is_active ? "Supprimer / archiver le client" : "Client archivé"}</h3>
+          <p className="muted">{customer.is_active
+            ? "Le client sera masqué des listes actives, mais ses devis, factures, paiements et historiques seront conservés."
+            : "Ce client est archivé. Tu peux le réactiver pour le rendre à nouveau disponible."}</p>
+          <form action={setCustomerActive} className="actions">
+            <input type="hidden" name="id" value={customer.id} />
+            <input type="hidden" name="is_active" value={customer.is_active ? "false" : "true"} />
+            <button className="button" type="submit">{customer.is_active ? "Confirmer l'archivage" : "Réactiver le client"}</button>
+          </form>
+        </section>
         <section className="card">
           <h2>Historique MagniMail</h2>
           <p className="muted">
