@@ -1,3 +1,4 @@
+import {assertDocumentAction} from "@/lib/document-permissions";
 import Link from "next/link";
 import { requirePermission } from "@/lib/permissions";
 import Image from "next/image";
@@ -8,7 +9,7 @@ import {FEATURE_CATALOG} from "@/lib/features";
 const adminRoles=new Set(["owner","admin"]);
 function assertAdmin(role:string){if(!adminRoles.has(role))throw new Error("Seul un administrateur peut modifier cette configuration.")}
 
-async function saveCompany(fd:FormData){"use server";const {supabase,organizationId,role}=await requireOrganization();assertAdmin(role);
+async function saveCompany(fd:FormData){"use server";const ctx=await requireOrganization();const {supabase,organizationId,role}=ctx;assertAdmin(role);await assertDocumentAction(ctx,"branding.edit","report");if((fd.get("logo") instanceof File&&(fd.get("logo") as File).size>0)||fd.get("remove_logo")==="on")await assertDocumentAction(ctx,"branding.logo_manage","report");
   const {data:existingLogo}=await supabase.from("company_settings").select("logo_url,logo_storage_path").eq("organization_id",organizationId).maybeSingle();const logo=fd.get("logo");let logo_url=String(existingLogo?.logo_url||"");let logo_storage_path=String(existingLogo?.logo_storage_path||"");
   if(logo instanceof File&&logo.size>0){
     if(logo.size>5*1024*1024)throw new Error("Le logo ne doit pas dépasser 5 Mo.");
