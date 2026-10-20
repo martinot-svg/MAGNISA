@@ -1,9 +1,11 @@
+import {canDocumentAction} from "@/lib/document-permissions";
+import {hasPermission} from "@/lib/permissions";
 import {NextResponse} from "next/server";
 import {requireOrganization} from "@/lib/current-org";
 import {renderPdf} from "@/lib/pdf/document";
 export async function GET(_:Request,{params}:{params:Promise<{type:string;id:string}>}){
   const {type,id}=await params;if(!["quote","invoice"].includes(type))return new NextResponse("Type invalide",{status:400});
-  const {supabase,organizationId}=await requireOrganization();const isQuote=type==="quote";const table=isQuote?"quotes":"invoices";const lineTable=isQuote?"quote_lines":"invoice_lines";const fk=isQuote?"quote_id":"invoice_id";
+  const ctx=await requireOrganization();const {supabase,organizationId}=ctx;const allowed=(await canDocumentAction(ctx,"documents.export",type as "quote"|"invoice"))&&(await hasPermission(ctx,type==="quote"?"sales.view":"billing.view"));if(!allowed)return new NextResponse("Accès interdit",{status:403});const isQuote=type==="quote";const table=isQuote?"quotes":"invoices";const lineTable=isQuote?"quote_lines":"invoice_lines";const fk=isQuote?"quote_id":"invoice_id";
   const [{data:doc},{data:lines},{data:org},{data:settings},{data:template},{data:snapshot}]=await Promise.all([
     supabase.from(table).select("*,customers(name)").eq("organization_id",organizationId).eq("id",id).maybeSingle(),
     supabase.from(lineTable).select("*").eq("organization_id",organizationId).eq(fk,id).order("sort_order"),
