@@ -1,3 +1,4 @@
+import {assertDocumentAction} from "@/lib/document-permissions";
 import Link from "next/link";
 import {revalidatePath} from "next/cache";
 import {requireOrganization} from "@/lib/current-org";
@@ -9,6 +10,7 @@ async function saveDocumentTheme(fd:FormData){
  "use server";
  const ctx=await requireOrganization();
  await assertPermission(ctx,"settings.manage");
+ await assertDocumentAction(ctx,"branding.edit","report");
  if(!["owner","admin"].includes(ctx.role))throw new Error("Seul un administrateur peut modifier la charte de l'entreprise.");
  const document_theme=readDocumentThemeForm(fd);
  const {error}=await ctx.supabase.from("company_settings").upsert({organization_id:ctx.organizationId,document_theme},{onConflict:"organization_id"});

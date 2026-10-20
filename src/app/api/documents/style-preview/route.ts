@@ -1,3 +1,4 @@
+import {assertDocumentAction} from "@/lib/document-permissions";
 import React from "react";
 import {NextResponse} from "next/server";
 import {Document,Page,Text,View,renderToBuffer} from "@react-pdf/renderer";
@@ -9,6 +10,7 @@ export async function POST(request:Request){
  try{
   const ctx=await requireOrganization();
   await requirePermission(ctx,"settings.manage");
+  await assertDocumentAction(ctx,"documents.preview","report");
   const form=await request.formData();
   const theme=readDocumentThemeForm(form);
   const {data:org}=await ctx.supabase.from("organizations").select("name").eq("id",ctx.organizationId).single();

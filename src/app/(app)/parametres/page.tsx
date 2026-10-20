@@ -1,3 +1,4 @@
+import {assertDocumentAction} from "@/lib/document-permissions";
 import Link from "next/link";
 import { requirePermission } from "@/lib/permissions";
 import Image from "next/image";
@@ -8,7 +9,7 @@ import {FEATURE_CATALOG} from "@/lib/features";
 const adminRoles=new Set(["owner","admin"]);
 function assertAdmin(role:string){if(!adminRoles.has(role))throw new Error("Seul un administrateur peut modifier cette configuration.")}
 
-async function saveCompany(fd:FormData){"use server";const {supabase,organizationId,role}=await requireOrganization();assertAdmin(role);
+async function saveCompany(fd:FormData){"use server";const ctx=await requireOrganization();const {supabase,organizationId,role}=ctx;assertAdmin(role);await assertDocumentAction(ctx,"branding.edit","report");if((fd.get("logo") instanceof File&&(fd.get("logo") as File).size>0)||fd.get("remove_logo")==="on")await assertDocumentAction(ctx,"branding.logo_manage","report");
   const {data:existingLogo}=await supabase.from("company_settings").select("logo_url,logo_storage_path").eq("organization_id",organizationId).maybeSingle();const logo=fd.get("logo");let logo_url=String(existingLogo?.logo_url||"");let logo_storage_path=String(existingLogo?.logo_storage_path||"");
   if(logo instanceof File&&logo.size>0){
     if(logo.size>5*1024*1024)throw new Error("Le logo ne doit pas dépasser 5 Mo.");
@@ -19,7 +20,7 @@ async function saveCompany(fd:FormData){"use server";const {supabase,organizatio
   }
   if(fd.get("remove_logo")==="on"&&!(logo instanceof File&&logo.size>0)){if(fd.get("confirm_remove_logo")!=="on")throw new Error("Veuillez confirmer la suppression du logo.");logo_url="";logo_storage_path="";}
   const payload={legal_name:String(fd.get("legal_name")||""),trade_name:String(fd.get("trade_name")||""),slogan:String(fd.get("slogan")||""),logo_url,logo_storage_path,address:String(fd.get("address")||""),phone:String(fd.get("phone")||""),email:String(fd.get("email")||""),website:String(fd.get("website")||""),tax_id:String(fd.get("tax_id")||""),stat_id:String(fd.get("stat_id")||""),registry_id:String(fd.get("registry_id")||""),bank_details:String(fd.get("bank_details")||""),legal_mentions:String(fd.get("legal_mentions")||""),payment_terms:String(fd.get("payment_terms")||""),default_payment_days:Number(fd.get("default_payment_days")||30),primary_color:String(fd.get("primary_color")||"#1663FF"),secondary_color:String(fd.get("secondary_color")||"#7B4DFF"),accent_color:String(fd.get("accent_color")||"#D93CFF"),font_family:String(fd.get("font_family")||"Inter")};
-  const {error}=await supabase.from("company_settings").upsert({organization_id:organizationId,...payload},{onConflict:"organization_id"});if(error)throw new Error(error.message);if(existingLogo?.logo_storage_path&&existingLogo.logo_storage_path!==logo_storage_path){const oldPath=String(existingLogo.logo_storage_path);if(oldPath.startsWith(organizationId+"/")){await supabase.storage.from("organization-branding").remove([oldPath]);}}revalidatePath("/parametres");revalidatePath("/modeles-documents")}
+  const {error}=await supabase.from("company_settings").upsert({organization_id:organizationId,...payload},{onConflict:"organization_id"});if(error)throw new Error(error.message);/* Do not physically delete old logo objects: issued documents may contain immutable references to them. Remove only the active branding association. */revalidatePath("/parametres");revalidatePath("/modeles-documents")}
 
 async function saveFeatures(fd:FormData){"use server";const {supabase,organizationId,user,role}=await requireOrganization();assertAdmin(role);
   const required=new Set(FEATURE_CATALOG.filter(x=>x.required||x.key==="settings").map(x=>x.key));
