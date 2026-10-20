@@ -17,23 +17,26 @@ for file in files:
     raw=subprocess.check_output(["pdftotext","-layout",file,"-"],text=True)
     if "ENTREPRISE DE TEST" not in raw:errors.append("company heading missing")
     if not p.name.startswith("report-") and "TEST-EXCLUSIVEMENT" not in raw:errors.append("document reference missing")
-    bbox=subprocess.check_output(["pdftotext","-bbox","-f","1","-l","1",file,"-"],text=True)
+    bbox=subprocess.check_output(["pdftotext","-bbox",file,"-"],text=True)
     root=ET.fromstring(bbox)
-    page=next((e for e in root.iter() if e.tag.endswith("page")),None)
-    if page is None:errors.append("missing bbox page")
-    else:
+    page_elements=[element for element in root.iter() if element.tag.endswith("page")]
+    if len(page_elements)!=pages:errors.append("page count mismatch in text layer")
+    page_words=[]
+    for i,page in enumerate(page_elements,1):
         width=float(page.get("width","0"));height=float(page.get("height","0"))
-        if abs(width-595.28)>3 or abs(height-841.89)>3:errors.append(f"not A4 ({width}x{height})")
-        words=[e for e in page.iter() if e.tag.endswith("word")]
-        if not words:errors.append("no selectable text")
-        for w in words:
-            x0=float(w.get("xMin","-99"));x1=float(w.get("xMax","9999"))
-            y0=float(w.get("yMin","-99"));y1=float(w.get("yMax","9999"))
+        if abs(width-595.28)>3 or abs(height-841.89)>3:
+            errors.append(f"page {i} not A4 ({width}x{height})")
+        words=[element for element in page.iter() if element.tag.endswith("word")]
+        page_words.append(len(words))
+        if not words:errors.append(f"page {i} has no selectable text")
+        for word in words:
+            x0=float(word.get("xMin","-99"));x1=float(word.get("xMax","9999"))
+            y0=float(word.get("yMin","-99"));y1=float(word.get("yMax","9999"))
             if x0<-1 or y0<-1 or x1>width+1 or y1>height+1:
-                errors.append("text outside printable page")
+                errors.append(f"text outside page {i}")
                 break
-    subprocess.run(["pdftoppm","-f","1","-l","1","-singlefile","-scale-to","900","-png",file,str(base/"previews"/p.stem)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-    results.append(dict(preset=p.stem,pages=pages,text_chars=len(raw),first_page_words=len(words) if page is not None else 0,errors=errors))
+    subprocess.run(["pdftoppm","-scale-to","900","-png",file,str(base/"previews"/p.stem)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    results.append(dict(preset=p.stem,pages=pages,text_chars=len(raw),words_per_page=page_words,errors=errors))
 report=dict(count=len(results),passed=sum(not x["errors"] for x in results),failed=sum(bool(x["errors"]) for x in results),results=results)
 (base/"pdf-geometry-report.json").write_text(json.dumps(report,ensure_ascii=False,indent=2))
 print(f"PDF visual geometry: {report['passed']}/{report['count']} passed")
