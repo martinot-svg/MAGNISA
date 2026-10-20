@@ -24,6 +24,8 @@ describe("Rendu PDF réel des 32 modèles originaux (données fictives uniquemen
   it(preset.id+" : génère un PDF valide",async()=>{
    try{
     const pdf=await renderPreset(preset);
+    mkdirSync("test-results/pdf",{recursive:true});
+    writeFileSync("test-results/pdf/"+preset.id+".pdf",pdf);
     const pdfHeader=pdf.subarray(0,5).toString("latin1")==="%PDF-";
     const pdfEof=pdf.subarray(Math.max(0,pdf.length-1024)).toString("latin1").includes("%%EOF");
     const ok=pdfHeader&&pdfEof&&pdf.length>1000;
