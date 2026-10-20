@@ -32,5 +32,13 @@ jobs:
       - name: Unit tests (Vitest)
         run: npm test
 
+      - name: Upload PDF verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: document-presets-pdf-evidence
+          path: test-results/document-presets-pdf.json
+          if-no-files-found: ignore
+
       - name: Production build
         run: npm run build
