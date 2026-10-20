@@ -1,7 +1,7 @@
 import {assertDocumentAction} from "@/lib/document-permissions";
 import React from "react";
 import {NextResponse} from "next/server";
-import {Document,Page,Text,View,renderToBuffer} from "@react-pdf/renderer";
+import {Document,Page,Text,View,Image,renderToBuffer} from "@react-pdf/renderer";
 import {requireOrganization} from "@/lib/current-org";
 import {requirePermission} from "@/lib/permissions";
 import {readDocumentThemeForm} from "@/lib/document-theme";
@@ -14,12 +14,16 @@ export async function POST(request:Request){
   const form=await request.formData();
   const theme=readDocumentThemeForm(form);
   const {data:org}=await ctx.supabase.from("organizations").select("name").eq("id",ctx.organizationId).single();
-  const {data:settings}=await ctx.supabase.from("company_settings").select("trade_name,legal_name").eq("organization_id",ctx.organizationId).maybeSingle();
+  const {data:settings}=await ctx.supabase.from("company_settings").select("trade_name,legal_name,logo_url,address,phone,email,website,tax_id,stat_id,registry_id").eq("organization_id",ctx.organizationId).maybeSingle();
   const company=settings?.trade_name||settings?.legal_name||org?.name||"Entreprise non renseignée";
   const h=React.createElement;
   const text=(value:string,style?:Record<string,unknown>)=>h(Text,{style},value);
   const pdf=await renderToBuffer(h(Document,null,h(Page,{size:"A4",style:{padding:theme.pageMargin,fontFamily:theme.fontFamily,fontSize:11,color:theme.textColor,backgroundColor:theme.backgroundColor}},
-   text(company,{fontSize:20,fontWeight:700,color:theme.headingColor,marginBottom:12}),
+   ...(settings?.logo_url?[h(Image,{src:settings.logo_url,style:{width:theme.logoWidth,height:48,objectFit:"contain",alignSelf:theme.logoPosition==="center"?"center":theme.logoPosition==="right"?"flex-end":"flex-start",marginBottom:8}})]:[]),
+   text(company,{fontSize:20,fontWeight:700,color:theme.headingColor,marginBottom:6}),
+   ...(settings?.address?[text(settings.address,{fontSize:9,marginBottom:3})]:[]),
+   ...([settings?.phone,settings?.email,settings?.website].filter(Boolean).length?[text([settings?.phone,settings?.email,settings?.website].filter(Boolean).join(" | "),{fontSize:8,marginBottom:5})]:[]),
+   ...([settings?.tax_id,settings?.stat_id,settings?.registry_id].filter(Boolean).length?[text([settings?.tax_id?`NIF : ${settings.tax_id}`:"",settings?.stat_id?`STAT : ${settings.stat_id}`:"",settings?.registry_id?`RCS : ${settings.registry_id}`:""].filter(Boolean).join(" | "),{fontSize:8,marginBottom:8})]:[]),
    h(View,{style:{height:3,backgroundColor:theme.primaryColor,marginBottom:28}}),
    text("APERÇU DE STYLE - SANS DONNÉES MÉTIER",{fontSize:18,fontWeight:700,color:theme.headingColor}),
    text("Ce document est un aperçu des réglages non enregistrés. Il ne constitue ni une facture, ni un bulletin, ni un justificatif.",{marginTop:12,marginBottom:22}),
