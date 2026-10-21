@@ -20,6 +20,7 @@ export const FEATURE_CATALOG=[
   {key:"budget",label:"Budget & Prévisions",href:"/budget",required:false,group:"Pilotage",description:"Budget, réalisé et scénarios."},
   {key:"smart_analysis",label:"Analyse intelligente",href:"/analyse",required:false,group:"Pilotage",description:"Santé économique, risques et recommandations."},
   {key:"accounting",label:"Comptabilité",href:"/comptabilite",required:false,group:"Comptabilité",description:"Journaux, écritures, grand livre et balance."},
+  {key:"immobilisations",label:"Immobilisations",href:"/immobilisations",required:false,group:"Comptabilité",description:"Registre des biens durables et suivi indicatif des amortissements."},
   {key:"financial_statements",label:"États financiers",href:"/etats-financiers",required:false,group:"Comptabilité",description:"Bilan, résultat et flux de trésorerie."},
   {key:"reports",label:"Rapports",href:"/rapports",required:false,group:"Pilotage",description:"Rapports filtrables et exports."},
   {key:"document_templates",label:"Bibliothèque des modèles",href:"/bibliotheque-documents",required:false,group:"Administration",description:"Choisir les modèles de devis, factures, paie et rapports, puis les personnaliser."},
