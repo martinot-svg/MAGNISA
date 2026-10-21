@@ -22,7 +22,7 @@ export const FEATURE_CATALOG=[
   {key:"accounting",label:"Comptabilité",href:"/comptabilite",required:false,group:"Comptabilité",description:"Journaux, écritures, grand livre et balance."},
   {key:"financial_statements",label:"États financiers",href:"/etats-financiers",required:false,group:"Comptabilité",description:"Bilan, résultat et flux de trésorerie."},
   {key:"reports",label:"Rapports",href:"/rapports",required:false,group:"Pilotage",description:"Rapports filtrables et exports."},
-  {key:"document_templates",label:"Modèles de documents",href:"/modeles-documents",required:false,group:"Administration",description:"Charte et modèles de devis/factures."},
+  {key:"document_templates",label:"Bibliothèque des modèles",href:"/bibliotheque-documents",required:false,group:"Administration",description:"Choisir les modèles de devis, factures, paie et rapports, puis les personnaliser."},
   {key:"users",label:"Utilisateurs",href:"/utilisateurs",required:true,group:"Administration",description:"Membres, rôles et accès."},
   {key:"audit",label:"Journal d'activité",href:"/audit",required:true,group:"Administration",description:"Traçabilité des actions sensibles."},
   {key:"settings",label:"Paramètres",href:"/parametres",required:true,group:"Administration",description:"Configuration de l'organisation."}
