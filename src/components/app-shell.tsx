@@ -25,6 +25,7 @@ const featurePermission: Partial<Record<FeatureKey, Permission>> = {
   smart_analysis: "finance.view",
   suppliers: "suppliers.view",
   accounting: "accounting.view",
+  immobilisations: "accounting.view",
   financial_statements: "accounting.view",
   reports: "reports.view",
   document_templates: "settings.manage",
