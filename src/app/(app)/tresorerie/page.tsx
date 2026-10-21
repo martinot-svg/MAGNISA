@@ -65,6 +65,12 @@ export default async function Treasury(){const ctx=await requireOrganization();a
     supabase.from("magnisa_internal_transfers").select("id,magnisa_reference,source_account_id,destination_account_id,transfer_date,received_date,source_debit,destination_credit,operator_fee,source_reference,destination_reference,status").eq("organization_id",organizationId).order("transfer_date",{ascending:false}).limit(100),
   ]);
 
+  const organizationCurrency = org?.currency || "MGA";
+  const comparableTransactions = transactions.filter((t:any) => {
+    const account = accounts.find((a:any) => a.id === t.financial_account_id);
+    return String(account?.details?.currency || organizationCurrency) === organizationCurrency;
+  });
+
   return (
     <>
       <div className="pageHead">
@@ -78,7 +84,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
       <TreasuryNavigation
         dashboard={<section className="section">
           <h2>Tableau de bord de trésorerie</h2>
-          <TreasuryDashboardChart active={accounts.filter((a:any)=>a.is_active).length} total={accounts.length} inflows={transactions.reduce((sum:any,t:any)=>sum+Math.max(0,Number(t.amount)||0),0)} outflows={transactions.reduce((sum:any,t:any)=>sum+Math.max(0,-(Number(t.amount)||0)),0)} currency={org?.currency||"MGA"}/>
+          <TreasuryDashboardChart active={accounts.filter((a:any)=>a.is_active).length} total={accounts.length} inflows={comparableTransactions.reduce((sum:any,t:any)=>sum+Math.max(0,Number(t.amount)||0),0)} outflows={comparableTransactions.reduce((sum:any,t:any)=>sum+Math.max(0,-(Number(t.amount)||0)),0)} currency={organizationCurrency}/>
           <p className="muted">Les soldes de comptes sont consultables dans Comptes. Les montants en devises différentes ne sont pas additionnés.</p>
           <h3>Activité récente</h3>
           {!transactions.length?<EmptyState title="Aucun mouvement" description="Les opérations réelles enregistrées apparaîtront ici."/>:
