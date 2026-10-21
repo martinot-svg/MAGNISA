@@ -6,10 +6,10 @@ import { money } from "@/lib/money";
 
 function suggestPcgCode(accountLabel: string, accountKey: string): string {
   const value = `${accountLabel} ${accountKey}`
-    .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase();
+    .toLowerCase();
   // Suggestion prudente : le matériel informatique durable relève généralement des immobilisations.
   // La validation reste explicite dans le formulaire d'imputation.
-  if (/(ordinateur|materiel informatique|equipement informatique|materiel numerique)/.test(value)) return "218";
+  if (/(ordinateur|matériel informatique|materiel informatique|équipement informatique|equipement informatique|matériel numérique|materiel numerique)/.test(value)) return "218";
   if (/(remboursement.*mvola|frais.*mvola.*reclasser)/.test(value)) return "471";
   return "";
 }
