@@ -4,6 +4,16 @@ import { requireOrganization } from "@/lib/current-org";
 import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
 
+function suggestPcgCode(accountLabel: string, accountKey: string): string {
+  const value = `${accountLabel} ${accountKey}`
+    .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase();
+  // Suggestion prudente : le matériel informatique durable relève généralement des immobilisations.
+  // La validation reste explicite dans le formulaire d'imputation.
+  if (/(ordinateur|materiel informatique|equipement informatique|materiel numerique)/.test(value)) return "218";
+  if (/(remboursement.*mvola|frais.*mvola.*reclasser)/.test(value)) return "471";
+  return "";
+}
+
 async function assignAccountMapping(formData: FormData) {
   "use server";
   const ctx = await requireOrganization();
@@ -162,13 +172,13 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
         {unmapped.map((r: any, index: number) => <form key={r.account_key + index} action={assignAccountMapping} className="form">
           <input type="hidden" name="legacy_account_key" value={r.account_key} />
           <div className="field"><label>Nom du compte MAGNISA</label><p>{r.account_label || "Compte sans libellé"}</p></div>
-          <div className="field"><label>Compte PCG 2005</label><select name="pcg_code" required>
+          <div className="field"><label>Compte PCG 2005</label><select name="pcg_code" defaultValue={suggestPcgCode(r.account_label || "", r.account_key || "")} required>
             <option value="">Selectionner une imputation justifiee</option>
             {(chart || []).map((account: any) => <option key={account.code} value={account.code}>
               {account.code} — {account.label}
             </option>)}
-          </select></div>
-          <button className="button primary">Enregistrer l'imputation</button>
+          </select>{suggestPcgCode(r.account_label || "", r.account_key || "") && <p className="muted">Suggestion MAGNISA : compte {suggestPcgCode(r.account_label || "", r.account_key || "")}. Vérifie la pièce justificative et confirme avant d'enregistrer.</p>}</div>
+          <button className="button primary">Confirmer l'imputation</button>
         </form>)}
       </section>}
       <section className="section">
