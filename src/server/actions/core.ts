@@ -210,10 +210,52 @@ export async function recordPayment(formData:FormData){
 export async function createExpense(formData:FormData){
   const ctx=await requireOrganization();
   await assertPermission(ctx,"expenses.record");
-  const p=z.object({description:z.string().min(2),amount:z.coerce.number().positive(),expense_date:z.string().min(8),financial_account_id:z.string().uuid(),category:z.string().min(1),idempotency_key:z.string().uuid()}).safeParse(Object.fromEntries(formData));
+  const p=z.object({
+    description:z.string().trim().min(2),amount:z.coerce.number().positive(),
+    expense_date:z.string().date(),financial_account_id:z.string().uuid(),
+    category:z.string().trim().min(1).max(120),idempotency_key:z.string().uuid(),
+    useful_life_months:z.coerce.number().int().min(12).max(120).optional(),
+  }).safeParse(Object.fromEntries(formData));
   if(!p.success)throw new Error("Dépense invalide.");
-  const {error}=await ctx.supabase.rpc("lot1_record_expense_idempotent",{p_org:ctx.organizationId,p_description:p.data.description,p_amount:p.data.amount,p_date:p.data.expense_date,p_account:p.data.financial_account_id,p_category:p.data.category,p_request_key:p.data.idempotency_key});
-  if(error)throw new Error(error.message); revalidatePath("/depenses"); revalidatePath("/dashboard");
+  const categoryKey=p.data.category.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase();
+  const isComputerAsset=/(ordinateur|materiel informatique|equipement informatique|materiel numerique)/.test(categoryKey);
+  if(isComputerAsset){
+    if(!p.data.useful_life_months)throw new Error("Pour une immobilisation informatique, indique la durée d'utilisation estimée en mois.");
+    await assertPermission(ctx,"accounting.manage");
+  }
+  const {data:expenseId,error}=await ctx.supabase.rpc("lot1_record_expense_idempotent",{
+    p_org:ctx.organizationId,p_description:p.data.description,p_amount:p.data.amount,
+    p_date:p.data.expense_date,p_account:p.data.financial_account_id,
+    p_category:p.data.category,p_request_key:p.data.idempotency_key
+  });
+  if(error)throw new Error(error.message);
+  if(isComputerAsset && expenseId){
+    const {data:entry,error:entryError}=await ctx.supabase.from("journal_entries")
+      .select("id").eq("organization_id",ctx.organizationId).eq("source_type","expense")
+      .eq("source_id",expenseId).maybeSingle();
+    if(entryError||!entry)throw new Error("La dépense est enregistrée, mais son écriture comptable doit être vérifiée avant de créer l'immobilisation.");
+    const {data:asset,error:assetError}=await ctx.supabase.from("fixed_assets").insert({
+      organization_id:ctx.organizationId,name:p.data.description,category:"Matériel informatique",
+      acquisition_date:p.data.expense_date,acquisition_cost:p.data.amount,
+      useful_life_months:p.data.useful_life_months,depreciation_method:"straight_line",
+      accumulated_depreciation:0,net_book_value:p.data.amount,status:"active",
+      magnisa_reference:String(expenseId)
+    }).select("id").single();
+    if(assetError||!asset)throw new Error("La dépense est enregistrée, mais la création de l'immobilisation a échoué. Vérifie le registre avant de recommencer.");
+    const {data:line,error:lineError}=await ctx.supabase.from("journal_entry_lines")
+      .select("account_key").eq("organization_id",ctx.organizationId)
+      .eq("journal_entry_id",entry.id).gt("debit",0).limit(1).maybeSingle();
+    if(lineError||!line)throw new Error("L'immobilisation est créée, mais l'imputation PCG doit être vérifiée.");
+    const {data:pcg,error:pcgError}=await ctx.supabase.from("pcg2005_accounts").select("code").eq("code","218").maybeSingle();
+    if(pcgError||!pcg)throw new Error("Immobilisation créée, mais le compte PCG 218 est absent du référentiel.");
+    const {error:mappingError}=await ctx.supabase.from("pcg2005_account_mappings").upsert({
+      organization_id:ctx.organizationId,legacy_account_key:line.account_key,pcg_code:"218",
+      updated_by:ctx.user.id,updated_at:new Date().toISOString()
+    },{onConflict:"organization_id,legacy_account_key"});
+    if(mappingError)throw new Error("Immobilisation créée, mais le mapping PCG doit être vérifié manuellement.");
+    revalidatePath("/immobilisations");revalidatePath("/comptabilite");
+  }
+  revalidatePath("/depenses");revalidatePath("/dashboard");
 }
 
 
