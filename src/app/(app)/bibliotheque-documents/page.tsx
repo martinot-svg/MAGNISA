@@ -44,7 +44,7 @@ export default async function DocumentLibrary({searchParams}:{searchParams:Promi
  <div style={{borderTop:"1px solid #dfe5eb",marginTop:12,paddingTop:10,fontSize:12}}>En-tête du document</div>
  <div style={{height:5,background:preset.configuration.secondaryColor,opacity:.5,marginTop:12,width:"75%"}}/>
  </div>
- <h3>{preset.name}</h3><p className="muted">{preset.category} - {preset.style}</p><p>{preset.description}</p><p className="muted">Création originale MAGNISA - licence propriétaire interne. Aucun élément tiers copié.</p>
+ <h3>{preset.name}</h3><p className="muted">{preset.category} - {preset.style}</p><p>{preset.description}</p>{preset.provenance==="user-provided design reference"?<><p className="muted">Référence fournie par ton entreprise - modèle de facture inspiré du design Canva.</p><p><a href="https://www.canva.com/design/DAHYot6hBfI/rBh1DlTVJYmMFEOQ5lRTkA/edit" target="_blank" rel="noreferrer">Ouvrir le design Canva d’origine</a></p></>:<p className="muted">Création originale MAGNISA - licence propriétaire interne.</p>}
  {active.get(preset.type)===preset.id?<p><strong>Modèle par défaut sélectionné</strong></p>:canEdit?<form action={selectPreset}><input type="hidden" name="preset_id" value={preset.id}/><button className="button primary" type="submit">Utiliser pour {preset.type==="quote"?"les devis":preset.type==="invoice"?"les factures":preset.type==="payslip"?"la paie":"les rapports"}</button></form>:<p className="muted">Sélection réservée à l'administrateur.</p>}
  </div>)}</div>
  </>;
