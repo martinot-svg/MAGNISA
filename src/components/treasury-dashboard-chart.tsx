@@ -80,7 +80,7 @@ export function TreasuryDashboardChart({ active, total, inflows, outflows, curre
           <div><p><strong>{active}</strong> comptes actifs</p><p><strong>{inactive}</strong> comptes inactifs</p><p><strong>{total}</strong> comptes au total</p><p className="muted">L'anneau représente la répartition des comptes uniquement.</p></div>
         </div>
       )}
-      <p className="muted" style={{ marginTop: 14 }}>Les montants couvrent les 100 derniers mouvements chargés, pas tout l'historique. Les transferts internes peuvent apparaître comme une sortie et une entrée distinctes.</p>
+      <p className="muted" style={{ marginTop: 14 }}>Les montants couvrent les 100 derniers mouvements chargés, limités aux comptes dans la devise de l'organisation. Ce n'est pas l'historique complet. Les transferts internes peuvent apparaître comme une sortie et une entrée distinctes.</p>
     </section>
   );
 }
