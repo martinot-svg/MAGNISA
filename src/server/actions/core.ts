@@ -217,7 +217,7 @@ export async function createExpense(formData:FormData){
     useful_life_months:z.coerce.number().int().min(12).max(120).optional(),
   }).safeParse(Object.fromEntries(formData));
   if(!p.success)throw new Error("Dépense invalide.");
-  const categoryKey=p.data.category.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase();
+  const categoryKey=p.data.category.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
   const isComputerAsset=/(ordinateur|materiel informatique|equipement informatique|materiel numerique)/.test(categoryKey);
   if(isComputerAsset){
     if(!p.data.useful_life_months)throw new Error("Pour une immobilisation informatique, indique la durée d'utilisation estimée en mois.");
@@ -234,14 +234,19 @@ export async function createExpense(formData:FormData){
       .select("id").eq("organization_id",ctx.organizationId).eq("source_type","expense")
       .eq("source_id",expenseId).maybeSingle();
     if(entryError||!entry)throw new Error("La dépense est enregistrée, mais son écriture comptable doit être vérifiée avant de créer l'immobilisation.");
-    const {data:asset,error:assetError}=await ctx.supabase.from("fixed_assets").insert({
-      organization_id:ctx.organizationId,name:p.data.description,category:"Matériel informatique",
-      acquisition_date:p.data.expense_date,acquisition_cost:p.data.amount,
-      useful_life_months:p.data.useful_life_months,depreciation_method:"straight_line",
-      accumulated_depreciation:0,net_book_value:p.data.amount,status:"active",
-      magnisa_reference:String(expenseId)
-    }).select("id").single();
-    if(assetError||!asset)throw new Error("La dépense est enregistrée, mais la création de l'immobilisation a échoué. Vérifie le registre avant de recommencer.");
+    const {data:existingAsset,error:existingAssetError}=await ctx.supabase.from("fixed_assets")
+      .select("id").eq("organization_id",ctx.organizationId).eq("magnisa_reference",String(expenseId)).maybeSingle();
+    if(existingAssetError)throw new Error("Impossible de vérifier si cette immobilisation existe déjà.");
+    if(!existingAsset){
+      const {error:assetError}=await ctx.supabase.from("fixed_assets").insert({
+        organization_id:ctx.organizationId,name:p.data.description,category:"Matériel informatique",
+        acquisition_date:p.data.expense_date,acquisition_cost:p.data.amount,
+        useful_life_months:p.data.useful_life_months,depreciation_method:"straight_line",
+        accumulated_depreciation:0,net_book_value:p.data.amount,status:"active",
+        magnisa_reference:String(expenseId)
+      });
+      if(assetError)throw new Error("La dépense est enregistrée, mais la création de l'immobilisation a échoué. Vérifie le registre avant de recommencer.");
+    }
     const {data:line,error:lineError}=await ctx.supabase.from("journal_entry_lines")
       .select("account_key").eq("organization_id",ctx.organizationId)
       .eq("journal_entry_id",entry.id).gt("debit",0).limit(1).maybeSingle();
