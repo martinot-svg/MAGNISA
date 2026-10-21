@@ -1,9 +1,6 @@
-/** Original MAGNISA document presets. No third-party assets or licenses required.
- * A preset is a visual configuration, not a fabricated business document.
- * Only document types wired to real PDF engines are exposed here.
- */
+/** MAGNISA document presets. Visual presets are configurations for the real PDF engines. */
 export type SupportedDocumentType="quote"|"invoice"|"payslip"|"report";
-export type DocumentPreset={id:string;type:SupportedDocumentType;name:string;category:string;style:string;description:string;configuration:{primaryColor:string;secondaryColor:string;fontFamily:"Helvetica"|"Times-Roman"|"Courier";showTaxId?:boolean;showStatId?:boolean;showRegistryId?:boolean;showSlogan?:boolean;showAmountInWords?:boolean;showBankDetails?:boolean;showTaxColumn?:boolean};provenance:"MAGNISA original";license:"proprietary"};
+export type DocumentPreset={id:string;type:SupportedDocumentType;name:string;category:string;style:string;description:string;configuration:{primaryColor:string;secondaryColor:string;fontFamily:"Helvetica"|"Times-Roman"|"Courier";showTaxId?:boolean;showStatId?:boolean;showRegistryId?:boolean;showSlogan?:boolean;showAmountInWords?:boolean;showBankDetails?:boolean;showTaxColumn?:boolean};provenance:"MAGNISA original"|"user-provided design reference";license:"proprietary"|"user-provided"};
 const variants=[
  {id:"classique",name:"Classique",style:"classique",primary:"#24344a",secondary:"#66758b",font:"Helvetica"},
  {id:"moderne",name:"Moderne",style:"moderne",primary:"#1663cc",secondary:"#517dba",font:"Helvetica"},
@@ -17,9 +14,9 @@ const variants=[
 const kinds=[{type:"quote",label:"Devis",category:"Commerce et ventes"},{type:"invoice",label:"Facture",category:"Commerce et ventes"},{type:"payslip",label:"Bulletin de paie",category:"Ressources humaines et paie"},{type:"report",label:"Rapport de gestion",category:"Comptabilité et finances"}] as const;
 const canvaInvoice:DocumentPreset={
  id:"invoice-canva-commercial-gris",type:"invoice",name:"Facture - Commercial gris Canva",category:"Commerce et ventes",style:"commercial gris",
- description:"Modèle de facture basé sur la facture Canva fournie par l'entreprise, avec structure adaptée au moteur PDF MAGNISA et données de facture dynamiques.",
+ description:"Modèle de facture adapté du design Canva fourni par l'entreprise, avec données dynamiques et personnalisation MAGNISA.",
  configuration:{primaryColor:"#5b6066",secondaryColor:"#a1a5a9",fontFamily:"Helvetica",showTaxId:true,showStatId:true,showRegistryId:true,showSlogan:true,showAmountInWords:true,showBankDetails:true,showTaxColumn:true},
- provenance:"MAGNISA original",license:"proprietary"
+ provenance:"user-provided design reference",license:"user-provided"
 };
 export const DOCUMENT_PRESETS:DocumentPreset[]=[...kinds.flatMap(k=>variants.map(v=>({
  id:k.type+"-"+v.id,type:k.type,name:k.label+" - "+v.name,category:k.category,style:v.style,
