@@ -144,10 +144,10 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
         <h2>Rapprochement des données financières</h2>
         <p className="muted">Contrôle indépendant entre soldes stockés et opérations enregistrées. Les écarts ne sont jamais corrigés automatiquement.</p>
         <div className="grid3">
-          <div><strong>Factures clients</strong><p>{(invoiceReconciliation || []).length} vérifiées — {invoiceGaps.length} écart(s)</p></div>
-          <div><strong>Factures fournisseurs</strong><p>{(supplierReconciliation || []).length} vérifiées — {supplierGaps.length} écart(s)</p></div>
-          <div><strong>Comptes financiers</strong><p>{(accountReconciliation || []).length} vérifiés — {accountGaps.length} écart(s)</p></div>
-          <div><strong>Bulletins de paie</strong><p>{(payrollReconciliation || []).length} vérifiés — {payrollGaps.length} écart(s)</p></div>
+          <div><strong>Factures clients</strong><p>{(invoiceReconciliation || []).length} vérifiées - {invoiceGaps.length} écart(s)</p></div>
+          <div><strong>Factures fournisseurs</strong><p>{(supplierReconciliation || []).length} vérifiées - {supplierGaps.length} écart(s)</p></div>
+          <div><strong>Comptes financiers</strong><p>{(accountReconciliation || []).length} vérifiés - {accountGaps.length} écart(s)</p></div>
+          <div><strong>Bulletins de paie</strong><p>{(payrollReconciliation || []).length} vérifiés - {payrollGaps.length} écart(s)</p></div>
         </div>
         {reconciliationCount > 0 && <div role="alert">
           <p><strong>{reconciliationCount} anomalie(s) à investiguer avant validation comptable.</strong></p>
@@ -175,14 +175,14 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
           <div className="field"><label>Compte PCG 2005</label><select name="pcg_code" defaultValue={suggestPcgCode(r.account_label || "", r.account_key || "")} required>
             <option value="">Selectionner une imputation justifiee</option>
             {(chart || []).map((account: any) => <option key={account.code} value={account.code}>
-              {account.code} — {account.label}
+              {account.code} - {account.label}
             </option>)}
           </select>{suggestPcgCode(r.account_label || "", r.account_key || "") && <p className="muted">Suggestion MAGNISA : compte {suggestPcgCode(r.account_label || "", r.account_key || "")}. Vérifie la pièce justificative et confirme avant d'enregistrer.</p>}</div>
           <button className="button primary">Confirmer l'imputation</button>
         </form>)}
       </section>}
       <section className="section">
-        <h2>Balance PCG 2005 — detail des comptes</h2>
+        <h2>Balance PCG 2005 - detail des comptes</h2>
         <p className="muted">Correspondance indicative des comptes internes. Les imputations specifiques restent a valider par le responsable comptable.</p>
         <div className="tableWrap">
           <table>
