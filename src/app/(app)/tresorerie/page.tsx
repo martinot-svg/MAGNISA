@@ -78,7 +78,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
       <TreasuryNavigation
         dashboard={<section className="section">
           <h2>Tableau de bord de trésorerie</h2>
-          <TreasuryDashboardChart active={accounts.filter((a:any)=>a.is_active).length} total={accounts.length} inflows={transactions.filter((t:any)=>Number(t.amount)>0).length} outflows={transactions.filter((t:any)=>Number(t.amount)<0).length}/>
+          <TreasuryDashboardChart active={accounts.filter((a:any)=>a.is_active).length} total={accounts.length} inflows={transactions.reduce((sum:any,t:any)=>sum+Math.max(0,Number(t.amount)||0),0)} outflows={transactions.reduce((sum:any,t:any)=>sum+Math.max(0,-(Number(t.amount)||0)),0)} currency={org?.currency||"MGA"}/>
           <p className="muted">Les soldes de comptes sont consultables dans Comptes. Les montants en devises différentes ne sont pas additionnés.</p>
           <h3>Activité récente</h3>
           {!transactions.length?<EmptyState title="Aucun mouvement" description="Les opérations réelles enregistrées apparaîtront ici."/>:
