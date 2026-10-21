@@ -15,10 +15,16 @@ const variants=[
  {id:"distinctif",name:"Distinctif",style:"créatif",primary:"#78415b",secondary:"#c08f9e",font:"Helvetica"}
 ] as const;
 const kinds=[{type:"quote",label:"Devis",category:"Commerce et ventes"},{type:"invoice",label:"Facture",category:"Commerce et ventes"},{type:"payslip",label:"Bulletin de paie",category:"Ressources humaines et paie"},{type:"report",label:"Rapport de gestion",category:"Comptabilité et finances"}] as const;
-export const DOCUMENT_PRESETS:DocumentPreset[]=kinds.flatMap(k=>variants.map(v=>({
+const canvaInvoice:DocumentPreset={
+ id:"invoice-canva-commercial-gris",type:"invoice",name:"Facture - Commercial gris Canva",category:"Commerce et ventes",style:"commercial gris",
+ description:"Modèle de facture basé sur la facture Canva fournie par l'entreprise, avec structure adaptée au moteur PDF MAGNISA et données de facture dynamiques.",
+ configuration:{primaryColor:"#5b6066",secondaryColor:"#a1a5a9",fontFamily:"Helvetica",showTaxId:true,showStatId:true,showRegistryId:true,showSlogan:true,showAmountInWords:true,showBankDetails:true,showTaxColumn:true},
+ provenance:"MAGNISA original",license:"proprietary"
+};
+export const DOCUMENT_PRESETS:DocumentPreset[]=[...kinds.flatMap(k=>variants.map(v=>({
  id:k.type+"-"+v.id,type:k.type,name:k.label+" - "+v.name,category:k.category,style:v.style,
  description:"Présentation "+v.name.toLowerCase()+" pour "+k.label.toLowerCase()+", adaptée au moteur PDF MAGNISA.",
  configuration:{primaryColor:v.primary,secondaryColor:v.secondary,fontFamily:v.font,showTaxId:true,showStatId:true,showRegistryId:true,showSlogan:true,showAmountInWords:true,showBankDetails:true,showTaxColumn:true},
  provenance:"MAGNISA original" as const,license:"proprietary" as const
-})));
+}))),canvaInvoice];
 export function getDocumentPreset(id:string){return DOCUMENT_PRESETS.find(p=>p.id===id);}
