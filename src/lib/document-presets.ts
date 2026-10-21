@@ -15,7 +15,7 @@ const kinds=[{type:"quote",label:"Devis",category:"Commerce et ventes"},{type:"i
 const canvaInvoice:DocumentPreset={
  id:"invoice-canva-commercial-gris",type:"invoice",name:"Facture - Commercial gris Canva",category:"Commerce et ventes",style:"commercial gris",
  description:"Modèle de facture adapté du design Canva fourni par l'entreprise, avec données dynamiques et personnalisation MAGNISA.",
- configuration:{primaryColor:"#5b6066",secondaryColor:"#a1a5a9",fontFamily:"Helvetica",showTaxId:true,showStatId:true,showRegistryId:true,showSlogan:true,showAmountInWords:true,showBankDetails:true,showTaxColumn:true},
+ configuration:{primaryColor:"#5b6066",secondaryColor:"#a1a5a9",fontFamily:"Helvetica",showTaxId:true,showStatId:true,showRegistryId:true,showSlogan:true,showAmountInWords:true,showBankDetails:true,showTaxColumn:false},
  provenance:"user-provided design reference",license:"user-provided"
 };
 export const DOCUMENT_PRESETS:DocumentPreset[]=[...kinds.flatMap(k=>variants.map(v=>({
