@@ -29,7 +29,7 @@ export default async function DocumentLibrary({searchParams}:{searchParams:Promi
  if(error)throw new Error("Chargement des modèles impossible.");
  const active=new Map((existing||[]).map(x=>[x.document_type,(x.configuration as {selectedPresetId?:string}|null)?.selectedPresetId]));
  const canEdit=["owner","admin"].includes(ctx.role);
- return <><div className="pageHead"><div><p className="eyebrow">Documents</p><h1>Bibliothèque des modèles</h1><p>Modèles graphiques originaux MAGNISA pour les quatre types de PDF actuellement générés. Aucun document métier fictif n'est créé.</p></div><Link className="button" href="/modeles-documents">Personnaliser le modèle actif</Link></div>
+ return <><div className="pageHead"><div><p className="eyebrow">Documents</p><h1>Bibliothèque des modèles</h1><p>Choisis un modèle pour les devis, factures, bulletins de paie et rapports. Le modèle de facture inspiré de ton design Canva est identifié séparément.</p></div><Link className="button" href="/modeles-documents">Personnaliser le modèle actif</Link></div>
  <div className="card section"><form method="get" className="grid2">
  <div className="field"><label>Rechercher</label><input type="search" name="q" defaultValue={p.q||""} placeholder="Nom, catégorie ou description"/></div>
  <div className="field"><label>Catégorie de document</label><select name="type" defaultValue={type}><option value="">Toutes</option><option value="quote">Devis</option><option value="invoice">Factures</option><option value="payslip">Bulletins de paie</option><option value="report">Rapports de gestion</option></select></div>
