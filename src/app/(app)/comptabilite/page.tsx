@@ -94,6 +94,7 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
   }
   const currency = organization?.currency || "MGA";
   const rows = balance || [];
+  const pcgLabels = new Map((chart || []).map((account: any) => [account.code, account.label]));
   const unmapped = rows.filter((r: any) => r.mapping_status === "a_mapper");
   const debit = rows.reduce((a: number, r: any) => a + Number(r.total_debit || 0), 0);
   const credit = rows.reduce((a: number, r: any) => a + Number(r.total_credit || 0), 0);
@@ -160,7 +161,7 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
         <p className="muted">L'imputation manuelle doit reposer sur une piece justificative et sur la nature economique de la charge.</p>
         {unmapped.map((r: any, index: number) => <form key={r.account_key + index} action={assignAccountMapping} className="form">
           <input type="hidden" name="legacy_account_key" value={r.account_key} />
-          <div className="field"><label>Compte MAGNISA</label><p>{r.account_label} ({r.account_key})</p></div>
+          <div className="field"><label>Nom du compte MAGNISA</label><p>{r.account_label || "Compte sans libellé"}</p></div>
           <div className="field"><label>Compte PCG 2005</label><select name="pcg_code" required>
             <option value="">Selectionner une imputation justifiee</option>
             {(chart || []).map((account: any) => <option key={account.code} value={account.code}>
@@ -175,11 +176,11 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
         <p className="muted">Correspondance indicative des comptes internes. Les imputations specifiques restent a valider par le responsable comptable.</p>
         <div className="tableWrap">
           <table>
-            <thead><tr><th>Compte PCG</th><th>Compte MAGNISA</th><th>Libelle</th><th>Source</th><th className="right">Debit</th><th className="right">Credit</th><th className="right">Solde debiteur</th></tr></thead>
+            <thead><tr><th>Compte PCG</th><th>Intitulé PCG</th><th>Nom du compte MAGNISA</th><th>Source</th><th className="right">Debit</th><th className="right">Credit</th><th className="right">Solde debiteur</th></tr></thead>
             <tbody>{rows.map((r: any, idx: number) => (
               <tr key={r.account_key + ":" + idx}>
                 <td>{r.pcg_code === "NON_CLASSE" ? "A mapper" : r.pcg_code}</td>
-                <td>{r.account_key}</td><td>{r.account_label}</td>
+                <td>{r.pcg_code === "NON_CLASSE" ? "A determiner" : (pcgLabels.get(r.pcg_code) || "Intitule PCG introuvable")}</td><td>{r.account_label || "Compte sans libelle"}</td>
                 <td>{r.mapping_status}</td>
                 <td className="right">{money(r.total_debit, currency)}</td>
                 <td className="right">{money(r.total_credit, currency)}</td>
