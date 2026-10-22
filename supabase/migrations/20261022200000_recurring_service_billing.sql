@@ -90,7 +90,8 @@ begin
     organization_id,order_id,order_line_id,customer_id,service_id,description,quantity,unit,
     unit_price,tax_rate,frequency,start_date,end_date,billing_day,next_billing_date,created_by
   ) values (
-    p_org,o.id,l.id,o.customer_id,l.service_id,l.description,l.quantity,l.unit,\n    round(l.line_total / nullif(l.quantity * (1 + l.tax_rate / 100), 0), 2),l.tax_rate,
+    p_org,o.id,l.id,o.customer_id,l.service_id,l.description,l.quantity,l.unit,
+    round(l.line_total / nullif(l.quantity * (1 + l.tax_rate / 100), 0), 2),l.tax_rate,
     p_frequency,p_start_date,p_end_date,v_day,p_start_date,auth.uid()
   ) returning id into v_id;
   perform public.audit_event(p_org,'recurring_service.created','recurring_service',v_id,null,
