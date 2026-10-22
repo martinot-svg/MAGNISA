@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { requirePermission } from "@/lib/permissions";
 import { requireOrganization } from "@/lib/current-org";
-import { createExpense } from "@/server/actions/core";
+import { createExpenseV2 as createExpense } from "@/server/actions/accounting";
 import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
 
