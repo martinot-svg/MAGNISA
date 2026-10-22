@@ -82,10 +82,14 @@ const serviceSchema = z.object({
   unit_price: z.coerce.number().finite().nonnegative(),
   tax_rate: z.coerce.number().finite().nonnegative().max(100),
   service_type: z.enum(["one_off", "recurring"]).default("one_off"),
-  recurrence_frequency: z.enum(["monthly", "quarterly", "semiannual", "annual"]).optional().or(z.literal("")),
+  recurrence_frequency: z.enum(["daily", "weekly", "monthly", "quarterly", "semiannual", "annual", "custom"]).optional().or(z.literal("")),
+  custom_interval_days: z.coerce.number().int().min(1).max(365).optional().or(z.literal("")),
 }).superRefine((value, ctx) => {
   if (value.service_type === "recurring" && !value.recurrence_frequency) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["recurrence_frequency"], message: "Choisis la fréquence de la prestation récurrente." });
+  }
+  if (value.service_type === "recurring" && value.recurrence_frequency === "custom" && !value.custom_interval_days) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["custom_interval_days"], message: "Indique l'intervalle personnalisé en jours." });
   }
 });
 export async function createService(formData: FormData) {
@@ -98,6 +102,7 @@ export async function createService(formData: FormData) {
     ...p.data,
     description: p.data.description || null,
     recurrence_frequency: p.data.service_type === "recurring" ? (p.data.recurrence_frequency || "monthly") : null,
+    custom_interval_days: p.data.service_type === "recurring" && p.data.recurrence_frequency === "custom" ? Number(p.data.custom_interval_days) : null,
   });
   if (error) throw new Error("Impossible de créer la prestation. Vérifie les champs puis réessaie.");
   revalidatePath("/services");
@@ -116,6 +121,7 @@ export async function updateService(formData: FormData) {
       ...parsed.data,
       description: parsed.data.description || null,
       recurrence_frequency: parsed.data.service_type === "recurring" ? (parsed.data.recurrence_frequency || "monthly") : null,
+      custom_interval_days: parsed.data.service_type === "recurring" && parsed.data.recurrence_frequency === "custom" ? Number(parsed.data.custom_interval_days) : null,
     })
     .eq("organization_id", ctx.organizationId)
     .eq("id", id.data)
