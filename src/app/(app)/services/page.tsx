@@ -4,6 +4,7 @@ import { requireOrganization } from "@/lib/current-org";
 import { createService, setServiceActive, updateService } from "@/server/actions/core";
 import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
+import { ServiceRecurrenceFields } from "@/components/service-recurrence-fields";
 
 export default async function Services({ searchParams }: { searchParams: Promise<{ archive?: string }> }) {
   const params = await searchParams;
@@ -54,8 +55,7 @@ export default async function Services({ searchParams }: { searchParams: Promise
                       <input type="hidden" name="id" value={s.id} />
                       <div className="field"><label>Nom</label><input name="name" defaultValue={s.name} required minLength={2} /></div>
                       <div className="field"><label>Description</label><textarea name="description" defaultValue={s.description || ""} /></div>
-                      <div className="field"><label>Type de prestation</label><select name="service_type" defaultValue={s.service_type || "one_off"} required><option value="one_off">Ponctuelle</option><option value="recurring">Récurrente</option></select><small>Une prestation récurrente peut être facturée à chaque période depuis une commande.</small></div>
-                      <div className="field"><label>Fréquence de facturation</label><select name="recurrence_frequency" defaultValue={s.recurrence_frequency || (s.service_type === "recurring" ? "monthly" : "")}><option value="">Sans récurrence</option><option value="monthly">Mensuelle</option><option value="quarterly">Trimestrielle</option><option value="semiannual">Semestrielle</option><option value="annual">Annuelle</option></select><small>À renseigner pour une prestation récurrente.</small></div>
+                      <ServiceRecurrenceFields defaultServiceType={s.service_type || "one_off"} defaultFrequency={s.recurrence_frequency || "monthly"} defaultCustomIntervalDays={s.custom_interval_days} />
                       <div className="field"><label>Unité</label><input name="unit" defaultValue={s.unit} required /></div>
                       <div className="field"><label>Prix unitaire</label><input name="unit_price" type="number" min="0" step="0.01" defaultValue={s.unit_price} required /></div>
                       <div className="field"><label>Taux de taxe (%)</label><input name="tax_rate" type="number" min="0" max="100" step="0.01" defaultValue={s.tax_rate} required /></div>
@@ -80,8 +80,7 @@ export default async function Services({ searchParams }: { searchParams: Promise
           <form action={createService} className="form">
             <div className="field"><label>Nom</label><input name="name" required minLength={2} /></div>
             <div className="field"><label>Description</label><textarea name="description" /></div>
-            <div className="field"><label>Type de prestation</label><select name="service_type" defaultValue="one_off" required><option value="one_off">Ponctuelle</option><option value="recurring">Récurrente</option></select><small>Choisis si le service est vendu une seule fois ou dans le cadre d'un contrat périodique.</small></div>
-            <div className="field"><label>Fréquence de facturation</label><select name="recurrence_frequency" defaultValue=""><option value="">Sans récurrence</option><option value="monthly">Mensuelle</option><option value="quarterly">Trimestrielle</option><option value="semiannual">Semestrielle</option><option value="annual">Annuelle</option></select><small>À renseigner pour une prestation récurrente.</small></div>
+            <ServiceRecurrenceFields />
             <div className="field"><label>Unité</label><input name="unit" defaultValue="forfait" required /></div>
             <div className="field"><label>Prix unitaire</label><input name="unit_price" type="number" min="0" step="0.01" required /></div>
             <div className="field"><label>Taux de taxe (%)</label><input name="tax_rate" type="number" min="0" max="100" step="0.01" defaultValue="0" required /></div>
