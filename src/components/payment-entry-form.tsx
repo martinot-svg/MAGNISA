@@ -156,7 +156,7 @@ export function PaymentEntryForm({
       )}
       {showMvola && (
         <div className="field">
-          <label htmlFor="payment-mvola-fee-option">Frais de retrait MVola</label>
+          <label htmlFor="payment-mvola-fee-option">Prise en charge des frais MVola</label>
           <select
             id="payment-mvola-fee-option"
             name="mvola_fee_option"
@@ -174,7 +174,7 @@ export function PaymentEntryForm({
       {showMvola && feeOptionNeedsAmount && (
         <div className="field">
           <label htmlFor="payment-mvola-fee-amount">{mvolaFeeOption === "company_pays" ? "Frais réellement prélevés à la charge de l’entreprise (Ar)" : "Remboursement des frais réellement reçu du client (Ar)"}</label>
-          <input id="payment-mvola-fee-amount" name="mvola_fee_amount" type="number" min="0.01" step="0.01"
+          <input id="payment-mvola-fee-amount" name="mvola_fee_amount" type="number" min="1" step="1"
             value={mvolaFeeAmount} onChange={(event) => setMvolaFeeAmount(event.target.value)} required />
           {valid && feeValid && <small>{mvolaFeeOption === "company_pays" ? "Le montant sera enregistré comme frais réels de l’entreprise. Vérifie qu’il a effectivement été prélevé sur ce compte." : `Total à vérifier sur le justificatif : ${formatter.format(received + feeAmount)} (dont ${formatter.format(received)} affectés à la facture).`}</small>}
           <small>Le barème MVola du {MVOLA_RATE_VERSION} ne permet pas de déduire les frais du transfert entrant sans connaître le type de compte de l’émetteur. Saisis uniquement le remboursement réellement reçu et vérifié sur le justificatif. Aucun frais estimé n’est comptabilisé.</small>
