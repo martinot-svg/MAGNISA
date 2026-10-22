@@ -5,7 +5,7 @@ grant usage on schema private to postgres;
 
 create or replace function private.process_due_recurring_invoice_drafts(p_org uuid, p_actor uuid)
 returns integer
-language plpgsql security definer set search_path=public,private as $
+language plpgsql security definer set search_path=public,private as $$
 declare
   c public.recurring_service_contracts%rowtype;
   v_period_start date;
