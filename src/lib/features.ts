@@ -6,6 +6,7 @@ export const FEATURE_CATALOG=[
   {key:"projects",label:"Projets & missions",href:"/projets",required:false,group:"Ventes",description:"Relie ventes, coûts directs et rentabilité par mission."},
   {key:"quotes",label:"Devis",href:"/devis",required:false,group:"Ventes",description:"Propositions commerciales, versions et acceptation."},
   {key:"orders",label:"Commandes",href:"/commandes",required:false,group:"Ventes",description:"Engagement après acceptation d'un devis."},
+  {key:"recurring_services",label:"Prestations récurrentes",href:"/prestations-recurrentes",required:false,group:"Ventes",description:"Contrats périodiques, échéances et factures en brouillon."},
   {key:"invoices",label:"Factures",href:"/factures",required:false,group:"Ventes",description:"Facturation directe ou issue d'un devis/commande."},
   {key:"payments",label:"Paiements clients",href:"/paiements",required:false,group:"Ventes",description:"Encaissements et règlement des créances."},
   {key:"magnimail",label:"MagniMail",href:"/magnimail",required:true,group:"Communication",description:"Messagerie clients intégrée : réception, envoi, brouillons, pièces jointes et historique."},
