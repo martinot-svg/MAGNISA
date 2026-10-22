@@ -44,6 +44,7 @@ export default async function Services({ searchParams }: { searchParams: Promise
                     <div>
                       <h2>{s.name}</h2>
                       <p className="muted">Réf. MAGNISA : <code>{s.magnisa_reference || "-"}</code> · Code service : {s.reference || "Non défini"} · {s.unit} · Taxe {s.tax_rate}%</p>
+                      <p className="muted">{s.service_type === "recurring" ? `Prestation récurrente · fréquence par défaut : mensuelle` : "Prestation ponctuelle"}</p>
                       <strong>{money(s.unit_price, org?.currency || "MGA")}</strong>
                     </div>
                     <span className="badge">{archived ? "Archivée" : "Active"}</span>
@@ -54,6 +55,8 @@ export default async function Services({ searchParams }: { searchParams: Promise
                       <input type="hidden" name="id" value={s.id} />
                       <div className="field"><label>Nom</label><input name="name" defaultValue={s.name} required minLength={2} /></div>
                       <div className="field"><label>Description</label><textarea name="description" defaultValue={s.description || ""} /></div>
+                      <div className="field"><label>Type de prestation</label><select name="service_type" defaultValue={s.service_type || "one_off"}><option value="one_off">Ponctuelle</option><option value="recurring">Récurrente</option></select></div>
+                      <div className="field"><label>Fréquence par défaut (si récurrente)</label><select name="default_frequency" defaultValue={s.default_frequency || "monthly"}><option value="monthly">Mensuelle</option><option value="quarterly">Trimestrielle</option><option value="semiannual">Semestrielle</option><option value="annual">Annuelle</option></select><p className="muted" style={{fontSize:12}}>La fréquence est proposée par défaut lors de la configuration de la récurrence sur une commande.</p></div>
                       <div className="field"><label>Unité</label><input name="unit" defaultValue={s.unit} required /></div>
                       <div className="field"><label>Prix unitaire</label><input name="unit_price" type="number" min="0" step="0.01" defaultValue={s.unit_price} required /></div>
                       <div className="field"><label>Taux de taxe (%)</label><input name="tax_rate" type="number" min="0" max="100" step="0.01" defaultValue={s.tax_rate} required /></div>
@@ -78,6 +81,8 @@ export default async function Services({ searchParams }: { searchParams: Promise
           <form action={createService} className="form">
             <div className="field"><label>Nom</label><input name="name" required minLength={2} /></div>
             <div className="field"><label>Description</label><textarea name="description" /></div>
+            <div className="field"><label>Type de prestation</label><select name="service_type" defaultValue="one_off"><option value="one_off">Ponctuelle</option><option value="recurring">Récurrente</option></select></div>
+            <div className="field"><label>Fréquence par défaut (si récurrente)</label><select name="default_frequency" defaultValue="monthly"><option value="monthly">Mensuelle</option><option value="quarterly">Trimestrielle</option><option value="semiannual">Semestrielle</option><option value="annual">Annuelle</option></select><p className="muted" style={{fontSize:12}}>La fréquence est proposée par défaut lors de la configuration de la récurrence sur une commande.</p></div>
             <div className="field"><label>Unité</label><input name="unit" defaultValue="forfait" required /></div>
             <div className="field"><label>Prix unitaire</label><input name="unit_price" type="number" min="0" step="0.01" required /></div>
             <div className="field"><label>Taux de taxe (%)</label><input name="tax_rate" type="number" min="0" max="100" step="0.01" defaultValue="0" required /></div>
