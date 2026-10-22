@@ -44,7 +44,7 @@ export default async function Services({ searchParams }: { searchParams: Promise
                   <div className="pageHead" style={{ marginBottom: 8 }}>
                     <div>
                       <h2>{s.name}</h2>
-                      <p className="muted">Code de service : <code>{s.magnisa_reference || "-"}</code> · {s.service_type === "recurring" ? "Récurrente" : "Ponctuelle"}{s.service_type === "recurring" && s.recurrence_frequency ? ` · ${({ daily: "Quotidienne", weekly: "Hebdomadaire", monthly: "Mensuelle", quarterly: "Trimestrielle", semiannual: "Semestrielle", annual: "Annuelle", custom: `Tous les ${s.custom_interval_days || 30} jours` } as Record<string, string>)[s.recurrence_frequency] || s.recurrence_frequency}` : ""} · {s.unit} · Taxe {s.tax_rate}%</p>
+                      <p className="muted"><code>{s.magnisa_reference || "-"}</code> Code service · {s.service_type === "recurring" ? "Récurrente" : "Ponctuelle"}{s.service_type === "recurring" && s.recurrence_frequency ? ` · ${({ daily: "Quotidienne", weekly: "Hebdomadaire", monthly: "Mensuelle", quarterly: "Trimestrielle", semiannual: "Semestrielle", annual: "Annuelle", custom: `Tous les ${s.custom_interval_days || 30} jours` } as Record<string, string>)[s.recurrence_frequency] || s.recurrence_frequency}` : ""} · {s.unit} · Taxe {s.tax_rate}%</p>
                       <strong>{money(s.unit_price, org?.currency || "MGA")}</strong>
                     </div>
                     <span className="badge">{archived ? "Archivée" : "Active"}</span>
