@@ -203,9 +203,11 @@ begin
   end;
   if p_status='active' and c.status='suspended' and c.next_billing_date <= current_date then
     if c.billing_timing='arrears' then
-      v_next_billing_date := (date_trunc('month',current_date::timestamp + v_interval))::date;
+      v_next_billing_date := (date_trunc('month',current_date::timestamp + interval '2 months')
+        + (c.billing_day - 1) * interval '1 day' + v_interval)::date;
     else
-      v_next_billing_date := (date_trunc('month',current_date::timestamp + v_interval))::date;
+      v_next_billing_date := (date_trunc('month',current_date::timestamp + interval '1 month')
+        + (c.billing_day - 1) * interval '1 day')::date;
     end if;
   end if;
   update public.recurring_service_contracts set
