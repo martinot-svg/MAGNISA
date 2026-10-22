@@ -169,7 +169,7 @@ begin
       if c.end_date is not null then v_period_end := least(v_period_end, c.end_date); end if;
       if not exists(select 1 from public.invoices i
         where i.organization_id=p_org and i.recurring_contract_id=c.id
-          and i.service_period_start=v_period_start and i.status <> 'cancelled') then
+          and i.service_period_start=v_period_start) then
         v_gross := round(c.quantity*c.unit_price,2);
         v_tax := round(v_gross*c.tax_rate/100,2);
         v_total := v_gross+v_tax;
