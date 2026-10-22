@@ -1,0 +1,1 @@
+UPDATE public.accounting_posting_rules SET debit_account_code='401' WHERE organization_id IS NULL AND operation_type='supplier_payment' AND event_type='settlement' AND operation_key='supplier_payable';
