@@ -37,11 +37,12 @@ export default async function Orders() {
       const activeInvoice = o.invoices?.find((i: any) => i.status !== "cancelled");
       const cancellable = ["draft", "confirmed", "in_progress"].includes(o.status);
       const lines = (o.order_lines || []).filter((l: any) => l.service_id && !activeRecurringLines.has(l.id)).sort((a: any, b: any) => a.sort_order - b.sort_order);
+      const hasRecurring = (o.order_lines || []).some((l: any) => activeRecurringLines.has(l.id));
       const canConfigureRecurring = canManage && ["confirmed", "in_progress", "completed"].includes(o.status) && lines.length > 0;
       return <tr key={o.id}>
         <td><b>{o.number}</b></td><td>{o.customers?.name}</td><td>{o.order_date}</td><td><span className="badge">{o.status}</span></td><td>{money(Number(o.total), c)}</td>
         <td><div className="actions">
-          {activeInvoice ? <Link className="button" href={`/factures/${activeInvoice.id}`}>Voir la facture</Link> : cancellable && <Link className="button" href={`/factures/nouvelle?orderId=${o.id}`}>Facture</Link>}
+          {hasRecurring ? <Link className="button" href="/factures?filtre=draft">Voir les brouillons</Link> : activeInvoice ? <Link className="button" href={`/factures/${activeInvoice.id}`}>Voir la facture</Link> : cancellable && <Link className="button" href={`/factures/nouvelle?orderId=${o.id}`}>Facture</Link>}
           {cancellable && canManage && <form action={cancelOrderAction}><input type="hidden" name="order_id" value={o.id}/><input name="reason" placeholder="Motif d'annulation" minLength={3} required/><button className="button">Annuler</button></form>}
           {canConfigureRecurring && <details><summary className="button">Configurer la récurrence</summary><form action={createRecurringServiceContractAction} className="form" style={{minWidth:280,marginTop:12}}>
             <input type="hidden" name="order_id" value={o.id}/>
