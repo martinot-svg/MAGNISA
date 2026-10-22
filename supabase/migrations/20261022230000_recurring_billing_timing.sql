@@ -122,6 +122,7 @@ begin
         v_next_date := (v_trigger + v_interval)::date;
       end if;
       if c.end_date is not null and v_period_start > c.end_date then exit; end if;
+      if c.end_date is not null then v_period_end := least(v_period_end, c.end_date); end if;
       if not exists(select 1 from public.invoices i
         where i.organization_id=p_org and i.recurring_contract_id=c.id
           and i.service_period_start=v_period_start) then
