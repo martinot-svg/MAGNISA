@@ -10,6 +10,27 @@ const withdrawal:Band[]=[[100,1000,100],[1001,5000,150],[5001,10000,275],[10001,
 const transfer: Array<[number,number,number|null,number|null,number|null]>=[[100,1000,70,200,750],[1001,5000,70,250,750],[5001,10000,150,500,1400],[10001,25000,250,1000,1800],[25001,50000,500,1500,3800],[50001,100000,1000,2000,4800],[100001,250000,1900,3500,10000],[250001,500000,1900,5000,15000],[500001,1000000,3200,8500,20000],[1000001,2000000,3800,12000,30000],[2000001,3000000,5000,14500,40000],[3000001,4000000,6300,19500,50000],[4000001,5000000,7500,24000,60000],[5000001,6000000,9400,null,null],[6000001,7000000,10700,null,null],[7000001,8000000,12500,null,null],[8000001,9000000,14400,null,null],[9000001,10000000,15700,null,null],[10000001,11000000,17500,null,null],[11000001,12000000,18800,null,null],[12000001,13000000,20000,null,null],[13000001,14000000,21300,null,null],[14000001,15000000,23200,null,null],[15000001,16000000,25000,null,null],[16000001,17000000,26300,null,null],[17000001,18000000,28200,null,null],[18000001,19000000,30000,null,null],[19000001,20000000,31300,null,null]];
 const enterprise:Band[]=[[100,1000,50],[1001,5000,50],[5001,10000,100],[10001,25000,200],[25001,50000,400],[50001,100000,800],[100001,250000,1500],[250001,500000,1500],[500001,1000000,2500],[1000001,2000000,3000],[2000001,3000000,4000],[3000001,4000000,5000],[4000001,5000000,6000],[5000001,6000000,7500],[6000001,7000000,8500],[7000001,8000000,10000],[8000001,9000000,11500],[9000001,10000000,12500],[10000001,11000000,14000],[11000001,12000000,15000],[12000001,13000000,16000],[13000001,14000000,17000],[14000001,15000000,18500],[15000001,16000000,20000],[16000001,17000000,21000],[17000001,18000000,22500],[18000001,19000000,24000],[19000001,20000000,25000],[20000001,25000000,30000],[25000001,30000000,35000],[30000001,35000000,40000],[35000001,40000000,45000],[40000001,45000000,50000],[45000001,50000000,54000],[50000001,55000000,58000],[55000001,60000000,62000],[60000001,65000000,66000],[65000001,70000000,70000],[70000001,75000000,74000],[75000001,80000000,79000],[80000001,85000000,84000],[85000001,90000000,89000],[90000001,95000000,94000],[95000001,100000000,99000],[100000001,150000000,130000],[150000001,200000000,155000],[200000001,250000000,180000],[250000001,300000000,205000],[300000001,350000000,230000],[350000001,400000000,255000],[400000001,450000000,280000],[450000001,500000000,300000]];
 const purchase:Band[]=[[100,1000,10],[1001,5000,25],[5001,10000,50],[10001,25000,100],[25001,50000,200],[50001,100000,450],[100001,250000,1000],[250001,500000,1500],[500001,1000000,2000],[1000001,2000000,2500],[2000001,3000000,4000],[3000001,4000000,5000],[4000001,5000000,6000],[5000001,6000000,7500],[6000001,7000000,8500],[7000001,8000000,10000],[8000001,9000000,11500],[9000001,10000000,12500],[10000001,11000000,14000],[11000001,12000000,15000],[12000001,13000000,16000],[13000001,14000000,17000],[14000001,15000000,18500],[15000001,16000000,20000],[16000001,17000000,21000],[17000001,18000000,22500],[18000001,19000000,24000],[19000001,20000000,25000]];
+export type MvolaTransferAccount = { type: string; name: string; category?: string };
+
+/** Classifie un parcours à partir des deux comptes, sans déduire un tarif absent du barème MVola. */
+export function classifyMvolaTransfer(source: MvolaTransferAccount | undefined, destination: MvolaTransferAccount | undefined): MvolaFeeOperation | null {
+ if (!source || !destination) return null;
+ const isMvola = (a: MvolaTransferAccount) => a.type === "mobile_money" && a.name.trim().toLowerCase() === "mvola";
+ const sourceMvola = isMvola(source);
+ const destinationMvola = isMvola(destination);
+ if (sourceMvola && destination.type === "cash") return "withdrawal";
+ if (source.type === "cash" && destinationMvola) return "deposit";
+ if (sourceMvola && destination.type === "bank") return destination.name.toLowerCase().includes("bni") ? "bank_to_bni" : "bank_other";
+ if (source.type === "bank" && destinationMvola) {
+  return source.name.toLowerCase().includes("bni") || (destination.category ?? "personal") === "personal" ? "deposit" : "bank_other";
+ }
+ if (sourceMvola && destination.type === "mobile_money") {
+  if (destinationMvola) return source.category === "business" ? "enterprise_transfer" : "transfer_mvola";
+  return "transfer_other_operator";
+ }
+ return null;
+}
+
 export function estimateMvolaFee(operation:MvolaFeeOperation, amount:number):number|null {
  if(!Number.isInteger(amount)||amount<=0)return null;
  if(operation==="deposit")return 0;
@@ -36,23 +57,20 @@ export function calculateMvolaTransfer(
  // Fixed tier tariffs: find the largest net amount satisfying net + fee(net)=gross.
  // Some amounts at tier boundaries have no exact solution and must not be guessed.
  if(operation==="bank_other")return null;
+ const fixedFees = operation === "withdrawal" ? withdrawal.map(b => b[2])
+  : operation === "enterprise_transfer" ? enterprise.map(b => b[2])
+  : operation === "merchant_payment" ? purchase.map(b => b[2])
+  : operation === "transfer_mvola" ? transfer.map(b => b[2])
+  : operation === "transfer_other_operator" ? transfer.map(b => b[3])
+  : operation === "transfer_non_subscriber" ? transfer.map(b => b[4])
+  : operation === "deposit" || operation === "bank_to_bni" ? [0] : [];
  let best:{fee:number;debit:number;credit:number}|null=null;
- const candidates=new Set<number>();
- // Iteratively approach discontinuous tier boundaries from the gross amount.
- candidates.add(reference);
- let test=reference;
- for(let i=0;i<12;i++){
-  const fee=estimateMvolaFee(operation,test);
-  if(fee===null)break;
-  const net=reference-fee;
-  if(net<=0)break;
-  candidates.add(net);
-  test=net;
- }
- for(const net of candidates){
-  const fee=estimateMvolaFee(operation,net);
-  if(fee!==null&&net>0&&net+fee===reference&&(!best||net>best.credit))
-   best={fee,debit:reference,credit:net};
+ // Search every distinct tariff value, then verify its exact band against the net amount.
+ // This avoids missing a valid solution when iteration oscillates at a tariff boundary.
+ for (const fee of new Set(fixedFees.filter((value): value is number => value !== null))) {
+  const net = reference - fee;
+  if (net <= 0 || estimateMvolaFee(operation, net) !== fee) continue;
+  if (!best || net > best.credit) best = { fee, debit: reference, credit: net };
  }
  return best;
 }

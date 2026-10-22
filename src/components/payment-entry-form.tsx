@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { reserveCashReceiptReference } from "@/server/actions/core";
-import { estimateMvolaFee, MVOLA_RATE_VERSION } from "@/lib/mvola-tariffs";
+import { MVOLA_RATE_VERSION } from "@/lib/mvola-tariffs";
 
 type InvoiceOption = { id: string; number: string; balance_due: number; customerName: string };
 type AccountOption = { id: string; name: string; type: string };
@@ -54,9 +54,9 @@ export function PaymentEntryForm({
   const received = amount.trim() === "" ? NaN : Number(amount);
   const valid = !!invoice && Number.isFinite(received) && received > 0 && received <= due;
   const showMvola = method === "mobile_money" && mobileOperator === "mvola";
-  const estimatedFee = valid && currency === "MGA" ? estimateMvolaFee("withdrawal", received) : null;
   const feeAmount = Number(mvolaFeeAmount);
-  const feeValid = !showMvola || mvolaFeeOption === "without_fees" || (mvolaFeeOption === "with_fees" && mvolaFeeAmount.trim() !== "" && Number.isFinite(feeAmount) && feeAmount > 0 && Math.round(feeAmount * 100) === feeAmount * 100);
+  const feeOptionNeedsAmount = mvolaFeeOption === "with_fees" || mvolaFeeOption === "company_pays";
+  const feeValid = !showMvola || mvolaFeeOption === "without_fees" || (feeOptionNeedsAmount && mvolaFeeAmount.trim() !== "" && Number.isFinite(feeAmount) && feeAmount > 0 && Number.isInteger(feeAmount));
   const selectedAccount = accounts.find((a) => a.id === accountId);
   const operatorMismatch = showMvola && !!selectedAccount && selectedAccount.name.trim().toLowerCase() !== "mvola";
   const remaining = valid ? Math.max(0, Math.round((due - received) * 100) / 100) : null;
@@ -156,27 +156,28 @@ export function PaymentEntryForm({
       )}
       {showMvola && (
         <div className="field">
-          <label htmlFor="payment-mvola-fee-option">Frais de retrait MVola</label>
+          <label htmlFor="payment-mvola-fee-option">Prise en charge des frais MVola</label>
           <select
             id="payment-mvola-fee-option"
             name="mvola_fee_option"
             value={mvolaFeeOption}
-            onChange={(event) => { setMvolaFeeOption(event.target.value); setMvolaFeeAmount(event.target.value === "with_fees" && estimatedFee !== null ? String(estimatedFee) : ""); }}
+            onChange={(event) => { setMvolaFeeOption(event.target.value); setMvolaFeeAmount(""); }}
             required
           >
             <option value="">Sélectionner</option>
-            <option value="with_fees">Avec frais - pris en charge par le client</option>
-            <option value="without_fees">Sans frais - non pris en charge par le client</option>
+            <option value="with_fees">Frais réels remboursés par le client</option>
+            <option value="company_pays">Frais réels à la charge de l’entreprise</option>
+            <option value="without_fees">Aucun frais réel constaté</option>
           </select>
         </div>
       )}
-      {showMvola && mvolaFeeOption === "with_fees" && (
+      {showMvola && feeOptionNeedsAmount && (
         <div className="field">
-          <label htmlFor="payment-mvola-fee-amount">Remboursement des frais réellement reçu (Ar)</label>
-          <input id="payment-mvola-fee-amount" name="mvola_fee_amount" type="number" min="0.01" step="0.01"
+          <label htmlFor="payment-mvola-fee-amount">{mvolaFeeOption === "company_pays" ? "Frais réellement prélevés à la charge de l’entreprise (Ar)" : "Remboursement des frais réellement reçu du client (Ar)"}</label>
+          <input id="payment-mvola-fee-amount" name="mvola_fee_amount" type="number" min="1" step="1"
             value={mvolaFeeAmount} onChange={(event) => setMvolaFeeAmount(event.target.value)} required />
-          {valid && feeValid && <small>Total à vérifier sur le SMS MVola : {formatter.format(received + feeAmount)} (dont {formatter.format(received)} affectés à la facture).</small>}
-          <small>Estimation Cash Point selon le barème MVola du {MVOLA_RATE_VERSION}, à confirmer avec le crédit réellement reçu. Aucun retrait ni frais opérateur n’est comptabilisé ici.</small>
+          {valid && feeValid && <small>{mvolaFeeOption === "company_pays" ? "Le montant sera enregistré comme frais réels de l’entreprise. Vérifie qu’il a effectivement été prélevé sur ce compte." : `Total à vérifier sur le justificatif : ${formatter.format(received + feeAmount)} (dont ${formatter.format(received)} affectés à la facture).`}</small>}
+          <small>Le barème MVola du {MVOLA_RATE_VERSION} ne permet pas de déduire les frais du transfert entrant sans connaître le type de compte de l’émetteur. Saisis uniquement le remboursement réellement reçu et vérifié sur le justificatif. Aucun frais estimé n’est comptabilisé.</small>
         </div>
       )}
       <div className="field">
