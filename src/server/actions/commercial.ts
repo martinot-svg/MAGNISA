@@ -48,6 +48,7 @@ export async function createRecurringServiceContractAction(formData: FormData) {
     start_date: z.string().date(),
     end_date: z.string().date().optional().or(z.literal("")),
     billing_day: z.coerce.number().int().min(1).max(28),
+    billing_timing: z.enum(["advance", "arrears"]),
   }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Vérifie les paramètres de la prestation récurrente.");
   if (parsed.data.end_date && parsed.data.end_date < parsed.data.start_date) {
@@ -73,6 +74,7 @@ export async function createRecurringServiceContractAction(formData: FormData) {
     p_start_date: parsed.data.start_date,
     p_end_date: parsed.data.end_date || null,
     p_billing_day: parsed.data.billing_day,
+    p_billing_timing: parsed.data.billing_timing,
   });
   if (error) throw new Error(error.message);
   revalidatePath("/commandes");
