@@ -234,7 +234,7 @@ begin
     raise exception 'Cette commande possède déjà une facture active. Traite d''abord le brouillon ou la facture existante.';
   end if;
   update public.orders set status='cancelled',
-    notes=case when coalesce(trim(notes),'')='' then 'Annulation: '||trim(p_reason) else notes||E'\\nAnnulation: '||trim(p_reason) end,
+    notes=case when coalesce(trim(notes),'')='' then 'Annulation: '||trim(p_reason) else notes||' | Annulation: '||trim(p_reason) end,
     updated_at=now()
     where id=o.id;
   for c in select * from public.recurring_service_contracts
