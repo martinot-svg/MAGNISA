@@ -6,9 +6,10 @@ import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
 import { ServiceRecurrenceFields } from "@/components/service-recurrence-fields";
 
-export default async function Services({ searchParams }: { searchParams: Promise<{ archive?: string }> }) {
+export default async function Services({ searchParams }: { searchParams: Promise<{ archive?: string; nouveau?: string }> }) {
   const params = await searchParams;
   const archived = params.archive === "1";
+  const showForm = !archived && params.nouveau === "ouvrir";
   const ctx = await requireOrganization();
   await requirePermission(ctx, "sales.view");
   const { supabase, organizationId } = ctx;
@@ -25,11 +26,38 @@ export default async function Services({ searchParams }: { searchParams: Promise
           <p>Modifie le catalogue sans changer les valeurs déjà enregistrées sur les devis et factures existants.</p>
         </div>
         <div className="actions">
+          {!archived && (
+            <Link className="button primary" href={showForm ? "/services" : "/services?nouveau=ouvrir"} aria-expanded={showForm}>
+              {showForm ? "Fermer l’enregistrement" : "Nouvelle prestation"}
+            </Link>
+          )}
           <Link className="button" href={archived ? "/services" : "/services?archive=1"}>
             {archived ? "Voir les prestations actives" : "Voir les prestations archivées"}
           </Link>
         </div>
       </div>
+
+      {showForm && (
+        <section className="card" id="formulaire-nouvelle-prestation" aria-labelledby="service-form-title" style={{ marginBottom: 16 }}>
+          <div className="pageHead">
+            <div>
+              <h2 id="service-form-title">Enregistrer une nouvelle prestation</h2>
+              <p>Renseigne les informations de la prestation, puis enregistre-la au catalogue.</p>
+            </div>
+            <Link className="button" href="/services" aria-label="Fermer le formulaire de nouvelle prestation">Fermer</Link>
+          </div>
+          <form action={createService} className="form">
+            <div className="field"><label>Nom</label><input name="name" required minLength={2} /></div>
+            <div className="field"><label>Description</label><textarea name="description" /></div>
+            <ServiceRecurrenceFields />
+            <div className="field"><label>Unité</label><input name="unit" defaultValue="forfait" required /></div>
+            <div className="field"><label>Prix unitaire</label><input name="unit_price" type="number" min="0" step="0.01" required /></div>
+            <div className="field"><label>Taux de taxe (%)</label><input name="tax_rate" type="number" min="0" max="100" step="0.01" defaultValue="0" required /></div>
+            <button className="button primary" type="submit">Créer la prestation</button>
+          </form>
+        </section>
+      )}
+
       <div className="twoCols">
         <section>
           {!data.length ? (
@@ -59,15 +87,13 @@ export default async function Services({ searchParams }: { searchParams: Promise
                       <div className="field"><label>Unité</label><input name="unit" defaultValue={s.unit} required /></div>
                       <div className="field"><label>Prix unitaire</label><input name="unit_price" type="number" min="0" step="0.01" defaultValue={s.unit_price} required /></div>
                       <div className="field"><label>Taux de taxe (%)</label><input name="tax_rate" type="number" min="0" max="100" step="0.01" defaultValue={s.tax_rate} required /></div>
-                      <button className="button primary">Enregistrer les modifications</button>
+                      <button className="button primary" type="submit">Enregistrer les modifications</button>
                     </form>
                   </details>
                   <form action={setServiceActive} className="actions" style={{ marginTop: 12 }}>
                     <input type="hidden" name="id" value={s.id} />
                     <input type="hidden" name="is_active" value={archived ? "true" : "false"} />
-                    <button className="button" type="submit">
-                      {archived ? "Réactiver" : "Supprimer / archiver"}
-                    </button>
+                    <button className="button" type="submit">{archived ? "Réactiver" : "Supprimer / archiver"}</button>
                   </form>
                   {!archived && <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>L'archivage masque la prestation des nouveaux usages. Les documents historiques sont conservés.</p>}
                 </article>
@@ -75,18 +101,6 @@ export default async function Services({ searchParams }: { searchParams: Promise
             </div>
           )}
         </section>
-        {!archived && <section className="card">
-          <h2>Nouvelle prestation</h2>
-          <form action={createService} className="form">
-            <div className="field"><label>Nom</label><input name="name" required minLength={2} /></div>
-            <div className="field"><label>Description</label><textarea name="description" /></div>
-            <ServiceRecurrenceFields />
-            <div className="field"><label>Unité</label><input name="unit" defaultValue="forfait" required /></div>
-            <div className="field"><label>Prix unitaire</label><input name="unit_price" type="number" min="0" step="0.01" required /></div>
-            <div className="field"><label>Taux de taxe (%)</label><input name="tax_rate" type="number" min="0" max="100" step="0.01" defaultValue="0" required /></div>
-            <button className="button primary">Créer la prestation</button>
-          </form>
-        </section>}
       </div>
     </>
   );
