@@ -45,7 +45,6 @@ export async function createRecurringServiceContractAction(formData: FormData) {
   const parsed = z.object({
     order_id: z.string().uuid(),
     order_line_id: z.string().uuid(),
-    frequency: z.enum(["monthly", "quarterly", "semiannual", "annual"]),
     start_date: z.string().date(),
     end_date: z.string().date().optional().or(z.literal("")),
     billing_day: z.coerce.number().int().min(1).max(28),
@@ -54,11 +53,23 @@ export async function createRecurringServiceContractAction(formData: FormData) {
   if (parsed.data.end_date && parsed.data.end_date < parsed.data.start_date) {
     throw new Error("La date de fin doit être postérieure ou égale à la date de début.");
   }
+  const { data: line, error: lineError } = await ctx.supabase
+    .from("order_lines")
+    .select("id,service_id,services(service_type,recurrence_frequency)")
+    .eq("organization_id", ctx.organizationId)
+    .eq("order_id", parsed.data.order_id)
+    .eq("id", parsed.data.order_line_id)
+    .maybeSingle();
+  if (lineError || !line || !line.service_id) throw new Error("La ligne de commande est introuvable.");
+  const service = Array.isArray(line.services) ? line.services[0] : line.services;
+  if (service?.service_type !== "recurring" || !service?.recurrence_frequency) {
+    throw new Error("Cette ligne n'est pas définie comme une prestation récurrente dans le catalogue Services.");
+  }
   const { error } = await ctx.supabase.rpc("create_recurring_service_contract", {
     p_org: ctx.organizationId,
     p_order: parsed.data.order_id,
     p_order_line: parsed.data.order_line_id,
-    p_frequency: parsed.data.frequency,
+    p_frequency: service.recurrence_frequency,
     p_start_date: parsed.data.start_date,
     p_end_date: parsed.data.end_date || null,
     p_billing_day: parsed.data.billing_day,
