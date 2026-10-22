@@ -82,6 +82,12 @@ const serviceSchema = z.object({
   unit: z.string().trim().min(1),
   unit_price: z.coerce.number().finite().nonnegative(),
   tax_rate: z.coerce.number().finite().nonnegative().max(100),
+  service_type: z.enum(["one_off", "recurring"]).default("one_off"),
+  default_frequency: z.enum(["monthly", "quarterly", "semiannual", "annual"]).optional().or(z.literal("")),
+}).superRefine((value, ctx) => {
+  if (value.service_type === "recurring" && !value.default_frequency) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["default_frequency"], message: "Choisis la fréquence de cette prestation récurrente." });
+  }
 });
 export async function createService(formData: FormData) {
   const ctx = await requireOrganization();
@@ -93,6 +99,7 @@ export async function createService(formData: FormData) {
     ...p.data,
     description: p.data.description || null,
     reference: p.data.reference || null,
+    default_frequency: p.data.service_type === "recurring" ? (p.data.default_frequency || "monthly") : null,
   });
   if (error) throw new Error("Impossible de créer la prestation. Vérifie les champs puis réessaie.");
   revalidatePath("/services");
@@ -111,6 +118,7 @@ export async function updateService(formData: FormData) {
       ...parsed.data,
       description: parsed.data.description || null,
       reference: parsed.data.reference || null,
+      default_frequency: parsed.data.service_type === "recurring" ? (parsed.data.default_frequency || "monthly") : null,
     })
     .eq("organization_id", ctx.organizationId)
     .eq("id", id.data)
