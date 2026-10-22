@@ -3,6 +3,24 @@
 -- which did not bind the employee/payroll run to the draft's organization.
 begin;
 
+alter policy payroll_variable_drafts_select
+  on public.payroll_variable_drafts
+  using (
+    public.has_org_permission(organization_id, 'payroll.view')
+    and exists (
+      select 1
+      from public.employees e
+      where e.id = payroll_variable_drafts.employee_id
+        and e.organization_id = payroll_variable_drafts.organization_id
+    )
+    and exists (
+      select 1
+      from public.payroll_runs r
+      where r.id = payroll_variable_drafts.payroll_run_id
+        and r.organization_id = payroll_variable_drafts.organization_id
+    )
+  );
+
 alter policy payroll_variable_drafts_insert
   on public.payroll_variable_drafts
   with check (
