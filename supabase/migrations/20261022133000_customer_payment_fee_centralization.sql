@@ -1,9 +1,7 @@
 -- Centralize customer payment and Mobile Money fee accounting.
-
 INSERT INTO public.pcg2005_accounts(code,label,kind)
 SELECT '758','Autres produits divers de gestion courante','income'
 WHERE NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code='758');
-
 INSERT INTO public.accounting_posting_rules(operation_type,event_type,operation_key,debit_account_code,credit_account_code,fee_account_code,priority)
 VALUES ('transaction_fee','fee','client_recharged',NULL,'758',NULL,100)
 ON CONFLICT DO NOTHING;
@@ -23,7 +21,7 @@ BEGIN
   v_id:=public.lot1_record_invoice_payment_idempotent(p_org,p_invoice,p_account,p_amount,p_paid_at,p_method,p_reference,p_request_key);
   SELECT * INTO v_payment FROM public.payments WHERE id=v_id AND organization_id=p_org FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Paiement introuvable'; END IF;
-  UPDATE public.payments SET mvola_fee_amount=p_fee_amount,mvola_fee_bearer=p_fee_bearer WHERE id=v_id AND organization_id=p_org;
+  UPDATE public.payments SET mvola_fee_amount=p_fee_amount,mvola_fee_reimbursement=CASE WHEN p_fee_bearer='client_reimbursed' THEN p_fee_amount ELSE 0 END,mvola_fee_bearer=p_fee_bearer WHERE id=v_id AND organization_id=p_org;
   IF p_fee_amount=0 OR p_fee_bearer IN ('none','client_direct') THEN RETURN v_id; END IF;
   v_ref:=coalesce(v_payment.reference,public.next_document_number(p_org,'payment'));
   IF p_fee_bearer='company' THEN
