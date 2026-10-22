@@ -215,3 +215,42 @@ revoke all on function public.generate_due_recurring_invoice_drafts(uuid) from p
 grant execute on function public.create_recurring_service_contract(uuid,uuid,uuid,text,date,date,integer) to authenticated;
 grant execute on function public.set_recurring_service_status(uuid,uuid,text,text) to authenticated;
 grant execute on function public.generate_due_recurring_invoice_drafts(uuid) to authenticated;
+
+
+-- Cancelling an order also terminates its active recurring contracts while preserving their history.
+create or replace function public.cancel_order(p_org uuid, p_order uuid, p_reason text)
+returns void language plpgsql security definer set search_path=public as $$
+declare
+  o public.orders%rowtype;
+  c public.recurring_service_contracts%rowtype;
+begin
+  perform public.assert_org_access(p_org);
+  perform public.assert_org_permission(p_org,'orders.manage');
+  if length(trim(coalesce(p_reason,''))) < 3 then raise exception 'Motif d''annulation obligatoire'; end if;
+  select * into o from public.orders where id=p_order and organization_id=p_org for update;
+  if not found then raise exception 'Commande introuvable'; end if;
+  if o.status not in ('draft','confirmed','in_progress') then raise exception 'Cette commande ne peut plus être annulée'; end if;
+  if exists(select 1 from public.invoices where order_id=o.id and organization_id=p_org and status <> 'cancelled') then
+    raise exception 'Cette commande possède déjà une facture active. Traite d''abord le brouillon ou la facture existante.';
+  end if;
+  update public.orders set status='cancelled',
+    notes=case when coalesce(trim(notes),'')='' then 'Annulation: '||trim(p_reason) else notes||E'\\nAnnulation: '||trim(p_reason) end,
+    updated_at=now()
+    where id=o.id;
+  for c in select * from public.recurring_service_contracts
+    where organization_id=p_org and order_id=o.id and status in ('active','suspended')
+    for update
+  loop
+    update public.recurring_service_contracts set status='cancelled',
+      cancellation_reason='Commande annulée: '||trim(p_reason),
+      cancelled_at=now(),updated_at=now()
+      where id=c.id;
+    perform public.audit_event(p_org,'recurring_service.cancelled','recurring_service',c.id,
+      jsonb_build_object('status',c.status),
+      jsonb_build_object('status','cancelled','reason','Commande annulée: '||trim(p_reason)));
+  end loop;
+  perform public.audit_event(p_org,'order.cancelled','order',o.id,
+    jsonb_build_object('status',o.status),
+    jsonb_build_object('status','cancelled','reason',trim(p_reason)));
+end; $$;
+grant execute on function public.cancel_order(uuid,uuid,text) to authenticated;
