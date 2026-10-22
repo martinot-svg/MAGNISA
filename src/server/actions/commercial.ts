@@ -37,3 +37,57 @@ export async function deleteInvoiceLineAction(formData: FormData) {
   const ctx = await requireOrganization(); await assertPermission(ctx, "invoices.create"); const p = z.object({ line_id: z.string().uuid(), invoice_id: z.string().uuid() }).safeParse(Object.fromEntries(formData));
   if (!p.success) throw new Error("Ligne de facture invalide."); const { error } = await ctx.supabase.rpc("delete_invoice_line", { p_org: ctx.organizationId, p_line: p.data.line_id }); if (error) throw new Error(error.message); revalidatePath(`/factures/${p.data.invoice_id}`);
 }
+
+
+export async function createRecurringServiceContractAction(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "orders.manage");
+  const parsed = z.object({
+    order_id: z.string().uuid(),
+    order_line_id: z.string().uuid(),
+    frequency: z.enum(["monthly", "quarterly", "semiannual", "annual"]),
+    start_date: z.string().date(),
+    end_date: z.string().date().optional().or(z.literal("")),
+    billing_day: z.coerce.number().int().min(1).max(28),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Vérifie les paramètres de la prestation récurrente.");
+  if (parsed.data.end_date && parsed.data.end_date < parsed.data.start_date) {
+    throw new Error("La date de fin doit être postérieure ou égale à la date de début.");
+  }
+  const { error } = await ctx.supabase.rpc("create_recurring_service_contract", {
+    p_org: ctx.organizationId,
+    p_order: parsed.data.order_id,
+    p_order_line: parsed.data.order_line_id,
+    p_frequency: parsed.data.frequency,
+    p_start_date: parsed.data.start_date,
+    p_end_date: parsed.data.end_date || null,
+    p_billing_day: parsed.data.billing_day,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/commandes");
+  revalidatePath("/prestations-recurrentes");
+  redirect("/prestations-recurrentes?created=1");
+}
+
+export async function setRecurringServiceStatusAction(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "orders.manage");
+  const parsed = z.object({
+    contract_id: z.string().uuid(),
+    status: z.enum(["active", "suspended", "cancelled"]),
+    reason: z.string().trim().max(500).optional(),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Demande de modification de la prestation récurrente invalide.");
+  if (parsed.data.status !== "active" && (parsed.data.reason || "").trim().length < 3) {
+    throw new Error("Un motif d'au moins 3 caractères est obligatoire.");
+  }
+  const { error } = await ctx.supabase.rpc("set_recurring_service_status", {
+    p_org: ctx.organizationId,
+    p_contract: parsed.data.contract_id,
+    p_status: parsed.data.status,
+    p_reason: parsed.data.reason || null,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/prestations-recurrentes");
+  revalidatePath("/factures");
+}
