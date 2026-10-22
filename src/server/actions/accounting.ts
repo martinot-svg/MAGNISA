@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
-import { assertExpenseNature, assertFeeBearer, expenseInputSchema, supplierPaymentInputSchema } from "@/server/accounting-validation";
+import { assertExpenseNature, assertFeeBearer, customerPaymentInputSchema, expenseInputSchema, supplierPaymentInputSchema } from "@/server/accounting-validation";
 
 export async function createExpenseV2(formData: FormData) {
   const ctx = await requireOrganization();
@@ -37,4 +37,27 @@ export async function paySupplierV2(formData: FormData) {
   });
   if (error) throw new Error(error.message);
   for (const path of ["/fournisseurs", "/dettes", "/tresorerie", "/comptabilite", "/dashboard"]) revalidatePath(path);
+}
+
+export async function recordCustomerPaymentV2(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "payments.record");
+  const p = customerPaymentInputSchema.safeParse(Object.fromEntries(formData));
+  if (!p.success) throw new Error("Paiement invalide.");
+  const isMvola = p.data.method === "mobile_money" && p.data.mobile_operator === "mvola";
+  if (isMvola && !p.data.mvola_fee_option) throw new Error("Indique si le client prend en charge les frais MVola.");
+  const fee = p.data.mvola_fee_option === "with_fees" ? Number(p.data.mvola_fee_amount || 0) : 0;
+  if (isMvola && p.data.mvola_fee_option === "with_fees" && fee <= 0) throw new Error("Indique le remboursement des frais réellement reçu sur MVola.");
+  if (isMvola) {
+    const { data: wallet, error: walletError } = await ctx.supabase.from("financial_accounts").select("id,name,type,is_active").eq("organization_id", ctx.organizationId).eq("id", p.data.financial_account_id).maybeSingle();
+    if (walletError) throw new Error(walletError.message);
+    if (!wallet || !wallet.is_active || wallet.type !== "mobile_money" || wallet.name.trim().toLowerCase() !== "mvola") throw new Error("Sélectionne un compte MVola actif.");
+  }
+  const { error } = await ctx.supabase.rpc("record_customer_payment_with_fee_v2", {
+    p_org: ctx.organizationId, p_invoice: p.data.invoice_id, p_account: p.data.financial_account_id, p_amount: p.data.amount,
+    p_paid_at: p.data.paid_at, p_method: p.data.method, p_reference: p.data.reference || null, p_request_key: p.data.idempotency_key,
+    p_fee_amount: fee, p_fee_bearer: fee > 0 ? "client_reimbursed" : "none",
+  });
+  if (error) throw new Error(error.message);
+  for (const path of ["/factures", "/paiements", "/tresorerie", "/comptabilite", "/dashboard"]) revalidatePath(path);
 }
