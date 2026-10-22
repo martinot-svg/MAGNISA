@@ -130,8 +130,6 @@ grant execute on function private.process_due_recurring_invoice_drafts(uuid,uuid
 grant execute on function private.generate_all_due_recurring_invoice_drafts() to postgres;
 
 create extension if not exists pg_cron with schema pg_catalog;
-grant usage on schema cron to postgres;
-grant all privileges on all tables in schema cron to postgres;
 
 do $$
 declare j record;
