@@ -6,10 +6,13 @@ import { money } from "@/lib/money";
 import { setRecurringServiceStatusAction } from "@/server/actions/commercial";
 
 const frequencyLabel: Record<string, string> = {
+  daily: "Quotidienne",
+  weekly: "Hebdomadaire",
   monthly: "Mensuelle",
   quarterly: "Trimestrielle",
   semiannual: "Semestrielle",
   annual: "Annuelle",
+  custom: "Personnalisée",
 };
 const statusLabel: Record<string, string> = {
   active: "Active",
@@ -25,7 +28,7 @@ export default async function RecurringServices() {
   const { supabase, organizationId } = ctx;
   const [{ data: contracts = [] }, { data: org }] = await Promise.all([
     supabase.from("recurring_service_contracts")
-      .select("id,order_id,customer_id,description,quantity,unit,unit_price,tax_rate,frequency,start_date,end_date,billing_day,next_billing_date,status,suspension_reason,cancellation_reason,customers(name),orders(number),services(name)")
+      .select("id,order_id,customer_id,description,quantity,unit,unit_price,tax_rate,frequency,custom_interval_days,start_date,end_date,billing_day,next_billing_date,status,suspension_reason,cancellation_reason,customers(name),orders(number),services(name)")
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false }),
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
@@ -49,7 +52,7 @@ export default async function RecurringServices() {
         {contracts.map((c: any) => <tr key={c.id}>
           <td><strong>{c.description || c.services?.name}</strong><br/><span className="muted">{c.customers?.name || "Client"}</span></td>
           <td><Link href="/commandes">{c.orders?.number || "Commande"}</Link></td>
-          <td>{frequencyLabel[c.frequency] || c.frequency}</td>
+          <td>{c.frequency === "custom" ? `Tous les ${c.custom_interval_days} jours` : frequencyLabel[c.frequency] || c.frequency}</td>
           <td>{c.start_date} au {c.end_date || "sans date de fin"}</td>
           <td>{c.status === "active" ? c.next_billing_date : "-"}</td>
           <td><span className="badge">{statusLabel[c.status] || c.status}</span>{c.suspension_reason && c.status === "suspended" && <p className="muted">{c.suspension_reason}</p>}{c.cancellation_reason && <p className="muted">{c.cancellation_reason}</p>}</td>
