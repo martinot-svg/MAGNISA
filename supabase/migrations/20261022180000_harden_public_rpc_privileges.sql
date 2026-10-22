@@ -13,7 +13,13 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
 ALTER FUNCTION public.magnisa_journal_balance_guard()
   SET search_path = public, pg_temp;
 
--- This archive is private and has no row policies by design. Remove direct
--- API grants; privileged server-side workflows can continue using service_role.
-REVOKE ALL PRIVILEGES ON TABLE public.payroll_legal_documents
-  FROM anon, authenticated;
+-- The legal archive exists in production but not in every reconstructed schema.
+-- When present, it is private and accessible only through privileged workflows.
+DO $migration$
+BEGIN
+  IF to_regclass('public.payroll_legal_documents') IS NOT NULL THEN
+    REVOKE ALL PRIVILEGES ON TABLE public.payroll_legal_documents
+      FROM anon, authenticated;
+  END IF;
+END
+$migration$;
