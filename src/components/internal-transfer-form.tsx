@@ -1,32 +1,15 @@
 "use client";
 import { useMemo, useState } from "react";
-import { calculateMvolaTransfer, MVOLA_RATE_VERSION, type MvolaFeeOperation } from "@/lib/mvola-tariffs";
+import { calculateMvolaTransfer, classifyMvolaTransfer, MVOLA_RATE_VERSION } from "@/lib/mvola-tariffs";
 
 type Account = {id:string;name:string;type:string;details?:unknown};
 type Props={accounts:Account[];requestKey:string;action:(fd:FormData)=>void|Promise<void>};
-function category(account:Account|undefined) { const d=account?.details as Record<string,unknown>|undefined;return String(d?.account_type??"personal"); }
-function tariff(source:Account|undefined,dest:Account|undefined):MvolaFeeOperation|null {
- if(!source||!dest||source.id===dest.id)return null;
- const sm=source.type==="mobile_money"&&source.name.toLowerCase()==="mvola";
- const dm=dest.type==="mobile_money"&&dest.name.toLowerCase()==="mvola";
- if(sm&&dest.type==="cash")return "withdrawal";
- if(source.type==="cash"&&dm)return "deposit";
- if(sm&&dest.type==="bank")return dest.name.toLowerCase().includes("bni")?"bank_to_bni":"bank_other";
- if(source.type==="bank"&&dm){
-   if(source.name.toLowerCase().includes("bni")||category(dest)==="personal")return "deposit";
-   return "bank_other";
- }
- if(sm&&dest.type==="mobile_money")return category(source)==="business"?"enterprise_transfer":"transfer_other_operator";
- if(source.type==="mobile_money"&&dm)return null; // source provider rate not in MVola catalogue
- if(sm&&dm)return category(source)==="business"?"enterprise_transfer":"transfer_mvola";
- return null;
-}
 export function InternalTransferForm({accounts,requestKey,action}:Props){
  const [source,setSource]=useState("");const [destination,setDestination]=useState("");
  const [mode,setMode]=useState<"included"|"added">("included");const [amount,setAmount]=useState("");
  const [date,setDate]=useState("");const [reference,setReference]=useState("");
  const src=accounts.find(a=>a.id===source),dst=accounts.find(a=>a.id===destination);
- const operation=tariff(src,dst);const n=Number(amount);
+ const operation=classifyMvolaTransfer(src ? {type:src.type,name:src.name,category:String((src.details as Record<string,unknown>|undefined)?.account_type??"personal")} : undefined,dst ? {type:dst.type,name:dst.name,category:String((dst.details as Record<string,unknown>|undefined)?.account_type??"personal")} : undefined);const n=Number(amount);
  const calculated=useMemo(()=>operation?calculateMvolaTransfer(operation,n,mode):null,[n,mode,operation]);
  const supported=!!calculated&&!!src&&!!dst&&src.id!==dst.id;
  const fmt=(value:number)=>new Intl.NumberFormat("fr-FR").format(value)+" Ar";
