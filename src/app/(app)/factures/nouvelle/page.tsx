@@ -1,4 +1,31 @@
 import { requirePermission } from "@/lib/permissions";
-import { redirect } from "next/navigation";import { requireOrganization } from "@/lib/current-org";
-async function createInvoice(formData:FormData){"use server";const {supabase,organizationId}=await requireOrganization();const {data,error}=await supabase.rpc("create_direct_invoice_from_service",{p_org:organizationId,p_customer:String(formData.get("customer_id")),p_service:String(formData.get("service_id")),p_quantity:Number(formData.get("quantity")),p_discount_pct:Number(formData.get("discount_pct")||0),p_due_date:String(formData.get("due_date"))});if(error)throw new Error(error.message);redirect(`/factures/${data}`)}
-export default async function DirectInvoice(){const ctx=await requireOrganization();await requirePermission(ctx,"billing.view");const {supabase,organizationId}=ctx;const [{data:customers=[]},{data:services=[]}]=await Promise.all([supabase.from("customers").select("id,name").eq("organization_id",organizationId).eq("is_active",true),supabase.from("services").select("id,name").eq("organization_id",organizationId).eq("is_active",true)]);return <><div className="pageHead"><div><h1>Facture directe</h1><p>À utiliser lorsqu'aucun devis n'est nécessaire.</p></div></div><div className="card"><form action={createInvoice} className="form"><div className="field"><label>Client</label><select name="customer_id" required><option value="">Sélectionner</option>{customers.map((c:any)=><option value={c.id} key={c.id}>{c.name}</option>)}</select></div><div className="field"><label>Prestation</label><select name="service_id" required><option value="">Sélectionner</option>{services.map((s:any)=><option value={s.id} key={s.id}>{s.name}</option>)}</select></div><div className="grid2"><div className="field"><label>Quantité</label><input name="quantity" type="number" min="0.01" step="0.01" defaultValue="1" required/></div><div className="field"><label>Remise (%)</label><input name="discount_pct" type="number" min="0" max="100" step="0.01" defaultValue="0"/></div></div><div className="field"><label>Échéance</label><input name="due_date" type="date" required/></div><button className="button primary" disabled={!customers.length||!services.length}>Créer la facture brouillon</button></form></div></>}
+import { requireOrganization } from "@/lib/current-org";
+import { InvoiceBuilder } from "@/components/invoice-builder";
+import { createInvoiceDraft } from "@/server/actions/commercial";
+
+export default async function NewInvoice({ searchParams }: { searchParams: Promise<{ orderId?: string }> }) {
+  const params = await searchParams;
+  const ctx = await requireOrganization(); await requirePermission(ctx, "billing.view");
+  const { supabase, organizationId } = ctx;
+  const [{ data: customers = [] }, { data: services = [] }, { data: settings }] = await Promise.all([
+    supabase.from("customers").select("id,name").eq("organization_id", organizationId).eq("is_active", true).order("name"),
+    supabase.from("services").select("id,name,unit_price,tax_rate").eq("organization_id", organizationId).eq("is_active", true).order("name"),
+    supabase.from("company_settings").select("default_payment_days").eq("organization_id", organizationId).maybeSingle(),
+  ]);
+  const orderId = params.orderId?.trim() || null;
+  let initialCustomerId: string | undefined;
+  let initialLines: { service_id: string; quantity: number; discount_pct: number }[] = [];
+  let orderNumber = "";
+  if (orderId) {
+    const [{ data: order }, { data: orderLines = [] }] = await Promise.all([
+      supabase.from("orders").select("id,number,customer_id,status").eq("organization_id", organizationId).eq("id", orderId).maybeSingle(),
+      supabase.from("order_lines").select("service_id,quantity").eq("organization_id", organizationId).eq("order_id", orderId).order("sort_order"),
+    ]);
+    if (order && ["confirmed", "in_progress", "completed"].includes(order.status)) {
+      initialCustomerId = order.customer_id; orderNumber = order.number;
+      initialLines = orderLines.filter((l:any)=>l.service_id).map((l:any)=>({service_id:l.service_id,quantity:Number(l.quantity),discount_pct:0}));
+    }
+  }
+  const dueDate = new Date(Date.now() + Number(settings?.default_payment_days || 30) * 86400000).toISOString().slice(0,10);
+  return <><div className="pageHead"><div><p className="eyebrow">Facturation</p><h1>Créer une facture</h1><p>{orderNumber ? `À partir de la commande ${orderNumber}. Les prestations sont préremplies et restent modifiables avant l'enregistrement du brouillon.` : "Construis la facture avec une ou plusieurs prestations avant de créer le brouillon."}</p></div></div><div className="card"><InvoiceBuilder services={services} customers={customers} initialLines={initialLines} initialCustomerId={initialCustomerId} dueDate={dueDate} orderId={orderId} action={createInvoiceDraft}/></div></>;
+}
