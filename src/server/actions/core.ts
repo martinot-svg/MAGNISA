@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { calculateMvolaTransfer, type MvolaFeeOperation } from "@/lib/mvola-tariffs";
+import { calculateMvolaTransfer, classifyMvolaTransfer } from "@/lib/mvola-tariffs";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
 
@@ -283,14 +283,11 @@ export async function recordInternalTransferDebit(fd:FormData){
  if(accountsError)throw new Error(accountsError.message);
  const source=accounts?.find(a=>a.id===v.source),dest=accounts?.find(a=>a.id===v.destination);
  if(!source||!dest||!source.is_active||!dest.is_active||source.id===dest.id)throw new Error("Comptes source et destinataire invalides.");
- const isMvola=(a:typeof source)=>a?.type==="mobile_money"&&a.name.trim().toLowerCase()==="mvola";
  const accountCategory=(a:typeof source)=>String((a?.details as Record<string,unknown>|null)?.account_type??"personal");
- let operation:MvolaFeeOperation|null=null;
- if(isMvola(source)&&dest.type==="cash")operation="withdrawal";
- else if(source.type==="cash"&&isMvola(dest))operation="deposit";
- else if(isMvola(source)&&dest.type==="bank")operation=dest.name.toLowerCase().includes("bni")?"bank_to_bni":"bank_other";
- else if(source.type==="bank"&&isMvola(dest))operation=source.name.toLowerCase().includes("bni")||accountCategory(dest)==="personal"?"deposit":"bank_other";
- else if(isMvola(source)&&dest.type==="mobile_money")operation=accountCategory(source)==="business"?"enterprise_transfer":"transfer_other_operator";
+ const operation=classifyMvolaTransfer(
+  source ? {type:source.type,name:source.name,category:accountCategory(source)} : undefined,
+  dest ? {type:dest.type,name:dest.name,category:accountCategory(dest)} : undefined
+ );
  if(!operation)throw new Error("Le tarif officiel de ce parcours n'est pas encore disponible.");
  const calculated=calculateMvolaTransfer(operation,v.reference_amount,v.fee_mode);
  if(!calculated)throw new Error("Calcul automatique indisponible pour cette tranche ou ce mode. Vérifie le tarif.");
