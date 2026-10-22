@@ -23,6 +23,7 @@ create table if not exists public.recurring_service_contracts (
   next_billing_date date not null,
   status text not null default 'active' check (status in ('active','suspended','cancelled','ended')),
   suspension_reason text,
+  suspended_at timestamptz,
   cancellation_reason text,
   cancelled_at timestamptz,
   created_by uuid references auth.users(id) on delete set null,
@@ -101,7 +102,7 @@ create or replace function public.set_recurring_service_status(
   p_org uuid, p_contract uuid, p_status text, p_reason text default null
 ) returns void
 language plpgsql security definer set search_path=public as $$
-declare c public.recurring_service_contracts%rowtype;
+declare c public.recurring_service_contracts%rowtype; v_next_billing_date date;
 begin
   perform public.assert_org_access(p_org);
   perform public.assert_org_permission(p_org, 'orders.manage');
@@ -113,9 +114,20 @@ begin
     where id=p_contract and organization_id=p_org for update;
   if not found then raise exception 'Prestation récurrente introuvable'; end if;
   if c.status in ('cancelled','ended') then raise exception 'Cette prestation récurrente est clôturée'; end if;
+  v_next_billing_date := c.next_billing_date;
+  if p_status='active' and c.status='suspended' and c.next_billing_date <= current_date then
+    v_next_billing_date := (date_trunc('month', current_date::timestamp + case c.frequency
+      when 'monthly' then interval '1 month'
+      when 'quarterly' then interval '3 months'
+      when 'semiannual' then interval '6 months'
+      when 'annual' then interval '1 year'
+    end) + (c.billing_day - 1) * interval '1 day')::date;
+  end if;
   update public.recurring_service_contracts set
-    status=p_status,
+    status=case when p_status='active' and end_date is not null and v_next_billing_date > end_date then 'ended' else p_status end,
+    next_billing_date=v_next_billing_date,
     suspension_reason=case when p_status='suspended' then trim(p_reason) when p_status='active' then null else suspension_reason end,
+    suspended_at=case when p_status='suspended' then now() when p_status='active' then null else suspended_at end,
     cancellation_reason=case when p_status='cancelled' then trim(p_reason) else cancellation_reason end,
     cancelled_at=case when p_status='cancelled' then now() else cancelled_at end,
     updated_at=now()
