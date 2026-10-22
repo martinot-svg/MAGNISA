@@ -14,6 +14,9 @@ declare
   v_interval interval;
   v_invoice uuid;
   v_number text;
+  v_prefix text;
+  v_sequence bigint;
+  v_padding integer;
   v_gross numeric;
   v_tax numeric;
   v_total numeric;
@@ -49,7 +52,17 @@ begin
         v_gross := round(c.quantity*c.unit_price,2);
         v_tax := round(v_gross*c.tax_rate/100,2);
         v_total := v_gross+v_tax;
-        v_number := public.next_document_number(p_org,'invoice');
+        -- Allocate the number inside this private scheduler function because there is no user JWT.
+        select prefix,next_value,padding into v_prefix,v_sequence,v_padding
+          from public.number_sequences
+          where organization_id=p_org and document_type='invoice'
+          for update;
+        if not found then
+          raise exception 'Séquence de numérotation non configurée pour invoice';
+        end if;
+        update public.number_sequences set next_value=v_sequence+1,updated_at=now()
+          where organization_id=p_org and document_type='invoice';
+        v_number := v_prefix || lpad(v_sequence::text,v_padding,'0');
         v_desc := c.description || ' - période du ' || to_char(v_period_start,'DD/MM/YYYY')
           || ' au ' || to_char(v_period_end,'DD/MM/YYYY');
         insert into public.invoices(
