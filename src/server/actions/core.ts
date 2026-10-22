@@ -78,10 +78,15 @@ export async function setCustomerActive(formData: FormData) {
 const serviceSchema = z.object({
   name: z.string().trim().min(2),
   description: z.string().trim().optional(),
-  reference: z.string().trim().optional(),
   unit: z.string().trim().min(1),
   unit_price: z.coerce.number().finite().nonnegative(),
   tax_rate: z.coerce.number().finite().nonnegative().max(100),
+  service_type: z.enum(["one_off", "recurring"]).default("one_off"),
+  recurrence_frequency: z.enum(["monthly", "quarterly", "semiannual", "annual"]).optional().or(z.literal("")),
+}).superRefine((value, ctx) => {
+  if (value.service_type === "recurring" && !value.recurrence_frequency) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["recurrence_frequency"], message: "Choisis la fréquence de la prestation récurrente." });
+  }
 });
 export async function createService(formData: FormData) {
   const ctx = await requireOrganization();
@@ -92,7 +97,7 @@ export async function createService(formData: FormData) {
     organization_id: ctx.organizationId,
     ...p.data,
     description: p.data.description || null,
-    reference: p.data.reference || null,
+    recurrence_frequency: p.data.service_type === "recurring" ? (p.data.recurrence_frequency || "monthly") : null,
   });
   if (error) throw new Error("Impossible de créer la prestation. Vérifie les champs puis réessaie.");
   revalidatePath("/services");
@@ -110,7 +115,7 @@ export async function updateService(formData: FormData) {
     .update({
       ...parsed.data,
       description: parsed.data.description || null,
-      reference: parsed.data.reference || null,
+      recurrence_frequency: parsed.data.service_type === "recurring" ? (parsed.data.recurrence_frequency || "monthly") : null,
     })
     .eq("organization_id", ctx.organizationId)
     .eq("id", id.data)

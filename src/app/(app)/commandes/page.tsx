@@ -23,7 +23,7 @@ export default async function Orders() {
   const [{ data: org }, { data: quotes = [] }, { data: orders = [] }, { data: recurringLines = [] }] = await Promise.all([
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
     supabase.from("quotes").select("id,number,total,status,customers(name)").eq("organization_id", organizationId).eq("status", "accepted").order("created_at", { ascending: false }),
-    supabase.from("orders").select("*,customers(name),invoices(id,number,status),order_lines(id,service_id,description,quantity,unit,unit_price,tax_rate,sort_order)").eq("organization_id", organizationId).order("created_at", { ascending: false }),
+    supabase.from("orders").select("*,customers(name),invoices(id,number,status),order_lines(id,service_id,description,quantity,unit,unit_price,tax_rate,sort_order,services(name,service_type,recurrence_frequency))").eq("organization_id", organizationId).order("created_at", { ascending: false }),
     supabase.from("recurring_service_contracts").select("order_line_id,status").eq("organization_id", organizationId).in("status", ["active", "suspended"]),
   ]);
   const c = org?.currency || "MGA";
@@ -36,7 +36,7 @@ export default async function Orders() {
     <div className="section">{orders.length === 0 ? <EmptyState title="Aucune commande" description="Accepte un devis puis transforme-le en commande sans ressaisir les lignes."/> : <div className="tableWrap"><table><thead><tr><th>Commande</th><th>Client</th><th>Date</th><th>Statut</th><th>Total</th><th>Actions</th></tr></thead><tbody>{orders.map((o: any) => {
       const activeInvoice = o.invoices?.find((i: any) => i.status !== "cancelled");
       const cancellable = ["draft", "confirmed", "in_progress"].includes(o.status);
-      const lines = (o.order_lines || []).filter((l: any) => l.service_id && !activeRecurringLines.has(l.id)).sort((a: any, b: any) => a.sort_order - b.sort_order);
+      const lines = (o.order_lines || []).filter((l: any) => l.service_id && !activeRecurringLines.has(l.id) && (Array.isArray(l.services) ? l.services[0]?.service_type : l.services?.service_type) === "recurring").sort((a: any, b: any) => a.sort_order - b.sort_order);
       const hasRecurring = (o.order_lines || []).some((l: any) => activeRecurringLines.has(l.id));
       const canConfigureRecurring = canManage && ["confirmed", "in_progress", "completed"].includes(o.status) && lines.length > 0;
       return <tr key={o.id}>
@@ -46,8 +46,7 @@ export default async function Orders() {
           {cancellable && canManage && <form action={cancelOrderAction}><input type="hidden" name="order_id" value={o.id}/><input name="reason" placeholder="Motif d'annulation" minLength={3} required/><button className="button">Annuler</button></form>}
           {canConfigureRecurring && <details><summary className="button">Configurer la récurrence</summary><form action={createRecurringServiceContractAction} className="form" style={{minWidth:280,marginTop:12}}>
             <input type="hidden" name="order_id" value={o.id}/>
-            <div className="field"><label>Ligne de commande</label><select name="order_line_id" required defaultValue=""><option value="" disabled>Choisir une prestation</option>{lines.map((l: any) => <option key={l.id} value={l.id}>{l.description} - {money(Number(l.unit_price) * Number(l.quantity) * (1 + Number(l.tax_rate) / 100), c)}</option>)}</select></div>
-            <div className="field"><label>Fréquence</label><select name="frequency" defaultValue="monthly" required><option value="monthly">Mensuelle</option><option value="quarterly">Trimestrielle</option><option value="semiannual">Semestrielle</option><option value="annual">Annuelle</option></select></div>
+            <div className="field"><label>Ligne de commande</label><select name="order_line_id" required defaultValue=""><option value="" disabled>Choisir une prestation récurrente</option>{lines.map((l: any) => { const service = Array.isArray(l.services) ? l.services[0] : l.services; const frequency: Record<string, string> = { monthly: "Mensuelle", quarterly: "Trimestrielle", semiannual: "Semestrielle", annual: "Annuelle" }; return <option key={l.id} value={l.id}>{l.description} - {frequency[service?.recurrence_frequency] || "Récurrence"} - {money(Number(l.unit_price) * Number(l.quantity) * (1 + Number(l.tax_rate) / 100), c)}</option>; })}</select><small>Le type et la fréquence sont repris automatiquement du catalogue Services.</small></div>
             <div className="field"><label>Date de début</label><input type="date" name="start_date" defaultValue={today} required/></div>
             <div className="field"><label>Date de fin (facultative)</label><input type="date" name="end_date" min={today}/></div>
             <div className="field"><label>Jour de facturation (1 à 28)</label><input type="number" name="billing_day" min="1" max="28" defaultValue={billingDay} required/></div>
