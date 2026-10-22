@@ -1,6 +1,4 @@
 -- MAGNISA advances and reimbursements
--- Uses PCG 2005 third-party accounts from the active chart. 409 is the standard supplier-debtor advance account; 419 is the customer-creditor advance account.
-
 INSERT INTO public.pcg2005_accounts(code,label,kind)
 SELECT '409','Fournisseurs débiteurs : avances et acomptes, RRR à obtenir, autres créances','asset'
 WHERE NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code='409');
@@ -21,8 +19,7 @@ CREATE OR REPLACE FUNCTION public.magnisa_record_advance_idempotent(
 ) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE v_digest text; v_old public.lot1_financial_idempotency%rowtype; v_id uuid; v_a public.financial_accounts%rowtype; v_debit text; v_credit text; v_lines jsonb; v_ref text;
 BEGIN
-  PERFORM public.assert_org_access(p_org);
-  PERFORM public.assert_org_permission(p_org,CASE WHEN p_direction='supplier' THEN 'suppliers.manage' ELSE 'payments.record' END);
+  PERFORM public.assert_org_access(p_org); PERFORM public.assert_org_permission(p_org,CASE WHEN p_direction='supplier' THEN 'suppliers.manage' ELSE 'payments.record' END);
   IF p_direction NOT IN ('supplier','customer') OR p_amount<=0 OR p_request_key IS NULL THEN RAISE EXCEPTION 'Avance invalide'; END IF;
   IF p_third_party_id IS NULL OR p_account IS NULL OR nullif(btrim(p_reference),'') IS NULL THEN RAISE EXCEPTION 'Tiers, compte de trésorerie et référence obligatoires'; END IF;
   PERFORM public.magnisa_assert_accounting_period_open(p_org,p_date);
@@ -37,16 +34,16 @@ BEGIN
     v_debit:=public.magnisa_resolve_pcg_account(p_org,'advance','recognition','supplier_advance','debit');
     IF v_a.balance<p_amount THEN RAISE EXCEPTION 'Solde insuffisant'; END IF;
     UPDATE public.financial_accounts SET balance=balance-p_amount,updated_at=now() WHERE id=v_a.id;
-    INSERT INTO public.financial_transactions(organization_id,financial_account_id,transaction_date,amount,kind,source_type,source_id,reference,description) VALUES(p_org,v_a.id,p_date,-p_amount,'advance','supplier_advance',p_third_party_id,btrim(p_reference),'Avance fournisseur');
+    INSERT INTO public.financial_transactions(organization_id,financial_account_id,transaction_date,amount,kind,source_type,source_id,reference,description) VALUES(p_org,v_a.id,p_date,-p_amount,'advance','supplier_advance',p_request_key,btrim(p_reference),'Avance fournisseur');
     v_lines:=jsonb_build_array(jsonb_build_object('account_kind','pcg','pcg_code',v_debit,'debit',p_amount,'credit',0,'supplier_id',p_third_party_id),jsonb_build_object('account_kind','treasury','financial_account_id',v_a.id::text,'account_label',v_a.name,'debit',0,'credit',p_amount));
   ELSE
     v_credit:=public.magnisa_resolve_pcg_account(p_org,'advance','recognition','customer_advance','credit');
     UPDATE public.financial_accounts SET balance=balance+p_amount,updated_at=now() WHERE id=v_a.id;
-    INSERT INTO public.financial_transactions(organization_id,financial_account_id,transaction_date,amount,kind,source_type,source_id,reference,description) VALUES(p_org,v_a.id,p_date,p_amount,'advance','customer_advance',p_third_party_id,btrim(p_reference),'Avance client');
+    INSERT INTO public.financial_transactions(organization_id,financial_account_id,transaction_date,amount,kind,source_type,source_id,reference,description) VALUES(p_org,v_a.id,p_date,p_amount,'advance','customer_advance',p_request_key,btrim(p_reference),'Avance client');
     v_lines:=jsonb_build_array(jsonb_build_object('account_kind','treasury','financial_account_id',v_a.id::text,'account_label',v_a.name,'debit',p_amount,'credit',0,'customer_id',p_third_party_id),jsonb_build_object('account_kind','pcg','pcg_code',v_credit,'debit',0,'credit',p_amount,'customer_id',p_third_party_id));
   END IF;
   v_ref:=btrim(p_reference);
-  v_id:=public.magnisa_post_journal(p_org,p_date,v_ref,CASE WHEN p_direction='supplier' THEN 'Avance fournisseur' ELSE 'Avance client' END,'advance',p_third_party_id,v_lines);
+  v_id:=public.magnisa_post_journal(p_org,p_date,v_ref,CASE WHEN p_direction='supplier' THEN 'Avance fournisseur' ELSE 'Avance client' END,'advance',p_request_key,v_lines);
   UPDATE public.lot1_financial_idempotency SET result_id=v_id WHERE organization_id=p_org AND request_key=p_request_key;
   RETURN v_id;
 END; $$;
@@ -72,9 +69,9 @@ BEGIN
   v_debit:=public.magnisa_resolve_pcg_account(p_org,'expense','settlement','reimbursement','debit');
   UPDATE public.financial_accounts SET balance=balance-p_amount,updated_at=now() WHERE id=v_a.id;
   v_ref:=btrim(p_reference);
-  INSERT INTO public.financial_transactions(organization_id,financial_account_id,transaction_date,amount,kind,source_type,source_id,reference,description) VALUES(p_org,v_a.id,p_date,-p_amount,'reimbursement','expense_reimbursement',p_expense,v_ref,'Remboursement d''une dépense enregistrée');
+  INSERT INTO public.financial_transactions(organization_id,financial_account_id,transaction_date,amount,kind,source_type,source_id,reference,description) VALUES(p_org,v_a.id,p_date,-p_amount,'reimbursement','expense_reimbursement',p_request_key,v_ref,'Remboursement d''une dépense enregistrée');
   v_lines:=jsonb_build_array(jsonb_build_object('account_kind','pcg','pcg_code',v_debit,'debit',p_amount,'credit',0),jsonb_build_object('account_kind','treasury','financial_account_id',v_a.id::text,'account_label',v_a.name,'debit',0,'credit',p_amount));
-  v_id:=public.magnisa_post_journal(p_org,p_date,v_ref,'Remboursement de dépense','expense_reimbursement',p_expense,v_lines);
+  v_id:=public.magnisa_post_journal(p_org,p_date,v_ref,'Remboursement de dépense','expense_reimbursement',p_request_key,v_lines);
   UPDATE public.lot1_financial_idempotency SET result_id=v_id WHERE organization_id=p_org AND request_key=p_request_key;
   RETURN v_id;
 END; $$;
