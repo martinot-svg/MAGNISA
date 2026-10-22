@@ -23,7 +23,7 @@ export default async function Orders() {
   const [{ data: org }, { data: quotes = [] }, { data: orders = [] }, { data: recurringLines = [] }] = await Promise.all([
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
     supabase.from("quotes").select("id,number,total,status,customers(name)").eq("organization_id", organizationId).eq("status", "accepted").order("created_at", { ascending: false }),
-    supabase.from("orders").select("*,customers(name),invoices(id,number,status),order_lines(id,service_id,description,quantity,unit,unit_price,tax_rate,sort_order,services(name,service_type,recurrence_frequency))").eq("organization_id", organizationId).order("created_at", { ascending: false }),
+    supabase.from("orders").select("*,customers(name),invoices(id,number,status),order_lines(id,service_id,description,quantity,unit,unit_price,tax_rate,sort_order,services(name,service_type,recurrence_frequency,custom_interval_days))").eq("organization_id", organizationId).order("created_at", { ascending: false }),
     supabase.from("recurring_service_contracts").select("order_line_id,status").eq("organization_id", organizationId).in("status", ["active", "suspended"]),
   ]);
   const c = org?.currency || "MGA";
