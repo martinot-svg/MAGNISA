@@ -5,13 +5,7 @@ import {requireOrganization} from "@/lib/current-org";
 import {assertPermission,requirePermission} from "@/lib/permissions";
 import {PayrollRulePreview} from "@/components/payroll-rule-preview";
 import {smieDeadlines} from "@/lib/payroll/smie-calendar";
-
-// Barème national IRSA - droit commun, loi n°2025-021, art. 01.03.16.
-// Conservé dans la configuration en attente de contrôle, sans activation automatique.
-const IRSA_2026=[{up_to:350000,rate:0},{up_to:400000,rate:0.05},{up_to:500000,rate:0.10},{up_to:600000,rate:0.15},{up_to:4000000,rate:0.20},{up_to:null,rate:0.25}];
-const IRSA_2026_SOURCE="Loi n°2025-021 portant loi de finances 2026, article 01.03.16";
-const IRSA_2026_URL="https://www.mef.gov.mg/assets/vendor/ckeditor/plugins/kcfinder/upload/files/2026/janv/LOI_n%C2%B0_2025-021_VF_LFI__2026.pdf";
-function usesIrsa2026(date:string){return date>="2026-01-01"&&date<"2027-01-01";}
+import {IrsaBracketEditor} from "@/components/irsa-bracket-editor";
 
 function smieFields(fd:FormData){
  const limits={smie_partner_name:160,smie_partner_contact:500,smie_affiliation_number:120,smie_contract_reference:200} as const;
@@ -31,8 +25,25 @@ async function saveRule(fd:FormData){
  const data:Record<string,string|number|null>={name,effective_from:from,effective_to:until,status:"pending_review",legal_reference:String(fd.get("legal_reference")||"").trim()||null,rounding_policy:"unverified"};
  for(const key of rates){const raw=Number(fd.get(key));if(!Number.isFinite(raw)||raw<0||raw>100)throw new Error("Taux invalide : "+key);data[key]=raw/100;}
  for(const key of ["cnaps_monthly_ceiling","health_monthly_ceiling"]){const raw=String(fd.get(key)||"").trim();const n=Number(raw);if(raw!==""&&(!Number.isFinite(n)||n<0))throw new Error("Plafond invalide.");data[key]=raw===""?null:n;}
- if(usesIrsa2026(from)){data.irsa_brackets=JSON.stringify(IRSA_2026);data.irsa_minimum=3000;data.rounding_policy="floor_100";}
- const {error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,...smieFields(fd),irsa_brackets:usesIrsa2026(from)?IRSA_2026:[],organization_id:ctx.organizationId});
+ const bracketCount=Number(fd.get("irsa_bracket_count")??0);
+ if(!Number.isInteger(bracketCount)||bracketCount<1||bracketCount>20)throw new Error("Le barème IRSA doit comporter entre 1 et 20 tranches.");
+ const brackets:{up_to:number|null;rate:number}[]=[];
+ let prior=0;
+ for(let i=0;i<bracketCount;i++){
+  const raw=String(fd.get("irsa_cap_"+i)??"").trim();
+  const rateRaw=String(fd.get("irsa_rate_"+i)??"").trim();
+  const rate=Number(rateRaw),cap=raw===""?null:Number(raw);
+  if(rateRaw===""||!Number.isFinite(rate)||rate<0||rate>100||cap!==null&&(!Number.isFinite(cap)||cap<=prior)||cap===null&&i!==bracketCount-1)throw new Error("Tranche IRSA "+(i+1)+" invalide.");
+  brackets.push({up_to:cap,rate:rate/100});
+  if(cap!==null)prior=cap;
+ }
+ if(brackets[brackets.length-1].up_to!==null)throw new Error("La dernière tranche IRSA doit être sans plafond.");
+ const minimumRaw=String(fd.get("irsa_minimum")??"").trim();
+ const minimum=Number(minimumRaw);
+ if(minimumRaw===""||!Number.isFinite(minimum)||minimum<0)throw new Error("Le minimum IRSA doit être renseigné et vérifié.");
+ const rounding=String(fd.get("rounding_policy")??"unverified");
+ if(!["floor_100","unverified"].includes(rounding))throw new Error("Règle d’arrondi inconnue.");
+ const {error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,...smieFields(fd),irsa_brackets:brackets,irsa_minimum:minimum,rounding_policy:rounding,organization_id:ctx.organizationId});
  if(error)throw new Error(error.message);
  revalidatePath("/paie/parametres");
 }
