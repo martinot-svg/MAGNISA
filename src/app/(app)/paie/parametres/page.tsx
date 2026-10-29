@@ -158,13 +158,20 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <div className="field"><label>FMFP employeur (%)</label><input name="fmfp_employer_rate" type="number" min="0" max="100" step="0.0001" required/></div>
  <div className="field"><label>Plafond CNaPS mensuel (Ar)</label><input name="cnaps_monthly_ceiling" type="number" min="0" step="0.01" placeholder="À confirmer"/></div>
  <div className="field"><label>Plafond organisme santé (Ar)</label><input name="health_monthly_ceiling" type="number" min="0" step="0.01" placeholder="À confirmer"/></div>
- </div><button className="button primary">Enregistrer pour vérification</button></form>
+ </div>
+ <h3>Barème IRSA pour cette version</h3>
+ <div className="grid2"><div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" required placeholder="À vérifier dans le texte officiel"/></div><div className="field"><label>Arrondi de l’assiette IRSA</label><select name="rounding_policy" defaultValue="unverified"><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d’ariary inférieure - après vérification</option></select></div></div>
+ <IrsaBracketEditor />
+ <button className="button primary">Enregistrer pour vérification</button></form>
  </details></div>
- <section id="bareme-irsa" className="card section" aria-label="Barème IRSA national">
- <h2>Barème IRSA intégré - 2026</h2><p>Applicable au régime de droit commun, sous réserve des changements ultérieurs et de la période exacte. Les taux s'appliquent par tranche et non au salaire entier.</p>
- <div className="tableWrap"><table><thead><tr><th>Revenu imposable mensuel</th><th>Taux de la tranche</th></tr></thead><tbody>
- {IRSA_2026.map((b,i)=><tr key={i}><td>{b.up_to===null?"Au-delà de 4 000 000 Ar":i===0?"Jusqu'à 350 000 Ar":`${(Number(IRSA_2026[i-1].up_to)+1).toLocaleString("fr-FR")} à ${Number(b.up_to).toLocaleString("fr-FR")} Ar`}</td><td>{b.rate*100} %</td></tr>)}
- </tbody></table></div><p className="muted">Assiette arrondie à la centaine inférieure ; minimum de perception : 3 000 Ar. Source : <a href={IRSA_2026_URL} target="_blank" rel="noreferrer">{IRSA_2026_SOURCE}</a>. La validation des règles de paie reste distincte.</p>
+ <section id="bareme-irsa" className="card section" aria-label="Barème IRSA configurable">
+ <h2>Barème IRSA configurable</h2>
+ <p>Le barème est géré par version et par entreprise. Les plafonds, taux, nombre de tranches, minimum de perception et règle d’arrondi peuvent être modifiés pour suivre une publication de l’autorité compétente. Une nouvelle version reste à vérifier jusqu’à sa validation explicite.</p>
+ {!rules?.some((r:any)=>Array.isArray(r.irsa_brackets)&&r.irsa_brackets.length>0)?<p className="notice">Aucun barème IRSA n’est enregistré pour cette entreprise. Crée un référentiel avec les valeurs confirmées dans le texte officiel applicable. Aucun taux n’est prérempli automatiquement.</p>:null}
+ <div className="tableWrap"><table><thead><tr><th>Version</th><th>Début d’effet</th><th>Fin d’effet</th><th>Statut</th><th>Nombre de tranches</th><th>Minimum (Ar)</th></tr></thead><tbody>
+ {(rules||[]).map((r:any)=><tr key={r.id}><td>{r.name}</td><td>{r.effective_from}</td><td>{r.effective_to||"Sans date de fin"}</td><td>{r.status==="pending_review"?"À vérifier":r.status}</td><td>{Array.isArray(r.irsa_brackets)?r.irsa_brackets.length:0}</td><td>{r.irsa_minimum??"Non renseigné"}</td></tr>)}
+ </tbody></table></div>
+ <p className="muted">La version utilisée par un calcul doit correspondre à la période concernée et être validée. Les périodes passées ne sont pas modifiées lorsqu’une nouvelle version est créée.</p>
  </section>
  <section className="card section" aria-label="Périodes de cotisation SMIE">
  <h2>SMIE - plafonds et déclarations trimestrielles</h2>
@@ -184,10 +191,9 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
 <div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" defaultValue={r.irsa_minimum??0}/></div>
 <div className="field"><label>Arrondi de l'assiette IRSA</label><select name="rounding_policy" defaultValue={r.rounding_policy||"unverified"}><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d'ariary inférieure - vérifié</option></select></div>
 </div>
-<div className="field"><strong>Barème IRSA appliqué au référentiel</strong><p className="muted">{usesIrsa2026(r.effective_from)?"Barème national 2026 intégré pour les nouveaux réglages. En modifiant cette fiche, les tranches seront renseignées si elles sont absentes.":"Aucun barème national automatique pour cette période : conserver les paramètres historiques existants."}</p>
-{Array.isArray(r.irsa_brackets)&&r.irsa_brackets.length>0?<div className="tableWrap"><table><thead><tr><th>Plafond de tranche (Ar)</th><th>Taux</th></tr></thead><tbody>{r.irsa_brackets.map((b:any,i:number)=><tr key={i}><td>{b.up_to===null?"Au-delà de la dernière tranche":Number(b.up_to).toLocaleString("fr-FR")}</td><td>{Number(b.rate)*100} %</td></tr>)}</tbody></table></div>:<p className="muted">Aucune tranche enregistrée pour ce référentiel.</p>}<input type="hidden" name="irsa_bracket_count" value={Array.isArray(r.irsa_brackets)?r.irsa_brackets.length:0}/>
-{Array.isArray(r.irsa_brackets)&&r.irsa_brackets.map((b:any,i:number)=><div className="grid2" key={i}><div className="field"><label>Tranche IRSA {i+1} - plafond (Ar) {b.up_to===null?"(sans plafond)":""}</label><input type="number" min="0" step="1" name={"irsa_cap_"+i} defaultValue={b.up_to??""} placeholder="Dernière tranche sans plafond"/></div><div className="field"><label>Tranche IRSA {i+1} - taux (%)</label><input type="number" min="0" max="100" step="0.01" name={"irsa_rate_"+i} defaultValue={Number(b.rate)*100} required/></div></div>)}
-<p className="muted">Les tranches ci-dessus sont modifiables pour cette version non validée. Conservez la dernière tranche sans plafond. Pour changer le nombre de tranches, une évolution du formulaire sera nécessaire.</p></div>
+<div className="field"><strong>Barème IRSA appliqué au référentiel</strong><p className="muted">Modifie les plafonds, les taux et le nombre de tranches pour cette version non validée. Aucune valeur réglementaire n’est injectée automatiquement.</p>
+<IrsaBracketEditor initialBrackets={Array.isArray(r.irsa_brackets)?r.irsa_brackets:[]} />
+<p className="muted">Les changements restent dans cette version à vérifier jusqu’à son activation explicite.</p></div>
 <button className="button">Corriger les paramètres</button></form>
 <div className="actions" style={{marginTop:10}}><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="review"/><button className="button">Maintenir à vérifier</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="activate"/><button className="button primary">Activer - après contrôle des textes</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="delete"/><button className="button">Supprimer</button></form></div></>}</details></td></tr>)}</tbody></table></div>}</div>
  <PayrollRulePreview rules={(rules||[]) as any[]} currency={org?.currency||"MGA"} companyName={org?.name||"entreprise"} defaultSmie={org?.smie_partner_name||null}/>
