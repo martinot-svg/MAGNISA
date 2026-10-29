@@ -23,14 +23,7 @@ export function IrsaBracketEditor({
 
   function addBracket() {
     if (brackets.length >= 20) return;
-    setBrackets((current) => {
-      const next = [...current];
-      // The previous unlimited final bracket becomes a capped bracket before the new final bracket is added.
-      if (next[next.length - 1]?.up_to === null) {
-        next[next.length - 1] = { ...next[next.length - 1], up_to: 1 };
-      }
-      return [...next, { up_to: null, rate: 0 }];
-    });
+    setBrackets((current) => [...current, { up_to: null, rate: 0 }]);
   }
 
   function removeBracket(index: number) {
