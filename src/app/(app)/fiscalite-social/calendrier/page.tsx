@@ -65,8 +65,8 @@ async function createDraft(fd: FormData) {
     source_url: sourceUrl,
     status: "draft",
     notes,
-    created_by: ctx.userId,
-    updated_by: ctx.userId,
+    created_by: ctx.user.id,
+    updated_by: ctx.user.id,
   });
   if (error) throw new Error(error.message);
   revalidatePath("/fiscalite-social/calendrier");
@@ -94,7 +94,7 @@ async function validateRule(fd: FormData) {
 
   const { error } = await ctx.supabase.from("social_calendar_rules").update({
     status: "validated",
-    updated_by: ctx.userId,
+    updated_by: ctx.user.id,
   }).eq("id", id).eq("organization_id", ctx.organizationId).eq("status", "draft");
   if (error) throw new Error(error.message);
   revalidatePath("/fiscalite-social/calendrier");
@@ -109,7 +109,7 @@ async function archiveRule(fd: FormData) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error("Règle de calendrier invalide.");
   const { error } = await ctx.supabase.from("social_calendar_rules").update({
     status: "archived",
-    updated_by: ctx.userId,
+    updated_by: ctx.user.id,
   }).eq("id", id).eq("organization_id", ctx.organizationId).neq("status", "archived");
   if (error) throw new Error(error.message);
   revalidatePath("/fiscalite-social/calendrier");
