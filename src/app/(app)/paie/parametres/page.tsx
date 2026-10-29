@@ -14,8 +14,7 @@ function smieFields(fd:FormData){
  return result;
 }
 
-async function saveRule(fd:FormData){
- "use server";
+async function saveRuleInternal(fd:FormData){
  const ctx=await requireOrganization();await assertPermission(ctx,"payroll.manage");
  const name=String(fd.get("name")||"").trim();
  const from=String(fd.get("effective_from")||"");
@@ -48,6 +47,22 @@ async function saveRule(fd:FormData){
  const {error:activationError}=await ctx.supabase.rpc("activate_payroll_rule",{p_org:ctx.organizationId,p_rule:created.id});
  if(activationError)throw new Error("Référentiel enregistré mais non activé : "+activationError.message);
  revalidatePath("/paie/parametres");
+}
+
+
+async function saveRule(fd:FormData){
+ "use server";
+ try {
+  await saveRuleInternal(fd);
+  redirect("/paie/parametres?result=success&message="+encodeURIComponent("Référentiel enregistré et appliqué."));
+ } catch(error) {
+  const raw=error instanceof Error?error.message:"Erreur inattendue pendant l’enregistrement.";
+  const saved=raw.startsWith("Référentiel enregistré mais non activé");
+  const message=saved
+   ? raw+" Les données sont conservées dans l’historique : ne relance pas l’enregistrement. Corrige les champs signalés puis utilise « Appliquer cette version »."
+   : raw;
+  redirect("/paie/parametres?result=error&message="+encodeURIComponent(message));
+ }
 }
 
 async function executeRuleAction(fd:FormData){
@@ -195,7 +210,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
 <IrsaBracketEditor initialBrackets={Array.isArray(r.irsa_brackets)?r.irsa_brackets:[]} />
 <p className="muted">Les changements restent dans cette version à vérifier jusqu’à son activation explicite.</p></div>
 <button className="button primary">Enregistrer et appliquer</button></form>
-<div className="actions" style={{marginTop:10}}><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="review"/><button className="button">Maintenir à vérifier</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="activate"/><button className="button primary">Appliquer cette version</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="delete"/><button className="button">Supprimer</button></form></div></>}</details></td></tr>)}</tbody></table></div>}</div>
+<div className="actions" style={{marginTop:10}}><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="review"/><button className="button">Maintenir à vérifier</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="activate"/><button className="button primary">Appliquer cette version</button></form></div></>}</details>{["draft","pending_review"].includes(r.status)&&<form action={ruleAction} style={{marginTop:8}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="delete"/><button className="button" aria-label={"Supprimer la version "+r.name}>Supprimer cette version</button></form>}</td></tr>)}</tbody></table></div>}</div>
  <PayrollRulePreview rules={(rules||[]) as any[]} currency={org?.currency||"MGA"} companyName={org?.name||"entreprise"} defaultSmie={org?.smie_partner_name||null}/>
  <div className="card section"><h2>Sources officielles et contrôles - Madagascar 2026</h2><p>Références documentées auprès des organismes officiels. La présence d'une source ne vaut pas certification complète d'un calcul de paie.</p><div className="tableWrap"><table><thead><tr><th>Organisme</th><th>Élément contrôlé</th><th>État</th><th>Source officielle</th></tr></thead><tbody><tr><td>CNaPS</td><td>Arrêté n°5410/99 et taux sociaux</td><td>Référence identifiée</td><td><a href="https://cnlegis.gov.mg/page_acces_pdf/dnWfpUcmX5gqT" target="_blank" rel="noreferrer">Texte réglementaire</a></td></tr><tr><td>CNaPS</td><td>2026 (régime général) : tableau daté au 01/03/2026 à 2 400 000 Ar ; actualité du 31/07/2026 à 2 101 440 Ar, contradictoire</td><td>Écart de publication - ne pas appliquer sans confirmer régime et période</td><td><a href="https://www.cnaps.mg/historique-sme" target="_blank" rel="noreferrer">Historique SME</a> / <a href="https://www.cnaps.mg/actualites/102" target="_blank" rel="noreferrer">Actualité du 31 juillet 2026</a></td></tr><tr><td>FMFP</td><td>1 % patronal de la masse salariale brute plafonnée, applicable depuis le 01/01/2019</td><td>Documenté - comptabilisation automatique à compléter</td><td><a href="https://www.fmfp.mg/fondement-legal/" target="_blank" rel="noreferrer">Fondement légal</a></td></tr><tr><td>Santé</td><td>Décret n°2003-1162 et organisme médical applicable</td><td>Assiette : ensemble des salaires et accessoires (art. 25) ; plafond éventuel et organisme à confirmer</td><td><a href="https://cnlegis.gov.mg/page_acces_pdf/dnWisR33gqT" target="_blank" rel="noreferrer">Décret médecine d'entreprise</a></td></tr><tr><td>IRSA</td><td>Code des impôts 2026, barème, assiette, réductions et arrondis</td><td>Réduction de 2 000 Ar/personne à charge (art. 01.03.19) à traiter ; cas particuliers non automatisés</td><td><a href="https://www.impots.mg/explorer?path=%2Flegislation%2FCodes+et+Manuels" target="_blank" rel="noreferrer">DGI - Code 2026</a></td></tr></tbody></table></div><p className="muted">Ne renseigne pas un plafond incertain pour contourner les contrôles. Les versions enregistrées restent non validées jusqu'à la résolution des points réglementaires.</p></div>
  <div className="card section"><h2>IRSA et validation réglementaire</h2><p className="muted">Le barème fiscal progressif, les réductions, les minimums, les assiettes et les arrondis requièrent une procédure de contrôle distincte. Ils ne sont pas activés par ce formulaire. Aucun paramètre non vérifié ne peut déclencher automatiquement un bulletin fiscal ou un paiement.</p></div>
