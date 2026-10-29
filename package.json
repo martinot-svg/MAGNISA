@@ -27,5 +27,9 @@
     "typescript": "^5.8.0",
     "vitest": "^3.2.0",
     "@types/nodemailer": "^6.4.17"
-  }
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "packageManager": "npm@10.9.2"
 }
