@@ -86,11 +86,7 @@ async function executeRuleAction(fd:FormData){
   for(const key of ["cnaps_monthly_ceiling","health_monthly_ceiling"]){const raw=String(fd.get(key)??"").trim();const val=Number(raw);if(raw!==""&&(!Number.isFinite(val)||val<=0))throw new Error("Plafond invalide : "+key);patch[key]=raw===""?null:val;}
   const minimumRaw=String(fd.get("irsa_minimum")??"").trim();
   if(minimumRaw!==""){const min=Number(minimumRaw);if(!Number.isFinite(min)||min<0)throw new Error("Minimum IRSA invalide.");patch.irsa_minimum=min;}
-  // Les tranches nationales sont intégrées au logiciel : aucun JSON à saisir.
-  // Ne pas écraser un ancien barème déjà saisi lors d'une modification ordinaire.
-  if(usesIrsa2026(date)&&(!Array.isArray(current.irsa_brackets)||current.irsa_brackets.length===0)){
-    patch.irsa_brackets=IRSA_2026;
-  }
+  // Le barème n’est jamais remplacé automatiquement par une valeur codée en dur.
   const bracketCount=Number(fd.get("irsa_bracket_count")??0);
   if(Number.isInteger(bracketCount)&&bracketCount>0&&bracketCount<=20){
     const brackets:{up_to:number|null;rate:number}[]=[];
