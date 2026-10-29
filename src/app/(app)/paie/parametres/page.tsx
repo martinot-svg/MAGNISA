@@ -42,6 +42,9 @@ async function saveRuleInternal(fd:FormData){
  if(minimumRaw===""||!Number.isFinite(minimum)||minimum<0)throw new Error("Le minimum IRSA doit être renseigné et vérifié.");
  const rounding=String(fd.get("rounding_policy")??"unverified");
  if(!["floor_100","unverified"].includes(rounding))throw new Error("Règle d’arrondi inconnue.");
+ if(!String(data.legal_reference||"").trim())throw new Error("Pour appliquer le référentiel, renseigne la référence officielle contrôlée.");
+ if(data.cnaps_monthly_ceiling===null||data.health_monthly_ceiling===null)throw new Error("Pour appliquer le référentiel, renseigne les deux plafonds obligatoires.");
+ if(rounding!=="floor_100")throw new Error("Choisis la règle d’arrondi vérifiée avant l’application.");
  const {data:created,error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,...smieFields(fd),irsa_brackets:brackets,irsa_minimum:minimum,rounding_policy:rounding,organization_id:ctx.organizationId}).select("id").single();
  if(error||!created)throw new Error(error?.message||"Impossible d'enregistrer le référentiel.");
  const {error:activationError}=await ctx.supabase.rpc("activate_payroll_rule",{p_org:ctx.organizationId,p_rule:created.id});
@@ -52,17 +55,19 @@ async function saveRuleInternal(fd:FormData){
 
 async function saveRule(fd:FormData){
  "use server";
+ let outcome:"success"|"error"="success";
+ let message="Référentiel enregistré et appliqué.";
  try {
   await saveRuleInternal(fd);
-  redirect("/paie/parametres?result=success&message="+encodeURIComponent("Référentiel enregistré et appliqué."));
  } catch(error) {
+  outcome="error";
   const raw=error instanceof Error?error.message:"Erreur inattendue pendant l’enregistrement.";
   const saved=raw.startsWith("Référentiel enregistré mais non activé");
-  const message=saved
+  message=saved
    ? raw+" Les données sont conservées dans l’historique : ne relance pas l’enregistrement. Corrige les champs signalés puis utilise « Appliquer cette version »."
    : raw;
-  redirect("/paie/parametres?result=error&message="+encodeURIComponent(message));
  }
+ redirect("/paie/parametres?result="+outcome+"&message="+encodeURIComponent(message));
 }
 
 async function executeRuleAction(fd:FormData){
