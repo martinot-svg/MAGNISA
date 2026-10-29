@@ -43,8 +43,10 @@ async function saveRule(fd:FormData){
  if(minimumRaw===""||!Number.isFinite(minimum)||minimum<0)throw new Error("Le minimum IRSA doit être renseigné et vérifié.");
  const rounding=String(fd.get("rounding_policy")??"unverified");
  if(!["floor_100","unverified"].includes(rounding))throw new Error("Règle d’arrondi inconnue.");
- const {error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,...smieFields(fd),irsa_brackets:brackets,irsa_minimum:minimum,rounding_policy:rounding,organization_id:ctx.organizationId});
- if(error)throw new Error(error.message);
+ const {data:created,error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,...smieFields(fd),irsa_brackets:brackets,irsa_minimum:minimum,rounding_policy:rounding,organization_id:ctx.organizationId}).select("id").single();
+ if(error||!created)throw new Error(error?.message||"Impossible d'enregistrer le référentiel.");
+ const {error:activationError}=await ctx.supabase.rpc("activate_payroll_rule",{p_org:ctx.organizationId,p_rule:created.id});
+ if(activationError)throw new Error("Référentiel enregistré mais non activé : "+activationError.message);
  revalidatePath("/paie/parametres");
 }
 
@@ -107,6 +109,8 @@ async function executeRuleAction(fd:FormData){
   patch.rounding_policy=rounding;
   const {error}=await ctx.supabase.from("payroll_rule_sets").update(patch).eq("organization_id",ctx.organizationId).eq("id",id);
   if(error)throw new Error(error.message);
+  const {error:activationError}=await ctx.supabase.rpc("activate_payroll_rule",{p_org:ctx.organizationId,p_rule:id});
+  if(activationError)throw new Error("Modifications enregistrées mais non activées : "+activationError.message);
  }else throw new Error("Opération non reconnue.");
  revalidatePath("/paie/parametres");
 }
@@ -137,7 +141,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  const notice=await searchParams;
  return <><div className="pageHead"><div><p className="eyebrow">Personnel & Paie</p><h1>Paramètres de paie - Madagascar</h1><p>Règles datées par organisation, contrôle de conformité et prévisualisation non comptable.</p></div><Link className="button" href="/paie">Retour aux bulletins</Link></div>
  {notice.result && notice.message && <div role="status" aria-live="polite" className="card section" style={{borderLeft:notice.result==="error"?"4px solid #b45309":"4px solid #15803d"}}><strong>{notice.result==="error"?"Opération non effectuée":"Opération effectuée"}</strong><p>{notice.message.slice(0,450)}</p></div>}
- <div className="card"><details><summary style={{cursor:"pointer",fontWeight:600}}>Créer un référentiel réglementaire</summary><h2>Nouveau jeu de paramètres - à vérifier</h2><p className="muted">Saisis uniquement des taux contrôlés auprès des organismes et du Code général des impôts. Aucune valeur réglementaire n'est préremplie. Une configuration enregistrée ne devient jamais automatiquement validée. Le bouton « Maintenir à vérifier » ne constitue pas une vérification juridique.</p>
+ <div className="card"><details><summary style={{cursor:"pointer",fontWeight:600}}>Créer un référentiel réglementaire</summary><h2>Nouveau jeu de paramètres</h2><p className="muted">À l'enregistrement, MAGNISA sauvegarde puis tente d'activer immédiatement cette version pour sa période d'application. Vérifie les taux et plafonds auprès des sources officielles avant de l'utiliser en paie.</p>
  <form action={saveRule} className="form"><div className="grid2">
  <div className="field"><label>Nom / version</label><input name="name" placeholder="Ex. Référentiel 2026 à vérifier" required/></div>
  <div className="field"><label>Référence officielle contrôlée</label><input name="legal_reference" placeholder="Texte, article, date de publication et URL officielle"/></div>
@@ -158,7 +162,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <h3>Barème IRSA pour cette version</h3>
  <div className="grid2"><div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" required placeholder="À vérifier dans le texte officiel"/></div><div className="field"><label>Arrondi de l’assiette IRSA</label><select name="rounding_policy" defaultValue="unverified"><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d’ariary inférieure - après vérification</option></select></div></div>
  <IrsaBracketEditor />
- <button className="button primary">Enregistrer pour vérification</button></form>
+ <button className="button primary">Enregistrer et appliquer</button></form>
  </details></div>
  <section id="bareme-irsa" className="card section" aria-label="Barème IRSA configurable">
  <h2>Barème IRSA configurable</h2>
@@ -190,8 +194,8 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
 <div className="field"><strong>Barème IRSA appliqué au référentiel</strong><p className="muted">Modifie les plafonds, les taux et le nombre de tranches pour cette version non validée. Aucune valeur réglementaire n’est injectée automatiquement.</p>
 <IrsaBracketEditor initialBrackets={Array.isArray(r.irsa_brackets)?r.irsa_brackets:[]} />
 <p className="muted">Les changements restent dans cette version à vérifier jusqu’à son activation explicite.</p></div>
-<button className="button">Corriger les paramètres</button></form>
-<div className="actions" style={{marginTop:10}}><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="review"/><button className="button">Maintenir à vérifier</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="activate"/><button className="button primary">Activer - après contrôle des textes</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="delete"/><button className="button">Supprimer</button></form></div></>}</details></td></tr>)}</tbody></table></div>}</div>
+<button className="button primary">Enregistrer et appliquer</button></form>
+<div className="actions" style={{marginTop:10}}><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="review"/><button className="button">Maintenir à vérifier</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="activate"/><button className="button primary">Appliquer cette version</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="delete"/><button className="button">Supprimer</button></form></div></>}</details></td></tr>)}</tbody></table></div>}</div>
  <PayrollRulePreview rules={(rules||[]) as any[]} currency={org?.currency||"MGA"} companyName={org?.name||"entreprise"} defaultSmie={org?.smie_partner_name||null}/>
  <div className="card section"><h2>Sources officielles et contrôles - Madagascar 2026</h2><p>Références documentées auprès des organismes officiels. La présence d'une source ne vaut pas certification complète d'un calcul de paie.</p><div className="tableWrap"><table><thead><tr><th>Organisme</th><th>Élément contrôlé</th><th>État</th><th>Source officielle</th></tr></thead><tbody><tr><td>CNaPS</td><td>Arrêté n°5410/99 et taux sociaux</td><td>Référence identifiée</td><td><a href="https://cnlegis.gov.mg/page_acces_pdf/dnWfpUcmX5gqT" target="_blank" rel="noreferrer">Texte réglementaire</a></td></tr><tr><td>CNaPS</td><td>2026 (régime général) : tableau daté au 01/03/2026 à 2 400 000 Ar ; actualité du 31/07/2026 à 2 101 440 Ar, contradictoire</td><td>Écart de publication - ne pas appliquer sans confirmer régime et période</td><td><a href="https://www.cnaps.mg/historique-sme" target="_blank" rel="noreferrer">Historique SME</a> / <a href="https://www.cnaps.mg/actualites/102" target="_blank" rel="noreferrer">Actualité du 31 juillet 2026</a></td></tr><tr><td>FMFP</td><td>1 % patronal de la masse salariale brute plafonnée, applicable depuis le 01/01/2019</td><td>Documenté - comptabilisation automatique à compléter</td><td><a href="https://www.fmfp.mg/fondement-legal/" target="_blank" rel="noreferrer">Fondement légal</a></td></tr><tr><td>Santé</td><td>Décret n°2003-1162 et organisme médical applicable</td><td>Assiette : ensemble des salaires et accessoires (art. 25) ; plafond éventuel et organisme à confirmer</td><td><a href="https://cnlegis.gov.mg/page_acces_pdf/dnWisR33gqT" target="_blank" rel="noreferrer">Décret médecine d'entreprise</a></td></tr><tr><td>IRSA</td><td>Code des impôts 2026, barème, assiette, réductions et arrondis</td><td>Réduction de 2 000 Ar/personne à charge (art. 01.03.19) à traiter ; cas particuliers non automatisés</td><td><a href="https://www.impots.mg/explorer?path=%2Flegislation%2FCodes+et+Manuels" target="_blank" rel="noreferrer">DGI - Code 2026</a></td></tr></tbody></table></div><p className="muted">Ne renseigne pas un plafond incertain pour contourner les contrôles. Les versions enregistrées restent non validées jusqu'à la résolution des points réglementaires.</p></div>
  <div className="card section"><h2>IRSA et validation réglementaire</h2><p className="muted">Le barème fiscal progressif, les réductions, les minimums, les assiettes et les arrondis requièrent une procédure de contrôle distincte. Ils ne sont pas activés par ce formulaire. Aucun paramètre non vérifié ne peut déclencher automatiquement un bulletin fiscal ou un paiement.</p></div>
