@@ -26,7 +26,7 @@ function dateAtMonthDay(year: number, monthIndex: number, day: number): Date {
 }
 
 function parseIsoDate(value: string, label: string): Date {
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) throw new Error(`${label} doit être au format AAAA-MM-JJ.`);
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) throw new Error(`${label} doit être au format AAAA-MM-JJ.`);
   const date = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime()) || isoDate(date) !== value) throw new Error(`${label} est invalide.`);
   return date;
@@ -81,7 +81,7 @@ export function isCalendarRuleEffective(rule: ConfigurableCalendarRule, onDate: 
   const to = rule.effectiveTo ? parseIsoDate(rule.effectiveTo, "Date de fin d'effet") : null;
   return rule.status === "validated"
     && Boolean(rule.sourceLabel?.trim())
-    && (!rule.sourceUrl || /^https?:\\/\\//i.test(rule.sourceUrl))
+    && (!rule.sourceUrl || rule.sourceUrl.toLowerCase().startsWith("https://") || rule.sourceUrl.toLowerCase().startsWith("http://"))
     && date >= from
     && (!to || date <= to);
 }
