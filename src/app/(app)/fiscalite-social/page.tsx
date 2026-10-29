@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -116,8 +117,9 @@ export default async function TaxSocial({
     <>
       <div className="pageHead">
         <div>
-          <h1>Fiscalité & obligations sociales</h1>
+          <h1>Fiscalité & social</h1>
           <p>Calcul en lecture seule, contrôle des règles, puis validation explicite avant toute création d’obligation.</p>
+          <p><Link className="button" href="/paie/parametres#bareme-irsa">Consulter le barème IRSA</Link></p>
         </div>
       </div>
 
