@@ -1,5 +1,7 @@
 export const FEATURE_CATALOG=[
   {key:"dashboard",label:"Tableau de bord",href:"/dashboard",required:true,group:"Pilotage",description:"Vue synthétique de l'activité, la finance et les priorités."},
+  {key:"budget",label:"Budget & prévisions",href:"/budget",required:false,group:"Pilotage",description:"Budget, réalisé et scénarios."},
+  {key:"smart_analysis",label:"Analyse intelligente",href:"/analyse",required:false,group:"Pilotage",description:"Santé économique, risques et recommandations."},
   {key:"clients",label:"Clients",href:"/clients",required:true,group:"Clients & ventes",description:"Fiches clients et historique commercial."},
   {key:"prospects",label:"Prospects",href:"/prospects",required:false,group:"Clients & ventes",description:"Pipeline commercial avant conversion en client."},
   {key:"quotes",label:"Devis",href:"/devis",required:false,group:"Clients & ventes",description:"Propositions commerciales, versions et acceptation."},
@@ -21,8 +23,6 @@ export const FEATURE_CATALOG=[
   {key:"accounting",label:"Comptabilité",href:"/comptabilite",required:false,group:"Comptabilité & immobilisations",description:"Journaux, écritures, grand livre et balance."},
   {key:"immobilisations",label:"Immobilisations",href:"/immobilisations",required:false,group:"Comptabilité & immobilisations",description:"Registre des biens durables et suivi indicatif des amortissements."},
   {key:"financial_statements",label:"États financiers",href:"/etats-financiers",required:false,group:"Comptabilité & immobilisations",description:"Bilan, résultat et flux de trésorerie."},
-  {key:"budget",label:"Budget & prévisions",href:"/budget",required:false,group:"Pilotage",description:"Budget, réalisé et scénarios."},
-  {key:"smart_analysis",label:"Analyse intelligente",href:"/analyse",required:false,group:"Pilotage",description:"Santé économique, risques et recommandations."},
   {key:"reports",label:"Rapports",href:"/rapports",required:false,group:"Documents & rapports",description:"Rapports filtrables et exports."},
   {key:"document_templates",label:"Bibliothèque des modèles",href:"/bibliotheque-documents",required:false,group:"Documents & rapports",description:"Choisir les modèles de devis, factures, paie et rapports, puis les personnaliser."},
   {key:"users",label:"Utilisateurs & accès",href:"/utilisateurs",required:true,group:"Administration",description:"Membres, rôles et accès."},
