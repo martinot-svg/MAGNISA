@@ -69,7 +69,7 @@ async function createDraft(fd: FormData) {
     updated_by: ctx.user.id,
   });
   if (error) throw new Error(error.message);
-  revalidatePath("/fiscalite-social/calendrier");
+  revalidatePath("/fiscalite/calendrier");
   revalidatePath("/fiscalite-social");
 }
 
@@ -97,7 +97,7 @@ async function validateRule(fd: FormData) {
     updated_by: ctx.user.id,
   }).eq("id", id).eq("organization_id", ctx.organizationId).eq("status", "draft");
   if (error) throw new Error(error.message);
-  revalidatePath("/fiscalite-social/calendrier");
+  revalidatePath("/fiscalite/calendrier");
   revalidatePath("/fiscalite-social");
 }
 
@@ -112,7 +112,7 @@ async function archiveRule(fd: FormData) {
     updated_by: ctx.user.id,
   }).eq("id", id).eq("organization_id", ctx.organizationId).neq("status", "archived");
   if (error) throw new Error(error.message);
-  revalidatePath("/fiscalite-social/calendrier");
+  revalidatePath("/fiscalite/calendrier");
   revalidatePath("/fiscalite-social");
 }
 
