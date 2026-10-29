@@ -45,7 +45,7 @@ begin
   end if;
 
   if new.status = 'validated' then
-    if tg_op = 'INSERT' or old.status not in ('pending_review', 'draft') then
+    if tg_op = 'INSERT' or old.status not in ('pending_review', 'draft') or not v_activation then
       raise exception 'Activation autorisée uniquement depuis un référentiel en attente de revue';
     end if;
     if nullif(btrim(coalesce(new.legal_reference, '')), '') is null
