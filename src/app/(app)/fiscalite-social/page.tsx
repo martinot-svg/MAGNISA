@@ -119,7 +119,7 @@ export default async function TaxSocial({
         <div>
           <h1>Fiscalité & social</h1>
           <p>Calcul en lecture seule, contrôle des règles, puis validation explicite avant toute création d’obligation.</p>
-          <p><Link className="button" href="/paie/parametres#bareme-irsa">Consulter le barème IRSA</Link></p>
+          <p><Link className="button" href="/paie/parametres#bareme-irsa">Consulter le barème IRSA</Link> <Link className="button" href="/fiscalite-social/calendrier">Configurer le calendrier déclaratif</Link></p>
         </div>
       </div>
 
