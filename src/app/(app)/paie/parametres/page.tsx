@@ -149,7 +149,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <div className="field"><label>Plafond organisme santé (Ar)</label><input name="health_monthly_ceiling" type="number" min="0" step="0.01" placeholder="À confirmer"/></div>
  </div><button className="button primary">Enregistrer pour vérification</button></form>
  </details></div>
- <section className="card section" aria-label="Barème IRSA national">
+ <section id="bareme-irsa" className="card section" aria-label="Barème IRSA national">
  <h2>Barème IRSA intégré - 2026</h2><p>Applicable au régime de droit commun, sous réserve des changements ultérieurs et de la période exacte. Les taux s'appliquent par tranche et non au salaire entier.</p>
  <div className="tableWrap"><table><thead><tr><th>Revenu imposable mensuel</th><th>Taux de la tranche</th></tr></thead><tbody>
  {IRSA_2026.map((b,i)=><tr key={i}><td>{b.up_to===null?"Au-delà de 4 000 000 Ar":i===0?"Jusqu'à 350 000 Ar":`${(Number(IRSA_2026[i-1].up_to)+1).toLocaleString("fr-FR")} à ${Number(b.up_to).toLocaleString("fr-FR")} Ar`}</td><td>{b.rate*100} %</td></tr>)}
