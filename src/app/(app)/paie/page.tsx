@@ -8,6 +8,7 @@ import { money } from "@/lib/money";
 import { EmptyState } from "@/components/empty-state";
 import { PayrollGrossPreview } from "@/components/payroll-gross-preview";
 import { computeHealthContribution } from "@/lib/payroll/health-contribution";
+import { FormDialog } from "@/components/form-dialog";
 
 async function createEmployee(fd: FormData) {
   "use server";
@@ -330,7 +331,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
 
       <div className="grid2">
         <div className="card">
-          <details><summary style={{cursor:"pointer",fontWeight:600}}>Ajouter un salarié</summary>
+          <FormDialog title="Ajouter un salarié" buttonLabel="Ajouter un salarié">
           <form action={createEmployee} className="form">
             <div className="grid2">
               <div className="field">
@@ -371,11 +372,11 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
               </div>
             </div>
             <button className="button primary">Ajouter le salarié</button>
-          </form></details>
+          </form></FormDialog>
         </div>
 
         <div className="card">
-          <h2>Nouvelle période de paie</h2>
+          <FormDialog title="Nouvelle période de paie" buttonLabel="Nouvelle période de paie">
           <form action={createRun} className="form">
             <div className="field">
               <label>Début</label>
@@ -387,6 +388,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
             </div>
             <button className="button primary">Créer la période</button>
           </form>
+          </FormDialog>
         </div>
 
       </div>
@@ -395,13 +397,13 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
       <section className="card section" aria-label="Brouillons des éléments variables">
         <h2>Éléments variables - brouillons enregistrés</h2>
         <p className="muted">Enregistre les primes et retenues sans calcul de cotisations, sans bulletin définitif et sans écriture comptable.</p>
-        {employees.some((e:any)=>e.status==="active") && editableRuns.length>0 ? <details><summary style={{cursor:"pointer",fontWeight:600}}>Créer ou modifier un brouillon</summary>
+        {employees.some((e:any)=>e.status==="active") && editableRuns.length>0 ? <FormDialog title="Créer ou modifier un brouillon" buttonLabel="Créer ou modifier un brouillon">
         <form action={saveVariableDraft} className="form">
           <div className="grid2"><div className="field"><label>Salarié actif</label><select name="employee_id" required>{employees.filter((e:any)=>e.status==="active").map((e:any)=><option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}</select></div>
           <div className="field"><label>Période modifiable</label><select name="payroll_run_id" required>{editableRuns.map((r:any)=><option key={r.id} value={r.id}>{r.period_start} au {r.period_end}</option>)}</select></div></div>
           <div className="grid2"><MoneyInput name="bonuses" label="Primes"/><MoneyInput name="overtime" label="Heures supplémentaires"/><MoneyInput name="other_earnings" label="Autres gains"/><MoneyInput name="advances_recovered" label="Avances récupérées"/><MoneyInput name="other_deductions" label="Autres retenues"/></div>
           <button className="button primary">Enregistrer le brouillon</button>
-        </form></details> : <p className="muted">Un salarié actif et une période modifiable sont nécessaires pour enregistrer un brouillon.</p>}
+        </form></FormDialog> : <p className="muted">Un salarié actif et une période modifiable sont nécessaires pour enregistrer un brouillon.</p>}
         {variableDrafts.length>0 && <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Période</th><th>Primes</th><th>Heures</th><th>Autres gains</th><th>Retenues et avances</th><th>Action</th></tr></thead><tbody>{variableDrafts.map((d:any)=>{
           const e=employees.find((x:any)=>x.id===d.employee_id);
           const r=runs.find((x:any)=>x.id===d.payroll_run_id);
@@ -410,7 +412,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
       </section>
 
       <div className="section"><div className="card">
-          <h2>Calcul d’un bulletin</h2>
+          <FormDialog title="Calcul d’un bulletin" buttonLabel="Calculer un bulletin">
           {employees.length === 0 || editableRuns.length === 0 ? (
             <p className="muted">Crée au moins un salarié et une période de paie modifiable.</p>
           ) : (
@@ -447,6 +449,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
               <p className="muted">CNaPS, santé et IRSA sont calculés automatiquement selon le référentiel validé. Le calcul est refusé si les règles réglementaires sont incomplètes. Les primes et heures restent variables.</p><button className="button primary">Calculer le bulletin</button>
             </form>
           )}
+          </FormDialog>
         </div>
       </div>
 
