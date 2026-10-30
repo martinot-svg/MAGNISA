@@ -215,5 +215,6 @@ export default async function SocialCalendarSettings() {
           </form>
         </CalendarRuleDialog>
       ) : null}
-    </>;
+    </>
+  );
 }
