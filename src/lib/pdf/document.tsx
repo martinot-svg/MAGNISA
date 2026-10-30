@@ -37,11 +37,11 @@ export function PdfDocument({d}:{d:PdfData}){
   </View>
   <View style={{marginTop:20,marginBottom:16}}><Text style={s.muted}>Client</Text><Text style={{fontSize:13,fontWeight:700}}>{d.customer}</Text></View>
   <View style={[s.row,{backgroundColor:tableHeaderColor,borderBottomColor:lineColor,borderTopWidth:canvaCommercial?0.8:0,borderTopColor:lineColor,paddingVertical:canvaCommercial?9:7}]}>
-   <Text style={[s.desc,{width:mode==="both"?"34%":showAmounts?"43%":"82%"}]}>Description</Text><Text style={s.qty}>Qté</Text>
+   <Text style={[s.desc,{width:mode==="both"?"25%":showAmounts?"43%":"82%"}]}>Description</Text><Text style={s.qty}>Qté</Text>
    {showAmounts&&<><Text style={s.price}>{mode==="ttc"?"PU TTC":"PU HT"}</Text>{showTax&&<Text style={s.tax}>Taxe</Text>}{mode==="both"?<><Text style={s.num}>Total HT</Text><Text style={s.num}>Total TTC</Text></>:<Text style={s.num}>{mode==="ht"?"Total HT":"Total TTC"}</Text>}</>}
   </View>
   {d.lines.map((l,i)=>{const ht=lineHT(l),ttc=l.total,unit=mode==="ttc"?l.unitPrice*(1+l.taxRate/100):l.unitPrice;return <View style={[s.row,{borderBottomColor:lineColor,paddingVertical:canvaCommercial?9:7,backgroundColor:canvaCommercial&&i%2===1?"#f7f7f7":"#ffffff"}]} key={i}>
-   <Text style={[s.desc,{width:mode==="both"?"34%":showAmounts?"43%":"82%"}]}>{l.description}</Text><Text style={s.qty}>{formatDocumentAmount(l.quantity)}</Text>
+   <Text style={[s.desc,{width:mode==="both"?"25%":showAmounts?"43%":"82%"}]}>{l.description}</Text><Text style={s.qty}>{formatDocumentAmount(l.quantity)}</Text>
    {showAmounts&&<><View style={s.price}><F v={unit} c={d.currency}/></View>{showTax&&<Text style={s.tax}>{formatDocumentAmount(l.taxRate)}%</Text>}{mode==="both"?<><View style={s.num}><F v={ht} c={d.currency}/></View><View style={s.num}><F v={ttc} c={d.currency}/></View></>:<View style={s.num}><F v={mode==="ht"?ht:ttc} c={d.currency}/></View>}</>}
   </View>})}
   {showAmounts&&<View style={s.totals}>
