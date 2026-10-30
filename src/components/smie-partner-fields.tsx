@@ -25,12 +25,16 @@ export function SmiePartnerFields({ defaultName = "", defaultContact = "" }: Pro
   const [email, setEmail] = useState(initial.email);
   const [selectedId, setSelectedId] = useState(initialPartner?.id ?? "");
   const [sourceNote, setSourceNote] = useState(initialPartner?.sourceNote ?? "");
+  const [sourceUrl, setSourceUrl] = useState(initialPartner?.sourceUrl ?? "");
+  const [verification, setVerification] = useState(initialPartner?.verification ?? "location-only");
 
   function selectPartner(id: string) {
     setSelectedId(id);
     const partner = smiePartners.find((item) => item.id === id);
     if (!partner) {
       setSourceNote("");
+      setSourceUrl("");
+      setVerification("location-only");
       return;
     }
     setName(partner.name);
@@ -38,6 +42,8 @@ export function SmiePartnerFields({ defaultName = "", defaultContact = "" }: Pro
     setPhone(partner.phone);
     setEmail(partner.email);
     setSourceNote(partner.sourceNote);
+    setSourceUrl(partner.sourceUrl);
+    setVerification(partner.verification);
   }
 
   const contact = [
@@ -56,9 +62,9 @@ export function SmiePartnerFields({ defaultName = "", defaultContact = "" }: Pro
         <option value="__custom">Autre organisme / saisie libre</option>
       </select>
       <label htmlFor="smie_partner_name_manual">Dénomination du partenaire</label>
-      <input id="smie_partner_name_manual" value={name} onChange={(event) => { setName(event.target.value); setSelectedId(""); setSourceNote(""); }} maxLength={160} placeholder="Nom officiel du SMIE" />
+      <input id="smie_partner_name_manual" value={name} onChange={(event) => { setName(event.target.value); setSelectedId(""); setSourceNote(""); setSourceUrl(""); setVerification("location-only"); }} maxLength={160} placeholder="Nom officiel du SMIE" />
       <input type="hidden" name="smie_partner_name" value={name} />
-      {sourceNote ? <p className="muted">Source des coordonnées : {sourceNote}. Vérifie les informations auprès de l'organisme avant une première affiliation.</p> : <p className="muted">Les coordonnées non publiées ou non recoupées restent vides. Tu peux les compléter manuellement.</p>}
+      {sourceNote ? <p className="muted">Fiabilité : {verification === "official" ? "site officiel" : verification === "institutional" ? "source institutionnelle" : verification === "directory" ? "annuaire professionnel" : verification === "historical" ? "source historique" : "localisation uniquement"}. Source : {sourceNote}. {sourceUrl ? <a href={sourceUrl} target="_blank" rel="noreferrer">Consulter la source</a> : null} Vérifie les informations auprès de l'organisme avant une première affiliation.</p> : <p className="muted">Les coordonnées non publiées ou non recoupées restent vides. Tu peux les compléter manuellement.</p>}
     </div>
     <div className="field">
       <label htmlFor="smie_address">Coordonnées de la SMIE - Adresse</label>
