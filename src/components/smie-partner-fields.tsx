@@ -35,6 +35,12 @@ export function SmiePartnerFields({ defaultName = "", defaultContact = "" }: Pro
       setSourceNote("");
       setSourceUrl("");
       setVerification("location-only");
+      if (id === "__custom" || id === "") {
+        setName("");
+        setAddress("");
+        setPhone("");
+        setEmail("");
+      }
       return;
     }
     setName(partner.name);
