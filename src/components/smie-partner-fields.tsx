@@ -17,10 +17,12 @@ export function SmiePartnerFields({ defaultName = "", defaultContact = "" }: Pro
   const [address, setAddress] = useState(initial.address);
   const [phone, setPhone] = useState(initial.phone);
   const [email, setEmail] = useState(initial.email);
+  const [selectedId, setSelectedId] = useState("");
 
   function selectPartner(id: string) {
+    setSelectedId(id);
     const partner = smiePartners.find((item) => item.id === id);
-    if (!partner) { setName(""); setAddress(""); setPhone(""); setEmail(""); return; }
+    if (!partner) return;
     setName(partner.name);
     setAddress(`Localisation recensée : ${partner.city}, région ${partner.region}. Adresse physique exacte à confirmer auprès de l'organisme.`);
     setPhone("");
@@ -32,11 +34,13 @@ export function SmiePartnerFields({ defaultName = "", defaultContact = "" }: Pro
   return <>
     <div className="field">
       <label htmlFor="smie_partner_choice">SMIE partenaire de l'entreprise</label>
-      <select id="smie_partner_choice" value={smiePartners.find((item) => item.name === name)?.id ?? ""} onChange={(event) => selectPartner(event.target.value)}>
+      <select id="smie_partner_choice" value={selectedId} onChange={(event) => selectPartner(event.target.value)}>
         <option value="">Sélectionner un SMIE recensé</option>
         {smiePartners.map((partner) => <option key={partner.id} value={partner.id}>{partner.name} - {partner.city}</option>)}
         <option value="__custom">Autre organisme / saisie libre</option>
       </select>
+      <label htmlFor="smie_partner_name_manual">Dénomination du partenaire</label>
+      <input id="smie_partner_name_manual" value={name} onChange={(event) => { setName(event.target.value); setSelectedId(""); }} maxLength={160} placeholder="Nom officiel du SMIE" />
       <input type="hidden" name="smie_partner_name" value={name} />
       <p className="muted">Référentiel initial de 28 entrées. Les villes sont indicatives ; vérifie l'adresse exacte avant utilisation.</p>
     </div>
