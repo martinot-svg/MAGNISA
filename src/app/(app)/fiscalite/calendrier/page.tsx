@@ -153,6 +153,33 @@ export default async function FiscalCalendarSettings() {
           <p>Paramètre les échéances par obligation fiscale et par période d'effet. Les règles sont propres à l'entreprise active.</p>
           <p><Link className="button" href="/fiscalite-social">Retour à Fiscalité & social</Link> <Link className="button" href="/fiscalite-social/calendrier">Calendrier social</Link></p>
         </div>
+      {canManage.data === true ? (
+        <CalendarRuleDialog title="Ajouter une nouvelle règle">
+          <p>Commence en brouillon. Aucun organisme ni délai légal n'est prérempli automatiquement.</p>
+          <form action={createDraft} className="form">
+            <div className="grid2">
+              <div className="field"><label htmlFor="organism_code">Code organisme</label><input id="organism_code" name="organism_code" placeholder="DGI_TVA, DGI_IRSA, DGI_IR ou DGI_IS" required /></div>
+              <div className="field"><label htmlFor="label">Nom de la règle</label><input id="label" name="label" placeholder="Échéance déclarative mensuelle" required /></div>
+            </div>
+            <div className="grid2">
+              <div className="field"><label htmlFor="periodicity">Périodicité</label><select id="periodicity" name="periodicity" defaultValue="monthly"><option value="monthly">Mensuelle</option><option value="quarterly">Trimestrielle</option><option value="annual">Annuelle</option><option value="one_off">Ponctuelle</option></select></div>
+              <div className="field"><label htmlFor="due_type">Calcul d'échéance</label><select id="due_type" name="due_type" defaultValue="day_of_next_month"><option value="day_of_next_month">Jour du mois suivant la période</option><option value="day_of_month_after_quarter">Jour après le trimestre</option><option value="days_after_period_end">Nombre de jours après la période</option></select></div>
+            </div>
+            <div className="grid2">
+              <div className="field"><label htmlFor="due_day">Jour d'échéance (1 à 31)</label><input id="due_day" type="number" name="due_day" min="1" max="31" defaultValue="15" /></div>
+              <div className="field"><label htmlFor="days_after">Délai en jours (si choisi)</label><input id="days_after" type="number" name="days_after" min="0" max="366" defaultValue="0" /></div>
+            </div>
+            <div className="grid2">
+              <div className="field"><label htmlFor="effective_from">Début d'effet</label><input id="effective_from" type="date" name="effective_from" required /></div>
+              <div className="field"><label htmlFor="effective_to">Fin d'effet (facultatif)</label><input id="effective_to" type="date" name="effective_to" /></div>
+            </div>
+            <div className="field"><label htmlFor="source_label">Référence officielle consultée</label><input id="source_label" name="source_label" placeholder="Nom du texte, circulaire ou page officielle" /></div>
+            <div className="field"><label htmlFor="source_url">Lien de la source (facultatif)</label><input id="source_url" name="source_url" type="url" placeholder="https://" /></div>
+            <div className="field"><label htmlFor="notes">Notes de vérification</label><textarea id="notes" name="notes" rows={3} /></div>
+            <button className="button primary">Enregistrer en brouillon</button>
+          </form>
+        </CalendarRuleDialog>
+      ) : null}
       </div>
 
       <section className="card section">
@@ -188,33 +215,7 @@ export default async function FiscalCalendarSettings() {
         ))}
       </section>
 
-      {canManage.data === true ? (
-        <CalendarRuleDialog title="Ajouter une nouvelle règle">
-          <p>Commence en brouillon. Aucun organisme ni délai légal n'est prérempli automatiquement.</p>
-          <form action={createDraft} className="form">
-            <div className="grid2">
-              <div className="field"><label htmlFor="organism_code">Code organisme</label><input id="organism_code" name="organism_code" placeholder="DGI_TVA, DGI_IRSA, DGI_IR ou DGI_IS" required /></div>
-              <div className="field"><label htmlFor="label">Nom de la règle</label><input id="label" name="label" placeholder="Échéance déclarative mensuelle" required /></div>
-            </div>
-            <div className="grid2">
-              <div className="field"><label htmlFor="periodicity">Périodicité</label><select id="periodicity" name="periodicity" defaultValue="monthly"><option value="monthly">Mensuelle</option><option value="quarterly">Trimestrielle</option><option value="annual">Annuelle</option><option value="one_off">Ponctuelle</option></select></div>
-              <div className="field"><label htmlFor="due_type">Calcul d'échéance</label><select id="due_type" name="due_type" defaultValue="day_of_next_month"><option value="day_of_next_month">Jour du mois suivant la période</option><option value="day_of_month_after_quarter">Jour après le trimestre</option><option value="days_after_period_end">Nombre de jours après la période</option></select></div>
-            </div>
-            <div className="grid2">
-              <div className="field"><label htmlFor="due_day">Jour d'échéance (1 à 31)</label><input id="due_day" type="number" name="due_day" min="1" max="31" defaultValue="15" /></div>
-              <div className="field"><label htmlFor="days_after">Délai en jours (si choisi)</label><input id="days_after" type="number" name="days_after" min="0" max="366" defaultValue="0" /></div>
-            </div>
-            <div className="grid2">
-              <div className="field"><label htmlFor="effective_from">Début d'effet</label><input id="effective_from" type="date" name="effective_from" required /></div>
-              <div className="field"><label htmlFor="effective_to">Fin d'effet (facultatif)</label><input id="effective_to" type="date" name="effective_to" /></div>
-            </div>
-            <div className="field"><label htmlFor="source_label">Référence officielle consultée</label><input id="source_label" name="source_label" placeholder="Nom du texte, circulaire ou page officielle" /></div>
-            <div className="field"><label htmlFor="source_url">Lien de la source (facultatif)</label><input id="source_url" name="source_url" type="url" placeholder="https://" /></div>
-            <div className="field"><label htmlFor="notes">Notes de vérification</label><textarea id="notes" name="notes" rows={3} /></div>
-            <button className="button primary">Enregistrer en brouillon</button>
-          </form>
-        </CalendarRuleDialog>
-      ) : null}
+
     </>
   );
 }
