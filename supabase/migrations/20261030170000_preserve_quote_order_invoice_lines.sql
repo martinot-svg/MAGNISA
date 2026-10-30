@@ -18,12 +18,10 @@ $constraints$;
 
 -- Backfill order lines that were previously copied from a quote.
 update public.order_lines ol
-set discount_pct=coalesce(ql.discount_pct,ol.discount_pct),
-    discount_amount=coalesce(ql.discount_amount,ol.discount_amount),
-    taxable_amount=coalesce(ql.taxable_amount,ol.taxable_amount)
-from public.orders o
-left join public.quote_lines ql on ql.quote_id=o.quote_id and ql.sort_order=ol.sort_order
-where o.id=ol.order_id and o.organization_id=ol.organization_id and o.quote_id is not null;
+set discount_pct=(select ql.discount_pct from public.orders o join public.quote_lines ql on ql.quote_id=o.quote_id and ql.organization_id=ol.organization_id and ql.sort_order=ol.sort_order where o.id=ol.order_id and o.organization_id=ol.organization_id),
+    discount_amount=(select ql.discount_amount from public.orders o join public.quote_lines ql on ql.quote_id=o.quote_id and ql.organization_id=ol.organization_id and ql.sort_order=ol.sort_order where o.id=ol.order_id and o.organization_id=ol.organization_id),
+    taxable_amount=(select ql.taxable_amount from public.orders o join public.quote_lines ql on ql.quote_id=o.quote_id and ql.organization_id=ol.organization_id and ql.sort_order=ol.sort_order where o.id=ol.order_id and o.organization_id=ol.organization_id)
+where exists(select 1 from public.orders o join public.quote_lines ql on ql.quote_id=o.quote_id and ql.organization_id=ol.organization_id and ql.sort_order=ol.sort_order where o.id=ol.order_id and o.organization_id=ol.organization_id);
 
 create or replace function public.convert_quote_to_order(p_org uuid,p_quote uuid)
 returns uuid language plpgsql security definer set search_path=public as $function$
