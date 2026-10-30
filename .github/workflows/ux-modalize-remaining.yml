@@ -1,0 +1,35 @@
+name: Complete remaining payroll modalization
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  modalize:
+    if: contains(github.event.head_commit.message, '[modalize2]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply remaining payroll forms
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/app/(app)/paie/page.tsx')
+          s=p.read_text()
+          s=s.replace('<details><summary style={{cursor:"pointer"}}>Détails et IRSA</summary><div className="field"><p className="muted">Salaire de base : {money(e.base_salary,c)}. Personnes à charge : {e.irsa_dependants??0}.</p>\n              <form action={updateEmployeeDependants} className="form"><input type="hidden" name="employee_id" value={e.id}/><label>Personnes à charge IRSA éligibles</label><input aria-label={`Personnes à charge de ${e.first_name} ${e.last_name}`} type="number" name="irsa_dependants" min="0" max="30" step="1" defaultValue={e.irsa_dependants??0} required/><button className="button">Enregistrer</button></form>\n            </div></details>','<FormDialog title={`IRSA - ${e.first_name} ${e.last_name}`} buttonLabel="Modifier IRSA"><div className="field"><p className="muted">Salaire de base : {money(e.base_salary,c)}. Personnes à charge : {e.irsa_dependants??0}.</p>\n              <form action={updateEmployeeDependants} className="form"><input type="hidden" name="employee_id" value={e.id}/><label>Personnes à charge IRSA éligibles</label><input aria-label={`Personnes à charge de ${e.first_name} ${e.last_name}`} type="number" name="irsa_dependants" min="0" max="30" step="1" defaultValue={e.irsa_dependants??0} required/><button className="button">Enregistrer</button></form>\n            </div></FormDialog>',1)
+          s=s.replace('<form action={validatePayslip}>\n                            <input type="hidden" name="payslip_id" value={s.id} />\n                            <button className="button">Valider & comptabiliser</button>\n                          </form>','<FormDialog title={`Valider le bulletin ${s.employees?.first_name || ""} ${s.employees?.last_name || ""}`} buttonLabel="Valider & comptabiliser">\n                            <form action={validatePayslip}>\n                              <input type="hidden" name="payslip_id" value={s.id} />\n                              <p className="muted">Cette action valide le bulletin et déclenche sa comptabilisation.</p>\n                              <button className="button primary">Valider & comptabiliser</button>\n                            </form>\n                          </FormDialog>',1)
+          s=s.replace('<form\n                            action={payPayslip}\n                            style={{ display: "grid", gridTemplateColumns: "120px 130px 150px 1fr", gap: 6 }}\n                          >','<FormDialog title={`Régler le bulletin ${s.employees?.first_name || ""} ${s.employees?.last_name || ""}`} buttonLabel="Régler le bulletin">\n                          <form action={payPayslip} style={{ display: "grid", gap: 10 }}>',1)
+          marker='                          </form>\n                        ) : null}'
+          s=s.replace(marker,'                          </form>\n                          </FormDialog>\n                        ) : null}',1)
+          p.write_text(s)
+          print('remaining payroll forms modalized')
+      - name: Commit generated changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/app/'(app)'/paie/page.tsx
+          git diff --cached --quiet || git commit -m 'Modalize remaining Personnel & Paie forms'
+          git push
