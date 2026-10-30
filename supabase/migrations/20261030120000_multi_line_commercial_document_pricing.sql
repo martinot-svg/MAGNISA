@@ -179,3 +179,50 @@ revoke all on function public.create_quote_draft(uuid,uuid,date,jsonb) from publ
 grant execute on function public.create_quote_draft(uuid,uuid,date,jsonb) to authenticated;
 revoke all on function public.create_invoice_draft(uuid,uuid,date,jsonb,uuid) from public,anon;
 grant execute on function public.create_invoice_draft(uuid,uuid,date,jsonb,uuid) to authenticated;
+
+-- Editing quantity or discount must preserve the unit price and tax rate
+-- captured on the invoice line, not silently reload today's catalogue values.
+create or replace function public.update_invoice_line(
+ p_org uuid,p_line uuid,p_quantity numeric,p_discount_pct numeric
+) returns void
+language plpgsql
+security definer
+set search_path=public
+as $function$
+declare
+ l public.invoice_lines%rowtype;
+ gross numeric;
+ disc numeric;
+ taxable numeric;
+ tax numeric;
+ total numeric;
+ inv uuid;
+begin
+ perform public.assert_org_access(p_org);
+ perform public.assert_org_permission(p_org,'invoices.create');
+ if p_quantity is null or p_quantity<=0 then raise exception 'Quantité invalide'; end if;
+ if p_discount_pct is null or p_discount_pct<0 or p_discount_pct>100 then raise exception 'Remise invalide'; end if;
+ select * into l from public.invoice_lines where id=p_line and organization_id=p_org for update;
+ if not found then raise exception 'Ligne de facture introuvable'; end if;
+ inv:=l.invoice_id;
+ if not exists(select 1 from public.invoices where id=inv and organization_id=p_org and status='draft') then
+   raise exception 'Seule une facture brouillon peut être modifiée';
+ end if;
+ gross:=round(p_quantity*l.unit_price,2);
+ disc:=round(gross*p_discount_pct/100,2);
+ taxable:=gross-disc;
+ tax:=round(taxable*l.tax_rate/100,2);
+ total:=taxable+tax;
+ update public.invoice_lines
+ set quantity=p_quantity,discount_pct=p_discount_pct,discount_amount=disc,
+     taxable_amount=taxable,tax_amount=tax,line_total=total
+ where id=l.id and organization_id=p_org;
+ update public.invoices i
+ set subtotal=x.subtotal,discount_total=x.discount_total,tax_total=x.tax_total,
+     total=x.total,balance_due=x.total-i.paid_amount,updated_at=now()
+ from (select invoice_id,sum(taxable_amount) subtotal,sum(discount_amount) discount_total,
+              sum(tax_amount) tax_total,sum(line_total) total
+       from public.invoice_lines where invoice_id=inv group by invoice_id) x
+ where i.id=inv and i.organization_id=p_org;
+end;
+$function$;
