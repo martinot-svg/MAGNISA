@@ -19,11 +19,11 @@ export default async function NewInvoice({ searchParams }: { searchParams: Promi
   if (orderId) {
     const [{ data: order }, { data: orderLines = [] }] = await Promise.all([
       supabase.from("orders").select("id,number,customer_id,status").eq("organization_id", organizationId).eq("id", orderId).maybeSingle(),
-      supabase.from("order_lines").select("id,service_id,quantity,unit_price,tax_rate").eq("organization_id", organizationId).eq("order_id", orderId).order("sort_order"),
+      supabase.from("order_lines").select("id,service_id,quantity,unit_price,tax_rate,discount_pct").eq("organization_id", organizationId).eq("order_id", orderId).order("sort_order"),
     ]);
     if (order && ["confirmed", "in_progress", "completed"].includes(order.status)) {
       initialCustomerId = order.customer_id; orderNumber = order.number;
-      initialLines = orderLines.filter((l:any)=>l.service_id).map((l:any)=>({service_id:l.service_id,quantity:Number(l.quantity),discount_pct:0,unit_price:Number(l.unit_price),tax_rate:Number(l.tax_rate),order_line_id:l.id}));
+      initialLines = orderLines.filter((l:any)=>l.service_id).map((l:any)=>({service_id:l.service_id,quantity:Number(l.quantity),discount_pct:Number(l.discount_pct||0),unit_price:Number(l.unit_price),tax_rate:Number(l.tax_rate),order_line_id:l.id}));
     }
   }
   const dueDate = new Date(Date.now() + Number(settings?.default_payment_days || 30) * 86400000).toISOString().slice(0,10);
