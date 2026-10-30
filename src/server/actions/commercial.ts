@@ -6,7 +6,7 @@ import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
 
-const lineSchema = z.object({ service_id: z.string().uuid(), quantity: z.coerce.number().finite().positive(), discount_pct: z.coerce.number().finite().min(0).max(100), unit_price: z.coerce.number().finite().nonnegative() });
+const lineSchema = z.object({ service_id: z.string().uuid(), quantity: z.coerce.number().finite().positive(), discount_pct: z.coerce.number().finite().min(0).max(100), unit_price: z.coerce.number().finite().nonnegative(), order_line_id: z.string().uuid().optional() });
 
 export async function createQuoteDraft(formData: FormData) {
   const ctx = await requireOrganization(); await assertPermission(ctx, "quotes.create");
