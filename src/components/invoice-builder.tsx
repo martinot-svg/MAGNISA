@@ -8,7 +8,7 @@ export function InvoiceBuilder({services,customers,initialLines,initialCustomerI
  const initial=()=>initialLines.length?initialLines.map(l=>({...l,unit_price:Number(l.unit_price??services.find(s=>s.id===l.service_id)?.unit_price??0)})):[{service_id:services[0]?.id||"",quantity:1,discount_pct:0,unit_price:Number(services[0]?.unit_price||0)}];
  const [customerId,setCustomerId]=useState(initialCustomerId||"");const [lines,setLines]=useState<Line[]>(initial);
  const update=(index:number,patch:Partial<Line>)=>setLines(v=>v.map((l,i)=>i===index?{...l,...patch}:l));
- const calculated=useMemo(()=>lines.map(l=>{const s=services.find(x=>x.id===l.service_id);const gross=Math.round(l.quantity*l.unit_price*100)/100;const discount=Math.round(gross*l.discount_pct)/100;const ht=Math.round((gross-discount)*100)/100;const rate=Number(l.tax_rate??s?.tax_rate??0);tax=Math.round(ht*rate)/100;return {...l,service:s,tax_rate:rate,ht,tax,ttc:ht+tax}}),[lines,services]);
+ const calculated=useMemo(()=>lines.map(l=>{const s=services.find(x=>x.id===l.service_id);const gross=Math.round(l.quantity*l.unit_price*100)/100;const discount=Math.round(gross*l.discount_pct)/100;const ht=Math.round((gross-discount)*100)/100;const rate=Number(l.tax_rate??s?.tax_rate??0);const tax=Math.round(ht*rate)/100;return {...l,service:s,tax_rate:rate,ht,tax,ttc:ht+tax}}),[lines,services]);
  const totals=calculated.reduce((a,l)=>({ht:a.ht+l.ht,tax:a.tax+l.tax,ttc:a.ttc+l.ttc}),{ht:0,tax:0,ttc:0});
  const fmt=(v:number)=>new Intl.NumberFormat("fr-FR",{maximumFractionDigits:2}).format(v);
  const valid=!!customerId&&lines.length>0&&calculated.every(l=>l.service&&l.quantity>0&&l.unit_price>=0&&Number.isFinite(l.unit_price)&&l.discount_pct>=0&&l.discount_pct<=100);
