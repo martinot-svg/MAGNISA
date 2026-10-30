@@ -6,13 +6,23 @@ import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
 
-const lineSchema = z.object({ service_id: z.string().uuid(), quantity: z.coerce.number().positive(), discount_pct: z.coerce.number().min(0).max(100) });
+const lineSchema = z.object({ service_id: z.string().uuid(), quantity: z.coerce.number().finite().positive(), discount_pct: z.coerce.number().finite().min(0).max(100), unit_price: z.coerce.number().finite().nonnegative() });
+
+export async function createQuoteDraft(formData: FormData) {
+  const ctx = await requireOrganization(); await assertPermission(ctx, "quotes.create");
+  const customerId = String(formData.get("customer_id") || ""); const validUntil = String(formData.get("valid_until") || "");
+  let lines: unknown; try { lines = JSON.parse(String(formData.get("lines") || "[]")); } catch { throw new Error("Les lignes du devis sont invalides."); }
+  const parsed = z.array(lineSchema).min(1).max(100).safeParse(lines);
+  if (!parsed.success || !z.string().date().safeParse(validUntil).success) throw new Error("Vérifie le client, la validité et les prestations du devis.");
+  const { data, error } = await ctx.supabase.rpc("create_quote_draft", { p_org: ctx.organizationId, p_customer: customerId, p_valid_until: validUntil, p_lines: parsed.data });
+  if (error) throw new Error(error.message); revalidatePath("/devis"); redirect(`/devis/${data}`);
+}
 
 export async function createInvoiceDraft(formData: FormData) {
   const ctx = await requireOrganization(); await assertPermission(ctx, "invoices.create");
   const customerId = String(formData.get("customer_id") || ""); const dueDate = String(formData.get("due_date") || ""); const orderId = String(formData.get("order_id") || "").trim() || null;
   let lines: unknown; try { lines = JSON.parse(String(formData.get("lines") || "[]")); } catch { throw new Error("Les lignes de facture sont invalides."); }
-  const parsedLines = z.array(lineSchema).min(1, "Ajoute au moins une prestation.").safeParse(lines); if (!parsedLines.success) throw new Error("Vérifie les prestations de la facture.");
+  const parsedLines = z.array(lineSchema).min(1, "Ajoute au moins une prestation.").max(100).safeParse(lines); if (!parsedLines.success) throw new Error("Vérifie les prestations de la facture.");
   if (!z.string().date().safeParse(dueDate).success) throw new Error("Date d'échéance invalide.");
   const { data, error } = await ctx.supabase.rpc("create_invoice_draft", { p_org: ctx.organizationId, p_customer: customerId, p_due_date: dueDate, p_lines: parsedLines.data, p_order: orderId });
   if (error) throw new Error(error.message); revalidatePath("/factures"); if (orderId) revalidatePath("/commandes"); redirect(`/factures/${data}`);
