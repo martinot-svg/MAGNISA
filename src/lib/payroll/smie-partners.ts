@@ -7,7 +7,8 @@ export type SmiePartner = {
   phone: string;
   email: string;
   verification: "official" | "institutional" | "directory" | "historical" | "location-only";
-  sourceNote: string;\n  sourceUrl: string;
+  sourceNote: string;
+  sourceUrl: string;
 };
 
 /**
