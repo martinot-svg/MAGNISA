@@ -314,4 +314,7 @@ begin
 end;
 $$;
 
+revoke all on function public.preview_fiscal_social_obligations(uuid,date,date) from public, anon;
+grant execute on function public.preview_fiscal_social_obligations(uuid,date,date) to authenticated;
+revoke all on function public.refresh_fiscal_social_obligations(uuid,date,date) from public, anon;
 grant execute on function public.refresh_fiscal_social_obligations(uuid,date,date) to authenticated;
