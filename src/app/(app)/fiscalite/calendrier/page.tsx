@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CalendarRuleDialog } from "@/components/calendar-rule-dialog";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, requirePermission } from "@/lib/permissions";
@@ -188,8 +189,7 @@ export default async function FiscalCalendarSettings() {
       </section>
 
       {canManage.data === true ? (
-        <section className="card section">
-          <h2>Ajouter une règle</h2>
+        <CalendarRuleDialog title="Ajouter une nouvelle règle">
           <p>Commence en brouillon. Aucun organisme ni délai légal n'est prérempli automatiquement.</p>
           <form action={createDraft} className="form">
             <div className="grid2">
@@ -213,8 +213,7 @@ export default async function FiscalCalendarSettings() {
             <div className="field"><label htmlFor="notes">Notes de vérification</label><textarea id="notes" name="notes" rows={3} /></div>
             <button className="button primary">Enregistrer en brouillon</button>
           </form>
-        </section>
+        </CalendarRuleDialog>
       ) : null}
-    </>
-  );
+    </>;
 }
