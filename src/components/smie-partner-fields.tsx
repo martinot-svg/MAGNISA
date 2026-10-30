@@ -46,11 +46,11 @@ export function SmiePartnerFields({ defaultName = "", defaultContact = "" }: Pro
     </div>
     <div className="field">
       <label htmlFor="smie_address">Adresse / localisation de la SMIE</label>
-      <textarea id="smie_address" value={address} onChange={(event) => setAddress(event.target.value)} rows={2} maxLength={350} placeholder="Adresse physique de l'organisme" />
+      <textarea id="smie_address" value={address} onChange={(event) => setAddress(event.target.value)} rows={2} maxLength={250} placeholder="Adresse physique de l'organisme" />
     </div>
     <div className="grid2">
-      <div className="field"><label htmlFor="smie_phone">Téléphone</label><input id="smie_phone" value={phone} onChange={(event) => setPhone(event.target.value)} maxLength={80} placeholder="Non renseigné si non vérifié" /></div>
-      <div className="field"><label htmlFor="smie_email">E-mail</label><input id="smie_email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={120} placeholder="Non renseigné si non vérifié" /></div>
+      <div className="field"><label htmlFor="smie_phone">Téléphone</label><input id="smie_phone" value={phone} onChange={(event) => setPhone(event.target.value)} maxLength={50} placeholder="Non renseigné si non vérifié" /></div>
+      <div className="field"><label htmlFor="smie_email">E-mail</label><input id="smie_email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={100} placeholder="Non renseigné si non vérifié" /></div>
     </div>
     <textarea name="smie_partner_contact" value={contact} readOnly hidden maxLength={500} aria-hidden="true" />
   </>;
