@@ -1,0 +1,42 @@
+name: One shot form modalization
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  modalize:
+    if: contains(github.event.head_commit.message, '[modalize]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply payroll modalization
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/app/(app)/paie/page.tsx')
+          s=p.read_text()
+          if 'from "@/components/form-dialog"' not in s:
+              s=s.replace('import { computeHealthContribution } from "@/lib/payroll/health-contribution";','import { computeHealthContribution } from "@/lib/payroll/health-contribution";\nimport { FormDialog } from "@/components/form-dialog";',1)
+          s=s.replace('          <details><summary style={{cursor:"pointer",fontWeight:600}}>Ajouter un salarié</summary>\n          <form action={createEmployee} className="form">','          <FormDialog title="Ajouter un salarié" buttonLabel="Ajouter un salarié">\n          <form action={createEmployee} className="form">',1)
+          s=s.replace('          </form></details>\n        </div>\n\n        <div className="card">\n          <h2>Nouvelle période de paie</h2>','          </form></FormDialog>\n        </div>\n\n        <div className="card">\n          <FormDialog title="Nouvelle période de paie" buttonLabel="Nouvelle période de paie">',1)
+          s=s.replace('            <button className="button primary">Créer la période</button>\n          </form>\n        </div>','            <button className="button primary">Créer la période</button>\n          </form>\n          </FormDialog>\n        </div>',1)
+          s=s.replace('        {employees.some((e:any)=>e.status==="active") && editableRuns.length>0 ? <details><summary style={{cursor:"pointer",fontWeight:600}}>Créer ou modifier un brouillon</summary>\n        <form action={saveVariableDraft} className="form">','        {employees.some((e:any)=>e.status==="active") && editableRuns.length>0 ? <FormDialog title="Créer ou modifier un brouillon" buttonLabel="Créer ou modifier un brouillon">\n        <form action={saveVariableDraft} className="form">',1)
+          s=s.replace('          <button className="button primary">Enregistrer le brouillon</button>\n        </form></details> :','          <button className="button primary">Enregistrer le brouillon</button>\n        </form></FormDialog> :',1)
+          s=s.replace('      <div className="section"><div className="card">\n          <h2>Calcul d’un bulletin</h2>','      <div className="section"><div className="card">\n          <FormDialog title="Calcul d’un bulletin" buttonLabel="Calculer un bulletin">',1)
+          s=s.replace('          )}\n        </div>\n      </div>\n\n      <div className="section">\n        <h2>Bulletins</h2>','          )}\n          </FormDialog>\n        </div>\n      </div>\n\n      <div className="section">\n        <h2>Bulletins</h2>',1)
+          p.write_text(s)
+          print('payroll modalization applied')
+      - name: Commit generated changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/app/'(app)'/paie/page.tsx
+          git diff --cached --quiet || git commit -m 'Modalize Personnel & Paie forms'
+          git push
