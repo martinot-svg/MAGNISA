@@ -322,9 +322,9 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
         {!employees.length ? <p className="muted">Aucun salarié enregistré. Utilisez le formulaire ci-dessous pour commencer.</p> :
         <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Réf. MAGNISA</th><th>Matricule saisi</th><th>Poste</th><th>Statut</th><th>Gestion</th></tr></thead><tbody>
           {employees.map((e:any)=><tr key={e.id}><td><strong>{e.first_name} {e.last_name}</strong></td><td><code>{e.magnisa_reference||"-"}</code></td><td>{e.employee_number||"Non renseigné"}</td><td>{e.job_title||"Non renseigné"}</td><td>{e.status==="active"?"Actif":e.status}</td><td>
-            <details><summary style={{cursor:"pointer"}}>Détails et IRSA</summary><div className="field"><p className="muted">Salaire de base : {money(e.base_salary,c)}. Personnes à charge : {e.irsa_dependants??0}.</p>
+            <FormDialog title={`IRSA - ${e.first_name} ${e.last_name}`} buttonLabel="Modifier IRSA"><div className="field"><p className="muted">Salaire de base : {money(e.base_salary,c)}. Personnes à charge : {e.irsa_dependants??0}.</p>
               <form action={updateEmployeeDependants} className="form"><input type="hidden" name="employee_id" value={e.id}/><label>Personnes à charge IRSA éligibles</label><input aria-label={`Personnes à charge de ${e.first_name} ${e.last_name}`} type="number" name="irsa_dependants" min="0" max="30" step="1" defaultValue={e.irsa_dependants??0} required/><button className="button">Enregistrer</button></form>
-            </div></details>
+            </div></FormDialog>
           </td></tr>)}
         </tbody></table></div>}
       </section>
@@ -496,17 +496,18 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
                       </td>
                       <td className="right"><Link className="button" href={`/paie/bulletins/${s.id}`}>Ouvrir le bulletin</Link></td><td className="right">
                         {s.status === "calculated" ? (
-                          <form action={validatePayslip}>
-                            <input type="hidden" name="payslip_id" value={s.id} />
-                            <button className="button">Valider & comptabiliser</button>
-                          </form>
+                          <FormDialog title={`Valider le bulletin ${s.employees?.first_name || ""} ${s.employees?.last_name || ""}`} buttonLabel="Valider & comptabiliser">
+                            <form action={validatePayslip}>
+                              <input type="hidden" name="payslip_id" value={s.id} />
+                              <p className="muted">Cette action valide le bulletin et déclenche sa comptabilisation.</p>
+                              <button className="button primary">Valider & comptabiliser</button>
+                            </form>
+                          </FormDialog>
                         ) : ["validated", "partially_paid"].includes(s.status) &&
                           remaining > 0 &&
                           accounts.length > 0 ? (
-                          <form
-                            action={payPayslip}
-                            style={{ display: "grid", gridTemplateColumns: "120px 130px 150px 1fr", gap: 6 }}
-                          >
+                          <FormDialog title={`Régler le bulletin ${s.employees?.first_name || ""} ${s.employees?.last_name || ""}`} buttonLabel="Régler le bulletin">
+                          <form action={payPayslip} style={{ display: "grid", gap: 10 }}>
                             <input type="hidden" name="payslip_id" value={s.id} />
                             <input type="hidden" name="idempotency_key" value={randomUUID()} />
                             <input type="date" name="payment_date" required />
@@ -539,6 +540,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
                               <button className="button primary">Payer</button>
                             </div>
                           </form>
+                          </FormDialog>
                         ) : null}
                       </td>
                     </tr>
