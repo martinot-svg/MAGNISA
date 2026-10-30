@@ -1,3 +1,89 @@
+-- Harden the callable social date helper: SECURITY DEFINER must enforce tenant access.
+create or replace function public.configured_social_due_date(
+  p_org uuid,
+  p_organism_code text,
+  p_period_start date,
+  p_period_end date
+) returns date
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_rule jsonb;
+  v_due date;
+  v_day integer;
+  v_days integer;
+begin
+  if p_org is null
+     or p_organism_code is null
+     or p_period_start is null
+     or p_period_end is null
+     or p_period_end < p_period_start then
+    return null;
+  end if;
+
+  perform public.assert_org_access(p_org);
+
+  select r.due_rule
+    into v_rule
+  from public.social_calendar_rules r
+  where r.organization_id = p_org
+    and r.organism_code = upper(p_organism_code)
+    and r.status = 'validated'
+    and length(trim(coalesce(r.source_label, ''))) > 0
+    and (r.source_url is null or r.source_url ~* '^https?://')
+    and r.effective_from <= p_period_end
+    and (r.effective_to is null or r.effective_to >= p_period_end)
+  order by r.effective_from desc, r.version desc
+  limit 1;
+
+  if v_rule is null then
+    return null;
+  end if;
+
+  case v_rule->>'type'
+    when 'day_of_next_month' then
+      v_day := (v_rule->>'day')::integer;
+      if v_day < 1 or v_day > 31 then return null; end if;
+      v_due := (date_trunc('month', p_period_end) + interval '1 month')::date;
+      v_due := v_due + (
+        least(
+          v_day,
+          extract(day from (date_trunc('month', v_due) + interval '1 month - 1 day'))::integer
+        ) - 1
+      );
+    when 'days_after_period_end' then
+      v_days := (v_rule->>'days')::integer;
+      if v_days < 0 or v_days > 366 then return null; end if;
+      v_due := p_period_end + v_days;
+    when 'day_of_month_after_quarter' then
+      v_day := (v_rule->>'day')::integer;
+      if v_day < 1 or v_day > 31 then return null; end if;
+      v_due := (date_trunc('quarter', p_period_end) + interval '3 months')::date;
+      v_due := v_due + (
+        least(
+          v_day,
+          extract(day from (date_trunc('month', v_due) + interval '1 month - 1 day'))::integer
+        ) - 1
+      );
+    when 'fixed_date' then
+      v_due := (v_rule->>'date')::date;
+      if v_due < p_period_start then return null; end if;
+    else
+      return null;
+  end case;
+
+  return v_due;
+exception
+  when others then return null;
+end;
+$$;
+
+revoke all on function public.configured_social_due_date(uuid, text, date, date) from public, anon;
+grant execute on function public.configured_social_due_date(uuid, text, date, date) to authenticated;
+
 -- Keep fiscal previews aligned with the real obligation engine.
 -- Tax due dates are unavailable until the organization's fiscal profile is confirmed.
 -- This migration does not alter existing organization data or create obligations.
