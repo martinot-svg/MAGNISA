@@ -215,5 +215,6 @@ export default async function FiscalCalendarSettings() {
           </form>
         </CalendarRuleDialog>
       ) : null}
-    </>;
+    </>
+  );
 }
