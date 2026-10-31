@@ -291,7 +291,7 @@ begin
     raise exception 'Dates du contrat invalides';
   end if;
   if p_repayment_method not in ('annuity','equal_principal','bullet') then raise exception 'Méthode de remboursement invalide'; end if;
-  if p_liability_account_code not in ('164','168') then raise exception 'Compte de dette invalide'; end if;
+  if p_liability_account_code is null or p_liability_account_code not in ('164','168') then raise exception 'Compte de dette invalide'; end if;
   if p_repayment_allocation_order not in ('charges_first','interest_first','principal_first') then raise exception 'Ordre d’imputation des remboursements invalide'; end if;
   if p_fee_account_code is not null and not exists (select 1 from public.pcg2005_accounts where code=p_fee_account_code) then raise exception 'Compte de frais absent du plan comptable'; end if;
   if p_penalty_account_code is not null and not exists (select 1 from public.pcg2005_accounts where code=p_penalty_account_code) then raise exception 'Compte de pénalités absent du plan comptable'; end if;
