@@ -94,7 +94,7 @@ begin
     raise exception 'Emprunt introuvable ou non actif';
   end if;
   if p_payment_date < v_loan.start_date then raise exception 'La date de paiement précède la date de départ du contrat'; end if;
-  if v_loan.liability_account_code not in ('164','168') then
+  if v_loan.liability_account_code is null or v_loan.liability_account_code not in ('164','168') then
     raise exception 'Le compte de dette PCG doit être configuré sur le contrat';
   end if;
 
@@ -448,7 +448,7 @@ begin
   if p_payment_frequency not in (1,2,3,4,6,12) then raise exception 'Périodicité invalide'; end if;
   if p_total_installments is null or p_total_installments < 1 or p_total_installments > 1200 then raise exception 'Nombre d’échéances restantes invalide'; end if;
   if p_first_due_date is null or p_first_due_date < v_loan.start_date then raise exception 'Première échéance invalide'; end if;
-  if p_liability_account_code not in ('164','168') then raise exception 'Compte de dette invalide'; end if;
+  if p_liability_account_code is null or p_liability_account_code not in ('164','168') then raise exception 'Compte de dette invalide'; end if;
   if p_repayment_allocation_order not in ('charges_first','interest_first','principal_first') then raise exception 'Ordre d’imputation invalide'; end if;
   if p_fee_account_code is not null and not exists (select 1 from public.pcg2005_accounts where code=p_fee_account_code) then raise exception 'Compte de frais absent du plan comptable'; end if;
   if p_penalty_account_code is not null and not exists (select 1 from public.pcg2005_accounts where code=p_penalty_account_code) then raise exception 'Compte de pénalités absent du plan comptable'; end if;
