@@ -6,7 +6,8 @@ import { requireOrganization } from "@/lib/current-org";
 import { money } from "@/lib/money";
 import { EmptyState } from "@/components/empty-state";
 import { FormDialog } from "@/components/form-dialog";
-import { buildLoanSchedule, type LoanRepaymentMethod } from "@/lib/loan-finance";
+import { addMonthsClamped, buildLoanSchedule, type LoanRepaymentMethod, type LoanInterestCalculationMethod } from "@/lib/loan-finance";
+import { LoanFinancialFields } from "@/components/loan-financial-fields";
 import { LenderSelector } from "@/components/lender-selector";
 
 async function createLoan(fd: FormData) {
@@ -26,14 +27,16 @@ async function createLoan(fd: FormData) {
   const principal = Number(fd.get("principal") || 0);
   const interestRate = Number(fd.get("interest_rate") || 0);
   const startDate = String(fd.get("start_date") || "");
-  const endDate = String(fd.get("end_date") || "").trim() || null;
-  const firstDueDate = String(fd.get("first_due_date") || "");
+  const requestedEndDate = String(fd.get("end_date") || "").trim() || null;
+  let firstDueDate = String(fd.get("first_due_date") || "");
   const contractReference = String(fd.get("contract_reference") || "").trim() || null;
   const repaymentMethod = String(fd.get("repayment_method") || "annuity") as LoanRepaymentMethod;
+  const interestCalculationMethod = String(fd.get("interest_calculation_method") || "outstanding_balance") as LoanInterestCalculationMethod;
   const paymentFrequency = Number(fd.get("payment_frequency") || 12);
   const totalInstallments = Number(fd.get("total_installments") || 0);
   const notes = String(fd.get("notes") || "").trim() || null;
-  const liabilityAccountCode = String(fd.get("liability_account_code") || "");
+  const liabilityAccountInput = String(fd.get("liability_account_code") || "").trim();
+  const liabilityAccountCode = liabilityAccountInput || (["bank", "microfinance", "financial_institution"].includes(lenderCategory) ? "164" : "168");
   const feeAccountCode = String(fd.get("fee_account_code") || "").trim() || null;
   const penaltyAccountCode = String(fd.get("penalty_account_code") || "").trim() || null;
   const repaymentAllocationOrder = String(fd.get("repayment_allocation_order") || "");
@@ -62,9 +65,12 @@ async function createLoan(fd: FormData) {
   }
   if (!Number.isFinite(principal) || principal <= 0) throw new Error("Le capital doit être un montant strictement positif.");
   if (!Number.isFinite(interestRate) || interestRate < 0 || interestRate > 1000) throw new Error("Taux d'intérêt invalide.");
-  if (!["164", "168"].includes(liabilityAccountCode)) throw new Error("Sélectionne le compte de dette PCG adapté au prêteur.");
-  if (feeAccountCode && !["627", "658", "661"].includes(feeAccountCode)) throw new Error("Compte de frais invalide.");
-  if (penaltyAccountCode && !["658", "661"].includes(penaltyAccountCode)) throw new Error("Compte de pénalités invalide.");
+  if (!["164", "168"].includes(liabilityAccountCode)) throw new Error("Compte de dette PCG invalide.");
+  if (feeAccountCode || penaltyAccountCode) {
+    const codes = [feeAccountCode, penaltyAccountCode].filter(Boolean) as string[];
+    const { data: validAccounts, error: accountError } = await supabase.from("pcg2005_accounts").select("code").in("code", codes);
+    if (accountError || new Set((validAccounts || []).map((account: { code: string }) => account.code)).size !== new Set(codes).size) throw new Error("Un compte de frais ou de pénalités est absent du plan comptable.");
+  }
   if (!["charges_first", "interest_first", "principal_first"].includes(repaymentAllocationOrder)) throw new Error("Ordre d'imputation invalide.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || Number.isNaN(Date.parse(startDate))) throw new Error("Date de début invalide.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(firstDueDate) || Number.isNaN(Date.parse(firstDueDate)) || firstDueDate < startDate) throw new Error("Première échéance invalide.");
@@ -77,7 +83,10 @@ async function createLoan(fd: FormData) {
     paymentsPerYear: paymentFrequency,
     firstDueDate,
     method: repaymentMethod,
+    interestCalculationMethod,
   });
+  const endDate = schedule.lastDueDate;
+  if (requestedEndDate && requestedEndDate !== endDate) throw new Error("La date de fin doit correspondre à la dernière échéance calculée.");
 
   const { data: loanId, error } = await supabase.rpc("create_loan_with_schedule_and_lender", {
     p_organization_id: organizationId,
@@ -105,6 +114,7 @@ async function createLoan(fd: FormData) {
   if (error) throw new Error(error.message);
   if (!loanId) throw new Error("L’emprunt a été créé sans identifiant exploitable pour enregistrer sa localisation.");
   const { error: locationSaveError } = await supabase.from("loans").update({
+    interest_calculation_method: interestCalculationMethod,
     lender_location_id: lenderLocationId,
     lender_city: lenderCity,
     lender_region: lenderRegion,
@@ -143,22 +153,15 @@ export default async function Loans() {
               <input type="hidden" name="request_key" value={createRequestKey} />
               <LenderSelector institutions={institutions || []} locations={locations || []} />
               <div className="field"><label>Référence du contrat</label><input name="contract_reference" maxLength={120} /></div>
+              <LoanFinancialFields currency={currency} />
               <div className="grid2">
-                <div className="field"><label>Capital emprunté</label><input name="principal" type="number" step="0.01" min="0.01" required /></div>
-                <div className="field"><label>Taux annuel nominal (%)</label><input name="interest_rate" type="number" step="0.0001" min="0" max="1000" defaultValue="0" required /></div>
-                <div className="field"><label>Date de mise à disposition</label><input name="start_date" type="date" required /></div>
-                <div className="field"><label>Première échéance</label><input name="first_due_date" type="date" required /></div>
-                <div className="field"><label>Nombre d'échéances</label><input name="total_installments" type="number" min="1" max="1200" step="1" required /></div>
-                <div className="field"><label>Périodicité</label><select name="payment_frequency" defaultValue="12"><option value="12">Mensuelle</option><option value="6">Bimestrielle</option><option value="4">Trimestrielle</option><option value="3">Quadrimestrielle</option><option value="2">Semestrielle</option><option value="1">Annuelle</option></select></div>
-                <div className="field"><label>Méthode de remboursement</label><select name="repayment_method" defaultValue="annuity"><option value="annuity">Annuités constantes</option><option value="equal_principal">Capital constant</option><option value="bullet">In fine</option></select></div>
-                <div className="field"><label>Compte de dette PCG</label><select name="liability_account_code" defaultValue="" required><option value="" disabled>Choisir le compte correspondant au prêteur</option><option value="164">164 · Emprunts auprès des établissements de crédit</option><option value="168">168 · Autres emprunts et dettes assimilées</option></select></div>
+                <div className="field"><label>Compte de dette PCG (proposition automatique)</label><select name="liability_account_code" defaultValue=""><option value="">Automatique selon la catégorie du prêteur</option><option value="164">164 · Emprunts auprès des établissements de crédit</option><option value="168">168 · Autres emprunts et dettes assimilées</option></select><p className="muted">Par défaut : 164 pour les établissements financiers, 168 pour les autres prêteurs. Tu peux remplacer cette proposition.</p></div>
                 <div className="field"><label>Compte PCG des frais (facultatif)</label><select name="fee_account_code" defaultValue=""><option value="">Non configuré</option><option value="627">627 · Services bancaires et assimilés</option><option value="658">658 · Autres charges de gestion courante</option><option value="661">661 · Charges d'intérêts</option></select></div>
                 <div className="field"><label>Compte PCG des pénalités (facultatif)</label><select name="penalty_account_code" defaultValue=""><option value="">Non configuré</option><option value="658">658 · Autres charges de gestion courante</option><option value="661">661 · Charges d'intérêts</option></select></div>
                 <div className="field"><label>Ordre d'imputation des paiements</label><select name="repayment_allocation_order" defaultValue="charges_first" required><option value="charges_first">Frais, pénalités, intérêts, capital</option><option value="interest_first">Intérêts, frais, pénalités, capital</option><option value="principal_first">Capital, intérêts, frais, pénalités</option></select></div>
-                <div className="field"><label>Date de fin contractuelle (facultatif)</label><input name="end_date" type="date" /></div>
               </div>
               <div className="field"><label>Notes</label><textarea name="notes" /></div>
-              <p className="muted">Le taux annuel nominal est réparti selon la périodicité. Les intérêts impayés ne sont pas capitalisés automatiquement.</p>
+              <p className="muted">Les comptes proposés restent modifiables. L’ordre d’imputation par défaut est frais, pénalités, intérêts puis capital ; adapte-le si le contrat prévoit un autre ordre.</p>
               <button className="button primary">Créer l'emprunt et son échéancier</button>
             </form>
           </FormDialog>
