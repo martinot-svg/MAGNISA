@@ -78,15 +78,17 @@ async function addInstallmentCharges(fd: FormData) {
   const { supabase, organizationId } = ctx;
   const loanId = String(fd.get("loan_id") || "");
   const installmentId = String(fd.get("installment_id") || "");
-  const feeAmount = Number(fd.get("fee_amount") || 0);
-  const penaltyAmount = Number(fd.get("penalty_amount") || 0);
+  const feeRaw = String(fd.get("fee_amount") || "0").trim();
+  const penaltyRaw = String(fd.get("penalty_amount") || "0").trim();
+  const feeAmount = Number(feeRaw);
+  const penaltyAmount = Number(penaltyRaw);
   const reason = String(fd.get("reason") || "").trim();
   const requestKey = String(fd.get("request_key") || "");
 
   if (!/^[0-9a-f-]{36}$/i.test(requestKey)) throw new Error("Clé de sécurité du formulaire invalide. Recharge la page.");
   if (!/^[0-9a-f-]{36}$/i.test(loanId) || !/^[0-9a-f-]{36}$/i.test(installmentId)) throw new Error("Emprunt ou échéance invalide.");
-  if (!Number.isFinite(feeAmount) || feeAmount < 0 || Math.round(feeAmount * 100) !== feeAmount * 100) throw new Error("Montant des frais invalide.");
-  if (!Number.isFinite(penaltyAmount) || penaltyAmount < 0 || Math.round(penaltyAmount * 100) !== penaltyAmount * 100) throw new Error("Montant des pénalités invalide.");
+  if (!/^\\d+(?:\\.\\d{1,2})?$/.test(feeRaw) || !Number.isFinite(feeAmount) || feeAmount < 0) throw new Error("Montant des frais invalide.");
+  if (!/^\\d+(?:\\.\\d{1,2})?$/.test(penaltyRaw) || !Number.isFinite(penaltyAmount) || penaltyAmount < 0) throw new Error("Montant des pénalités invalide.");
   if (feeAmount + penaltyAmount <= 0) throw new Error("Saisis au moins un montant de frais ou de pénalités.");
   if (reason.length < 3 || reason.length > 300) throw new Error("Le motif doit contenir entre 3 et 300 caractères.");
 
@@ -112,7 +114,8 @@ async function recordRepayment(fd: FormData) {
   const selectedInstallment = String(fd.get("installment_id") || "");
   const installmentId = selectedInstallment === "__early__" ? null : selectedInstallment;
   const paymentDate = String(fd.get("payment_date") || "");
-  const amount = Number(fd.get("amount") || 0);
+  const amountRaw = String(fd.get("amount") || "").trim();
+  const amount = Number(amountRaw);
   const accountId = String(fd.get("financial_account_id") || "");
   const requestKey = String(fd.get("request_key") || "");
   const reference = String(fd.get("payment_reference") || "").trim() || null;
@@ -122,7 +125,7 @@ async function recordRepayment(fd: FormData) {
   if (!/^[0-9a-f-]{36}$/i.test(loanId)) throw new Error("Emprunt invalide.");
   if (selectedInstallment === "" || (installmentId && !/^[0-9a-f-]{36}$/i.test(installmentId))) throw new Error("Sélectionne une échéance ou un remboursement anticipé.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate) || Number.isNaN(Date.parse(paymentDate))) throw new Error("Date de paiement invalide.");
-  if (!Number.isFinite(amount) || amount <= 0 || Math.round(amount * 100) !== amount * 100) throw new Error("Montant invalide : deux décimales au maximum.");
+  if (!/^\\d+(?:\\.\\d{1,2})?$/.test(amountRaw) || !Number.isFinite(amount) || amount <= 0) throw new Error("Montant invalide : deux décimales au maximum.");
   if (!/^[0-9a-f-]{36}$/i.test(accountId)) throw new Error("Sélectionne un compte de trésorerie valide.");
 
   const { error } = await supabase.rpc("record_loan_repayment", {
