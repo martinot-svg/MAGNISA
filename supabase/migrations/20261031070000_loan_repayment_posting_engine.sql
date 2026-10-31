@@ -427,6 +427,10 @@ begin
       updated_at = now()
   where id = p_loan_id and organization_id = p_organization_id;
 
+  update public.loan_repayments
+  set updated_at = now()
+  where id = v_repayment_id and organization_id = p_organization_id;
+
   perform public.audit_event(
     p_organization_id, 'loan.repayment_posted', 'loan_repayment', v_repayment_id,
     null, jsonb_build_object(
