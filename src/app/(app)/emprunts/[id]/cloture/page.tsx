@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
-import { requirePermission } from "@/lib/permissions";
+import { hasPermission, requirePermission } from "@/lib/permissions";
 import { money } from "@/lib/money";
 import { FormDialog } from "@/components/form-dialog";
 
@@ -46,10 +46,7 @@ export default async function EarlyClosurePage({ params }: { params: Promise<{ i
   const ctx = await requireOrganization();
   await requirePermission(ctx, "finance.view");
   const { supabase, organizationId } = ctx;
-  const canClose = await (async () => {
-    try { await requirePermission(ctx, "treasury.transfer"); return true; }
-    catch { return false; }
-  })();
+  const canClose = await hasPermission(ctx, "treasury.transfer");
 
   const [{ data: org }, { data: loan }, { data: accounts = [] }, { data: dueInstallments = [] }] = await Promise.all([
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
@@ -61,7 +58,7 @@ export default async function EarlyClosurePage({ params }: { params: Promise<{ i
   const currency = org?.currency || "MGA";
   const requestKey = randomUUID();
   const today = new Date().toISOString().slice(0, 10);
-  const blockingDues = dueInstallments.filter((row: any) => row.due_date <= today);
+  const blockingDues = dueInstallments.filter((row: any) => row.status === "overdue" || row.due_date <= today);
   const eligible = loan.status === "active"
     && Number(loan.outstanding_principal) > 0
     && !!loan.liability_account_code
