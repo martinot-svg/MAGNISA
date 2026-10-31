@@ -76,7 +76,7 @@ export default async function EarlyClosurePage({ params }: { params: Promise<{ i
   const currency = org?.currency || "MGA";
   const requestKey = randomUUID();
   const today = new Date().toISOString().slice(0, 10);
-  const blockingDues = dueInstallments.filter((row: any) => row.status === "overdue" || row.due_date <= today);
+  const blockingDues = dueInstallments.filter((row: any) => row.status === "overdue" || row.status === "partial" || row.due_date <= today);
   const eligible = loan.status === "active"
     && Number(loan.outstanding_principal) > 0
     && !!loan.liability_account_code
