@@ -237,7 +237,7 @@ begin
   from public.loan_installments
   where loan_id = p_loan_id
     and organization_id = p_organization_id
-    and status = 'planned'
+    and status in ('planned','partial')
     and due_date > p_payment_date
   on conflict do nothing;
 
@@ -246,7 +246,7 @@ begin
       updated_at = now()
   where loan_id = p_loan_id
     and organization_id = p_organization_id
-    and status = 'planned'
+    and status in ('planned','partial')
     and due_date > p_payment_date;
 
   update public.loans
