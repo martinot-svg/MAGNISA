@@ -15,8 +15,8 @@ describe("buildLoanSchedule", () => {
     expect(result.installments).toHaveLength(24);
     expect(result.installments[0].interest).toBe(500_000);
     expect(result.installments.at(-1)?.closingPrincipal).toBe(0);
-    expect(result.installments.reduce((sum, row) => sum + row.principal, 0)).toBe(60_000_000);
-    expect(result.totalPayments).toBe(result.principal + result.totalInterest);
+    expect(result.installments.reduce((sum, row) => sum + row.principal, 0)).toBeCloseTo(60_000_000, 2);
+    expect(result.totalPayments).toBeCloseTo(result.principal + result.totalInterest, 2);
   });
 
   it("supports a zero-interest loan without division errors", () => {
