@@ -15,10 +15,10 @@ create table if not exists public.loan_repayment_installment_snapshots (
   status text not null,
   created_at timestamptz not null default now(),
   primary key (organization_id, repayment_id, installment_id),
-  foreign key (repayment_id, organization_id)
-    references public.loan_repayments(id, organization_id) on delete restrict,
-  foreign key (installment_id, organization_id)
-    references public.loan_installments(id, organization_id) on delete restrict
+  foreign key (repayment_id)
+    references public.loan_repayments(id) on delete restrict,
+  foreign key (installment_id)
+    references public.loan_installments(id) on delete restrict
 );
 
 revoke all on public.loan_repayment_installment_snapshots from public, anon, authenticated;
