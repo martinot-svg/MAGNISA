@@ -184,8 +184,8 @@ begin
     ) then
       raise exception 'Un remboursement futur existe déjà ; régularise-le avant de recalculer l’échéancier';
     end if;
-    if p_amount > v_loan.outstanding_principal then
-      raise exception 'Le remboursement anticipé dépasse le capital restant dû';
+    if p_amount >= v_loan.outstanding_principal then
+      raise exception 'Ce parcours accepte uniquement une réduction partielle du capital. La clôture totale doit intégrer les intérêts courus et indemnités éventuelles.';
     end if;
     v_paid_principal := round(p_amount,2);
   end if;
