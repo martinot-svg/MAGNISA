@@ -1,8 +1,7 @@
 -- Total early closure of a loan.
--- This operation settles exactly the contractual principal outstanding at the
--- closure date. Future unaccrued interest is not charged. Contractual early
--- repayment indemnities are intentionally not inferred automatically because
--- the current loan model has no dedicated indemnity field/rule.
+-- This operation settles the outstanding principal plus explicitly supplied
+-- accrued interest, fees/indemnities and penalties from the lender statement.
+-- Future unaccrued interest is never estimated or charged automatically.
 -- Any due/overdue installment must be settled first through record_loan_repayment.
 
 drop function if exists public.close_loan_early(uuid,uuid,date,uuid,uuid,text,text);
@@ -134,6 +133,10 @@ begin
   end if;
   if v_penalty > 0 and v_loan.penalty_account_code is null then
     raise exception 'Configure le compte PCG des pénalités sur le contrat';
+  end if;
+  if v_interest + v_fees + v_penalty > 0
+     and length(btrim(coalesce(p_notes,''))) < 3 then
+    raise exception 'Ajoute la référence du décompte prêteur justifiant les intérêts, frais ou pénalités';
   end if;
 
   select * into v_account
