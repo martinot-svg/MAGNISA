@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estimateOrangeMoneyFee, estimateMobileMoneyTransferFee, calculateMobileMoneyTransfer } from "./mobile-money-tariffs";
+import { estimateOrangeMoneyFee, estimateMobileMoneyTransferFee, calculateMobileMoneyTransfer, estimateOrangeMoneyInactivityFee, ORANGE_MONEY_ACCOUNT_BALANCE_LIMIT, ORANGE_MONEY_DEPOSIT_REQUIRES_ACCOUNT_HOLDER, ORANGE_MONEY_PHONE_NOT_IN_HOLDER_POSSESSION_FEE_STATUS } from "./mobile-money-tariffs";
 
 describe("barème Orange Money Madagascar au 01-02-2025", () => {
  it("calcule les frais de dépôt selon les tranches fournies", () => {
@@ -21,6 +21,15 @@ describe("barème Orange Money Madagascar au 01-02-2025", () => {
   expect(estimateOrangeMoneyFee("izy_cash", 1_000_001)).toBeNull();
   expect(estimateOrangeMoneyFee("orange_bill_payment", 2_000_000)).toBe(500);
   expect(estimateOrangeMoneyFee("buy_bundle", 2_000_000)).toBe(0);
+ });
+ it("conserve les plafonds et règles complémentaires du compte", () => {
+  expect(ORANGE_MONEY_ACCOUNT_BALANCE_LIMIT).toBe(20_000_000);
+  expect(ORANGE_MONEY_DEPOSIT_REQUIRES_ACCOUNT_HOLDER).toBe(true);
+  expect(ORANGE_MONEY_PHONE_NOT_IN_HOLDER_POSSESSION_FEE_STATUS).toBe("amount_not_specified_in_source");
+  expect(estimateOrangeMoneyInactivityFee(5)).toBeNull();
+  expect(estimateOrangeMoneyInactivityFee(6)).toBe(2_000);
+  expect(estimateOrangeMoneyInactivityFee(12)).toBe(4_000);
+  expect(estimateOrangeMoneyInactivityFee(18)).toBe(6_000);
  });
  it("ne choisit pas arbitrairement entre les deux règles contradictoires de paiement marchand", () => {
   expect(estimateOrangeMoneyFee("merchant_payment", 50_000)).toBeNull();
