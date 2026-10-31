@@ -1,0 +1,55 @@
+name: Deploy Supabase production migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_production:
+        description: "Choisis APPLY pour appliquer les migrations en attente sur Supabase production"
+        required: true
+        type: choice
+        options:
+          - NO
+          - APPLY
+        default: NO
+
+permissions:
+  contents: read
+
+concurrency:
+  group: magnisa-supabase-production-migrations
+  cancel-in-progress: false
+
+jobs:
+  deploy-migrations:
+    if: github.ref == 'refs/heads/main' && inputs.confirm_production == 'APPLY'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: pmlzirobpdlzsrvtkvir
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Verify required credentials are configured
+        shell: bash
+        run: |
+          test -n "$SUPABASE_ACCESS_TOKEN" || (echo "::error::Secret SUPABASE_ACCESS_TOKEN manquant"; exit 1)
+          test -n "$SUPABASE_DB_PASSWORD" || (echo "::error::Secret SUPABASE_DB_PASSWORD manquant"; exit 1)
+
+      - name: Install Supabase CLI
+        run: npm install --global supabase@latest
+
+      - name: Link the production project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Show pending migrations without applying them
+        run: supabase db push --linked --dry-run
+
+      - name: Apply pending migrations
+        run: supabase db push --linked --yes
+
+      - name: Verify remote migration history
+        run: supabase migration list --linked
