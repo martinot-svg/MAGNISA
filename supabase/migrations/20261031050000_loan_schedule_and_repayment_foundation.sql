@@ -269,6 +269,7 @@ create or replace function public.create_loan_with_schedule(
   p_fee_account_code text,
   p_penalty_account_code text,
   p_repayment_allocation_order text,
+  p_request_key uuid,
   p_installments jsonb
 ) returns uuid
 language plpgsql
@@ -277,10 +278,24 @@ set search_path = public
 as $function$
 declare
   v_loan_id uuid;
+  v_idempotency public.lot1_financial_idempotency%rowtype;
+  v_digest text;
 begin
   perform public.assert_org_access(p_organization_id);
   perform public.assert_org_permission(p_organization_id, 'finance.view');
   perform public.assert_org_permission(p_organization_id, 'treasury.transfer');
+
+  if p_request_key is null then raise exception 'Clé de requête obligatoire'; end if;
+  v_digest := md5(jsonb_build_array(p_organization_id,p_lender_name,p_principal,p_interest_rate,p_start_date,p_end_date,p_notes,p_contract_reference,p_repayment_method,p_payment_frequency,p_total_installments,p_first_due_date,p_liability_account_code,p_fee_account_code,p_penalty_account_code,p_repayment_allocation_order,p_installments)::text);
+  insert into public.lot1_financial_idempotency(organization_id,request_key,operation_type,request_digest)
+  values(p_organization_id,p_request_key,'loan_create',v_digest)
+  on conflict (organization_id,request_key) do nothing;
+  select * into strict v_idempotency from public.lot1_financial_idempotency
+  where organization_id=p_organization_id and request_key=p_request_key for update;
+  if v_idempotency.operation_type <> 'loan_create' or v_idempotency.request_digest <> v_digest then
+    raise exception 'Clé de requête déjà utilisée pour une autre opération';
+  end if;
+  if v_idempotency.result_id is not null then return v_idempotency.result_id; end if;
 
   if length(btrim(coalesce(p_lender_name,''))) < 2 or length(btrim(p_lender_name)) > 160 then
     raise exception 'Nom du prêteur invalide';
@@ -316,9 +331,11 @@ begin
   ) returning id into v_loan_id;
 
   perform public.create_loan_schedule(p_organization_id, v_loan_id, p_installments);
+  update public.lot1_financial_idempotency set result_id=v_loan_id
+  where organization_id=p_organization_id and request_key=p_request_key;
   return v_loan_id;
 end;
 $function$;
 
-revoke all on function public.create_loan_with_schedule(uuid,text,numeric,numeric,date,date,text,text,text,integer,integer,date,text,text,text,text,jsonb) from public, anon;
-grant execute on function public.create_loan_with_schedule(uuid,text,numeric,numeric,date,date,text,text,text,integer,integer,date,text,text,text,text,jsonb) to authenticated;
+revoke all on function public.create_loan_with_schedule(uuid,text,numeric,numeric,date,date,text,text,text,integer,integer,date,text,text,text,text,uuid,jsonb) from public, anon;
+grant execute on function public.create_loan_with_schedule(uuid,text,numeric,numeric,date,date,text,text,text,integer,integer,date,text,text,text,text,uuid,jsonb) to authenticated;
