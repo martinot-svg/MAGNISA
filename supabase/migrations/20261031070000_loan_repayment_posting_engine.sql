@@ -487,7 +487,8 @@ create or replace function public.add_loan_installment_charges(
   p_installment_id uuid,
   p_fee_amount numeric,
   p_penalty_amount numeric,
-  p_reason text
+  p_reason text,
+  p_request_key uuid
 ) returns void
 language plpgsql
 security definer
@@ -497,9 +498,25 @@ declare
   v_loan public.loans%rowtype;
   v_installment public.loan_installments%rowtype;
   v_next_amount numeric(20,2);
+  v_idempotency public.lot1_financial_idempotency%rowtype;
+  v_digest text;
 begin
   perform public.assert_org_access(p_organization_id);
   perform public.assert_org_permission(p_organization_id, 'accounting.manage');
+
+  if p_request_key is null then raise exception 'Clé de requête obligatoire'; end if;
+  v_digest := md5(jsonb_build_array(p_organization_id,p_loan_id,p_installment_id,p_fee_amount,p_penalty_amount,p_reason)::text);
+  insert into public.lot1_financial_idempotency(organization_id,request_key,operation_type,request_digest)
+  values(p_organization_id,p_request_key,'loan_installment_charges',v_digest)
+  on conflict (organization_id,request_key) do nothing;
+  select * into strict v_idempotency
+  from public.lot1_financial_idempotency
+  where organization_id=p_organization_id and request_key=p_request_key
+  for update;
+  if v_idempotency.operation_type <> 'loan_installment_charges' or v_idempotency.request_digest <> v_digest then
+    raise exception 'Clé de requête déjà utilisée pour une autre opération';
+  end if;
+  if v_idempotency.result_id is not null then return; end if;
 
   if coalesce(p_fee_amount,0) < 0 or coalesce(p_penalty_amount,0) < 0
      or round(coalesce(p_fee_amount,0),2) <> coalesce(p_fee_amount,0)
@@ -564,8 +581,11 @@ begin
       'penalty_amount',coalesce(p_penalty_amount,0),'reason',btrim(p_reason)
     )
   );
+  update public.lot1_financial_idempotency
+  set result_id = p_installment_id
+  where organization_id = p_organization_id and request_key = p_request_key;
 end;
 $function$;
 
-revoke all on function public.add_loan_installment_charges(uuid,uuid,uuid,numeric,numeric,text) from public, anon;
-grant execute on function public.add_loan_installment_charges(uuid,uuid,uuid,numeric,numeric,text) to authenticated;
+revoke all on function public.add_loan_installment_charges(uuid,uuid,uuid,numeric,numeric,text,uuid) from public, anon;
+grant execute on function public.add_loan_installment_charges(uuid,uuid,uuid,numeric,numeric,text,uuid) to authenticated;
