@@ -133,6 +133,27 @@ export function PaymentEntryForm({
             <span className="muted">Nouveau solde restant</span>
             <strong>{remaining !== null ? formatter.format(remaining) : "-"}</strong>
           </div>
+          {showMvola && mvolaFeeOption && (
+            <>
+              <div className="field">
+                <span className="muted">Frais MVola déclarés</span>
+                <strong>{mvolaFeeOption === "without_fees" ? formatter.format(0) : feeValid ? formatter.format(feeAmount) : "À renseigner"}</strong>
+              </div>
+              <div className="field">
+                <span className="muted">Prise en charge</span>
+                <strong>{mvolaFeeOption === "with_fees" ? "Client : remboursement reçu par l’entreprise" : mvolaFeeOption === "company_pays" ? "Entreprise : frais à enregistrer séparément" : "Aucun frais réel constaté"}</strong>
+              </div>
+              {mvolaFeeOption === "with_fees" && feeValid && valid && (
+                <div className="field">
+                  <span className="muted">Encaissement total attendu (facture + remboursement)</span>
+                  <strong>{formatter.format(received + feeAmount)}</strong>
+                </div>
+              )}
+              {mvolaFeeOption === "company_pays" && feeValid && (
+                <small>Les frais ne modifient pas le montant affecté à la facture. Ils doivent correspondre à un prélèvement réel distinct.</small>
+              )}
+            </>
+          )}
         </section>
       )}
       <div className="field">

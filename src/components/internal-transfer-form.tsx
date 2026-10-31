@@ -24,10 +24,11 @@ export function InternalTransferForm({accounts,requestKey,action}:Props){
   <input type="hidden" name="source_debit" value={calculated?.debit??""}/>
   <input type="hidden" name="destination_credit" value={calculated?.credit??""}/>
   <input type="hidden" name="operator_fee" value={calculated?.fee??""}/>
-  <div className="card"><h4>Calcul automatique - barème {MVOLA_RATE_VERSION}</h4>
-   <p>Frais estimés : <strong>{calculated?fmt(calculated.fee):"-"}</strong></p>
-   <p>Débit du compte source : <strong>{calculated?fmt(calculated.debit):"-"}</strong></p>
-   <p>Crédit prévu au destinataire : <strong>{calculated?fmt(calculated.credit):"-"}</strong></p>
+  <div className="card" aria-live="polite"><h4>Récapitulatif du transfert - barème {MVOLA_RATE_VERSION}</h4>
+   <p>Montant de référence : <strong>{Number.isInteger(n)&&n>0?fmt(n):"À renseigner"}</strong></p>
+   <p>Frais estimés : <strong>{calculated?fmt(calculated.fee):"À confirmer"}</strong></p>
+   <p>Débit du compte source : <strong>{calculated?fmt(calculated.debit):"À confirmer"}</strong></p>
+   <p>Crédit prévu au destinataire : <strong>{calculated?fmt(calculated.credit):"À confirmer"}</strong></p>
    {!operation&&source&&destination&&<p className="error">Tarif de cet opérateur ou de ce parcours non disponible. Aucun frais ne sera inventé.</p>}
    {operation==="bank_other"&&mode==="included"&&<p className="error">Assiette du taux de 1 % à confirmer pour les frais inclus. Calcul et enregistrement indisponibles pour ce cas tant que la règle n'est pas vérifiée.</p>}
    <small>{mode==="included"?"Le montant de référence est le total débité, frais inclus.":"Le montant de référence est le net garanti au destinataire, frais ajoutés."}</small><small>Vérifie que les frais affichés correspondent exactement au débit réel. Cette fonction ne détecte pas les prélèvements chez l'opérateur.</small>
