@@ -103,7 +103,7 @@ begin
     from public.loan_installments
     where loan_id = p_loan_id
       and organization_id = p_organization_id
-      and (status = 'overdue' or (due_date <= p_payment_date and status in ('planned','partial')))
+      and (status in ('overdue','partial') or (due_date <= p_payment_date and status = 'planned'))
   ) then
     raise exception 'Règle d’abord les échéances arrivées à terme avant la clôture anticipée';
   end if;
