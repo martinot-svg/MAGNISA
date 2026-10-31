@@ -25,8 +25,15 @@ export function classifyMvolaTransfer(source: MvolaTransferAccount | undefined, 
   return source.name.toLowerCase().includes("bni") || (destination.category ?? "personal") === "personal" ? "deposit" : "bank_other";
  }
  if (sourceMvola && destination.type === "mobile_money") {
-  if (destinationMvola) return source.category === "business" ? "enterprise_transfer" : "transfer_mvola";
-  return "transfer_other_operator";
+  // Tariff selection follows the source wallet category. No tariff is inferred
+  // for merchant wallets where the published reference has no matching rule.
+  if (destinationMvola) {
+   if (source.category === "personal") return "transfer_mvola";
+   if (source.category === "business") return "enterprise_transfer";
+   return null;
+  }
+  if (source.category === "personal") return "transfer_other_operator";
+  return null;
  }
  return null;
 }
