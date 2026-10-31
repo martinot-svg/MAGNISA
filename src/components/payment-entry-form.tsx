@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { reserveCashReceiptReference } from "@/server/actions/core";
 import { MOBILE_MONEY_OPERATORS, normalizeMobileMoneyOperator, operatorLabel } from "@/lib/mobile-money-tariffs";
 import { estimateMvolaFee } from "@/lib/mvola-tariffs";
+import { estimateOrangeMoneyFee, orangeMoneyMerchantPaymentNotice } from "@/lib/mobile-money-tariffs";
 
 type InvoiceOption = { id: string; number: string; balance_due: number; customerName: string };
 type AccountOption = { id: string; name: string; type: string; category?: string | null };
