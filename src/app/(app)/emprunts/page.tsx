@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
@@ -104,7 +105,7 @@ export default async function Loans() {
           <div className="tableWrap"><table>
             <thead><tr><th>Réf. MAGNISA</th><th>Prêteur</th><th>Méthode</th><th>Capital initial</th><th>Restant dû</th><th>Prochaine échéance</th><th>Statut</th></tr></thead>
             <tbody>{loans.map((loan: any) => <tr key={loan.id}>
-              <td><code>{loan.magnisa_reference || loan.contract_reference || "-"}</code></td>
+              <td><Link href={`/emprunts/${loan.id}`}><code>{loan.magnisa_reference || loan.contract_reference || "Voir le détail"}</code></Link></td>
               <td>{loan.lender_name}</td>
               <td>{loan.repayment_method === "equal_principal" ? "Capital constant" : loan.repayment_method === "bullet" ? "In fine" : "Annuités constantes"}</td>
               <td>{money(Number(loan.principal), currency)}</td>
