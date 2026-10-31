@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import Link from "next/link";
 import { requirePermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
@@ -27,7 +28,9 @@ async function createLoan(fd: FormData) {
   const feeAccountCode = String(fd.get("fee_account_code") || "").trim() || null;
   const penaltyAccountCode = String(fd.get("penalty_account_code") || "").trim() || null;
   const repaymentAllocationOrder = String(fd.get("repayment_allocation_order") || "");
+  const requestKey = String(fd.get("request_key") || "");
 
+  if (!/^[0-9a-f-]{36}$/i.test(requestKey)) throw new Error("Clé de sécurité du formulaire invalide. Recharge la page.");
   if (lenderName.length < 2 || lenderName.length > 160) throw new Error("Nom du prêteur invalide.");
   if (!Number.isFinite(principal) || principal <= 0) throw new Error("Le capital doit être un montant strictement positif.");
   if (!Number.isFinite(interestRate) || interestRate < 0 || interestRate > 1000) throw new Error("Taux d'intérêt invalide.");
@@ -65,6 +68,7 @@ async function createLoan(fd: FormData) {
     p_fee_account_code: feeAccountCode,
     p_penalty_account_code: penaltyAccountCode,
     p_repayment_allocation_order: repaymentAllocationOrder,
+    p_request_key: requestKey,
     p_installments: schedule.installments.map((row) => ({ ...row, fees: 0 })),
   });
   if (error) throw new Error(error.message);
@@ -81,6 +85,7 @@ export default async function Loans() {
     supabase.from("loans").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false }),
   ]);
   const currency = org?.currency || "MGA";
+  const createRequestKey = randomUUID();
 
   return (
     <>
@@ -93,6 +98,7 @@ export default async function Loans() {
         <div className="actions">
           <FormDialog title="Nouvel emprunt" buttonLabel="+ Nouvel emprunt">
             <form action={createLoan} className="form">
+              <input type="hidden" name="request_key" value={createRequestKey} />
               <div className="field"><label>Prêteur</label><input name="lender_name" required maxLength={160} /></div>
               <div className="field"><label>Référence du contrat</label><input name="contract_reference" maxLength={120} /></div>
               <div className="grid2">
