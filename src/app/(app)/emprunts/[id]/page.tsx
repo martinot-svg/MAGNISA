@@ -81,7 +81,9 @@ async function addInstallmentCharges(fd: FormData) {
   const feeAmount = Number(fd.get("fee_amount") || 0);
   const penaltyAmount = Number(fd.get("penalty_amount") || 0);
   const reason = String(fd.get("reason") || "").trim();
+  const requestKey = String(fd.get("request_key") || "");
 
+  if (!/^[0-9a-f-]{36}$/i.test(requestKey)) throw new Error("Clé de sécurité du formulaire invalide. Recharge la page.");
   if (!/^[0-9a-f-]{36}$/i.test(loanId) || !/^[0-9a-f-]{36}$/i.test(installmentId)) throw new Error("Emprunt ou échéance invalide.");
   if (!Number.isFinite(feeAmount) || feeAmount < 0 || Math.round(feeAmount * 100) !== feeAmount * 100) throw new Error("Montant des frais invalide.");
   if (!Number.isFinite(penaltyAmount) || penaltyAmount < 0 || Math.round(penaltyAmount * 100) !== penaltyAmount * 100) throw new Error("Montant des pénalités invalide.");
@@ -95,6 +97,7 @@ async function addInstallmentCharges(fd: FormData) {
     p_fee_amount: feeAmount,
     p_penalty_amount: penaltyAmount,
     p_reason: reason,
+    p_request_key: requestKey,
   });
   if (error) throw new Error(error.message);
   revalidatePath(`/emprunts/${loanId}`);
@@ -168,7 +171,8 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
   }
   const openInstallments = installments.filter((row: any) => !["paid", "cancelled"].includes(row.status));
   const remainingInstallmentAmount = (row: any) => Math.max(0, Number(row.total_due) - (paidByInstallment.get(row.id) || 0));
-  const requestKey = randomUUID();
+  const repaymentRequestKey = randomUUID();
+  const chargesRequestKey = randomUUID();
   const today = new Date().toISOString().slice(0, 10);
 
   return (
@@ -240,6 +244,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
             <FormDialog title="Ajouter des frais ou pénalités" buttonLabel="+ Ajouter des frais ou pénalités">
               <form action={addInstallmentCharges} className="form">
                 <input type="hidden" name="loan_id" value={loan.id} />
+                <input type="hidden" name="request_key" value={chargesRequestKey} />
                 <div className="field"><label>Échéance concernée</label><select name="installment_id" required defaultValue=""><option value="" disabled>Choisir une échéance</option>{openInstallments.map((row: any) => <option key={row.id} value={row.id}>Échéance {row.installment_number} · {row.due_date}</option>)}</select></div>
                 <div className="grid2">
                   <div className="field"><label>Frais contractuels</label><input name="fee_amount" type="number" min="0" step="0.01" defaultValue="0" /></div>
@@ -272,7 +277,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
             <FormDialog title="Enregistrer un remboursement" buttonLabel="+ Enregistrer un remboursement">
               <form action={recordRepayment} className="form">
                 <input type="hidden" name="loan_id" value={loan.id} />
-                <input type="hidden" name="request_key" value={requestKey} />
+                <input type="hidden" name="request_key" value={repaymentRequestKey} />
                 <div className="field">
                   <label>Type de remboursement</label>
                   <select name="installment_id" required defaultValue="">
