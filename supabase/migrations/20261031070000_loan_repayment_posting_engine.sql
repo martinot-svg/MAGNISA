@@ -477,3 +477,78 @@ $function$;
 
 revoke all on function public.configure_existing_loan_schedule(uuid,uuid,text,integer,integer,date,date,text,text,text,text,jsonb) from public, anon;
 grant execute on function public.configure_existing_loan_schedule(uuid,uuid,text,integer,integer,date,date,text,text,text,text,jsonb) to authenticated;
+
+
+-- Add contractually supported fees or penalties to an unpaid installment.
+-- This is a receivable adjustment only; no cash or journal is created here.
+create or replace function public.add_loan_installment_charges(
+  p_organization_id uuid,
+  p_loan_id uuid,
+  p_installment_id uuid,
+  p_fee_amount numeric,
+  p_penalty_amount numeric,
+  p_reason text
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  v_loan public.loans%rowtype;
+  v_installment public.loan_installments%rowtype;
+begin
+  perform public.assert_org_access(p_organization_id);
+  perform public.assert_org_permission(p_organization_id, 'accounting.manage');
+
+  if coalesce(p_fee_amount,0) < 0 or coalesce(p_penalty_amount,0) < 0
+     or round(coalesce(p_fee_amount,0),2) <> coalesce(p_fee_amount,0)
+     or round(coalesce(p_penalty_amount,0),2) <> coalesce(p_penalty_amount,0)
+     or coalesce(p_fee_amount,0) + coalesce(p_penalty_amount,0) <= 0 then
+    raise exception 'Montants de frais ou pénalités invalides';
+  end if;
+  if length(btrim(coalesce(p_reason,''))) < 3 or length(btrim(p_reason)) > 300 then
+    raise exception 'Le motif des frais ou pénalités est obligatoire';
+  end if;
+
+  select * into v_loan
+  from public.loans
+  where id = p_loan_id and organization_id = p_organization_id
+  for update;
+  if not found or v_loan.status <> 'active' then raise exception 'Emprunt introuvable ou non actif'; end if;
+
+  if p_fee_amount > 0 and v_loan.fee_account_code is null then
+    raise exception 'Configure le compte PCG des frais sur le contrat';
+  end if;
+  if p_penalty_amount > 0 and v_loan.penalty_account_code is null then
+    raise exception 'Configure le compte PCG des pénalités sur le contrat';
+  end if;
+
+  select * into v_installment
+  from public.loan_installments
+  where id = p_installment_id
+    and loan_id = p_loan_id
+    and organization_id = p_organization_id
+  for update;
+  if not found or v_installment.status in ('paid','cancelled') then
+    raise exception 'Échéance introuvable ou déjà soldée';
+  end if;
+
+  update public.loan_installments
+  set fees_due = fees_due + coalesce(p_fee_amount,0),
+      penalty_due = penalty_due + coalesce(p_penalty_amount,0),
+      total_due = total_due + coalesce(p_fee_amount,0) + coalesce(p_penalty_amount,0),
+      updated_at = now()
+  where id = p_installment_id and organization_id = p_organization_id;
+
+  perform public.audit_event(
+    p_organization_id, 'loan.installment_charges_added', 'loan_installment', p_installment_id,
+    null, jsonb_build_object(
+      'loan_id',p_loan_id,'fee_amount',coalesce(p_fee_amount,0),
+      'penalty_amount',coalesce(p_penalty_amount,0),'reason',btrim(p_reason)
+    )
+  );
+end;
+$function$;
+
+revoke all on function public.add_loan_installment_charges(uuid,uuid,uuid,numeric,numeric,text) from public, anon;
+grant execute on function public.add_loan_installment_charges(uuid,uuid,uuid,numeric,numeric,text) to authenticated;
