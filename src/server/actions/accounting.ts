@@ -44,7 +44,10 @@ export async function recordCustomerPaymentV2(formData: FormData) {
   await assertPermission(ctx, "payments.record");
   const p = customerPaymentInputSchema.safeParse(Object.fromEntries(formData));
   if (!p.success) throw new Error("Paiement invalide.");
-  const isMvola = p.data.method === "mobile_money" && p.data.mobile_operator === "mvola";
+  const isMobileMoney = p.data.method === "mobile_money";
+  if (isMobileMoney && !p.data.mobile_operator) throw new Error("Sélectionne l’opérateur Mobile Money utilisé.");
+  if (!isMobileMoney && (p.data.mobile_operator || p.data.mobile_operator_name)) throw new Error("L’opérateur Mobile Money ne peut être renseigné que pour un paiement Mobile Money.");
+  const isMvola = isMobileMoney && p.data.mobile_operator === "mvola";
   if (isMvola && !p.data.mvola_fee_option) throw new Error("Indique si le client prend en charge les frais MVola.");
   const feeOption = p.data.mvola_fee_option;
   const fee = feeOption === "with_fees" || feeOption === "company_pays" ? Number(p.data.mvola_fee_amount || 0) : 0;
@@ -52,14 +55,20 @@ export async function recordCustomerPaymentV2(formData: FormData) {
     throw new Error("Indique le montant entier des frais réellement constatés sur le justificatif MVola.");
   }
   if (!isMvola && feeOption) throw new Error("L’option de frais MVola n’est valable que pour un paiement MVola.");
-  if (isMvola) {
+  if (isMobileMoney) {
     const { data: wallet, error: walletError } = await ctx.supabase.from("financial_accounts").select("id,name,type,is_active,details,mvola_account_category").eq("organization_id", ctx.organizationId).eq("id", p.data.financial_account_id).maybeSingle();
     if (walletError) throw new Error(walletError.message);
-    if (!wallet || !wallet.is_active || wallet.type !== "mobile_money" || wallet.name.trim().toLowerCase() !== "mvola") throw new Error("Sélectionne un compte MVola actif.");
-    const category = wallet.mvola_account_category || (wallet.details && typeof wallet.details === "object" ? (wallet.details as Record<string, unknown>).account_type : null);
-    if (!["personal", "business", "merchant"].includes(String(category ?? ""))) throw new Error("La catégorie du compte MVola doit être renseignée avant d'enregistrer le paiement.");
-    if (wallet.mvola_account_category && wallet.details && typeof wallet.details === "object" && (wallet.details as Record<string, unknown>).account_type && wallet.mvola_account_category !== (wallet.details as Record<string, unknown>).account_type) {
-      throw new Error("La catégorie MVola du compte est incohérente. Corrige-la dans la trésorerie avant d'enregistrer le paiement.");
+    const walletName = wallet?.name.trim().toLowerCase() ?? "";
+    const matchesOperator = p.data.mobile_operator === "mvola" ? walletName.includes("mvola")
+      : p.data.mobile_operator === "orange_money" ? walletName.includes("orange")
+      : p.data.mobile_operator === "airtel_money" ? walletName.includes("airtel") : false;
+    if (!wallet || !wallet.is_active || wallet.type !== "mobile_money" || !matchesOperator) throw new Error("Le compte financier sélectionné ne correspond pas à l’opérateur Mobile Money.");
+    if (isMvola) {
+      const category = wallet.mvola_account_category || (wallet.details && typeof wallet.details === "object" ? (wallet.details as Record<string, unknown>).account_type : null);
+      if (!["personal", "business", "merchant"].includes(String(category ?? ""))) throw new Error("La catégorie du compte MVola doit être renseignée avant d'enregistrer le paiement.");
+      if (wallet.mvola_account_category && wallet.details && typeof wallet.details === "object" && (wallet.details as Record<string, unknown>).account_type && wallet.mvola_account_category !== (wallet.details as Record<string, unknown>).account_type) {
+        throw new Error("La catégorie MVola du compte est incohérente. Corrige-la dans la trésorerie avant d'enregistrer le paiement.");
+      }
     }
   }
   const { error } = await ctx.supabase.rpc("record_customer_payment_with_fee_v2", {
