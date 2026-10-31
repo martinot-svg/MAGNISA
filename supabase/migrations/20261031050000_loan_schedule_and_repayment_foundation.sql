@@ -109,3 +109,109 @@ revoke all on public.loan_installments from anon, authenticated;
 revoke all on public.loan_repayments from anon, authenticated;
 grant select on public.loan_installments to authenticated;
 grant select on public.loan_repayments to authenticated;
+
+-- Persist a server-calculated schedule atomically. The caller cannot directly
+-- insert or update schedule rows; only this validated function can do so.
+create or replace function public.create_loan_schedule(
+  p_organization_id uuid,
+  p_loan_id uuid,
+  p_installments jsonb
+) returns integer
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  v_loan public.loans%rowtype;
+  v_item jsonb;
+  v_count integer := 0;
+  v_number integer;
+  v_opening numeric(20,2);
+  v_principal numeric(20,2);
+  v_interest numeric(20,2);
+  v_fees numeric(20,2);
+  v_total numeric(20,2);
+  v_closing numeric(20,2);
+  v_expected_opening numeric(20,2);
+begin
+  perform public.assert_org_access(p_organization_id);
+  perform public.assert_org_permission(p_organization_id, 'finance.view');
+
+  if p_installments is null or jsonb_typeof(p_installments) <> 'array'
+     or jsonb_array_length(p_installments) < 1
+     or jsonb_array_length(p_installments) > 1200 then
+    raise exception 'Échéancier invalide';
+  end if;
+
+  select * into v_loan
+  from public.loans
+  where id = p_loan_id and organization_id = p_organization_id
+  for update;
+
+  if not found then raise exception 'Emprunt introuvable'; end if;
+  if exists (select 1 from public.loan_installments where loan_id = p_loan_id and organization_id = p_organization_id) then
+    raise exception 'Un échéancier existe déjà pour cet emprunt';
+  end if;
+  if v_loan.total_installments is not null and jsonb_array_length(p_installments) <> v_loan.total_installments then
+    raise exception 'Le nombre d’échéances ne correspond pas au contrat';
+  end if;
+
+  v_expected_opening := round(v_loan.principal, 2);
+  for v_item in select value from jsonb_array_elements(p_installments) loop
+    v_count := v_count + 1;
+    v_number := (v_item->>'number')::integer;
+    v_opening := round((v_item->>'openingPrincipal')::numeric, 2);
+    v_principal := round((v_item->>'principal')::numeric, 2);
+    v_interest := round((v_item->>'interest')::numeric, 2);
+    v_fees := round(coalesce((v_item->>'fees')::numeric, 0), 2);
+    v_total := round((v_item->>'payment')::numeric, 2);
+    v_closing := round((v_item->>'closingPrincipal')::numeric, 2);
+
+    if v_number <> v_count or v_opening <> v_expected_opening
+       or v_principal < 0 or v_interest < 0 or v_fees < 0
+       or v_total <> v_principal + v_interest + v_fees
+       or v_closing <> v_opening - v_principal
+       or v_closing < 0
+       or nullif(v_item->>'dueDate','') is null then
+      raise exception 'Ligne d’échéancier invalide à la position %', v_count;
+    end if;
+
+    insert into public.loan_installments(
+      organization_id, loan_id, installment_number, due_date,
+      opening_principal, principal_due, interest_due, fees_due,
+      total_due, closing_principal
+    ) values (
+      p_organization_id, p_loan_id, v_count, (v_item->>'dueDate')::date,
+      v_opening, v_principal, v_interest, v_fees,
+      v_total, v_closing
+    );
+
+    v_expected_opening := v_closing;
+  end loop;
+
+  if v_expected_opening <> 0 then
+    raise exception 'L’échéancier ne rembourse pas intégralement le capital';
+  end if;
+
+  update public.loans
+  set first_due_date = (p_installments->0->>'dueDate')::date,
+      next_due_date = (p_installments->0->>'dueDate')::date,
+      next_due_amount = (p_installments->0->>'payment')::numeric,
+      updated_at = now()
+  where id = p_loan_id and organization_id = p_organization_id;
+
+  perform public.audit_event(
+    p_organization_id,
+    'loan.schedule_created',
+    'loan',
+    p_loan_id,
+    null,
+    jsonb_build_object('installments', v_count)
+  );
+
+  return v_count;
+end;
+$function$;
+
+revoke all on function public.create_loan_schedule(uuid, uuid, jsonb) from public, anon;
+grant execute on function public.create_loan_schedule(uuid, uuid, jsonb) to authenticated;
