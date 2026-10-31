@@ -27,14 +27,14 @@ async function closeLoanEarly(fd: FormData) {
 
   if (!/^[0-9a-f-]{36}$/i.test(loanId)) throw new Error("Emprunt invalide.");
   if (!/^[0-9a-f-]{36}$/i.test(requestKey)) throw new Error("Clé de sécurité invalide. Recharge la page.");
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(paymentDate) || Number.isNaN(Date.parse(paymentDate))) throw new Error("Date de clôture invalide.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate) || Number.isNaN(Date.parse(paymentDate))) throw new Error("Date de clôture invalide.");
   if (!/^[0-9a-f-]{36}$/i.test(accountId)) throw new Error("Sélectionne un compte de trésorerie valide.");
   for (const [label, raw, amount] of [
     ["Intérêts", interestRaw, interestAmount],
     ["Frais et indemnités", feesRaw, feesAmount],
     ["Pénalités", penaltyRaw, penaltyAmount],
   ] as const) {
-    if (!/^\\d+(?:\\.\\d{1,2})?$/.test(raw) || !Number.isFinite(amount) || amount < 0) {
+    if (!/^\d+(?:\.\d{1,2})?$/.test(raw) || !Number.isFinite(amount) || amount < 0) {
       throw new Error(`${label} : montant invalide, deux décimales maximum.`);
     }
   }
