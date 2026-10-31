@@ -5,7 +5,7 @@ import { reserveCashReceiptReference } from "@/server/actions/core";
 import { estimateMvolaFee, MVOLA_RATE_VERSION } from "@/lib/mvola-tariffs";
 
 type InvoiceOption = { id: string; number: string; balance_due: number; customerName: string };
-type AccountOption = { id: string; name: string; type: string };
+type AccountOption = { id: string; name: string; type: string; category?: string | null };
 
 export function PaymentEntryForm({
   invoices,
@@ -57,13 +57,17 @@ export function PaymentEntryForm({
   const feeAmount = Number(mvolaFeeAmount);
   // Indicative customer-side merchant-payment fee from the versioned MVola tariff.
   // Never post this estimate automatically: the amount must be checked against the receipt.
-  const estimatedMerchantFee = valid && currency === "MGA" && Number.isInteger(received)
-    ? estimateMvolaFee("merchant_payment", received)
-    : null;
   const feeOptionNeedsAmount = mvolaFeeOption === "with_fees" || mvolaFeeOption === "company_pays";
   const feeValid = !showMvola || mvolaFeeOption === "without_fees" || (feeOptionNeedsAmount && mvolaFeeAmount.trim() !== "" && Number.isFinite(feeAmount) && feeAmount > 0 && Number.isInteger(feeAmount));
   const selectedAccount = accounts.find((a) => a.id === accountId);
-  const operatorMismatch = showMvola && !!selectedAccount && selectedAccount.name.trim().toLowerCase() !== "mvola";
+  const selectedMvolaCategory = selectedAccount?.category ?? null;
+  const operatorMismatch = showMvola && !!selectedAccount && (
+    selectedAccount.name.trim().toLowerCase() !== "mvola" ||
+    !["personal", "business", "merchant"].includes(selectedMvolaCategory ?? "")
+  );
+  const estimatedMerchantFee = valid && currency === "MGA" && Number.isInteger(received) && selectedMvolaCategory === "merchant"
+    ? estimateMvolaFee("merchant_payment", received)
+    : null;
   const remaining = valid ? Math.max(0, Math.round((due - received) * 100) / 100) : null;
   const formatter = new Intl.NumberFormat("fr-FR", {
     style: "currency",
@@ -184,17 +188,29 @@ export function PaymentEntryForm({
           {valid && feeValid && <small>{mvolaFeeOption === "company_pays" ? "Le montant sera enregistré comme frais réels de l’entreprise. Vérifie qu’il a effectivement été prélevé sur ce compte." : `Total à vérifier sur le justificatif : ${formatter.format(received + feeAmount)} (dont ${formatter.format(received)} affectés à la facture).`}</small>}
           {mvolaFeeOption === "with_fees" && (
             <div className="card" aria-live="polite">
-              <strong>Estimation des frais de paiement marchand</strong>
-              {estimatedMerchantFee !== null ? (
+              {selectedMvolaCategory === "merchant" ? (
                 <>
-                  <p>{formatter.format(estimatedMerchantFee)} selon le barème MVola du {MVOLA_RATE_VERSION}.</p>
-                  <small>Estimation indicative du frais facturé au client pour un achat commerçant. Vérifie le montant sur le SMS ou le justificatif MVola avant de l'enregistrer comme remboursement réel.</small>
-                  <button type="button" className="button secondary" onClick={() => setMvolaFeeAmount(String(estimatedMerchantFee))}>
-                    Reporter l’estimation dans le montant à confirmer
-                  </button>
+                  <strong>Estimation des frais de paiement marchand</strong>
+                  {estimatedMerchantFee !== null ? (
+                    <>
+                      <p>{formatter.format(estimatedMerchantFee)} selon le barème MVola du {MVOLA_RATE_VERSION}.</p>
+                      <small>Estimation indicative pour un achat commerçant. Vérifie le montant sur le SMS ou le justificatif avant de l'enregistrer comme remboursement réel.</small>
+                      <button type="button" className="button secondary" onClick={() => setMvolaFeeAmount(String(estimatedMerchantFee))}>
+                        Reporter l’estimation dans le montant à confirmer
+                      </button>
+                    </>
+                  ) : (
+                    <small>Estimation indisponible : vérifie le tarif réel sur le justificatif MVola. Aucun frais n’est calculé automatiquement.</small>
+                  )}
                 </>
               ) : (
-                <small>Estimation indisponible : vérifie le tarif réel sur le justificatif MVola. Aucun frais n’est calculé automatiquement.</small>
+                <small>
+                  {selectedMvolaCategory === "personal"
+                    ? "Compte MVola particulier : le barème de paiement marchand ne s’applique pas. Saisis uniquement le remboursement réellement constaté sur le justificatif."
+                    : selectedMvolaCategory === "business"
+                      ? "Compte MVola entreprise : aucun tarif de paiement entrant marchand n’est déduit automatiquement. Saisis uniquement le montant réellement constaté."
+                      : "Sélectionne un compte MVola et vérifie sa catégorie pour afficher un tarif applicable."}
+                </small>
               )}
             </div>
           )}
@@ -208,7 +224,7 @@ export function PaymentEntryForm({
         <select id="payment-account" name="financial_account_id" value={accountId} onChange={(event) => setAccountId(event.target.value)} required>
           <option value="">Sélectionner</option>
           {accounts.filter(item => method !== "mobile_money" || item.type === "mobile_money").map((item) => (
-            <option key={item.id} value={item.id}>{item.name} ({item.type})</option>
+            <option key={item.id} value={item.id}>{item.name} ({item.type}{item.type === "mobile_money" ? " · " + (item.category === "personal" ? "Particulier" : item.category === "business" ? "Entreprise" : item.category === "merchant" ? "Marchand" : "Catégorie à définir") : ""})</option>
           ))}
         </select>
       </div>
