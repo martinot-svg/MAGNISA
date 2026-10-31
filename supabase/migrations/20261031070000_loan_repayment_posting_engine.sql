@@ -202,12 +202,12 @@ begin
     if exists (
       select 1
       from public.loan_repayments r
-      join public.loan_installments i
-        on i.id = r.installment_id and i.organization_id = r.organization_id
-      where r.loan_id = p_loan_id and r.organization_id = p_organization_id
-        and r.status = 'posted' and i.due_date > p_payment_date
+      where r.loan_id = p_loan_id
+        and r.organization_id = p_organization_id
+        and r.status = 'posted'
+        and r.payment_date > p_payment_date
     ) then
-      raise exception 'Un remboursement futur existe déjà ; régularise-le avant de recalculer l’échéancier';
+      raise exception 'Un remboursement postérieur à la date choisie existe déjà ; régularise-le avant de recalculer l’échéancier';
     end if;
     if p_amount >= v_loan.outstanding_principal then
       raise exception 'Ce parcours accepte uniquement une réduction partielle du capital. La clôture totale doit intégrer les intérêts courus et indemnités éventuelles.';
