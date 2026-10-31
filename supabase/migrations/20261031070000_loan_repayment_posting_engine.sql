@@ -400,3 +400,80 @@ grant execute on function public.record_loan_repayment(uuid,uuid,uuid,date,numer
 -- Repayment and installment ledgers remain read-only to clients; all mutations go through the RPC.
 revoke insert, update, delete on public.loan_installments, public.loan_repayments from anon, authenticated;
 grant select on public.loan_installments, public.loan_repayments to authenticated;
+
+
+-- Bring legacy loan records into the new schedule model only after a user
+-- explicitly supplies the missing contractual and accounting terms.
+create or replace function public.configure_existing_loan_schedule(
+  p_organization_id uuid,
+  p_loan_id uuid,
+  p_repayment_method text,
+  p_payment_frequency integer,
+  p_total_installments integer,
+  p_first_due_date date,
+  p_end_date date,
+  p_liability_account_code text,
+  p_fee_account_code text,
+  p_penalty_account_code text,
+  p_repayment_allocation_order text,
+  p_installments jsonb
+) returns integer
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  v_loan public.loans%rowtype;
+  v_end_date date;
+begin
+  perform public.assert_org_access(p_organization_id);
+  perform public.assert_org_permission(p_organization_id, 'finance.view');
+  perform public.assert_org_permission(p_organization_id, 'accounting.manage');
+
+  select * into v_loan
+  from public.loans
+  where id = p_loan_id and organization_id = p_organization_id
+  for update;
+
+  if not found or v_loan.status <> 'active' then
+    raise exception 'Emprunt historique introuvable ou non actif';
+  end if;
+  if exists (
+    select 1 from public.loan_installments
+    where loan_id = p_loan_id and organization_id = p_organization_id
+  ) then
+    raise exception 'Un échéancier existe déjà pour cet emprunt';
+  end if;
+  if p_repayment_method not in ('annuity','equal_principal','bullet') then raise exception 'Méthode de remboursement invalide'; end if;
+  if p_payment_frequency not in (1,2,3,4,6,12) then raise exception 'Périodicité invalide'; end if;
+  if p_total_installments is null or p_total_installments < 1 or p_total_installments > 1200 then raise exception 'Nombre d’échéances restantes invalide'; end if;
+  if p_first_due_date is null or p_first_due_date < v_loan.start_date then raise exception 'Première échéance invalide'; end if;
+  if p_liability_account_code not in ('164','168') then raise exception 'Compte de dette invalide'; end if;
+  if p_repayment_allocation_order not in ('charges_first','interest_first','principal_first') then raise exception 'Ordre d’imputation invalide'; end if;
+  if p_fee_account_code is not null and not exists (select 1 from public.pcg2005_accounts where code=p_fee_account_code) then raise exception 'Compte de frais absent du plan comptable'; end if;
+  if p_penalty_account_code is not null and not exists (select 1 from public.pcg2005_accounts where code=p_penalty_account_code) then raise exception 'Compte de pénalités absent du plan comptable'; end if;
+
+  v_end_date := coalesce(p_end_date, v_loan.end_date);
+  if v_end_date is not null and v_end_date < (p_first_due_date + make_interval(months => (p_total_installments - 1) * (12 / p_payment_frequency)))::date then
+    raise exception 'La date de fin précède la dernière échéance calculée';
+  end if;
+
+  update public.loans
+  set repayment_method = p_repayment_method,
+      payment_frequency = p_payment_frequency,
+      total_installments = p_total_installments,
+      first_due_date = p_first_due_date,
+      end_date = v_end_date,
+      liability_account_code = p_liability_account_code,
+      fee_account_code = p_fee_account_code,
+      penalty_account_code = p_penalty_account_code,
+      repayment_allocation_order = p_repayment_allocation_order,
+      updated_at = now()
+  where id = p_loan_id and organization_id = p_organization_id;
+
+  return public.create_loan_schedule(p_organization_id, p_loan_id, p_installments);
+end;
+$function$;
+
+revoke all on function public.configure_existing_loan_schedule(uuid,uuid,text,integer,integer,date,date,text,text,text,text,jsonb) from public, anon;
+grant execute on function public.configure_existing_loan_schedule(uuid,uuid,text,integer,integer,date,date,text,text,text,text,jsonb) to authenticated;
