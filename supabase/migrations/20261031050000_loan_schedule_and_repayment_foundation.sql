@@ -6,7 +6,10 @@ alter table public.loans
   add column if not exists payment_frequency integer not null default 12,
   add column if not exists total_installments integer,
   add column if not exists first_due_date date,
-  add column if not exists rate_type text not null default 'fixed';
+  add column if not exists rate_type text not null default 'fixed',
+  add column if not exists liability_account_code text,
+  add column if not exists fee_account_code text,
+  add column if not exists penalty_account_code text;
 
 do $$
 begin
@@ -26,6 +29,10 @@ begin
     alter table public.loans add constraint loans_rate_type_check
       check (rate_type in ('fixed','variable'));
   end if;
+  if not exists (select 1 from pg_constraint where conname = 'loans_liability_account_check' and conrelid = 'public.loans'::regclass) then
+    alter table public.loans add constraint loans_liability_account_check
+      check (liability_account_code is null or liability_account_code in ('164','168'));
+  end if;
   if not exists (select 1 from pg_constraint where conname = 'loans_id_organization_unique' and conrelid = 'public.loans'::regclass) then
     alter table public.loans add constraint loans_id_organization_unique unique (id, organization_id);
   end if;
@@ -41,6 +48,7 @@ create table if not exists public.loan_installments (
   principal_due numeric(20,2) not null check (principal_due >= 0),
   interest_due numeric(20,2) not null check (interest_due >= 0),
   fees_due numeric(20,2) not null default 0 check (fees_due >= 0),
+  penalty_due numeric(20,2) not null default 0 check (penalty_due >= 0),
   total_due numeric(20,2) not null check (total_due >= 0),
   closing_principal numeric(20,2) not null check (closing_principal >= 0),
   status text not null default 'planned' check (status in ('planned','partial','paid','overdue','cancelled')),
@@ -252,6 +260,9 @@ create or replace function public.create_loan_with_schedule(
   p_payment_frequency integer,
   p_total_installments integer,
   p_first_due_date date,
+  p_liability_account_code text,
+  p_fee_account_code text,
+  p_penalty_account_code text,
   p_installments jsonb
 ) returns uuid
 language plpgsql
@@ -274,6 +285,9 @@ begin
   end if;
   if p_end_date is not null and p_end_date < (p_first_due_date + make_interval(months => (p_total_installments - 1) * (12 / p_payment_frequency)))::date then raise exception 'La date de fin précède la dernière échéance calculée'; end if;
   if p_repayment_method not in ('annuity','equal_principal','bullet') then raise exception 'Méthode de remboursement invalide'; end if;
+  if p_liability_account_code not in ('164','168') then raise exception 'Compte de dette invalide'; end if;
+  if p_fee_account_code is not null and not exists (select 1 from public.pcg2005_accounts where code=p_fee_account_code) then raise exception 'Compte de frais absent du plan comptable'; end if;
+  if p_penalty_account_code is not null and not exists (select 1 from public.pcg2005_accounts where code=p_penalty_account_code) then raise exception 'Compte de pénalités absent du plan comptable'; end if;
   if p_payment_frequency not in (1,2,3,4,6,12) then raise exception 'Périodicité invalide'; end if;
   if p_total_installments is null or p_total_installments < 1 or p_total_installments > 1200 then raise exception 'Durée invalide'; end if;
   if jsonb_array_length(coalesce(p_installments,'[]'::jsonb)) <> p_total_installments then
@@ -283,12 +297,14 @@ begin
   insert into public.loans(
     organization_id, lender_name, principal, outstanding_principal, interest_rate,
     start_date, end_date, next_due_date, next_due_amount, status, notes,
-    contract_reference, repayment_method, payment_frequency, total_installments, first_due_date
+    contract_reference, repayment_method, payment_frequency, total_installments, first_due_date,
+    liability_account_code, fee_account_code, penalty_account_code
   ) values (
     p_organization_id, btrim(p_lender_name), round(p_principal,2), round(p_principal,2), p_interest_rate,
     p_start_date, p_end_date, p_first_due_date, null, 'active', nullif(btrim(coalesce(p_notes,'')),''),
     nullif(btrim(coalesce(p_contract_reference,'')),''), p_repayment_method, p_payment_frequency,
-    p_total_installments, p_first_due_date
+    p_total_installments, p_first_due_date,
+    p_liability_account_code, p_fee_account_code, p_penalty_account_code
   ) returning id into v_loan_id;
 
   perform public.create_loan_schedule(p_organization_id, v_loan_id, p_installments);
@@ -296,5 +312,5 @@ begin
 end;
 $function$;
 
-revoke all on function public.create_loan_with_schedule(uuid,text,numeric,numeric,date,date,text,text,text,integer,integer,date,jsonb) from public, anon;
-grant execute on function public.create_loan_with_schedule(uuid,text,numeric,numeric,date,date,text,text,text,integer,integer,date,jsonb) to authenticated;
+revoke all on function public.create_loan_with_schedule(uuid,text,numeric,numeric,date,date,text,text,text,integer,integer,date,text,text,text,jsonb) from public, anon;
+grant execute on function public.create_loan_with_schedule(uuid,text,numeric,numeric,date,date,text,text,text,integer,integer,date,text,text,text,jsonb) to authenticated;
