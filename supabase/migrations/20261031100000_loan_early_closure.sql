@@ -96,16 +96,12 @@ begin
   if exists (
     select 1
     from public.loan_repayments r
-    join public.loan_installments i
-      on i.id = r.installment_id
-     and i.organization_id = r.organization_id
-     and i.loan_id = r.loan_id
     where r.loan_id = p_loan_id
       and r.organization_id = p_organization_id
       and r.status = 'posted'
-      and i.due_date > p_payment_date
+      and r.payment_date > p_payment_date
   ) then
-    raise exception 'Un remboursement futur existe déjà ; régularise-le avant la clôture anticipée';
+    raise exception 'Un remboursement postérieur à la date choisie existe déjà ; régularise-le avant la clôture anticipée';
   end if;
 
   v_amount := round(v_loan.outstanding_principal, 2);
