@@ -175,11 +175,11 @@ begin
     raise exception 'Le nombre d’échéances ne correspond pas au contrat';
   end if;
 
-  v_expected_opening := round(v_loan.principal, 2);
+  v_expected_opening := round(v_loan.outstanding_principal, 2);
   v_periodic_rate := coalesce(v_loan.interest_rate, 0) / 100 / v_loan.payment_frequency;
   v_regular_payment := case
-    when v_periodic_rate = 0 then round(v_loan.principal / v_loan.total_installments, 2)
-    else v_loan.principal * v_periodic_rate / (1 - power(1 + v_periodic_rate, -v_loan.total_installments))
+    when v_periodic_rate = 0 then round(v_loan.outstanding_principal / v_loan.total_installments, 2)
+    else v_loan.outstanding_principal * v_periodic_rate / (1 - power(1 + v_periodic_rate, -v_loan.total_installments))
   end;
 
   for v_item in select value from jsonb_array_elements(p_installments) loop
