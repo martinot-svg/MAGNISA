@@ -87,8 +87,8 @@ async function addInstallmentCharges(fd: FormData) {
 
   if (!/^[0-9a-f-]{36}$/i.test(requestKey)) throw new Error("Clé de sécurité du formulaire invalide. Recharge la page.");
   if (!/^[0-9a-f-]{36}$/i.test(loanId) || !/^[0-9a-f-]{36}$/i.test(installmentId)) throw new Error("Emprunt ou échéance invalide.");
-  if (!/^\\d+(?:\\.\\d{1,2})?$/.test(feeRaw) || !Number.isFinite(feeAmount) || feeAmount < 0) throw new Error("Montant des frais invalide.");
-  if (!/^\\d+(?:\\.\\d{1,2})?$/.test(penaltyRaw) || !Number.isFinite(penaltyAmount) || penaltyAmount < 0) throw new Error("Montant des pénalités invalide.");
+  if (!/^\d+(?:\.\d{1,2})?$/.test(feeRaw) || !Number.isFinite(feeAmount) || feeAmount < 0) throw new Error("Montant des frais invalide.");
+  if (!/^\d+(?:\.\d{1,2})?$/.test(penaltyRaw) || !Number.isFinite(penaltyAmount) || penaltyAmount < 0) throw new Error("Montant des pénalités invalide.");
   if (feeAmount + penaltyAmount <= 0) throw new Error("Saisis au moins un montant de frais ou de pénalités.");
   if (reason.length < 3 || reason.length > 300) throw new Error("Le motif doit contenir entre 3 et 300 caractères.");
 
@@ -125,7 +125,7 @@ async function recordRepayment(fd: FormData) {
   if (!/^[0-9a-f-]{36}$/i.test(loanId)) throw new Error("Emprunt invalide.");
   if (selectedInstallment === "" || (installmentId && !/^[0-9a-f-]{36}$/i.test(installmentId))) throw new Error("Sélectionne une échéance ou un remboursement anticipé.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate) || Number.isNaN(Date.parse(paymentDate))) throw new Error("Date de paiement invalide.");
-  if (!/^\\d+(?:\\.\\d{1,2})?$/.test(amountRaw) || !Number.isFinite(amount) || amount <= 0) throw new Error("Montant invalide : deux décimales au maximum.");
+  if (!/^\d+(?:\.\d{1,2})?$/.test(amountRaw) || !Number.isFinite(amount) || amount <= 0) throw new Error("Montant invalide : deux décimales au maximum.");
   if (!/^[0-9a-f-]{36}$/i.test(accountId)) throw new Error("Sélectionne un compte de trésorerie valide.");
 
   const { error } = await supabase.rpc("record_loan_repayment", {
