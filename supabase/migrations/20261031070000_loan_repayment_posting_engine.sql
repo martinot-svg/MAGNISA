@@ -93,6 +93,7 @@ begin
   if not found or v_loan.status <> 'active' then
     raise exception 'Emprunt introuvable ou non actif';
   end if;
+  if p_payment_date < v_loan.start_date then raise exception 'La date de paiement précède la date de départ du contrat'; end if;
   if v_loan.liability_account_code not in ('164','168') then
     raise exception 'Le compte de dette PCG doit être configuré sur le contrat';
   end if;
@@ -117,6 +118,12 @@ begin
     if not found or v_installment.status in ('paid','cancelled') then
       raise exception 'Échéance introuvable ou déjà soldée';
     end if;
+    if exists (
+      select 1 from public.loan_installments earlier
+      where earlier.loan_id = p_loan_id and earlier.organization_id = p_organization_id
+        and earlier.installment_number < v_installment.installment_number
+        and earlier.status in ('planned','partial','overdue')
+    ) then raise exception 'Règle les échéances précédentes avant celle-ci'; end if;
 
     select
       coalesce(sum(fees_paid),0),
@@ -138,12 +145,24 @@ begin
       raise exception 'Le paiement dépasse le solde de cette échéance. Utilise un remboursement anticipé distinct pour le capital supplémentaire.';
     end if;
 
-    -- Allocation contractuelle par défaut : frais, pénalités, intérêts, puis capital.
+    -- Apply the allocation order explicitly stored on the signed loan contract.
     v_left := p_amount;
-    v_paid_fees := least(v_left, v_remaining_fees); v_left := v_left - v_paid_fees;
-    v_paid_penalty := least(v_left, v_remaining_penalty); v_left := v_left - v_paid_penalty;
-    v_paid_interest := least(v_left, v_remaining_interest); v_left := v_left - v_paid_interest;
-    v_paid_principal := least(v_left, v_remaining_principal); v_left := v_left - v_paid_principal;
+    if v_loan.repayment_allocation_order = 'charges_first' then
+      v_paid_fees := least(v_left, v_remaining_fees); v_left := v_left - v_paid_fees;
+      v_paid_penalty := least(v_left, v_remaining_penalty); v_left := v_left - v_paid_penalty;
+      v_paid_interest := least(v_left, v_remaining_interest); v_left := v_left - v_paid_interest;
+      v_paid_principal := least(v_left, v_remaining_principal); v_left := v_left - v_paid_principal;
+    elsif v_loan.repayment_allocation_order = 'interest_first' then
+      v_paid_interest := least(v_left, v_remaining_interest); v_left := v_left - v_paid_interest;
+      v_paid_fees := least(v_left, v_remaining_fees); v_left := v_left - v_paid_fees;
+      v_paid_penalty := least(v_left, v_remaining_penalty); v_left := v_left - v_paid_penalty;
+      v_paid_principal := least(v_left, v_remaining_principal); v_left := v_left - v_paid_principal;
+    else
+      v_paid_principal := least(v_left, v_remaining_principal); v_left := v_left - v_paid_principal;
+      v_paid_interest := least(v_left, v_remaining_interest); v_left := v_left - v_paid_interest;
+      v_paid_fees := least(v_left, v_remaining_fees); v_left := v_left - v_paid_fees;
+      v_paid_penalty := least(v_left, v_remaining_penalty); v_left := v_left - v_paid_penalty;
+    end if;
 
   else
     -- A principal prepayment is accepted only when all due/overdue installments
