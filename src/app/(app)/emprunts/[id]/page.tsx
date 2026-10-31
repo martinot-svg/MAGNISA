@@ -203,11 +203,12 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
           <tr><th>Ville</th><td>{loan.lender_city || "-"}</td><th>Agence</th><td>{loan.lender_branch_name || "-"}</td></tr>
           <tr><th>Région</th><td>{loan.lender_region || "-"}</td><th>Adresse</th><td>{loan.lender_address || "-"}</td></tr>
           <tr><th>Capital</th><td>{money(Number(loan.principal), currency)}</td><th>Taux annuel nominal</th><td>{loan.interest_rate ?? 0} %</td></tr>
-          <tr><th>Méthode</th><td>{method}</td><th>Périodicité</th><td>{loan.payment_frequency} fois par an</td></tr>
+          <tr><th>Méthode</th><td>{method}</td><th>Base des intérêts</th><td>{loan.interest_calculation_method === "original_principal" ? "Capital initial" : "Capital restant dû"}</td></tr>
+          <tr><th>Périodicité</th><td>{loan.payment_frequency} fois par an</td><th>Nombre d'échéances</th><td>{loan.total_installments ?? "-"}</td></tr>
           <tr><th>Compte de dette</th><td>{loan.liability_account_code || "À configurer"}</td><th>Compte intérêts</th><td>661 · Charges d'intérêts</td></tr>
           <tr><th>Compte frais</th><td>{loan.fee_account_code || "Non configuré"}</td><th>Compte pénalités</th><td>{loan.penalty_account_code || "Non configuré"}</td></tr>
           <tr><th>Ordre d'imputation</th><td colSpan={3}>{loan.repayment_allocation_order === "interest_first" ? "Intérêts, frais, pénalités, capital" : loan.repayment_allocation_order === "principal_first" ? "Capital, intérêts, frais, pénalités" : "Frais, pénalités, intérêts, capital"}</td></tr>
-          <tr><th>Nombre d'échéances</th><td>{loan.total_installments ?? "-"}</td><th>Statut</th><td>{loan.status}</td></tr>
+          <tr><th>Statut</th><td colSpan={3}>{loan.status}</td></tr>
           <tr><th>Date de départ</th><td>{loan.start_date}</td><th>Première échéance</th><td>{loan.first_due_date || "-"}</td></tr>
           <tr><th>Date de fin</th><td>{loan.end_date || "-"}</td><th>Notes</th><td>{loan.notes || "-"}</td></tr>
         </tbody></table></div>
