@@ -229,7 +229,24 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
       {installments.length === 0 && loan.status === "active" && !canConfigureAccounting ? <p className="muted">L'échéancier de cet emprunt historique doit être configuré par un utilisateur autorisé à gérer la comptabilité.</p> : null}
 
       <section className="section" id="echeancier">
-        <h2>Échéancier prévisionnel</h2>
+        <div className="pageHead">
+          <div><h2>Échéancier prévisionnel</h2><p className="muted">Les frais et pénalités doivent être justifiés par le contrat ou un avis du prêteur.</p></div>
+          {canConfigureAccounting && openInstallments.length > 0 ? (
+            <FormDialog title="Ajouter des frais ou pénalités" buttonLabel="+ Ajouter des frais ou pénalités">
+              <form action={addInstallmentCharges} className="form">
+                <input type="hidden" name="loan_id" value={loan.id} />
+                <div className="field"><label>Échéance concernée</label><select name="installment_id" required defaultValue=""><option value="" disabled>Choisir une échéance</option>{openInstallments.map((row: any) => <option key={row.id} value={row.id}>Échéance {row.installment_number} · {row.due_date}</option>)}</select></div>
+                <div className="grid2">
+                  <div className="field"><label>Frais contractuels</label><input name="fee_amount" type="number" min="0" step="0.01" defaultValue="0" /></div>
+                  <div className="field"><label>Pénalités</label><input name="penalty_amount" type="number" min="0" step="0.01" defaultValue="0" /></div>
+                </div>
+                <div className="field"><label>Motif et justificatif de référence</label><textarea name="reason" required maxLength={300} /></div>
+                <p className="muted">Cette opération augmente uniquement le montant dû sur l'échéance. Aucun mouvement bancaire ni journal comptable n'est créé avant le paiement effectif.</p>
+                <button className="button primary">Enregistrer les frais et pénalités</button>
+              </form>
+            </FormDialog>
+          ) : null}
+        </div>
         {installments.length === 0 ? <p className="muted">Aucun échéancier enregistré pour cet emprunt.</p> : (
           <div className="tableWrap"><table>
             <thead><tr><th>N°</th><th>Date</th><th>Capital début</th><th>Amortissement</th><th>Intérêts</th><th>Frais</th><th>Pénalités</th><th>Échéance</th><th>Capital restant</th><th>Statut</th></tr></thead>
