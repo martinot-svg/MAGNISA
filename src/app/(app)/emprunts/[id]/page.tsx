@@ -6,6 +6,69 @@ import { hasPermission, requirePermission } from "@/lib/permissions";
 import { requireOrganization } from "@/lib/current-org";
 import { money } from "@/lib/money";
 import { FormDialog } from "@/components/form-dialog";
+import { buildLoanSchedule, type LoanRepaymentMethod } from "@/lib/loan-finance";
+
+
+async function configureExistingLoan(fd: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  await requirePermission(ctx, "accounting.manage");
+  const { supabase, organizationId } = ctx;
+  const loanId = String(fd.get("loan_id") || "");
+  const method = String(fd.get("repayment_method") || "annuity") as LoanRepaymentMethod;
+  const frequency = Number(fd.get("payment_frequency") || 0);
+  const periods = Number(fd.get("total_installments") || 0);
+  const firstDueDate = String(fd.get("first_due_date") || "");
+  const endDate = String(fd.get("end_date") || "").trim() || null;
+  const liabilityAccountCode = String(fd.get("liability_account_code") || "");
+  const feeAccountCode = String(fd.get("fee_account_code") || "").trim() || null;
+  const penaltyAccountCode = String(fd.get("penalty_account_code") || "").trim() || null;
+  const allocationOrder = String(fd.get("repayment_allocation_order") || "");
+
+  if (!/^[0-9a-f-]{36}$/i.test(loanId)) throw new Error("Emprunt invalide.");
+  if (!["annuity", "equal_principal", "bullet"].includes(method)) throw new Error("Méthode de remboursement invalide.");
+  if (![1, 2, 3, 4, 6, 12].includes(frequency)) throw new Error("Périodicité invalide.");
+  if (!Number.isInteger(periods) || periods < 1 || periods > 1200) throw new Error("Nombre d'échéances restantes invalide.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(firstDueDate) || Number.isNaN(Date.parse(firstDueDate))) throw new Error("Première échéance invalide.");
+  if (endDate && (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || Number.isNaN(Date.parse(endDate)))) throw new Error("Date de fin invalide.");
+  if (!["164", "168"].includes(liabilityAccountCode)) throw new Error("Compte de dette invalide.");
+  if (feeAccountCode && !["627", "658", "661"].includes(feeAccountCode)) throw new Error("Compte de frais invalide.");
+  if (penaltyAccountCode && !["658", "661"].includes(penaltyAccountCode)) throw new Error("Compte de pénalités invalide.");
+  if (!["charges_first", "interest_first", "principal_first"].includes(allocationOrder)) throw new Error("Ordre d'imputation invalide.");
+
+  const { data: loan, error: loanError } = await supabase
+    .from("loans").select("outstanding_principal,interest_rate,start_date")
+    .eq("id", loanId).eq("organization_id", organizationId).single();
+  if (loanError || !loan) throw new Error("Impossible de charger le solde actuel de cet emprunt.");
+
+  const schedule = buildLoanSchedule({
+    principal: Number(loan.outstanding_principal),
+    annualRatePercent: Number(loan.interest_rate || 0),
+    periods,
+    paymentsPerYear: frequency,
+    firstDueDate,
+    method,
+  });
+
+  const { error } = await supabase.rpc("configure_existing_loan_schedule", {
+    p_organization_id: organizationId,
+    p_loan_id: loanId,
+    p_repayment_method: method,
+    p_payment_frequency: frequency,
+    p_total_installments: periods,
+    p_first_due_date: firstDueDate,
+    p_end_date: endDate,
+    p_liability_account_code: liabilityAccountCode,
+    p_fee_account_code: feeAccountCode,
+    p_penalty_account_code: penaltyAccountCode,
+    p_repayment_allocation_order: allocationOrder,
+    p_installments: schedule.installments.map((row) => ({ ...row, fees: 0 })),
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/emprunts");
+  revalidatePath(`/emprunts/${loanId}`);
+}
 
 async function recordRepayment(fd: FormData) {
   "use server";
@@ -54,6 +117,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
   await requirePermission(ctx, "finance.view");
   const { supabase, organizationId } = ctx;
   const canRepay = await hasPermission(ctx, "treasury.transfer");
+  const canConfigureAccounting = await hasPermission(ctx, "accounting.manage");
 
   const [{ data: org }, { data: loan }, { data: installments = [] }, { data: repayments = [] }, { data: accounts = [] }] = await Promise.all([
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
@@ -104,6 +168,35 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
           <tr><th>Date de fin</th><td>{loan.end_date || "-"}</td><th>Notes</th><td>{loan.notes || "-"}</td></tr>
         </tbody></table></div>
       </section>
+
+      {installments.length === 0 && loan.status === "active" && canConfigureAccounting ? (
+        <section className="section">
+          <div className="pageHead">
+            <div><h2>Paramétrage de l'emprunt existant</h2><p className="muted">Cet emprunt a été enregistré avant le nouveau moteur. Les conditions ci-dessous doivent être confirmées à partir du contrat avant de créer son échéancier.</p></div>
+            <FormDialog title="Configurer l'échéancier historique" buttonLabel="Configurer le contrat">
+              <form action={configureExistingLoan} className="form">
+                <input type="hidden" name="loan_id" value={loan.id} />
+                <div className="grid2">
+                  <div className="field"><label>Capital restant à amortir</label><input value={money(Number(loan.outstanding_principal), currency)} readOnly /></div>
+                  <div className="field"><label>Taux annuel nominal (%)</label><input value={loan.interest_rate ?? 0} readOnly /></div>
+                  <div className="field"><label>Nombre d'échéances restantes selon le contrat</label><input name="total_installments" type="number" min="1" max="1200" step="1" required /></div>
+                  <div className="field"><label>Première échéance à venir</label><input name="first_due_date" type="date" defaultValue={loan.next_due_date || ""} required /></div>
+                  <div className="field"><label>Périodicité</label><select name="payment_frequency" defaultValue="12"><option value="12">Mensuelle</option><option value="6">Bimestrielle</option><option value="4">Trimestrielle</option><option value="3">Quadrimestrielle</option><option value="2">Semestrielle</option><option value="1">Annuelle</option></select></div>
+                  <div className="field"><label>Méthode d'amortissement</label><select name="repayment_method" defaultValue="annuity"><option value="annuity">Annuités constantes</option><option value="equal_principal">Capital constant</option><option value="bullet">In fine</option></select></div>
+                  <div className="field"><label>Compte de dette PCG</label><select name="liability_account_code" defaultValue="" required><option value="" disabled>Choisir selon le contrat et le prêteur</option><option value="164">164 · Établissements de crédit</option><option value="168">168 · Autres emprunts et dettes assimilées</option></select></div>
+                  <div className="field"><label>Date de fin contractuelle (facultatif)</label><input name="end_date" type="date" defaultValue={loan.end_date || ""} /></div>
+                  <div className="field"><label>Compte PCG des frais (facultatif)</label><select name="fee_account_code" defaultValue=""><option value="">Non configuré</option><option value="627">627 · Services bancaires</option><option value="658">658 · Autres charges</option><option value="661">661 · Charges d'intérêts</option></select></div>
+                  <div className="field"><label>Compte PCG des pénalités (facultatif)</label><select name="penalty_account_code" defaultValue=""><option value="">Non configuré</option><option value="658">658 · Autres charges</option><option value="661">661 · Charges d'intérêts</option></select></div>
+                  <div className="field"><label>Ordre d'imputation des paiements</label><select name="repayment_allocation_order" defaultValue="charges_first"><option value="charges_first">Frais, pénalités, intérêts, capital</option><option value="interest_first">Intérêts, frais, pénalités, capital</option><option value="principal_first">Capital, intérêts, frais, pénalités</option></select></div>
+                </div>
+                <p className="muted">Le calcul démarre sur le capital restant dû actuel. Il ne modifie ni le capital initial ni les données historiques. Vérifie les paramètres dans le contrat signé avant validation.</p>
+                <button className="button primary">Valider les conditions et créer l'échéancier</button>
+              </form>
+            </FormDialog>
+          </div>
+        </section>
+      ) : null}
+      {installments.length === 0 && loan.status === "active" && !canConfigureAccounting ? <p className="muted">L'échéancier de cet emprunt historique doit être configuré par un utilisateur autorisé à gérer la comptabilité.</p> : null}
 
       <section className="section" id="echeancier">
         <h2>Échéancier prévisionnel</h2>
