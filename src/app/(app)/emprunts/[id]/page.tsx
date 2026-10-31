@@ -186,7 +186,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
           <h1>{loan.lender_name}</h1>
           <p>{loan.magnisa_reference || loan.contract_reference || "Contrat sans référence"} · {method}</p>
         </div>
-        <div className="actions"><Link className="button secondary" href="/emprunts">Retour aux emprunts</Link></div>
+        <div className="actions">{loan.status === "active" && canRepay ? <Link className="button primary" href={`/emprunts/${loan.id}/cloture`}>Clôture anticipée</Link> : null}<Link className="button secondary" href="/emprunts">Retour aux emprunts</Link></div>
       </div>
 
       <div className="grid2 section">
@@ -301,7 +301,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
                 </div>
                 <div className="field"><label>Référence bancaire (facultatif)</label><input name="payment_reference" maxLength={120} /></div>
                 <div className="field"><label>Notes (facultatif)</label><textarea name="notes" /></div>
-                <p className="muted">Pour une échéance, le paiement est ventilé selon l'ordre d'imputation défini dans le contrat. Une réduction anticipée partielle du capital recalcule les échéances futures. Elle exclut les intérêts courus et indemnités éventuelles ; la clôture totale du prêt nécessite un calcul distinct.</p>
+                <p className="muted">Pour une échéance, le paiement est ventilé selon l'ordre d'imputation défini dans le contrat. Une réduction anticipée partielle du capital recalcule les échéances futures. Elle exclut les intérêts courus et indemnités éventuelles ; la clôture totale du prêt se traite dans le parcours dédié de clôture anticipée.</p>
                 <button className="button primary">Valider le remboursement</button>
               </form>
             </FormDialog>
