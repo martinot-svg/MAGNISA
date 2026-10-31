@@ -9,7 +9,7 @@ describe("buildLoanSchedule", () => {
     });
     expect(schedule.installments[0].interest).toBe(10_000);
     expect(schedule.installments[1].interest).toBeLessThan(schedule.installments[0].interest);
-    expect(schedule.installments.at(-1)?.closingPrincipal).toBe(0);
+    expect(schedule.installments[schedule.installments.length - 1]?.closingPrincipal).toBe(0);
   });
 
   it("calculates each period's interest on the original principal when requested", () => {
@@ -40,7 +40,7 @@ describe("buildLoanSchedule", () => {
     });
     expect(schedule.totalInterest).toBe(0);
     expect(schedule.totalPayments).toBe(100);
-    expect(schedule.installments.at(-1)?.closingPrincipal).toBe(0);
+    expect(schedule.installments[schedule.installments.length - 1]?.closingPrincipal).toBe(0);
   });
 
   it("clamps month-end due dates without drifting", () => {
