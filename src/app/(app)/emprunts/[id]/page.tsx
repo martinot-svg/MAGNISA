@@ -283,7 +283,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
                   <select name="installment_id" required defaultValue="">
                     <option value="" disabled>Choisir une échéance</option>
                     {openInstallments.map((row: any) => <option key={row.id} value={row.id}>Échéance {row.installment_number} · {row.due_date} · {money(remainingInstallmentAmount(row), currency)} restant</option>)}
-                    <option value="__early__">Remboursement anticipé du capital</option>
+                    <option value="__early__">Réduction anticipée partielle du capital</option>
                   </select>
                 </div>
                 <div className="grid2">
@@ -298,7 +298,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
                 </div>
                 <div className="field"><label>Référence bancaire (facultatif)</label><input name="payment_reference" maxLength={120} /></div>
                 <div className="field"><label>Notes (facultatif)</label><textarea name="notes" /></div>
-                <p className="muted">Pour une échéance, le paiement est ventilé selon l'ordre d'imputation défini dans le contrat. Un remboursement anticipé est traité séparément et recalcule les échéances futures. Il ne peut pas dépasser le capital restant dû.</p>
+                <p className="muted">Pour une échéance, le paiement est ventilé selon l'ordre d'imputation défini dans le contrat. Une réduction anticipée partielle du capital recalcule les échéances futures. Elle exclut les intérêts courus et indemnités éventuelles ; la clôture totale du prêt nécessite un calcul distinct.</p>
                 <button className="button primary">Valider le remboursement</button>
               </form>
             </FormDialog>
