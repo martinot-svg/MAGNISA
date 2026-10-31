@@ -70,6 +70,36 @@ async function configureExistingLoan(fd: FormData) {
   revalidatePath(`/emprunts/${loanId}`);
 }
 
+
+async function addInstallmentCharges(fd: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  await requirePermission(ctx, "accounting.manage");
+  const { supabase, organizationId } = ctx;
+  const loanId = String(fd.get("loan_id") || "");
+  const installmentId = String(fd.get("installment_id") || "");
+  const feeAmount = Number(fd.get("fee_amount") || 0);
+  const penaltyAmount = Number(fd.get("penalty_amount") || 0);
+  const reason = String(fd.get("reason") || "").trim();
+
+  if (!/^[0-9a-f-]{36}$/i.test(loanId) || !/^[0-9a-f-]{36}$/i.test(installmentId)) throw new Error("Emprunt ou échéance invalide.");
+  if (!Number.isFinite(feeAmount) || feeAmount < 0 || Math.round(feeAmount * 100) !== feeAmount * 100) throw new Error("Montant des frais invalide.");
+  if (!Number.isFinite(penaltyAmount) || penaltyAmount < 0 || Math.round(penaltyAmount * 100) !== penaltyAmount * 100) throw new Error("Montant des pénalités invalide.");
+  if (feeAmount + penaltyAmount <= 0) throw new Error("Saisis au moins un montant de frais ou de pénalités.");
+  if (reason.length < 3 || reason.length > 300) throw new Error("Le motif doit contenir entre 3 et 300 caractères.");
+
+  const { error } = await supabase.rpc("add_loan_installment_charges", {
+    p_organization_id: organizationId,
+    p_loan_id: loanId,
+    p_installment_id: installmentId,
+    p_fee_amount: feeAmount,
+    p_penalty_amount: penaltyAmount,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/emprunts/${loanId}`);
+}
+
 async function recordRepayment(fd: FormData) {
   "use server";
   const ctx = await requireOrganization();
