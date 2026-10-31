@@ -216,3 +216,64 @@ $function$;
 
 revoke all on function public.create_loan_schedule(uuid, uuid, jsonb) from public, anon;
 grant execute on function public.create_loan_schedule(uuid, uuid, jsonb) to authenticated;
+
+-- Create the contract and its initial forecast schedule in one database transaction.
+create or replace function public.create_loan_with_schedule(
+  p_organization_id uuid,
+  p_lender_name text,
+  p_principal numeric,
+  p_interest_rate numeric,
+  p_start_date date,
+  p_end_date date,
+  p_notes text,
+  p_contract_reference text,
+  p_repayment_method text,
+  p_payment_frequency integer,
+  p_total_installments integer,
+  p_first_due_date date,
+  p_installments jsonb
+) returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  v_loan_id uuid;
+begin
+  perform public.assert_org_access(p_organization_id);
+  perform public.assert_org_permission(p_organization_id, 'finance.view');
+
+  if length(btrim(coalesce(p_lender_name,''))) < 2 or length(btrim(p_lender_name)) > 160 then
+    raise exception 'Nom du prêteur invalide';
+  end if;
+  if p_principal is null or p_principal <= 0 then raise exception 'Capital invalide'; end if;
+  if p_interest_rate is null or p_interest_rate < 0 or p_interest_rate > 1000 then raise exception 'Taux invalide'; end if;
+  if p_start_date is null or p_first_due_date is null or p_first_due_date < p_start_date then
+    raise exception 'Dates du contrat invalides';
+  end if;
+  if p_end_date is not null and p_end_date < p_first_due_date then raise exception 'Date de fin invalide'; end if;
+  if p_repayment_method not in ('annuity','equal_principal','bullet') then raise exception 'Méthode de remboursement invalide'; end if;
+  if p_payment_frequency not in (1,2,3,4,6,12) then raise exception 'Périodicité invalide'; end if;
+  if p_total_installments is null or p_total_installments < 1 or p_total_installments > 1200 then raise exception 'Durée invalide'; end if;
+  if jsonb_array_length(coalesce(p_installments,'[]'::jsonb)) <> p_total_installments then
+    raise exception 'Nombre d’échéances incohérent';
+  end if;
+
+  insert into public.loans(
+    organization_id, lender_name, principal, outstanding_principal, interest_rate,
+    start_date, end_date, next_due_date, next_due_amount, status, notes,
+    contract_reference, repayment_method, payment_frequency, total_installments, first_due_date
+  ) values (
+    p_organization_id, btrim(p_lender_name), round(p_principal,2), round(p_principal,2), p_interest_rate,
+    p_start_date, p_end_date, p_first_due_date, null, 'active', nullif(btrim(coalesce(p_notes,'')),''),
+    nullif(btrim(coalesce(p_contract_reference,'')),''), p_repayment_method, p_payment_frequency,
+    p_total_installments, p_first_due_date
+  ) returning id into v_loan_id;
+
+  perform public.create_loan_schedule(p_organization_id, v_loan_id, p_installments);
+  return v_loan_id;
+end;
+$function$;
+
+revoke all on function public.create_loan_with_schedule(uuid,text,numeric,numeric,date,date,text,text,text,integer,integer,date,jsonb) from public, anon;
+grant execute on function public.create_loan_with_schedule(uuid,text,numeric,numeric,date,date,text,text,text,integer,integer,date,jsonb) to authenticated;
