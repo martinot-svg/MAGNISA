@@ -168,9 +168,6 @@ begin
     when v_periodic_rate = 0 then round(v_loan.principal / v_loan.total_installments, 2)
     else v_loan.principal * v_periodic_rate / (1 - power(1 + v_periodic_rate, -v_loan.total_installments))
   end;
-  if p_end_date is not null and p_end_date < (p_first_due_date + make_interval(months => (p_total_installments - 1) * (12 / p_payment_frequency)))::date then
-    raise exception 'La date de fin précède la dernière échéance calculée';
-  end if;
 
   for v_item in select value from jsonb_array_elements(p_installments) loop
     v_count := v_count + 1;
@@ -275,7 +272,7 @@ begin
   if p_start_date is null or p_first_due_date is null or p_first_due_date < p_start_date then
     raise exception 'Dates du contrat invalides';
   end if;
-  if p_end_date is not null and p_end_date < p_first_due_date then raise exception 'Date de fin invalide'; end if;
+  if p_end_date is not null and p_end_date < (p_first_due_date + make_interval(months => (p_total_installments - 1) * (12 / p_payment_frequency)))::date then raise exception 'La date de fin précède la dernière échéance calculée'; end if;
   if p_repayment_method not in ('annuity','equal_principal','bullet') then raise exception 'Méthode de remboursement invalide'; end if;
   if p_payment_frequency not in (1,2,3,4,6,12) then raise exception 'Périodicité invalide'; end if;
   if p_total_installments is null or p_total_installments < 1 or p_total_installments > 1200 then raise exception 'Durée invalide'; end if;
