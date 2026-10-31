@@ -199,7 +199,7 @@ begin
   where organization_id = p_organization_id and repayment_id = v_repayment.id;
 
   if v_repayment.installment_id is null
-     and v_original_transaction.description <> 'Clôture anticipée d’emprunt'
+     and coalesce(v_original_transaction.description,'') <> 'Clôture anticipée d’emprunt'
      and v_snapshot_count = 0 then
     raise exception 'Aucun instantané de l’échéancier n’existe pour restaurer ce remboursement anticipé';
   end if;
