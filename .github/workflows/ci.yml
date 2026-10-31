@@ -133,6 +133,7 @@ jobs:
           supabase db reset
           supabase db lint --local
           PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f tests/integration/loan-engine-schema-smoke.sql
+          PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f tests/integration/loan-engine-transactional.sql
           supabase db dump --local --schema public --file /tmp/magnisa-replay-a.sql
 
       - name: Clean replay A - assert migration ledger and reconstructed objects
