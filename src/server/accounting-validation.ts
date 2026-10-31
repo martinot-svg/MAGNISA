@@ -21,7 +21,7 @@ export const supplierPaymentInputSchema = z.object({
 export const customerPaymentInputSchema = z.object({
   invoice_id: z.string().uuid(), financial_account_id: z.string().uuid(), amount: z.coerce.number().positive(), paid_at: z.string().date(),
   method: z.enum(["bank_transfer", "cash", "mobile_money", "cheque", "card", "other"]), reference: z.string().trim().optional(), idempotency_key: z.string().uuid(),
-  mobile_operator: z.string().trim().optional(), mvola_fee_option: z.enum(["with_fees", "company_pays", "without_fees"]).optional(), mvola_fee_amount: z.coerce.number().nonnegative().optional(),
+  mobile_operator: z.enum(["mvola", "orange_money", "airtel_money"]).optional(), mobile_operator_name: z.string().trim().optional(), mvola_fee_option: z.enum(["with_fees", "company_pays", "without_fees"]).optional(), mvola_fee_amount: z.coerce.number().nonnegative().optional(),
 });
 
 export function assertFeeSplit(total: number, company: number, client: number) {
