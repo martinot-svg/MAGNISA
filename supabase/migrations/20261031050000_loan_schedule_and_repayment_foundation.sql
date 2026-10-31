@@ -248,8 +248,9 @@ begin
 end;
 $function$;
 
-revoke all on function public.create_loan_schedule(uuid, uuid, jsonb) from public, anon;
-grant execute on function public.create_loan_schedule(uuid, uuid, jsonb) to authenticated;
+-- Internal helper only: clients must use the permission-checked contract
+-- creation or historical-regularization RPCs, never call schedule creation directly.
+revoke all on function public.create_loan_schedule(uuid, uuid, jsonb) from public, anon, authenticated;
 
 -- Create the contract and its initial forecast schedule in one database transaction.
 create or replace function public.create_loan_with_schedule(
