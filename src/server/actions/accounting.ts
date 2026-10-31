@@ -53,9 +53,14 @@ export async function recordCustomerPaymentV2(formData: FormData) {
   }
   if (!isMvola && feeOption) throw new Error("L’option de frais MVola n’est valable que pour un paiement MVola.");
   if (isMvola) {
-    const { data: wallet, error: walletError } = await ctx.supabase.from("financial_accounts").select("id,name,type,is_active").eq("organization_id", ctx.organizationId).eq("id", p.data.financial_account_id).maybeSingle();
+    const { data: wallet, error: walletError } = await ctx.supabase.from("financial_accounts").select("id,name,type,is_active,details,mvola_account_category").eq("organization_id", ctx.organizationId).eq("id", p.data.financial_account_id).maybeSingle();
     if (walletError) throw new Error(walletError.message);
     if (!wallet || !wallet.is_active || wallet.type !== "mobile_money" || wallet.name.trim().toLowerCase() !== "mvola") throw new Error("Sélectionne un compte MVola actif.");
+    const category = wallet.mvola_account_category || (wallet.details && typeof wallet.details === "object" ? (wallet.details as Record<string, unknown>).account_type : null);
+    if (!["personal", "business", "merchant"].includes(String(category ?? ""))) throw new Error("La catégorie du compte MVola doit être renseignée avant d'enregistrer le paiement.");
+    if (wallet.mvola_account_category && wallet.details && typeof wallet.details === "object" && (wallet.details as Record<string, unknown>).account_type && wallet.mvola_account_category !== (wallet.details as Record<string, unknown>).account_type) {
+      throw new Error("La catégorie MVola du compte est incohérente. Corrige-la dans la trésorerie avant d'enregistrer le paiement.");
+    }
   }
   const { error } = await ctx.supabase.rpc("record_customer_payment_with_fee_v2", {
     p_org: ctx.organizationId, p_invoice: p.data.invoice_id, p_account: p.data.financial_account_id, p_amount: p.data.amount,

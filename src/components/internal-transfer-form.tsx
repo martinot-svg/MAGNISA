@@ -9,14 +9,15 @@ export function InternalTransferForm({accounts,requestKey,action}:Props){
  const [mode,setMode]=useState<"included"|"added">("included");const [amount,setAmount]=useState("");
  const [date,setDate]=useState("");const [reference,setReference]=useState("");
  const src=accounts.find(a=>a.id===source),dst=accounts.find(a=>a.id===destination);
- const operation=classifyMvolaTransfer(src ? {type:src.type,name:src.name,category:String((src.details as Record<string,unknown>|undefined)?.account_type??"personal")} : undefined,dst ? {type:dst.type,name:dst.name,category:String((dst.details as Record<string,unknown>|undefined)?.account_type??"personal")} : undefined);const n=Number(amount);
+ const categoryOf=(account:Account|undefined)=>{const details=account?.details as Record<string,unknown>|undefined;const value=details?.account_type;return typeof value==="string"?value:undefined;};
+ const operation=classifyMvolaTransfer(src ? {type:src.type,name:src.name,category:categoryOf(src)} : undefined,dst ? {type:dst.type,name:dst.name,category:categoryOf(dst)} : undefined);const n=Number(amount);
  const calculated=useMemo(()=>operation?calculateMvolaTransfer(operation,n,mode):null,[n,mode,operation]);
  const supported=!!calculated&&!!src&&!!dst&&src.id!==dst.id;
  const fmt=(value:number)=>new Intl.NumberFormat("fr-FR").format(value)+" Ar";
  return <form action={action} className="card form">
   <h3>Enregistrer un débit confirmé</h3>
   <input type="hidden" name="request_key" value={requestKey}/>
-  <div className="field"><label htmlFor="internal-source">Compte source</label><select id="internal-source" name="source" value={source} onChange={e=>setSource(e.target.value)} required><option value="">Sélectionner</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}</select></div>
+  <div className="field"><label htmlFor="internal-source">Compte source</label><select id="internal-source" name="source" value={source} onChange={e=>setSource(e.target.value)} required><option value="">Sélectionner</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} ({a.type}{a.type==="mobile_money"?" · "+(categoryOf(a)==="personal"?"Particulier":categoryOf(a)==="business"?"Entreprise":categoryOf(a)==="merchant"?"Marchand":"Catégorie à définir"):""})</option>)}</select></div>
   <div className="field"><label htmlFor="internal-destination">Compte destinataire</label><select id="internal-destination" name="destination" value={destination} onChange={e=>setDestination(e.target.value)} required><option value="">Sélectionner</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}</select></div>
   <div className="field"><label htmlFor="internal-mode">Mode de transfert</label><select id="internal-mode" name="fee_mode" value={mode} onChange={e=>setMode(e.target.value as "included"|"added")}><option value="included">Montant brut - frais déduits</option><option value="added">Montant net - frais ajoutés</option></select></div>
   <div className="field"><label htmlFor="internal-amount">Montant de référence (Ar)</label><input id="internal-amount" name="reference_amount" type="number" min="1" step="1" value={amount} onChange={e=>setAmount(e.target.value)} required/></div>
