@@ -183,7 +183,7 @@ begin
     kind, source_type, source_id, reference, description
   ) values (
     p_organization_id, v_account.id, p_reversal_date, v_repayment.amount,
-    'income', 'loan_repayment_reversal', v_repayment.id, v_reference,
+    'reimbursement', 'loan_repayment_reversal', v_repayment.id, v_reference,
     'Contrepassation du remboursement d’emprunt'
   ) returning id into v_transaction_id;
 
