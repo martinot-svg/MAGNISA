@@ -496,6 +496,7 @@ as $function$
 declare
   v_loan public.loans%rowtype;
   v_installment public.loan_installments%rowtype;
+  v_next_amount numeric(20,2);
 begin
   perform public.assert_org_access(p_organization_id);
   perform public.assert_org_permission(p_organization_id, 'accounting.manage');
@@ -539,6 +540,22 @@ begin
       total_due = total_due + coalesce(p_fee_amount,0) + coalesce(p_penalty_amount,0),
       updated_at = now()
   where id = p_installment_id and organization_id = p_organization_id;
+
+  select greatest(i.total_due - coalesce(sum(r.amount),0),0)
+  into v_next_amount
+  from public.loan_installments i
+  left join public.loan_repayments r
+    on r.installment_id = i.id and r.organization_id = i.organization_id and r.status = 'posted'
+  where i.loan_id = p_loan_id and i.organization_id = p_organization_id
+    and i.status in ('planned','partial','overdue')
+  group by i.id, i.due_date, i.total_due
+  having greatest(i.total_due - coalesce(sum(r.amount),0),0) > 0
+  order by i.due_date, i.id
+  limit 1;
+
+  update public.loans
+  set next_due_amount = v_next_amount, updated_at = now()
+  where id = p_loan_id and organization_id = p_organization_id;
 
   perform public.audit_event(
     p_organization_id, 'loan.installment_charges_added', 'loan_installment', p_installment_id,
