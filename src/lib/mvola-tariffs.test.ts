@@ -68,6 +68,17 @@ describe("barème et limites des tranches", () => {
     });
   });
 
+  it("respecte le minimum de 300 MGA pour un transfert interopérateur", () => {
+    expect(estimateMvolaFee("transfer_other_operator", 299)).toBeNull();
+    expect(estimateMvolaFee("transfer_other_operator", 300)).toBe(200);
+  });
+
+  it("bloque les transferts Entreprise au-delà du plafond officiel de 100 millions", () => {
+    expect(estimateMvolaFee("enterprise_transfer", 100_000_000)).toBe(99_000);
+    expect(estimateMvolaFee("enterprise_transfer", 100_000_001)).toBeNull();
+    expect(calculateMvolaTransfer("enterprise_transfer", 100_000_001, "added")).toBeNull();
+  });
+
   it("refuse un tarif absent au lieu de traiter un tiret comme zéro", () => {
     expect(estimateMvolaFee("transfer_other_operator", 5_500_000)).toBeNull();
     expect(calculateMvolaTransfer("transfer_other_operator", 5_500_000, "added")).toBeNull();
