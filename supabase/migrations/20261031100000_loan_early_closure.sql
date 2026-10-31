@@ -186,6 +186,21 @@ begin
   where id = v_repayment_id
     and organization_id = p_organization_id;
 
+  insert into public.loan_repayment_installment_snapshots(
+    organization_id, repayment_id, installment_id,
+    opening_principal, principal_due, interest_due, fees_due,
+    penalty_due, total_due, closing_principal, status
+  )
+  select organization_id, v_repayment_id, id,
+    opening_principal, principal_due, interest_due, fees_due,
+    penalty_due, total_due, closing_principal, status
+  from public.loan_installments
+  where loan_id = p_loan_id
+    and organization_id = p_organization_id
+    and status = 'planned'
+    and due_date > p_payment_date
+  on conflict do nothing;
+
   update public.loan_installments
   set status = 'cancelled',
       updated_at = now()
