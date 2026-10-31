@@ -98,6 +98,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
           <tr><th>Méthode</th><td>{method}</td><th>Périodicité</th><td>{loan.payment_frequency} fois par an</td></tr>
           <tr><th>Compte de dette</th><td>{loan.liability_account_code || "À configurer"}</td><th>Compte intérêts</th><td>661 · Charges d'intérêts</td></tr>
           <tr><th>Compte frais</th><td>{loan.fee_account_code || "Non configuré"}</td><th>Compte pénalités</th><td>{loan.penalty_account_code || "Non configuré"}</td></tr>
+          <tr><th>Ordre d'imputation</th><td colSpan={3}>{loan.repayment_allocation_order === "interest_first" ? "Intérêts, frais, pénalités, capital" : loan.repayment_allocation_order === "principal_first" ? "Capital, intérêts, frais, pénalités" : "Frais, pénalités, intérêts, capital"}</td></tr>
           <tr><th>Nombre d'échéances</th><td>{loan.total_installments ?? "-"}</td><th>Statut</th><td>{loan.status}</td></tr>
           <tr><th>Date de départ</th><td>{loan.start_date}</td><th>Première échéance</th><td>{loan.first_due_date || "-"}</td></tr>
           <tr><th>Date de fin</th><td>{loan.end_date || "-"}</td><th>Notes</th><td>{loan.notes || "-"}</td></tr>
@@ -147,7 +148,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
                 </div>
                 <div className="field"><label>Référence bancaire (facultatif)</label><input name="payment_reference" maxLength={120} /></div>
                 <div className="field"><label>Notes (facultatif)</label><textarea name="notes" /></div>
-                <p className="muted">Pour une échéance, le paiement est affecté dans l'ordre : frais, pénalités, intérêts, puis capital. Un remboursement anticipé est traité séparément et recalcule les échéances futures. Il ne peut pas dépasser le capital restant dû.</p>
+                <p className="muted">Pour une échéance, le paiement est ventilé selon l'ordre d'imputation défini dans le contrat. Un remboursement anticipé est traité séparément et recalcule les échéances futures. Il ne peut pas dépasser le capital restant dû.</p>
                 <button className="button primary">Valider le remboursement</button>
               </form>
             </FormDialog>
