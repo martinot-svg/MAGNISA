@@ -223,6 +223,12 @@ begin
     and i.id = s.installment_id
     and i.organization_id = p_organization_id;
 
+  update public.journal_entries
+  set status = 'reversed'
+  where id = v_original_journal.id
+    and organization_id = p_organization_id
+    and status = 'posted';
+
   update public.loan_repayments
   set status = 'reversed',
       reversal_journal_entry_id = v_journal_id,
