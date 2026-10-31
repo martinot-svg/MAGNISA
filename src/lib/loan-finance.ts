@@ -50,7 +50,7 @@ export function buildLoanSchedule(input: LoanScheduleInput): LoanSchedule {
   if (!Number.isFinite(principal) || principal <= 0) throw new Error("Le capital doit être strictement positif.");
   if (!Number.isFinite(annualRatePercent) || annualRatePercent < 0 || annualRatePercent > 1000) throw new Error("Le taux annuel est invalide.");
   if (!Number.isInteger(periods) || periods < 1 || periods > 1200) throw new Error("La durée doit être comprise entre 1 et 1 200 échéances.");
-  if (!Number.isInteger(paymentsPerYear) || paymentsPerYear < 1 || paymentsPerYear > 366) throw new Error("La périodicité annuelle est invalide.");
+  if (![1, 2, 3, 4, 6, 12].includes(paymentsPerYear)) throw new Error("La périodicité doit être annuelle, semestrielle, quadrimestrielle, trimestrielle, bimestrielle ou mensuelle.");
   if (!Number.isInteger(currencyDecimals) || currencyDecimals < 0 || currencyDecimals > 4) throw new Error("La précision monétaire est invalide.");
   if (!["annuity", "equal_principal", "bullet"].includes(method)) throw new Error("Méthode de remboursement invalide.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(firstDueDate) || !isValidDate(firstDueDate)) throw new Error("La première date d'échéance est invalide.");
@@ -92,7 +92,7 @@ export function buildLoanSchedule(input: LoanScheduleInput): LoanSchedule {
 
     installments.push({
       number: index + 1,
-      dueDate: addMonthsClamped(firstDueDate, index),
+      dueDate: addMonthsClamped(firstDueDate, index * (12 / paymentsPerYear)),
       openingPrincipal,
       principal: principalPart,
       interest,
