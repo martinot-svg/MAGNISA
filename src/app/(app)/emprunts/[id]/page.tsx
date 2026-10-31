@@ -310,11 +310,11 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
         {loan.status === "active" && canRepay && accounts.length === 0 ? <p className="muted">Aucun compte de trésorerie actif accessible. Crée ou active un compte dans Trésorerie avant d'enregistrer un paiement.</p> : null}
         {repayments.length === 0 ? <p className="muted">Aucun remboursement réel enregistré.</p> : (
           <div className="tableWrap"><table>
-            <thead><tr><th>Date</th><th>Montant</th><th>Capital</th><th>Intérêts</th><th>Frais</th><th>Pénalités</th><th>Statut</th><th>Référence</th><th>Écriture</th><th>Trésorerie</th></tr></thead>
+            <thead><tr><th>Date</th><th>Montant</th><th>Capital</th><th>Intérêts</th><th>Frais</th><th>Pénalités</th><th>Statut</th><th>Référence</th><th>Écriture</th><th>Trésorerie</th><th>Action</th></tr></thead>
             <tbody>{repayments.map((row: any) => <tr key={row.id}>
               <td>{row.payment_date}</td><td>{money(Number(row.amount), currency)}</td><td>{money(Number(row.principal_paid), currency)}</td>
               <td>{money(Number(row.interest_paid), currency)}</td><td>{money(Number(row.fees_paid), currency)}</td><td>{money(Number(row.penalty_paid), currency)}</td>
-              <td>{row.status}</td><td>{row.payment_reference || "-"}</td><td><code>{row.journal_entry_id || "-"}</code></td><td><code>{row.financial_transaction_id || "-"}</code></td>
+              <td>{row.status}</td><td>{row.payment_reference || "-"}</td><td><code>{row.journal_entry_id || "-"}</code></td><td><code>{row.financial_transaction_id || "-"}</code></td><td>{row.status === "posted" && canRepay ? <Link className="button secondary" href={`/emprunts/${loan.id}/remboursements/${row.id}/contrepassation`}>Contrepasser</Link> : row.status === "reversed" ? "Contrepassé" : "—"}</td>
             </tr>)}</tbody>
           </table></div>
         )}
