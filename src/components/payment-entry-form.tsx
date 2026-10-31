@@ -61,10 +61,17 @@ export function PaymentEntryForm({
   const feeValid = !showMvola || mvolaFeeOption === "without_fees" || (feeOptionNeedsAmount && mvolaFeeAmount.trim() !== "" && Number.isFinite(feeAmount) && feeAmount > 0 && Number.isInteger(feeAmount));
   const selectedAccount = accounts.find((a) => a.id === accountId);
   const selectedMvolaCategory = selectedAccount?.category ?? null;
-  const operatorMismatch = showMvola && !!selectedAccount && (
-    selectedAccount.name.trim().toLowerCase() !== "mvola" ||
-    !["personal", "business", "merchant"].includes(selectedMvolaCategory ?? "")
-  );
+  const operatorLabels: Record<string, string> = { mvola: "MVola", orange_money: "Orange Money", airtel_money: "Airtel Money" };
+  const mobileOperatorName = operatorLabels[mobileOperator] ?? "";
+  const accountMatchesOperator = (account: AccountOption | undefined) => {
+    if (!account || account.type !== "mobile_money") return false;
+    const name = account.name.trim().toLowerCase();
+    if (mobileOperator === "mvola") return name.includes("mvola");
+    if (mobileOperator === "orange_money") return name.includes("orange");
+    if (mobileOperator === "airtel_money") return name.includes("airtel");
+    return false;
+  };
+  const operatorMismatch = method === "mobile_money" && !!selectedAccount && !accountMatchesOperator(selectedAccount);
   const estimatedMerchantFee = valid && currency === "MGA" && Number.isInteger(received) && selectedMvolaCategory === "merchant"
     ? estimateMvolaFee("merchant_payment", received)
     : null;
@@ -154,13 +161,20 @@ export function PaymentEntryForm({
             id="payment-mobile-operator"
             name="mobile_operator"
             value={mobileOperator}
-            onChange={(event) => { setMobileOperator(event.target.value); setMvolaFeeOption(""); setMvolaFeeAmount(""); }}
+            onChange={(event) => { setMobileOperator(event.target.value); setAccountId(""); setMvolaFeeOption(""); setMvolaFeeAmount(""); }}
             required
           >
             <option value="">Sélectionner</option>
             <option value="mvola">MVola</option>
-            <option value="other">Autre opérateur (sans barème MVola)</option>
+            <option value="orange_money">Orange Money</option>
+            <option value="airtel_money">Airtel Money</option>
           </select>
+        </div>
+      )}
+      {method === "mobile_money" && mobileOperator && (
+        <div className="field">
+          <label htmlFor="payment-mobile-operator-name">Nom de l’opérateur</label>
+          <input id="payment-mobile-operator-name" name="mobile_operator_name" value={mobileOperatorName} readOnly />
         </div>
       )}
       {showMvola && (
@@ -228,7 +242,7 @@ export function PaymentEntryForm({
           ))}
         </select>
       </div>
-      {operatorMismatch && <p className="error" role="alert">Pour un paiement MVola, sélectionne un compte MVola, et non Orange Money ou Airtel Money.</p>}
+      {operatorMismatch && <p className="error" role="alert">Le compte destinataire ne correspond pas à l’opérateur Mobile Money sélectionné. Choisis le compte {mobileOperatorName} correspondant.</p>}
       <div className="field">
         <label htmlFor="payment-date">Date</label>
         <input
@@ -277,7 +291,7 @@ export function PaymentEntryForm({
           </>
         )}
       </div>
-      <button className="button primary" disabled={!valid || !accounts.length || !method || (method === "mobile_money" && !mobileOperator) || (showMvola && (!mvolaFeeOption || !feeValid || (selectedAccount?.type !== "mobile_money" || operatorMismatch))) || (method === "cash" && (!cashReference || cashReferenceLoading))}>
+      <button className="button primary" disabled={!valid || !accounts.length || !method || (method === "mobile_money" && !mobileOperator) || (method === "mobile_money" && (!mobileOperator || !selectedAccount || !accountMatchesOperator(selectedAccount))) || (showMvola && (!mvolaFeeOption || !feeValid || (selectedAccount?.type !== "mobile_money" || operatorMismatch))) || (method === "cash" && (!cashReference || cashReferenceLoading))}>
         Enregistrer
       </button>
     </form>
