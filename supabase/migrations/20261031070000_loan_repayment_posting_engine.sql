@@ -1,3 +1,28 @@
+
+-- Preserve the exact pre-operation schedule state so a posted repayment can
+-- be reversed without reconstructing or guessing contractual amounts.
+create table if not exists public.loan_repayment_installment_snapshots (
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  repayment_id uuid not null,
+  installment_id uuid not null,
+  opening_principal numeric(20,2) not null,
+  principal_due numeric(20,2) not null,
+  interest_due numeric(20,2) not null,
+  fees_due numeric(20,2) not null,
+  penalty_due numeric(20,2) not null,
+  total_due numeric(20,2) not null,
+  closing_principal numeric(20,2) not null,
+  status text not null,
+  created_at timestamptz not null default now(),
+  primary key (organization_id, repayment_id, installment_id),
+  foreign key (repayment_id, organization_id)
+    references public.loan_repayments(id, organization_id) on delete restrict,
+  foreign key (installment_id, organization_id)
+    references public.loan_installments(id, organization_id) on delete restrict
+);
+
+revoke all on public.loan_repayment_installment_snapshots from public, anon, authenticated;
+
 -- Atomic loan repayment posting: schedule allocation, treasury movement and balanced journal.
 -- All writes run in one PostgreSQL transaction. Any failure rolls back every side effect.
 
@@ -270,6 +295,18 @@ begin
   if v_new_balance < 0 then raise exception 'Le capital restant dû ne peut pas devenir négatif'; end if;
 
   if p_installment_id is not null then
+    insert into public.loan_repayment_installment_snapshots(
+      organization_id, repayment_id, installment_id,
+      opening_principal, principal_due, interest_due, fees_due,
+      penalty_due, total_due, closing_principal, status
+    )
+    select organization_id, v_repayment_id, id,
+      opening_principal, principal_due, interest_due, fees_due,
+      penalty_due, total_due, closing_principal, status
+    from public.loan_installments
+    where id = p_installment_id and organization_id = p_organization_id
+    on conflict do nothing;
+
     select coalesce(sum(amount),0) into v_total_paid
     from public.loan_repayments
     where installment_id = p_installment_id
@@ -284,6 +321,19 @@ begin
     updated_at = now()
     where id = p_installment_id and organization_id = p_organization_id;
   else
+    insert into public.loan_repayment_installment_snapshots(
+      organization_id, repayment_id, installment_id,
+      opening_principal, principal_due, interest_due, fees_due,
+      penalty_due, total_due, closing_principal, status
+    )
+    select organization_id, v_repayment_id, id,
+      opening_principal, principal_due, interest_due, fees_due,
+      penalty_due, total_due, closing_principal, status
+    from public.loan_installments
+    where loan_id = p_loan_id and organization_id = p_organization_id
+      and status = 'planned' and due_date > p_payment_date
+    on conflict do nothing;
+
     v_schedule_balance := v_new_balance;
     select count(*) into v_remaining_count
     from public.loan_installments
