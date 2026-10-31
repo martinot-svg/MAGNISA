@@ -100,10 +100,7 @@ begin
       and later.organization_id = p_organization_id
       and later.status = 'posted'
       and later.id <> v_repayment.id
-      and (
-        later.payment_date > v_repayment.payment_date
-        or (later.payment_date = v_repayment.payment_date and later.created_at > v_repayment.created_at)
-      )
+      and later.created_at > v_repayment.created_at
   ) then
     raise exception 'Contrepassation bloquée : un remboursement ultérieur existe. Contrepasser d’abord les opérations dans l’ordre inverse.';
   end if;
