@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { reserveCashReceiptReference } from "@/server/actions/core";
-import { MVOLA_RATE_VERSION } from "@/lib/mvola-tariffs";
+import { estimateMvolaFee, MVOLA_RATE_VERSION } from "@/lib/mvola-tariffs";
 
 type InvoiceOption = { id: string; number: string; balance_due: number; customerName: string };
 type AccountOption = { id: string; name: string; type: string };
@@ -55,6 +55,11 @@ export function PaymentEntryForm({
   const valid = !!invoice && Number.isFinite(received) && received > 0 && received <= due;
   const showMvola = method === "mobile_money" && mobileOperator === "mvola";
   const feeAmount = Number(mvolaFeeAmount);
+  // Indicative customer-side merchant-payment fee from the versioned MVola tariff.
+  // Never post this estimate automatically: the amount must be checked against the receipt.
+  const estimatedMerchantFee = valid && currency === "MGA" && Number.isInteger(received)
+    ? estimateMvolaFee("merchant_payment", received)
+    : null;
   const feeOptionNeedsAmount = mvolaFeeOption === "with_fees" || mvolaFeeOption === "company_pays";
   const feeValid = !showMvola || mvolaFeeOption === "without_fees" || (feeOptionNeedsAmount && mvolaFeeAmount.trim() !== "" && Number.isFinite(feeAmount) && feeAmount > 0 && Number.isInteger(feeAmount));
   const selectedAccount = accounts.find((a) => a.id === accountId);
@@ -177,7 +182,25 @@ export function PaymentEntryForm({
           <input id="payment-mvola-fee-amount" name="mvola_fee_amount" type="number" min="1" step="1"
             value={mvolaFeeAmount} onChange={(event) => setMvolaFeeAmount(event.target.value)} required />
           {valid && feeValid && <small>{mvolaFeeOption === "company_pays" ? "Le montant sera enregistré comme frais réels de l’entreprise. Vérifie qu’il a effectivement été prélevé sur ce compte." : `Total à vérifier sur le justificatif : ${formatter.format(received + feeAmount)} (dont ${formatter.format(received)} affectés à la facture).`}</small>}
-          <small>Le barème MVola du {MVOLA_RATE_VERSION} ne permet pas de déduire les frais du transfert entrant sans connaître le type de compte de l’émetteur. Saisis uniquement le remboursement réellement reçu et vérifié sur le justificatif. Aucun frais estimé n’est comptabilisé.</small>
+          {mvolaFeeOption === "with_fees" && (
+            <div className="card" aria-live="polite">
+              <strong>Estimation des frais de paiement marchand</strong>
+              {estimatedMerchantFee !== null ? (
+                <>
+                  <p>{formatter.format(estimatedMerchantFee)} selon le barème MVola du {MVOLA_RATE_VERSION}.</p>
+                  <small>Estimation indicative du frais facturé au client pour un achat commerçant. Vérifie le montant sur le SMS ou le justificatif MVola avant de l'enregistrer comme remboursement réel.</small>
+                  <button type="button" className="button secondary" onClick={() => setMvolaFeeAmount(String(estimatedMerchantFee))}>
+                    Reporter l’estimation dans le montant à confirmer
+                  </button>
+                </>
+              ) : (
+                <small>Estimation indisponible : vérifie le tarif réel sur le justificatif MVola. Aucun frais n’est calculé automatiquement.</small>
+              )}
+            </div>
+          )}
+          {mvolaFeeOption === "company_pays" && (
+            <small>Le barème d’achat commerçant concerne les frais facturés au payeur. Il ne permet pas de déduire une charge supportée par l’entreprise : saisis uniquement le prélèvement réel constaté.</small>
+          )}
         </div>
       )}
       <div className="field">
