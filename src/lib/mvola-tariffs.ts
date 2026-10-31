@@ -22,7 +22,8 @@ export function classifyMvolaTransfer(source: MvolaTransferAccount | undefined, 
  if (source.type === "cash" && destinationMvola) return "deposit";
  if (sourceMvola && destination.type === "bank") return destination.name.toLowerCase().includes("bni") ? "bank_to_bni" : "bank_other";
  if (source.type === "bank" && destinationMvola) {
-  return source.name.toLowerCase().includes("bni") || (destination.category ?? "personal") === "personal" ? "deposit" : "bank_other";
+  if (!destination.category) return null;
+  return source.name.toLowerCase().includes("bni") || destination.category === "personal" ? "deposit" : "bank_other";
  }
  if (sourceMvola && destination.type === "mobile_money") {
   // Tariff selection follows the source wallet category. No tariff is inferred
