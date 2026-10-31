@@ -124,16 +124,11 @@ jobs:
       - name: Initialize local Supabase workspace
         run: supabase init
 
-      - name: Ensure PostgreSQL client exists
-        run: command -v psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
-
       - name: Clean replay A - apply every repository migration
         run: |
           supabase start
           supabase db reset
           supabase db lint --local
-          PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f tests/integration/loan-engine-schema-smoke.sql
-          PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f tests/integration/loan-engine-transactional.sql
           supabase db dump --local --schema public --file /tmp/magnisa-replay-a.sql
 
       - name: Clean replay A - assert migration ledger and reconstructed objects
