@@ -274,6 +274,7 @@ declare
 begin
   perform public.assert_org_access(p_organization_id);
   perform public.assert_org_permission(p_organization_id, 'finance.view');
+  perform public.assert_org_permission(p_organization_id, 'treasury.transfer');
 
   if length(btrim(coalesce(p_lender_name,''))) < 2 or length(btrim(p_lender_name)) > 160 then
     raise exception 'Nom du prêteur invalide';
@@ -283,13 +284,13 @@ begin
   if p_start_date is null or p_first_due_date is null or p_first_due_date < p_start_date then
     raise exception 'Dates du contrat invalides';
   end if;
-  if p_end_date is not null and p_end_date < (p_first_due_date + make_interval(months => (p_total_installments - 1) * (12 / p_payment_frequency)))::date then raise exception 'La date de fin précède la dernière échéance calculée'; end if;
   if p_repayment_method not in ('annuity','equal_principal','bullet') then raise exception 'Méthode de remboursement invalide'; end if;
   if p_liability_account_code not in ('164','168') then raise exception 'Compte de dette invalide'; end if;
   if p_fee_account_code is not null and not exists (select 1 from public.pcg2005_accounts where code=p_fee_account_code) then raise exception 'Compte de frais absent du plan comptable'; end if;
   if p_penalty_account_code is not null and not exists (select 1 from public.pcg2005_accounts where code=p_penalty_account_code) then raise exception 'Compte de pénalités absent du plan comptable'; end if;
   if p_payment_frequency not in (1,2,3,4,6,12) then raise exception 'Périodicité invalide'; end if;
   if p_total_installments is null or p_total_installments < 1 or p_total_installments > 1200 then raise exception 'Durée invalide'; end if;
+  if p_end_date is not null and p_end_date < (p_first_due_date + make_interval(months => (p_total_installments - 1) * (12 / p_payment_frequency)))::date then raise exception 'La date de fin précède la dernière échéance calculée'; end if;
   if jsonb_array_length(coalesce(p_installments,'[]'::jsonb)) <> p_total_installments then
     raise exception 'Nombre d’échéances incohérent';
   end if;
