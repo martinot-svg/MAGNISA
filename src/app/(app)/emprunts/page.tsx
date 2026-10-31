@@ -7,6 +7,7 @@ import { money } from "@/lib/money";
 import { EmptyState } from "@/components/empty-state";
 import { FormDialog } from "@/components/form-dialog";
 import { buildLoanSchedule, type LoanRepaymentMethod } from "@/lib/loan-finance";
+import { LenderSelector } from "@/components/lender-selector";
 
 async function createLoan(fd: FormData) {
   "use server";
@@ -14,6 +15,9 @@ async function createLoan(fd: FormData) {
   await requirePermission(ctx, "treasury.transfer");
   const { supabase, organizationId } = ctx;
   const lenderName = String(fd.get("lender_name") || "").trim();
+  const lenderCategory = String(fd.get("lender_category") || "").trim();
+  const financialInstitutionId = String(fd.get("financial_institution_id") || "").trim() || null;
+  const registerNewLender = String(fd.get("register_new_lender") || "false") === "true";
   const principal = Number(fd.get("principal") || 0);
   const interestRate = Number(fd.get("interest_rate") || 0);
   const startDate = String(fd.get("start_date") || "");
@@ -32,6 +36,8 @@ async function createLoan(fd: FormData) {
 
   if (!/^[0-9a-f-]{36}$/i.test(requestKey)) throw new Error("Clé de sécurité du formulaire invalide. Recharge la page.");
   if (lenderName.length < 2 || lenderName.length > 160) throw new Error("Nom du prêteur invalide.");
+  if (!["bank", "microfinance", "financial_institution", "individual_company", "other"].includes(lenderCategory)) throw new Error("Catégorie de prêteur invalide.");
+  if (registerNewLender === Boolean(financialInstitutionId)) throw new Error("Sélectionne un prêteur existant ou indique un nouveau prêteur.");
   if (!Number.isFinite(principal) || principal <= 0) throw new Error("Le capital doit être un montant strictement positif.");
   if (!Number.isFinite(interestRate) || interestRate < 0 || interestRate > 1000) throw new Error("Taux d'intérêt invalide.");
   if (!["164", "168"].includes(liabilityAccountCode)) throw new Error("Sélectionne le compte de dette PCG adapté au prêteur.");
@@ -51,9 +57,12 @@ async function createLoan(fd: FormData) {
     method: repaymentMethod,
   });
 
-  const { error } = await supabase.rpc("create_loan_with_schedule", {
+  const { error } = await supabase.rpc("create_loan_with_schedule_and_lender", {
     p_organization_id: organizationId,
     p_lender_name: lenderName,
+    p_lender_category: lenderCategory,
+    p_financial_institution_id: financialInstitutionId,
+    p_register_new_lender: registerNewLender,
     p_principal: principal,
     p_interest_rate: interestRate,
     p_start_date: startDate,
@@ -80,9 +89,10 @@ export default async function Loans() {
   const ctx = await requireOrganization();
   await requirePermission(ctx, "finance.view");
   const { supabase, organizationId } = ctx;
-  const [{ data: org }, { data: loans = [] }] = await Promise.all([
+  const [{ data: org }, { data: loans = [] }, { data: institutions = [] }] = await Promise.all([
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
     supabase.from("loans").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false }),
+    supabase.from("financial_institutions").select("id, display_name, category, organization_id, verification_status").eq("country_code", "MG").eq("is_active", true).or(`organization_id.is.null,organization_id.eq.${organizationId}`).order("display_name"),
   ]);
   const currency = org?.currency || "MGA";
   const createRequestKey = randomUUID();
@@ -99,7 +109,7 @@ export default async function Loans() {
           <FormDialog title="Nouvel emprunt" buttonLabel="+ Nouvel emprunt">
             <form action={createLoan} className="form">
               <input type="hidden" name="request_key" value={createRequestKey} />
-              <div className="field"><label>Prêteur</label><input name="lender_name" required maxLength={160} /></div>
+              <LenderSelector institutions={institutions || []} />
               <div className="field"><label>Référence du contrat</label><input name="contract_reference" maxLength={120} /></div>
               <div className="grid2">
                 <div className="field"><label>Capital emprunté</label><input name="principal" type="number" step="0.01" min="0.01" required /></div>
