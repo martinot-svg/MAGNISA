@@ -18,6 +18,11 @@ async function createLoan(fd: FormData) {
   const lenderCategory = String(fd.get("lender_category") || "").trim();
   const financialInstitutionId = String(fd.get("financial_institution_id") || "").trim() || null;
   const registerNewLender = String(fd.get("register_new_lender") || "false") === "true";
+  const lenderLocationId = String(fd.get("lender_location_id") || "").trim() || null;
+  let lenderCity = String(fd.get("lender_city") || "").trim();
+  let lenderRegion = String(fd.get("lender_region") || "").trim() || null;
+  let lenderBranchName = String(fd.get("lender_branch_name") || "").trim() || null;
+  let lenderAddress = String(fd.get("lender_address") || "").trim() || null;
   const principal = Number(fd.get("principal") || 0);
   const interestRate = Number(fd.get("interest_rate") || 0);
   const startDate = String(fd.get("start_date") || "");
@@ -38,6 +43,23 @@ async function createLoan(fd: FormData) {
   if (lenderName.length < 2 || lenderName.length > 160) throw new Error("Nom du prêteur invalide.");
   if (!["bank", "microfinance", "financial_institution", "individual_company", "other"].includes(lenderCategory)) throw new Error("Catégorie de prêteur invalide.");
   if (registerNewLender === Boolean(financialInstitutionId)) throw new Error("Sélectionne un prêteur existant ou indique un nouveau prêteur.");
+  if (lenderCity.length < 2 || lenderCity.length > 100) throw new Error("Indique une ville valide pour le prêteur.");
+  if (lenderLocationId) {
+    if (!financialInstitutionId || registerNewLender) throw new Error("L’agence sélectionnée ne correspond pas au prêteur.");
+    const { data: location, error: locationLookupError } = await supabase
+      .from("financial_institution_locations")
+      .select("id, institution_id, branch_name, city, region, address")
+      .eq("id", lenderLocationId)
+      .eq("institution_id", financialInstitutionId)
+      .eq("is_active", true)
+      .or(`organization_id.is.null,organization_id.eq.${organizationId}`)
+      .maybeSingle();
+    if (locationLookupError || !location) throw new Error("L’agence sélectionnée est invalide ou inaccessible.");
+    lenderCity = location.city;
+    lenderRegion = location.region;
+    lenderBranchName = location.branch_name;
+    lenderAddress = location.address;
+  }
   if (!Number.isFinite(principal) || principal <= 0) throw new Error("Le capital doit être un montant strictement positif.");
   if (!Number.isFinite(interestRate) || interestRate < 0 || interestRate > 1000) throw new Error("Taux d'intérêt invalide.");
   if (!["164", "168"].includes(liabilityAccountCode)) throw new Error("Sélectionne le compte de dette PCG adapté au prêteur.");
@@ -57,7 +79,7 @@ async function createLoan(fd: FormData) {
     method: repaymentMethod,
   });
 
-  const { error } = await supabase.rpc("create_loan_with_schedule_and_lender", {
+  const { data: loanId, error } = await supabase.rpc("create_loan_with_schedule_and_lender", {
     p_organization_id: organizationId,
     p_lender_name: lenderName,
     p_lender_category: lenderCategory,
@@ -81,6 +103,15 @@ async function createLoan(fd: FormData) {
     p_installments: schedule.installments.map((row) => ({ ...row, fees: 0 })),
   });
   if (error) throw new Error(error.message);
+  if (!loanId) throw new Error("L’emprunt a été créé sans identifiant exploitable pour enregistrer sa localisation.");
+  const { error: locationSaveError } = await supabase.from("loans").update({
+    lender_location_id: lenderLocationId,
+    lender_city: lenderCity,
+    lender_region: lenderRegion,
+    lender_branch_name: lenderBranchName,
+    lender_address: lenderAddress,
+  }).eq("id", loanId).eq("organization_id", organizationId);
+  if (locationSaveError) throw new Error("L’emprunt est créé, mais sa localisation n’a pas pu être enregistrée : " + locationSaveError.message);
   revalidatePath("/emprunts");
   revalidatePath("/dettes");
 }
@@ -89,10 +120,11 @@ export default async function Loans() {
   const ctx = await requireOrganization();
   await requirePermission(ctx, "finance.view");
   const { supabase, organizationId } = ctx;
-  const [{ data: org }, { data: loans = [] }, { data: institutions = [] }] = await Promise.all([
+  const [{ data: org }, { data: loans = [] }, { data: institutions = [] }, { data: locations = [] }] = await Promise.all([
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
     supabase.from("loans").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false }),
     supabase.from("financial_institutions").select("id, display_name, category, organization_id, verification_status").eq("country_code", "MG").eq("is_active", true).or(`organization_id.is.null,organization_id.eq.${organizationId}`).order("display_name"),
+    supabase.from("financial_institution_locations").select("id, institution_id, branch_name, city, region, address, verification_status").eq("is_active", true).or(`organization_id.is.null,organization_id.eq.${organizationId}`).order("city").order("branch_name"),
   ]);
   const currency = org?.currency || "MGA";
   const createRequestKey = randomUUID();
@@ -109,7 +141,7 @@ export default async function Loans() {
           <FormDialog title="Nouvel emprunt" buttonLabel="+ Nouvel emprunt">
             <form action={createLoan} className="form">
               <input type="hidden" name="request_key" value={createRequestKey} />
-              <LenderSelector institutions={institutions || []} />
+              <LenderSelector institutions={institutions || []} locations={locations || []} />
               <div className="field"><label>Référence du contrat</label><input name="contract_reference" maxLength={120} /></div>
               <div className="grid2">
                 <div className="field"><label>Capital emprunté</label><input name="principal" type="number" step="0.01" min="0.01" required /></div>
@@ -138,7 +170,7 @@ export default async function Loans() {
             <thead><tr><th>Réf. MAGNISA</th><th>Prêteur</th><th>Méthode</th><th>Capital initial</th><th>Restant dû</th><th>Prochaine échéance</th><th>Statut</th></tr></thead>
             <tbody>{loans.map((loan: any) => <tr key={loan.id}>
               <td><Link href={`/emprunts/${loan.id}`}><code>{loan.magnisa_reference || loan.contract_reference || "Voir le détail"}</code></Link></td>
-              <td>{loan.lender_name}</td>
+              <td>{loan.lender_name}{loan.lender_city ? <span className="muted"> · {loan.lender_city}{loan.lender_branch_name ? " · " + loan.lender_branch_name : ""}</span> : null}</td>
               <td>{loan.repayment_method === "equal_principal" ? "Capital constant" : loan.repayment_method === "bullet" ? "In fine" : "Annuités constantes"}</td>
               <td>{money(Number(loan.principal), currency)}</td>
               <td><b>{money(Number(loan.outstanding_principal), currency)}</b></td>
