@@ -21,6 +21,7 @@ create table if not exists public.loan_repayment_installment_snapshots (
     references public.loan_installments(id) on delete restrict
 );
 
+alter table public.loan_repayment_installment_snapshots enable row level security;
 revoke all on public.loan_repayment_installment_snapshots from public, anon, authenticated;
 
 -- Atomic loan repayment posting: schedule allocation, treasury movement and balanced journal.
