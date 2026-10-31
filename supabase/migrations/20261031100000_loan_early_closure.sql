@@ -5,11 +5,16 @@
 -- the current loan model has no dedicated indemnity field/rule.
 -- Any due/overdue installment must be settled first through record_loan_repayment.
 
+drop function if exists public.close_loan_early(uuid,uuid,date,uuid,uuid,text,text);
+
 create or replace function public.close_loan_early(
   p_organization_id uuid,
   p_loan_id uuid,
   p_payment_date date,
   p_financial_account_id uuid,
+  p_interest_amount numeric,
+  p_fees_amount numeric,
+  p_penalty_amount numeric,
   p_request_key uuid,
   p_payment_reference text default null,
   p_notes text default null
@@ -28,6 +33,10 @@ declare
   v_reference text;
   v_digest text;
   v_amount numeric(20,2);
+  v_principal numeric(20,2);
+  v_interest numeric(20,2);
+  v_fees numeric(20,2);
+  v_penalty numeric(20,2);
   v_lines jsonb := '[]'::jsonb;
 begin
   perform public.assert_org_access(p_organization_id);
@@ -39,10 +48,18 @@ begin
   if p_payment_date is null or p_payment_date > current_date then
     raise exception 'La date de paiement doit être renseignée et ne peut pas être future';
   end if;
+  if coalesce(p_interest_amount,0) < 0
+     or coalesce(p_fees_amount,0) < 0
+     or coalesce(p_penalty_amount,0) < 0
+     or round(coalesce(p_interest_amount,0),2) <> coalesce(p_interest_amount,0)
+     or round(coalesce(p_fees_amount,0),2) <> coalesce(p_fees_amount,0)
+     or round(coalesce(p_penalty_amount,0),2) <> coalesce(p_penalty_amount,0) then
+    raise exception 'Intérêts, frais et pénalités doivent être positifs ou nuls, à deux décimales maximum';
+  end if;
 
   v_digest := md5(jsonb_build_array(
     p_organization_id, p_loan_id, p_payment_date, p_financial_account_id,
-    p_payment_reference, p_notes
+    p_interest_amount, p_fees_amount, p_penalty_amount, p_payment_reference, p_notes
   )::text);
 
   insert into public.lot1_financial_idempotency(
@@ -104,9 +121,19 @@ begin
     raise exception 'Un remboursement postérieur à la date choisie existe déjà ; régularise-le avant la clôture anticipée';
   end if;
 
-  v_amount := round(v_loan.outstanding_principal, 2);
-  if v_amount <= 0 then
+  v_principal := round(v_loan.outstanding_principal,2);
+  v_interest := round(coalesce(p_interest_amount,0),2);
+  v_fees := round(coalesce(p_fees_amount,0),2);
+  v_penalty := round(coalesce(p_penalty_amount,0),2);
+  v_amount := round(v_principal + v_interest + v_fees + v_penalty,2);
+  if v_principal <= 0 then
     raise exception 'Le capital restant dû est déjà soldé';
+  end if;
+  if v_fees > 0 and v_loan.fee_account_code is null then
+    raise exception 'Configure le compte PCG des frais ou indemnités sur le contrat';
+  end if;
+  if v_penalty > 0 and v_loan.penalty_account_code is null then
+    raise exception 'Configure le compte PCG des pénalités sur le contrat';
   end if;
 
   select * into v_account
@@ -131,7 +158,7 @@ begin
     financial_account_id, payment_reference, notes, status, request_key, created_by
   ) values (
     p_organization_id, p_loan_id, null, p_payment_date, v_amount,
-    v_amount, 0, 0, 0,
+    v_principal, v_interest, v_fees, v_penalty,
     p_financial_account_id, v_reference,
     nullif(btrim(coalesce(p_notes,'')),''), 'posted', p_request_key, auth.uid()
   ) returning id into v_repayment_id;
@@ -154,9 +181,24 @@ begin
   v_lines := v_lines || jsonb_build_array(jsonb_build_object(
     'account_kind','pcg',
     'pcg_code',v_loan.liability_account_code,
-    'debit',v_amount,
+    'debit',v_principal,
     'credit',0
   ));
+  if v_interest > 0 then
+    v_lines := v_lines || jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code','661','debit',v_interest,'credit',0
+    ));
+  end if;
+  if v_fees > 0 then
+    v_lines := v_lines || jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',v_loan.fee_account_code,'debit',v_fees,'credit',0
+    ));
+  end if;
+  if v_penalty > 0 then
+    v_lines := v_lines || jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',v_loan.penalty_account_code,'debit',v_penalty,'credit',0
+    ));
+  end if;
   v_lines := v_lines || jsonb_build_array(jsonb_build_object(
     'account_kind','treasury',
     'financial_account_id',v_account.id::text,
@@ -227,7 +269,10 @@ begin
     jsonb_build_object(
       'loan_id', p_loan_id,
       'amount', v_amount,
-      'principal_paid', v_amount,
+      'principal_paid', v_principal,
+      'interest_paid', v_interest,
+      'fees_paid', v_fees,
+      'penalty_paid', v_penalty,
       'journal_entry_id', v_journal_id,
       'financial_transaction_id', v_transaction_id,
       'future_interest_charged', 0
@@ -243,5 +288,5 @@ begin
 end;
 $function$;
 
-revoke all on function public.close_loan_early(uuid,uuid,date,uuid,uuid,text,text) from public, anon;
-grant execute on function public.close_loan_early(uuid,uuid,date,uuid,uuid,text,text) to authenticated;
+revoke all on function public.close_loan_early(uuid,uuid,date,uuid,numeric,numeric,numeric,uuid,text,text) from public, anon;
+grant execute on function public.close_loan_early(uuid,uuid,date,uuid,numeric,numeric,numeric,uuid,text,text) to authenticated;
