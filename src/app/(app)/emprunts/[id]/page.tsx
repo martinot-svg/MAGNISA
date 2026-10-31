@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
-import { requirePermission } from "@/lib/permissions";
+import { hasPermission, requirePermission } from "@/lib/permissions";
 import { requireOrganization } from "@/lib/current-org";
 import { money } from "@/lib/money";
 import { FormDialog } from "@/components/form-dialog";
@@ -53,6 +53,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
   const ctx = await requireOrganization();
   await requirePermission(ctx, "finance.view");
   const { supabase, organizationId } = ctx;
+  const canRepay = await hasPermission(ctx, "treasury.transfer");
 
   const [{ data: org }, { data: loan }, { data: installments = [] }, { data: repayments = [] }, { data: accounts = [] }] = await Promise.all([
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
@@ -121,7 +122,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
       <section className="section" id="remboursements">
         <div className="pageHead">
           <div><h2>Remboursements réels</h2><p className="muted">Chaque validation met à jour simultanément le capital, la trésorerie et la comptabilité.</p></div>
-          {loan.status === "active" && accounts.length > 0 ? (
+          {loan.status === "active" && canRepay && accounts.length > 0 ? (
             <FormDialog title="Enregistrer un remboursement" buttonLabel="+ Enregistrer un remboursement">
               <form action={recordRepayment} className="form">
                 <input type="hidden" name="loan_id" value={loan.id} />
@@ -152,7 +153,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
             </FormDialog>
           ) : null}
         </div>
-        {loan.status === "active" && accounts.length === 0 ? <p className="muted">Aucun compte de trésorerie actif accessible. Crée ou active un compte dans Trésorerie avant d'enregistrer un paiement.</p> : null}
+        {loan.status === "active" && canRepay && accounts.length === 0 ? <p className="muted">Aucun compte de trésorerie actif accessible. Crée ou active un compte dans Trésorerie avant d'enregistrer un paiement.</p> : null}
         {repayments.length === 0 ? <p className="muted">Aucun remboursement réel enregistré.</p> : (
           <div className="tableWrap"><table>
             <thead><tr><th>Date</th><th>Montant</th><th>Capital</th><th>Intérêts</th><th>Frais</th><th>Pénalités</th><th>Statut</th><th>Référence</th><th>Écriture</th><th>Trésorerie</th></tr></thead>
