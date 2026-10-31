@@ -26,6 +26,7 @@ async function createLoan(fd: FormData) {
   const liabilityAccountCode = String(fd.get("liability_account_code") || "");
   const feeAccountCode = String(fd.get("fee_account_code") || "").trim() || null;
   const penaltyAccountCode = String(fd.get("penalty_account_code") || "").trim() || null;
+  const repaymentAllocationOrder = String(fd.get("repayment_allocation_order") || "");
 
   if (lenderName.length < 2 || lenderName.length > 160) throw new Error("Nom du prêteur invalide.");
   if (!Number.isFinite(principal) || principal <= 0) throw new Error("Le capital doit être un montant strictement positif.");
@@ -33,6 +34,7 @@ async function createLoan(fd: FormData) {
   if (!["164", "168"].includes(liabilityAccountCode)) throw new Error("Sélectionne le compte de dette PCG adapté au prêteur.");
   if (feeAccountCode && !["627", "658", "661"].includes(feeAccountCode)) throw new Error("Compte de frais invalide.");
   if (penaltyAccountCode && !["658", "661"].includes(penaltyAccountCode)) throw new Error("Compte de pénalités invalide.");
+  if (!["charges_first", "interest_first", "principal_first"].includes(repaymentAllocationOrder)) throw new Error("Ordre d'imputation invalide.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || Number.isNaN(Date.parse(startDate))) throw new Error("Date de début invalide.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(firstDueDate) || Number.isNaN(Date.parse(firstDueDate)) || firstDueDate < startDate) throw new Error("Première échéance invalide.");
   if (endDate && (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || Number.isNaN(Date.parse(endDate)) || endDate < firstDueDate)) throw new Error("La date de fin doit être postérieure à la première échéance.");
@@ -62,6 +64,7 @@ async function createLoan(fd: FormData) {
     p_liability_account_code: liabilityAccountCode,
     p_fee_account_code: feeAccountCode,
     p_penalty_account_code: penaltyAccountCode,
+    p_repayment_allocation_order: repaymentAllocationOrder,
     p_installments: schedule.installments.map((row) => ({ ...row, fees: 0 })),
   });
   if (error) throw new Error(error.message);
@@ -103,6 +106,7 @@ export default async function Loans() {
                 <div className="field"><label>Compte de dette PCG</label><select name="liability_account_code" defaultValue="" required><option value="" disabled>Choisir le compte correspondant au prêteur</option><option value="164">164 · Emprunts auprès des établissements de crédit</option><option value="168">168 · Autres emprunts et dettes assimilées</option></select></div>
                 <div className="field"><label>Compte PCG des frais (facultatif)</label><select name="fee_account_code" defaultValue=""><option value="">Non configuré</option><option value="627">627 · Services bancaires et assimilés</option><option value="658">658 · Autres charges de gestion courante</option><option value="661">661 · Charges d'intérêts</option></select></div>
                 <div className="field"><label>Compte PCG des pénalités (facultatif)</label><select name="penalty_account_code" defaultValue=""><option value="">Non configuré</option><option value="658">658 · Autres charges de gestion courante</option><option value="661">661 · Charges d'intérêts</option></select></div>
+                <div className="field"><label>Ordre d'imputation des paiements</label><select name="repayment_allocation_order" defaultValue="charges_first" required><option value="charges_first">Frais, pénalités, intérêts, capital</option><option value="interest_first">Intérêts, frais, pénalités, capital</option><option value="principal_first">Capital, intérêts, frais, pénalités</option></select></div>
                 <div className="field"><label>Date de fin contractuelle (facultatif)</label><input name="end_date" type="date" /></div>
               </div>
               <div className="field"><label>Notes</label><textarea name="notes" /></div>
