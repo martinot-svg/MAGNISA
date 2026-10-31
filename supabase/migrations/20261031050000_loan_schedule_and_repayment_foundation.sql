@@ -195,7 +195,7 @@ begin
     v_expected_interest := round(v_expected_opening * v_periodic_rate, 2);
     v_expected_principal := case
       when v_loan.repayment_method = 'bullet' then case when v_count = v_loan.total_installments then v_expected_opening else 0 end
-      when v_loan.repayment_method = 'equal_principal' then case when v_count = v_loan.total_installments then v_expected_opening else least(v_expected_opening, round(v_loan.principal / v_loan.total_installments, 2)) end
+      when v_loan.repayment_method = 'equal_principal' then case when v_count = v_loan.total_installments then v_expected_opening else least(v_expected_opening, round(v_loan.outstanding_principal / v_loan.total_installments, 2)) end
       else case when v_count = v_loan.total_installments then v_expected_opening else least(v_expected_opening, round(v_regular_payment - v_expected_interest, 2)) end
     end;
 
