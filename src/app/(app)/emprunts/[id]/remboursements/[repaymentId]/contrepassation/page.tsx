@@ -20,7 +20,7 @@ async function reverseLoanRepayment(fd: FormData) {
 
   if (!/^[0-9a-f-]{36}$/i.test(loanId) || !/^[0-9a-f-]{36}$/i.test(repaymentId)) throw new Error("Emprunt ou remboursement invalide.");
   if (!/^[0-9a-f-]{36}$/i.test(requestKey)) throw new Error("Clé de sécurité invalide. Recharge la page.");
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(reversalDate) || Number.isNaN(Date.parse(reversalDate))) throw new Error("Date de contrepassation invalide.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(reversalDate) || Number.isNaN(Date.parse(reversalDate))) throw new Error("Date de contrepassation invalide.");
   if (reason.length < 5 || reason.length > 500) throw new Error("Le motif doit contenir entre 5 et 500 caractères.");
 
   const { error } = await supabase.rpc("reverse_loan_repayment", {
