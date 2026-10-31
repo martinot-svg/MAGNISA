@@ -14,6 +14,14 @@ export const MOBILE_MONEY_OPERATORS: Array<{ value: MobileMoneyOperator; label: 
 ];
 export const ORANGE_MONEY_RATE_VERSION = "2025-02-01";
 export const ORANGE_MONEY_MERCHANT_PAYMENT_STATUS = "conflicting_source" as const;
+export const ORANGE_MONEY_ACCOUNT_BALANCE_LIMIT = 20_000_000;
+export const ORANGE_MONEY_DEPOSIT_REQUIRES_ACCOUNT_HOLDER = true;
+export const ORANGE_MONEY_PHONE_NOT_IN_HOLDER_POSSESSION_FEE_STATUS = "amount_not_specified_in_source" as const;
+export const ORANGE_MONEY_INACTIVITY_FEES = [
+ { afterMonths: 6, monthlyFee: 2_000 },
+ { afterMonths: 12, monthlyFee: 4_000 },
+ { afterMonths: 18, monthlyFee: 6_000 },
+] as const;
 export const AIRTEL_MONEY_RATE_STATUS = "manual_official_rate_required" as const;
 
 type Band = readonly [number, number, number | null];
@@ -85,6 +93,10 @@ export function estimateOrangeMoneyFee(operation: OrangeMoneyOperation, amount: 
   case "buy_bundle": return 0;
   default: return null;
  }
+}
+export function estimateOrangeMoneyInactivityFee(monthsInactive: number): number | null {
+ if (!Number.isInteger(monthsInactive) || monthsInactive < 6) return null;
+ return [...ORANGE_MONEY_INACTIVITY_FEES].reverse().find(rule => monthsInactive >= rule.afterMonths)?.monthlyFee ?? null;
 }
 export function orangeMoneyMerchantPaymentNotice(): string {
  return "Document Orange contradictoire : la section 1 associe un barème au dépôt/paiement marchand, tandis que la section 5 indique le paiement marchand gratuit. Tarif non automatisé en attente de confirmation Orange.";
