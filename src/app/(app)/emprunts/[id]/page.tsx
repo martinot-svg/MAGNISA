@@ -200,6 +200,8 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
         <h2>Informations et conditions financières</h2>
         <div className="tableWrap"><table><tbody>
           <tr><th>Prêteur</th><td>{loan.lender_name}</td><th>Référence contrat</th><td>{loan.contract_reference || "-"}</td></tr>
+          <tr><th>Ville</th><td>{loan.lender_city || "-"}</td><th>Agence</th><td>{loan.lender_branch_name || "-"}</td></tr>
+          <tr><th>Région</th><td>{loan.lender_region || "-"}</td><th>Adresse</th><td>{loan.lender_address || "-"}</td></tr>
           <tr><th>Capital</th><td>{money(Number(loan.principal), currency)}</td><th>Taux annuel nominal</th><td>{loan.interest_rate ?? 0} %</td></tr>
           <tr><th>Méthode</th><td>{method}</td><th>Périodicité</th><td>{loan.payment_frequency} fois par an</td></tr>
           <tr><th>Compte de dette</th><td>{loan.liability_account_code || "À configurer"}</td><th>Compte intérêts</th><td>661 · Charges d'intérêts</td></tr>
