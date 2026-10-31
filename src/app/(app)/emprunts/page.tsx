@@ -73,8 +73,9 @@ async function createLoan(fd: FormData) {
   }
   if (!["charges_first", "interest_first", "principal_first"].includes(repaymentAllocationOrder)) throw new Error("Ordre d'imputation invalide.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || Number.isNaN(Date.parse(startDate))) throw new Error("Date de début invalide.");
+  if (!["outstanding_balance", "original_principal"].includes(interestCalculationMethod)) throw new Error("Méthode de calcul des intérêts invalide.");
+  if (!firstDueDate) firstDueDate = addMonthsClamped(startDate, 12 / paymentFrequency);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(firstDueDate) || Number.isNaN(Date.parse(firstDueDate)) || firstDueDate < startDate) throw new Error("Première échéance invalide.");
-  if (endDate && (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || Number.isNaN(Date.parse(endDate)) || endDate < firstDueDate)) throw new Error("La date de fin doit être postérieure à la première échéance.");
 
   const schedule = buildLoanSchedule({
     principal,
