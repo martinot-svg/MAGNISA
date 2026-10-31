@@ -162,7 +162,12 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
   const totalInterest = installments.reduce((sum: number, row: any) => sum + Number(row.interest_due), 0);
   const postedRepayments = repayments.filter((row: any) => row.status === "posted");
   const paidTotal = postedRepayments.reduce((sum: number, row: any) => sum + Number(row.amount), 0);
+  const paidByInstallment = new Map<string, number>();
+  for (const repayment of postedRepayments as any[]) {
+    if (repayment.installment_id) paidByInstallment.set(repayment.installment_id, (paidByInstallment.get(repayment.installment_id) || 0) + Number(repayment.amount));
+  }
   const openInstallments = installments.filter((row: any) => !["paid", "cancelled"].includes(row.status));
+  const remainingInstallmentAmount = (row: any) => Math.max(0, Number(row.total_due) - (paidByInstallment.get(row.id) || 0));
   const requestKey = randomUUID();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -180,7 +185,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
       <div className="grid2 section">
         <div className="card"><p className="eyebrow">Capital initial</p><h2>{money(Number(loan.principal), currency)}</h2></div>
         <div className="card"><p className="eyebrow">Capital restant dû</p><h2>{money(Number(loan.outstanding_principal), currency)}</h2></div>
-        <div className="card"><p className="eyebrow">Intérêts prévisionnels</p><h2>{money(totalInterest, currency)}</h2></div>
+        <div className="card"><p className="eyebrow">Intérêts de l’échéancier</p><h2>{money(totalInterest, currency)}</h2></div>
         <div className="card"><p className="eyebrow">Remboursements validés</p><h2>{money(paidTotal, currency)}</h2></div>
       </div>
 
@@ -272,7 +277,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
                   <label>Type de remboursement</label>
                   <select name="installment_id" required defaultValue="">
                     <option value="" disabled>Choisir une échéance</option>
-                    {openInstallments.map((row: any) => <option key={row.id} value={row.id}>Échéance {row.installment_number} · {row.due_date} · {money(Number(row.total_due), currency)}</option>)}
+                    {openInstallments.map((row: any) => <option key={row.id} value={row.id}>Échéance {row.installment_number} · {row.due_date} · {money(remainingInstallmentAmount(row), currency)} restant</option>)}
                     <option value="__early__">Remboursement anticipé du capital</option>
                   </select>
                 </div>
