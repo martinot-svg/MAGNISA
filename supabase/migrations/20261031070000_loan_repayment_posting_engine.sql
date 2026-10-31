@@ -196,7 +196,7 @@ begin
     if exists (
       select 1 from public.loan_installments
       where loan_id = p_loan_id and organization_id = p_organization_id
-        and due_date <= p_payment_date and status in ('planned','partial','overdue')
+        and (status = 'overdue' or (due_date <= p_payment_date and status in ('planned','partial')))
     ) then
       raise exception 'Règle d’abord les échéances arrivées à terme avant le remboursement anticipé';
     end if;
