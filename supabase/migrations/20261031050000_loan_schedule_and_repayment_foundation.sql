@@ -134,6 +134,11 @@ declare
   v_total numeric(20,2);
   v_closing numeric(20,2);
   v_expected_opening numeric(20,2);
+  v_periodic_rate numeric;
+  v_regular_payment numeric;
+  v_expected_principal numeric(20,2);
+  v_expected_interest numeric(20,2);
+  v_expected_due_date date;
 begin
   perform public.assert_org_access(p_organization_id);
   perform public.assert_org_permission(p_organization_id, 'finance.view');
@@ -158,6 +163,15 @@ begin
   end if;
 
   v_expected_opening := round(v_loan.principal, 2);
+  v_periodic_rate := coalesce(v_loan.interest_rate, 0) / 100 / v_loan.payment_frequency;
+  v_regular_payment := case
+    when v_periodic_rate = 0 then round(v_loan.principal / v_loan.total_installments, 2)
+    else v_loan.principal * v_periodic_rate / (1 - power(1 + v_periodic_rate, -v_loan.total_installments))
+  end;
+  if p_end_date is not null and p_end_date < (p_first_due_date + make_interval(months => (p_total_installments - 1) * (12 / p_payment_frequency)))::date then
+    raise exception 'La date de fin précède la dernière échéance calculée';
+  end if;
+
   for v_item in select value from jsonb_array_elements(p_installments) loop
     v_count := v_count + 1;
     v_number := (v_item->>'number')::integer;
@@ -167,13 +181,23 @@ begin
     v_fees := round(coalesce((v_item->>'fees')::numeric, 0), 2);
     v_total := round((v_item->>'payment')::numeric, 2);
     v_closing := round((v_item->>'closingPrincipal')::numeric, 2);
+    v_expected_due_date := (v_loan.first_due_date + make_interval(months => (v_count - 1) * (12 / v_loan.payment_frequency)))::date;
+    v_expected_interest := round(v_expected_opening * v_periodic_rate, 2);
+    v_expected_principal := case
+      when v_loan.repayment_method = 'bullet' then case when v_count = v_loan.total_installments then v_expected_opening else 0 end
+      when v_loan.repayment_method = 'equal_principal' then case when v_count = v_loan.total_installments then v_expected_opening else least(v_expected_opening, round(v_loan.principal / v_loan.total_installments, 2)) end
+      else case when v_count = v_loan.total_installments then v_expected_opening else least(v_expected_opening, round(v_regular_payment - v_expected_interest, 2)) end
+    end;
 
     if v_number <> v_count or v_opening <> v_expected_opening
        or v_principal < 0 or v_interest < 0 or v_fees < 0
        or v_total <> v_principal + v_interest + v_fees
        or v_closing <> v_opening - v_principal
        or v_closing < 0
-       or nullif(v_item->>'dueDate','') is null then
+       or v_principal <> v_expected_principal
+       or v_interest <> v_expected_interest
+       or v_fees <> 0
+       or (v_item->>'dueDate')::date <> v_expected_due_date then
       raise exception 'Ligne d’échéancier invalide à la position %', v_count;
     end if;
 
