@@ -30,6 +30,11 @@ declare
   v_paid_penalty numeric(20,2) := 0;
   v_paid_interest numeric(20,2) := 0;
   v_paid_principal numeric(20,2) := 0;
+  v_this_principal numeric(20,2) := 0;
+  v_this_interest numeric(20,2) := 0;
+  v_this_fees numeric(20,2) := 0;
+  v_this_penalty numeric(20,2) := 0;
+  v_total_paid numeric(20,2) := 0;
   v_remaining_fees numeric(20,2) := 0;
   v_remaining_penalty numeric(20,2) := 0;
   v_remaining_interest numeric(20,2) := 0;
@@ -51,7 +56,7 @@ begin
   perform public.assert_org_permission(p_organization_id, 'treasury.transfer');
 
   if p_request_key is null then raise exception 'Clé de requête obligatoire'; end if;
-  if p_payment_date is null then raise exception 'Date de paiement obligatoire'; end if;
+  if p_payment_date is null or p_payment_date > current_date then raise exception 'La date de paiement doit être renseignée et ne peut pas être future'; end if;
   if p_amount is null or p_amount <= 0 or round(p_amount,2) <> p_amount then
     raise exception 'Le montant doit être positif et limité à deux décimales';
   end if;
@@ -172,6 +177,10 @@ begin
   if v_paid_penalty > 0 and v_loan.penalty_account_code is null then
     raise exception 'Configure le compte PCG des pénalités sur le contrat avant de les payer';
   end if;
+  v_this_principal := v_paid_principal;
+  v_this_interest := v_paid_interest;
+  v_this_fees := v_paid_fees;
+  v_this_penalty := v_paid_penalty;
 
   v_reference := coalesce(nullif(btrim(p_payment_reference),''), public.next_document_number(p_organization_id,'payment'));
 
@@ -198,27 +207,27 @@ begin
     case when p_installment_id is null then 'Remboursement anticipé d’emprunt' else 'Remboursement d’échéance d’emprunt' end
   ) returning id into v_transaction_id;
 
-  if v_paid_principal > 0 then
+  if v_this_principal > 0 then
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'account_kind','pcg','pcg_code',v_loan.liability_account_code,
-      'debit',v_paid_principal,'credit',0
+      'debit',v_this_principal,'credit',0
     ));
   end if;
-  if v_paid_interest > 0 then
+  if v_this_interest > 0 then
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
-      'account_kind','pcg','pcg_code','661','debit',v_paid_interest,'credit',0
+      'account_kind','pcg','pcg_code','661','debit',v_this_interest,'credit',0
     ));
   end if;
-  if v_paid_fees > 0 then
+  if v_this_fees > 0 then
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'account_kind','pcg','pcg_code',v_loan.fee_account_code,
-      'debit',v_paid_fees,'credit',0
+      'debit',v_this_fees,'credit',0
     ));
   end if;
-  if v_paid_penalty > 0 then
+  if v_this_penalty > 0 then
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'account_kind','pcg','pcg_code',v_loan.penalty_account_code,
-      'debit',v_paid_penalty,'credit',0
+      'debit',v_this_penalty,'credit',0
     ));
   end if;
   v_lines := v_lines || jsonb_build_array(jsonb_build_object(
@@ -242,12 +251,7 @@ begin
   if v_new_balance < 0 then raise exception 'Le capital restant dû ne peut pas devenir négatif'; end if;
 
   if p_installment_id is not null then
-    select
-      coalesce(sum(principal_paid),0),
-      coalesce(sum(interest_paid),0),
-      coalesce(sum(fees_paid),0),
-      coalesce(sum(penalty_paid),0)
-    into v_paid_principal, v_paid_interest, v_paid_fees, v_paid_penalty
+    select coalesce(sum(amount),0) into v_total_paid
     from public.loan_repayments
     where installment_id = p_installment_id
       and organization_id = p_organization_id
@@ -255,7 +259,7 @@ begin
 
     update public.loan_installments
     set status = case
-      when round(v_paid_principal + v_paid_interest + v_paid_fees + v_paid_penalty,2) >= total_due then 'paid'
+      when round(v_total_paid,2) >= total_due then 'paid'
       else 'partial'
     end,
     updated_at = now()
@@ -357,8 +361,8 @@ begin
   perform public.audit_event(
     p_organization_id, 'loan.repayment_posted', 'loan_repayment', v_repayment_id,
     null, jsonb_build_object(
-      'loan_id',p_loan_id,'amount',p_amount,'principal_paid',v_paid_principal,
-      'interest_paid',v_paid_interest,'fees_paid',v_paid_fees,'penalty_paid',v_paid_penalty,
+      'loan_id',p_loan_id,'amount',p_amount,'principal_paid',v_this_principal,
+      'interest_paid',v_this_interest,'fees_paid',v_this_fees,'penalty_paid',v_this_penalty,
       'journal_entry_id',v_journal_id,'financial_transaction_id',v_transaction_id
     )
   );
