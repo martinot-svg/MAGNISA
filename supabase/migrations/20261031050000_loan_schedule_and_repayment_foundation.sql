@@ -48,7 +48,8 @@ create table if not exists public.loan_installments (
   updated_at timestamptz not null default now(),
   constraint loan_installments_loan_org_fk
     foreign key (loan_id, organization_id) references public.loans(id, organization_id) on delete cascade,
-  constraint loan_installments_number_unique unique (organization_id, loan_id, installment_number)
+  constraint loan_installments_number_unique unique (organization_id, loan_id, installment_number),
+  constraint loan_installments_id_org_loan_unique unique (id, organization_id, loan_id)
 );
 
 create index if not exists loan_installments_due_date_idx
