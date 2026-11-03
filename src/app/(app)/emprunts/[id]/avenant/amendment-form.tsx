@@ -19,9 +19,6 @@ export function AmendmentForm({ loanId, principal, annualRatePercent, currentFre
   const [reference, setReference] = useState("");
   const [reason, setReason] = useState("");
   const [periods, setPeriods] = useState(32);
-  const [frequency, setFrequency] = useState(currentFrequency || 12);
-  const [method, setMethod] = useState<LoanRepaymentMethod>(currentMethod);
-  const [rate, setRate] = useState(annualRatePercent);
   const [firstDueDate, setFirstDueDate] = useState("");
 
   const schedule = useMemo(() => {
@@ -29,17 +26,17 @@ export function AmendmentForm({ loanId, principal, annualRatePercent, currentFre
     try {
       return buildLoanSchedule({
         principal,
-        annualRatePercent: Number(rate),
+        annualRatePercent,
         periods: Number(periods),
-        paymentsPerYear: Number(frequency),
+        paymentsPerYear: Number(currentFrequency),
         firstDueDate,
-        method,
+        method: currentMethod,
         interestCalculationMethod,
       });
     } catch {
       return null;
     }
-  }, [principal, annualRatePercent, rate, periods, frequency, firstDueDate, method, interestCalculationMethod]);
+  }, [principal, annualRatePercent, periods, currentFrequency, firstDueDate, currentMethod, interestCalculationMethod]);
 
   const payload = schedule?.installments.map((row) => ({
     installment_number: row.number,
@@ -69,15 +66,15 @@ export function AmendmentForm({ loanId, principal, annualRatePercent, currentFre
       </section>
 
       <section className="section">
-        <h2>2. Nouvelles conditions de l'échéancier</h2>
-        <p className="muted">Le capital de départ est le capital restant dû. Le taux peut être modifié dans le nouvel échéancier, mais cette version ne modifie pas encore les champs contractuels généraux de la fiche du prêt.</p>
+        <h2>2. Nouvelle durée de remboursement</h2>
+        <p className="muted">Le taux, la périodicité et la méthode restent ceux du contrat principal. Cet avenant crée une nouvelle version de l'échéancier et permet de modifier la durée à partir du capital restant dû. Cette règle évite de créer une incohérence entre l'échéancier et les paramètres généraux du prêt.</p>
         <div className="grid2">
           <div className="field"><label>Capital de départ</label><input value={principal.toLocaleString("fr-FR")} readOnly /></div>
-          <div className="field"><label>Taux annuel nominal (%)</label><input type="number" min="0" max="1000" step="0.01" value={rate} onChange={(e) => setRate(Number(e.target.value))} required /></div>
+          <div className="field"><label>Taux annuel nominal (%)</label><input value={annualRatePercent} readOnly /></div>
           <div className="field"><label>Nombre d'échéances</label><input type="number" min="1" max="1200" step="1" value={periods} onChange={(e) => setPeriods(Number(e.target.value))} required /></div>
-          <div className="field"><label>Périodicité</label><select value={frequency} onChange={(e) => setFrequency(Number(e.target.value))}><option value={12}>Mensuelle</option><option value={6}>Bimestrielle</option><option value={4}>Trimestrielle</option><option value={3}>Quadrimestrielle</option><option value={2}>Semestrielle</option><option value={1}>Annuelle</option></select></div>
-          <div className="field"><label>Méthode d'amortissement</label><select value={method} onChange={(e) => setMethod(e.target.value as LoanRepaymentMethod)}><option value="annuity">Annuités constantes</option><option value="equal_principal">Capital constant</option><option value="bullet">In fine</option></select></div>
-          <div className="field"><label>Première nouvelle échéance</label><input type="date" value={firstDueDate} onChange={(e) => setFirstDueDate(e.target.value)} required /></div>
+          <div className="field"><label>Périodicité</label><input value={`${currentFrequency} fois par an`} readOnly /></div>
+          <div className="field"><label>Méthode d'amortissement</label><input value={currentMethod === "equal_principal" ? "Capital constant" : currentMethod === "bullet" ? "In fine" : "Annuités constantes"} readOnly /></div>
+          <div className="field"><label>Première nouvelle échéance</label><input name="first_due_date" type="date" value={firstDueDate} onChange={(e) => setFirstDueDate(e.target.value)} required /></div>
         </div>
       </section>
 
