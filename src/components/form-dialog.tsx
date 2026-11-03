@@ -6,10 +6,12 @@ export function FormDialog({
   children,
   title,
   buttonLabel,
+  buttonClassName = "button primary",
 }: {
   children: ReactNode;
   title: string;
   buttonLabel: string;
+  buttonClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -29,7 +31,7 @@ export function FormDialog({
 
   return (
     <>
-      <button type="button" className="button primary" onClick={() => setOpen(true)}>
+      <button type="button" className={buttonClassName} onClick={() => setOpen(true)}>
         {buttonLabel}
       </button>
       {open ? (
