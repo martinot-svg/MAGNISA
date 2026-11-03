@@ -185,6 +185,56 @@ async function recordRepayment(fd: FormData) {
   revalidatePath("/comptabilite");
 }
 
+
+async function createLoanScheduleAmendment(fd: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  await requirePermission(ctx, "accounting.manage");
+  const { supabase, organizationId } = ctx;
+  const loanId = String(fd.get("loan_id") || "");
+  const effectiveFrom = String(fd.get("effective_from") || "");
+  const firstDueDate = String(fd.get("first_due_date") || "");
+  const reference = String(fd.get("amendment_reference") || "").trim();
+  const reason = String(fd.get("amendment_reason") || "").trim();
+  const periods = Number(fd.get("remaining_installments") || 0);
+  if (!/^[0-9a-f-]{36}$/i.test(loanId)) throw new Error("Emprunt invalide.");
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(effectiveFrom) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(firstDueDate) || firstDueDate < effectiveFrom) throw new Error("Dates d'effet ou de première échéance invalides.");
+  if (reference.length < 2 || reference.length > 120 || reason.length < 5 || reason.length > 500) throw new Error("Référence ou motif d'avenant invalide.");
+  if (!Number.isInteger(periods) || periods < 1 || periods > 1200) throw new Error("Nombre d'échéances restantes invalide.");
+  const { data: loan, error: loanError } = await supabase.from("loans").select("outstanding_principal,interest_rate,repayment_method,payment_frequency,interest_calculation_method,start_date,active_schedule_version_id").eq("id", loanId).eq("organization_id", organizationId).single();
+  if (loanError || !loan || !loan.active_schedule_version_id) throw new Error("Emprunt ou échéancier actif introuvable.");
+  const schedule = buildLoanSchedule({
+    principal: Number(loan.outstanding_principal),
+    annualRatePercent: Number(loan.interest_rate || 0),
+    periods,
+    paymentsPerYear: Number(loan.payment_frequency),
+    firstDueDate,
+    method: loan.repayment_method === "equal_principal" || loan.repayment_method === "bullet" ? loan.repayment_method : "annuity",
+    interestCalculationMethod: loan.interest_calculation_method === "original_principal" ? "original_principal" : "outstanding_balance",
+  });
+  const installments = schedule.installments.map((row) => ({
+    installment_number: row.number,
+    due_date: row.dueDate,
+    opening_principal: row.openingPrincipal,
+    principal_due: row.principal,
+    interest_due: row.interest,
+    fees_due: 0,
+    penalty_due: 0,
+  }));
+  const { error } = await supabase.rpc("create_loan_schedule_amendment", {
+    p_organization_id: organizationId,
+    p_loan_id: loanId,
+    p_effective_from: effectiveFrom,
+    p_amendment_reference: reference,
+    p_amendment_reason: reason,
+    p_installments: installments,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/emprunts");
+  revalidatePath(`/emprunts/${loanId}`);
+  revalidatePath("/dettes");
+}
+
 export default async function LoanDetails({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ctx = await requireOrganization();
@@ -311,6 +361,22 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
       ) : null}
       {activeInstallments.length === 0 && loan.status === "active" && !canConfigureAccounting ? <p className="muted">L'échéancier de cet emprunt historique doit être configuré par un utilisateur autorisé à gérer la comptabilité.</p> : null}
 
+          {loan.status === "active" && canConfigureAccounting && activeInstallments.length > 0 ? (
+            <FormDialog title="Enregistrer un avenant bancaire" buttonLabel="+ Ajouter un avenant">
+              <form action={createLoanScheduleAmendment} className="form">
+                <input type="hidden" name="loan_id" value={loan.id} />
+                <div className="grid2">
+                  <div className="field"><label>Date d'effet de l'avenant</label><input name="effective_from" type="date" min={loan.start_date} required /></div>
+                  <div className="field"><label>Première nouvelle échéance</label><input name="first_due_date" type="date" min={loan.start_date} defaultValue={loan.next_due_date || ""} required /></div>
+                  <div className="field"><label>Nombre de nouvelles échéances</label><input name="remaining_installments" type="number" min="1" max="1200" step="1" defaultValue={openInstallments.length || 1} required /></div>
+                  <div className="field"><label>Référence de l'avenant bancaire</label><input name="amendment_reference" maxLength={120} required /></div>
+                </div>
+                <div className="field"><label>Motif et conditions modifiées</label><textarea name="amendment_reason" minLength={5} maxLength={500} required placeholder="Ex. Rééchelonnement accepté par la banque, nouveau taux ou nouvelle durée..." /></div>
+                <p className="muted">Le nouvel échéancier est recalculé sur le capital restant dû, au taux, à la périodicité et selon la méthode actuellement enregistrés. Vérifie et mets d'abord à jour les conditions financières du contrat si l'avenant modifie aussi ces paramètres. L'ancienne version sera conservée comme historique. Les remboursements déjà enregistrés ne seront pas réaffectés.</p>
+                <button className="button primary">Valider et activer la nouvelle version</button>
+              </form>
+            </FormDialog>
+          ) : null}
       <section className="section" id="historique-echeanciers">
         <div className="pageHead">
           <div><h2>Historique des échéanciers</h2><p className="muted">Chaque version conserve ses propres dates et montants. Les remboursements réels restent dans leur registre indépendant.</p></div>
