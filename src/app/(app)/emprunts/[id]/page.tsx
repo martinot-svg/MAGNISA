@@ -194,24 +194,28 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
   const canConfigureAccounting = await hasPermission(ctx, "accounting.manage");
   const canDeleteLoan = canConfigureAccounting;
 
-  const [{ data: org }, { data: loan }, { data: installments = [] }, { data: repayments = [] }, { data: accounts = [] }] = await Promise.all([
+  const [{ data: org }, { data: loan }, { data: installments = [] }, { data: repayments = [] }, { data: accounts = [] }, { data: scheduleVersions = [] }] = await Promise.all([
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
     supabase.from("loans").select("*").eq("id", id).eq("organization_id", organizationId).maybeSingle(),
     supabase.from("loan_installments").select("*").eq("loan_id", id).eq("organization_id", organizationId).order("installment_number"),
     supabase.from("loan_repayments").select("*").eq("loan_id", id).eq("organization_id", organizationId).order("payment_date", { ascending: false }),
     supabase.from("financial_accounts").select("id,name,type,balance").eq("organization_id", organizationId).eq("is_active", true).order("name"),
+    supabase.from("loan_schedule_versions").select("id,version_number,version_type,status,effective_from,effective_until,amendment_reference,amendment_reason,approved_at,created_at").eq("loan_id", id).eq("organization_id", organizationId).order("version_number", { ascending: false }),
   ]);
   if (!loan) notFound();
   const currency = org?.currency || "MGA";
+  const activeInstallments = loan.active_schedule_version_id
+    ? installments.filter((row: any) => row.schedule_version_id === loan.active_schedule_version_id)
+    : [];
   const method = loan.repayment_method === "equal_principal" ? "Capital constant" : loan.repayment_method === "bullet" ? "In fine" : "Annuités constantes";
-  const totalInterest = installments.reduce((sum: number, row: any) => sum + Number(row.interest_due), 0);
+  const totalInterest = activeInstallments.reduce((sum: number, row: any) => sum + Number(row.interest_due), 0);
   const postedRepayments = repayments.filter((row: any) => row.status === "posted");
   const paidTotal = postedRepayments.reduce((sum: number, row: any) => sum + Number(row.amount), 0);
   const paidByInstallment = new Map<string, number>();
   for (const repayment of postedRepayments as any[]) {
     if (repayment.installment_id) paidByInstallment.set(repayment.installment_id, (paidByInstallment.get(repayment.installment_id) || 0) + Number(repayment.amount));
   }
-  const openInstallments = installments.filter((row: any) => !["paid", "cancelled"].includes(row.status));
+  const openInstallments = activeInstallments.filter((row: any) => !["paid", "cancelled"].includes(row.status));
   const remainingInstallmentAmount = (row: any) => Math.max(0, Number(row.total_due) - (paidByInstallment.get(row.id) || 0));
   const repaymentRequestKey = randomUUID();
   const chargesRequestKey = randomUUID();
@@ -278,7 +282,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
         </tbody></table></div>
       </section>
 
-      {installments.length === 0 && loan.status === "active" && canConfigureAccounting ? (
+      {activeInstallments.length === 0 && loan.status === "active" && canConfigureAccounting ? (
         <section className="section">
           <div className="pageHead">
             <div><h2>Paramétrage de l'emprunt existant</h2><p className="muted">Cet emprunt a été enregistré avant le nouveau moteur. Les conditions ci-dessous doivent être confirmées à partir du contrat avant de créer son échéancier.</p></div>
@@ -305,7 +309,25 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
           </div>
         </section>
       ) : null}
-      {installments.length === 0 && loan.status === "active" && !canConfigureAccounting ? <p className="muted">L'échéancier de cet emprunt historique doit être configuré par un utilisateur autorisé à gérer la comptabilité.</p> : null}
+      {activeInstallments.length === 0 && loan.status === "active" && !canConfigureAccounting ? <p className="muted">L'échéancier de cet emprunt historique doit être configuré par un utilisateur autorisé à gérer la comptabilité.</p> : null}
+
+      <section className="section" id="historique-echeanciers">
+        <div className="pageHead">
+          <div><h2>Historique des échéanciers</h2><p className="muted">Chaque version conserve ses propres dates et montants. Les remboursements réels restent dans leur registre indépendant.</p></div>
+        </div>
+        {scheduleVersions.length === 0 ? <p className="muted">Aucune version d’échéancier n’est encore enregistrée.</p> : (
+          <div className="tableWrap"><table>
+            <thead><tr><th>Version</th><th>Nature</th><th>Date d’effet</th><th>Date de fin</th><th>Référence avenant</th><th>Motif</th><th>Statut</th></tr></thead>
+            <tbody>{scheduleVersions.map((version: any) => <tr key={version.id}>
+              <td><b>Version {version.version_number}</b>{version.id === loan.active_schedule_version_id ? <span className="badge">Active</span> : null}</td>
+              <td>{version.version_type === "initial" ? "Échéancier initial" : "Avenant bancaire"}</td>
+              <td>{version.effective_from}</td><td>{version.effective_until || "-"}</td>
+              <td>{version.amendment_reference || "-"}</td><td>{version.amendment_reason || "-"}</td>
+              <td>{version.status === "active" ? "Active" : version.status === "superseded" ? "Remplacée" : "Annulée"}</td>
+            </tr>)}</tbody>
+          </table></div>
+        )}
+      </section>
 
       <section className="section" id="echeancier">
         <div className="pageHead">
@@ -327,10 +349,10 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
             </FormDialog>
           ) : null}
         </div>
-        {installments.length === 0 ? <p className="muted">Aucun échéancier enregistré pour cet emprunt.</p> : (
+        {activeInstallments.length === 0 ? <p className="muted">Aucun échéancier actif enregistré pour cet emprunt.</p> : (
           <div className="tableWrap"><table>
             <thead><tr><th>N°</th><th>Date</th><th>Capital début</th><th>Amortissement</th><th>Intérêts</th><th>Frais</th><th>Pénalités</th><th>Échéance</th><th>Capital restant</th><th>Statut</th></tr></thead>
-            <tbody>{installments.map((row: any) => <tr key={row.id}>
+            <tbody>{activeInstallments.map((row: any) => <tr key={row.id}>
               <td>{row.installment_number}</td><td>{row.due_date}</td><td>{money(Number(row.opening_principal), currency)}</td>
               <td>{money(Number(row.principal_due), currency)}</td><td>{money(Number(row.interest_due), currency)}</td>
               <td>{money(Number(row.fees_due), currency)}</td><td>{money(Number(row.penalty_due || 0), currency)}</td>
