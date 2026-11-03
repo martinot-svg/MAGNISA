@@ -104,7 +104,13 @@ BEGIN
     );
   END LOOP;
 
-  UPDATE public.loans SET active_schedule_version_id = v_id, updated_at = now()
+  UPDATE public.loans
+  SET active_schedule_version_id = v_id,
+      total_installments = jsonb_array_length(p_installments),
+      end_date = (SELECT max(due_date) FROM public.loan_installments WHERE schedule_version_id = v_id),
+      next_due_date = (SELECT due_date FROM public.loan_installments WHERE schedule_version_id = v_id ORDER BY installment_number LIMIT 1),
+      next_due_amount = (SELECT total_due FROM public.loan_installments WHERE schedule_version_id = v_id ORDER BY installment_number LIMIT 1),
+      updated_at = now()
   WHERE id = p_loan_id AND organization_id = p_organization_id;
   PERFORM public.audit_event(
     p_organization_id, 'loan.schedule_amendment_created', 'loan_schedule_version', v_id, NULL,
