@@ -71,7 +71,7 @@ async function createLoan(fd: FormData) {
     const { data: validAccounts, error: accountError } = await supabase.from("pcg2005_accounts").select("code").in("code", codes);
     if (accountError || new Set((validAccounts || []).map((account: { code: string }) => account.code)).size !== new Set(codes).size) throw new Error("Un compte de frais ou de pénalités est absent du plan comptable.");
   }
-  if (!["charges_first", "interest_first", "principal_first"].includes(repaymentAllocationOrder)) throw new Error("Ordre d'imputation invalide.");
+  if (repaymentAllocationOrder !== "charges_first") throw new Error("L'ordre d'imputation retenu est frais, pénalités, intérêts puis capital.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || Number.isNaN(Date.parse(startDate))) throw new Error("Date de début invalide.");
   if (![1, 2, 3, 4, 6, 12].includes(paymentFrequency)) throw new Error("Périodicité invalide.");
   if (!["outstanding_balance", "original_principal"].includes(interestCalculationMethod)) throw new Error("Méthode de calcul des intérêts invalide.");
@@ -160,10 +160,10 @@ export default async function Loans() {
                 <div className="field"><label>Compte de dette PCG (proposition automatique)</label><select name="liability_account_code" defaultValue=""><option value="">Automatique selon la catégorie du prêteur</option><option value="164">164 · Emprunts auprès des établissements de crédit</option><option value="168">168 · Autres emprunts et dettes assimilées</option></select><p className="muted">Par défaut : 164 pour les établissements financiers, 168 pour les autres prêteurs. Tu peux remplacer cette proposition.</p></div>
                 <div className="field"><label>Compte PCG des frais (facultatif)</label><select name="fee_account_code" defaultValue=""><option value="">Non configuré</option><option value="627">627 · Services bancaires et assimilés</option><option value="658">658 · Autres charges de gestion courante</option><option value="661">661 · Charges d'intérêts</option></select></div>
                 <div className="field"><label>Compte PCG des pénalités (facultatif)</label><select name="penalty_account_code" defaultValue=""><option value="">Non configuré</option><option value="658">658 · Autres charges de gestion courante</option><option value="661">661 · Charges d'intérêts</option></select></div>
-                <div className="field"><label>Ordre d'imputation des paiements</label><select name="repayment_allocation_order" defaultValue="charges_first" required><option value="charges_first">Frais, pénalités, intérêts, capital</option><option value="interest_first">Intérêts, frais, pénalités, capital</option><option value="principal_first">Capital, intérêts, frais, pénalités</option></select></div>
+                <div className="field"><label>Ordre d'imputation des paiements</label><select name="repayment_allocation_order" defaultValue="charges_first" required><option value="charges_first">Frais, pénalités, intérêts, capital</option></select></div>
               </div>
               <div className="field"><label>Notes</label><textarea name="notes" /></div>
-              <p className="muted">Les comptes proposés restent modifiables. L’ordre d’imputation par défaut est frais, pénalités, intérêts puis capital ; adapte-le si le contrat prévoit un autre ordre.</p>
+              <p className="muted">Les comptes proposés restent modifiables. Les paiements sont affectés dans cet ordre : frais, pénalités, intérêts puis capital.</p>
               <button className="button primary">Créer l'emprunt et son échéancier</button>
             </form>
           </FormDialog>
