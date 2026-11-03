@@ -42,14 +42,20 @@ from public.loan_schedule_versions v
 where v.loan_id=l.id and v.status='active' and l.active_schedule_version_id is null;
 
 alter table public.loan_installments alter column schedule_version_id set not null;
-alter table public.loan_installments
-  add constraint loan_installments_schedule_version_fk
-  foreign key (schedule_version_id,loan_id,organization_id)
-  references public.loan_schedule_versions(id,loan_id,organization_id) on delete restrict;
-alter table public.loans
-  add constraint loans_active_schedule_version_fk
-  foreign key (active_schedule_version_id,id,organization_id)
-  references public.loan_schedule_versions(id,loan_id,organization_id) on delete restrict;
+do $constraints$
+begin
+  if not exists (select 1 from pg_constraint where conname='loan_installments_schedule_version_fk') then
+    alter table public.loan_installments add constraint loan_installments_schedule_version_fk
+      foreign key (schedule_version_id,loan_id,organization_id)
+      references public.loan_schedule_versions(id,loan_id,organization_id) on delete restrict;
+  end if;
+  if not exists (select 1 from pg_constraint where conname='loans_active_schedule_version_fk') then
+    alter table public.loans add constraint loans_active_schedule_version_fk
+      foreign key (active_schedule_version_id,id,organization_id)
+      references public.loan_schedule_versions(id,loan_id,organization_id) on delete restrict;
+  end if;
+end;
+$constraints$;
 
 create index if not exists loan_schedule_versions_loan_effective_idx
   on public.loan_schedule_versions(loan_id,effective_from desc);
@@ -57,8 +63,10 @@ create index if not exists loan_installments_schedule_version_idx
   on public.loan_installments(schedule_version_id,installment_number);
 
 alter table public.loan_schedule_versions enable row level security;
+drop policy if exists loan_schedule_versions_select on public.loan_schedule_versions;
 create policy loan_schedule_versions_select on public.loan_schedule_versions
 for select to authenticated using (public.has_org_permission(organization_id,'finance.view'));
+drop policy if exists loan_schedule_versions_insert on public.loan_schedule_versions;
 create policy loan_schedule_versions_insert on public.loan_schedule_versions
 for insert to authenticated with check (public.has_org_role(organization_id,ARRAY['owner','admin','director','finance_manager','accountant']));
 revoke update, delete on public.loan_schedule_versions from authenticated, anon;
@@ -71,6 +79,7 @@ begin
 end;
 $function$;
 
+drop trigger if exists loan_schedule_versions_no_update on public.loan_schedule_versions;
 create trigger loan_schedule_versions_no_update
 before update or delete on public.loan_schedule_versions
 for each row execute function public.guard_loan_schedule_version_history();
