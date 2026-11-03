@@ -40,13 +40,12 @@ BEGIN
   WHERE id = v_loan.active_schedule_version_id AND loan_id = p_loan_id
     AND organization_id = p_organization_id AND status = 'active' FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Version active introuvable'; END IF;
+  IF p_effective_from < v_current.effective_from THEN RAISE EXCEPTION 'Date antérieure au début de la version active'; END IF;
 
   IF EXISTS (
     SELECT 1 FROM public.loan_repayments r
-    JOIN public.loan_installments i ON i.id = r.installment_id AND i.organization_id = r.organization_id
     WHERE r.loan_id = p_loan_id AND r.organization_id = p_organization_id
       AND r.status = 'posted' AND r.payment_date >= p_effective_from
-      AND i.schedule_version_id = v_current.id
   ) THEN RAISE EXCEPTION 'Des remboursements existent déjà à partir de la date d''effet'; END IF;
 
   SELECT coalesce(max(version_number), 0) + 1 INTO v_version
