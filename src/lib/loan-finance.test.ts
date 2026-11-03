@@ -23,6 +23,17 @@ describe("buildLoanSchedule", () => {
     expect(schedule.lastDueDate).toBe("2028-01-15");
   });
 
+  it("keeps original-principal interest constant after an early principal reduction", () => {
+    const schedule = buildLoanSchedule({
+      principal: 850_000, annualRatePercent: 12, periods: 10, paymentsPerYear: 12,
+      firstDueDate: "2027-04-15", method: "annuity",
+      interestCalculationMethod: "original_principal",
+    });
+    expect(schedule.installments.every((row) => row.interest === 8_500)).toBe(true);
+    expect(schedule.installments[0].principal).toBe(85_000);
+    expect(schedule.installments[schedule.installments.length - 1]?.closingPrincipal).toBe(0);
+  });
+
   it("keeps principal outstanding until maturity for bullet loans", () => {
     const schedule = buildLoanSchedule({
       principal: 1_000_000, annualRatePercent: 12, periods: 4, paymentsPerYear: 4,
