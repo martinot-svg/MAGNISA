@@ -5,9 +5,16 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const configuredSecret = process.env.CRON_SECRET;
-  const authorization = request.headers.get("authorization");
 
-  if (configuredSecret && authorization !== `Bearer ${configuredSecret}`) {
+  // Fail closed: never expose the service-role notification runner when the
+  // production cron secret is missing or the caller does not provide it.
+  if (!configuredSecret) {
+    console.error("notification cron blocked: CRON_SECRET is not configured");
+    return NextResponse.json({ error: "Cron authentication is not configured" }, { status: 503 });
+  }
+
+  const authorization = request.headers.get("authorization");
+  if (authorization !== `Bearer ${configuredSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
