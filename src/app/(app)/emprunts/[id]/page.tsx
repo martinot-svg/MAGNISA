@@ -368,7 +368,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
                 </div>
                 <div className="field"><label>Référence bancaire (facultatif)</label><input name="payment_reference" maxLength={120} /></div>
                 <div className="field"><label>Notes (facultatif)</label><textarea name="notes" /></div>
-                <p className="muted">Pour une échéance, le paiement est ventilé selon l'ordre d'imputation défini dans le contrat. Une réduction anticipée partielle du capital recalcule les échéances futures. Elle exclut les intérêts courus et indemnités éventuelles ; la clôture totale du prêt se traite dans le parcours dédié de clôture anticipée.</p>
+                <p className="muted">Pour une échéance, le paiement est ventilé selon l'ordre d'imputation défini dans le contrat. Une réduction anticipée partielle diminue le capital restant dû réel sans modifier l’échéancier contractuel validé. Si la banque modifie les échéances, enregistre un avenant distinct : l’échéancier initial doit rester consultable. Elle exclut les intérêts courus et indemnités éventuelles ; la clôture totale du prêt se traite dans le parcours dédié de clôture anticipée.</p>
                 <button className="button primary">Valider le remboursement</button>
               </form>
             </FormDialog>
