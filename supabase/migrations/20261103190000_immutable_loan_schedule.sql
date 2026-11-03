@@ -32,7 +32,7 @@ begin
   if position('v_schedule_balance := v_new_balance;' in v_definition) > 0 then
     v_updated := regexp_replace(
       v_definition,
-      '    v_schedule_balance := v_new_balance;[\\s\\S]*?\\n  end if;\\n\\n  update public.loans',
+      '    v_schedule_balance := v_new_balance;[\s\S]*?\n  end if;\n\n  update public.loans',
       $replacement$    -- A partial principal prepayment changes the actual outstanding liability only.
     -- The validated contractual forecast remains untouched. A lender-approved amendment
     -- must be represented by a separate schedule version, never an in-place rewrite.
