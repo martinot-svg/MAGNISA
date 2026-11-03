@@ -29,6 +29,46 @@ begin
 end;
 $function$;
 
+create or replace function public.loan_allocate_repayment(
+  p_amount numeric,
+  p_fees_due numeric,
+  p_penalty_due numeric,
+  p_interest_due numeric,
+  p_principal_due numeric
+) returns table (
+  fees_paid numeric,
+  penalty_paid numeric,
+  interest_paid numeric,
+  principal_paid numeric
+)
+language plpgsql
+immutable
+set search_path = public
+as $function$
+declare
+  v_left numeric(20,2);
+begin
+  if p_amount is null or p_amount <= 0
+     or p_fees_due < 0 or p_penalty_due < 0
+     or p_interest_due < 0 or p_principal_due < 0 then
+    raise exception 'Montant ou composantes du remboursement invalides';
+  end if;
+  if p_amount > p_fees_due + p_penalty_due + p_interest_due + p_principal_due then
+    raise exception 'Le paiement dépasse le solde de l’échéance';
+  end if;
+
+  v_left := round(p_amount, 2);
+  fees_paid := least(v_left, round(p_fees_due, 2));
+  v_left := v_left - fees_paid;
+  penalty_paid := least(v_left, round(p_penalty_due, 2));
+  v_left := v_left - penalty_paid;
+  interest_paid := least(v_left, round(p_interest_due, 2));
+  v_left := v_left - interest_paid;
+  principal_paid := least(v_left, round(p_principal_due, 2));
+  return next;
+end;
+$function$;
+
 do $migration$
 declare
   v_definition text;
@@ -77,12 +117,16 @@ begin
       v_paid_fees := least(v_left, v_remaining_fees); v_left := v_left - v_paid_fees;
       v_paid_penalty := least(v_left, v_remaining_penalty); v_left := v_left - v_paid_penalty;
     end if;$old$;
-  v_new := $new$    -- Approved order: fees, penalties, interest, then principal.
-    v_left := p_amount;
-    v_paid_fees := least(v_left, v_remaining_fees); v_left := v_left - v_paid_fees;
-    v_paid_penalty := least(v_left, v_remaining_penalty); v_left := v_left - v_paid_penalty;
-    v_paid_interest := least(v_left, v_remaining_interest); v_left := v_left - v_paid_interest;
-    v_paid_principal := least(v_left, v_remaining_principal); v_left := v_left - v_paid_principal;$new$;
+  v_new := $new$    -- Use the shared, tested allocation rule: fees, penalties, interest, principal.
+    select a.fees_paid, a.penalty_paid, a.interest_paid, a.principal_paid
+    into v_paid_fees, v_paid_penalty, v_paid_interest, v_paid_principal
+    from public.loan_allocate_repayment(
+      p_amount,
+      v_remaining_fees,
+      v_remaining_penalty,
+      v_remaining_interest,
+      v_remaining_principal
+    ) a;$new$;
   if position(v_old in v_definition) = 0 then
     raise exception 'Impossible de localiser l’ordre d’imputation des remboursements';
   end if;
@@ -110,8 +154,21 @@ begin
   if public.loan_period_interest('outstanding_balance', 1000000, 850000, 0.01) <> 8500 then
     raise exception 'Échec du test : intérêt sur capital restant dû';
   end if;
+
+  if not exists (
+    select 1
+    from public.loan_allocate_repayment(50000, 5000, 10000, 10000, 85000) a
+    where a.fees_paid = 5000
+      and a.penalty_paid = 10000
+      and a.interest_paid = 10000
+      and a.principal_paid = 25000
+  ) then
+    raise exception 'Échec du test : ordre d’imputation frais, pénalités, intérêts, capital';
+  end if;
 end;
 $tests$;
 
 revoke all on function public.loan_period_interest(text,numeric,numeric,numeric) from public, anon;
 grant execute on function public.loan_period_interest(text,numeric,numeric,numeric) to authenticated;
+revoke all on function public.loan_allocate_repayment(numeric,numeric,numeric,numeric,numeric) from public, anon;
+grant execute on function public.loan_allocate_repayment(numeric,numeric,numeric,numeric,numeric) to authenticated;
