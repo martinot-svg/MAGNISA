@@ -23,7 +23,7 @@ async function configureExistingLoan(fd: FormData) {
   const liabilityAccountCode = String(fd.get("liability_account_code") || "");
   const feeAccountCode = String(fd.get("fee_account_code") || "").trim() || null;
   const penaltyAccountCode = String(fd.get("penalty_account_code") || "").trim() || null;
-  const allocationOrder = String(fd.get("repayment_allocation_order") || "");
+  const allocationOrder = String(fd.get("repayment_allocation_order") || "charges_first");
 
   if (!/^[0-9a-f-]{36}$/i.test(loanId)) throw new Error("Emprunt invalide.");
   if (!["annuity", "equal_principal", "bullet"].includes(method)) throw new Error("Méthode de remboursement invalide.");
@@ -34,10 +34,10 @@ async function configureExistingLoan(fd: FormData) {
   if (!["164", "168"].includes(liabilityAccountCode)) throw new Error("Compte de dette invalide.");
   if (feeAccountCode && !["627", "658", "661"].includes(feeAccountCode)) throw new Error("Compte de frais invalide.");
   if (penaltyAccountCode && !["658", "661"].includes(penaltyAccountCode)) throw new Error("Compte de pénalités invalide.");
-  if (!["charges_first", "interest_first", "principal_first"].includes(allocationOrder)) throw new Error("Ordre d'imputation invalide.");
+  if (allocationOrder !== "charges_first") throw new Error("L'ordre d'imputation retenu est frais, pénalités, intérêts puis capital.");
 
   const { data: loan, error: loanError } = await supabase
-    .from("loans").select("outstanding_principal,interest_rate,start_date")
+    .from("loans").select("outstanding_principal,interest_rate,start_date,interest_calculation_method")
     .eq("id", loanId).eq("organization_id", organizationId).single();
   if (loanError || !loan) throw new Error("Impossible de charger le solde actuel de cet emprunt.");
 
@@ -48,6 +48,7 @@ async function configureExistingLoan(fd: FormData) {
     paymentsPerYear: frequency,
     firstDueDate,
     method,
+    interestCalculationMethod: loan.interest_calculation_method === "original_principal" ? "original_principal" : "outstanding_balance",
   });
 
   const { error } = await supabase.rpc("configure_existing_loan_schedule", {
@@ -176,7 +177,16 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
   const remainingInstallmentAmount = (row: any) => Math.max(0, Number(row.total_due) - (paidByInstallment.get(row.id) || 0));
   const repaymentRequestKey = randomUUID();
   const chargesRequestKey = randomUUID();
-  const today = new Date().toISOString().slice(0, 10);
+  const todayParts = new Intl.DateTimeFormat("en-US", { timeZone: "Indian/Antananarivo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const today = `${todayParts.find((part) => part.type === "year")?.value}-${todayParts.find((part) => part.type === "month")?.value}-${todayParts.find((part) => part.type === "day")?.value}`;
+  const installmentStatusLabel = (row: any) => {
+    if (row.status === "paid") return "Payée";
+    if (row.status === "cancelled") return "Annulée";
+    if (row.status === "partial") return row.due_date < today ? "Partiellement payée · en retard" : "Partiellement payée";
+    if (row.status === "overdue" || (row.status === "planned" && row.due_date < today)) return "En retard";
+    if (row.due_date === today) return "À régler aujourd'hui";
+    return "À venir";
+  };
 
   return (
     <>
@@ -232,7 +242,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
                   <div className="field"><label>Date de fin contractuelle (facultatif)</label><input name="end_date" type="date" defaultValue={loan.end_date || ""} /></div>
                   <div className="field"><label>Compte PCG des frais (facultatif)</label><select name="fee_account_code" defaultValue=""><option value="">Non configuré</option><option value="627">627 · Services bancaires</option><option value="658">658 · Autres charges</option><option value="661">661 · Charges d'intérêts</option></select></div>
                   <div className="field"><label>Compte PCG des pénalités (facultatif)</label><select name="penalty_account_code" defaultValue=""><option value="">Non configuré</option><option value="658">658 · Autres charges</option><option value="661">661 · Charges d'intérêts</option></select></div>
-                  <div className="field"><label>Ordre d'imputation des paiements</label><select name="repayment_allocation_order" defaultValue="charges_first"><option value="charges_first">Frais, pénalités, intérêts, capital</option><option value="interest_first">Intérêts, frais, pénalités, capital</option><option value="principal_first">Capital, intérêts, frais, pénalités</option></select></div>
+                  <div className="field"><label>Ordre d'imputation des paiements</label><select name="repayment_allocation_order" defaultValue="charges_first"><option value="charges_first">Frais, pénalités, intérêts, capital</option></select></div>
                 </div>
                 <p className="muted">Le calcul démarre sur le capital restant dû actuel. Il ne modifie ni le capital initial ni les données historiques. Vérifie les paramètres dans le contrat signé avant validation.</p>
                 <button className="button primary">Valider les conditions et créer l'échéancier</button>
@@ -270,7 +280,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
               <td>{row.installment_number}</td><td>{row.due_date}</td><td>{money(Number(row.opening_principal), currency)}</td>
               <td>{money(Number(row.principal_due), currency)}</td><td>{money(Number(row.interest_due), currency)}</td>
               <td>{money(Number(row.fees_due), currency)}</td><td>{money(Number(row.penalty_due || 0), currency)}</td>
-              <td><b>{money(Number(row.total_due), currency)}</b></td><td>{money(Number(row.closing_principal), currency)}</td><td>{row.status}</td>
+              <td><b>{money(Number(row.total_due), currency)}</b></td><td>{money(Number(row.closing_principal), currency)}</td><td>{installmentStatusLabel(row)}</td>
             </tr>)}</tbody>
           </table></div>
         )}
@@ -288,7 +298,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
                   <label>Type de remboursement</label>
                   <select name="installment_id" required defaultValue="">
                     <option value="" disabled>Choisir une échéance</option>
-                    {openInstallments.map((row: any) => <option key={row.id} value={row.id}>Échéance {row.installment_number} · {row.due_date} · {money(remainingInstallmentAmount(row), currency)} restant</option>)}
+                    {openInstallments.slice(0, 1).map((row: any) => <option key={row.id} value={row.id}>Échéance {row.installment_number} · {row.due_date} · {money(remainingInstallmentAmount(row), currency)} restant</option>)}
                     <option value="__early__">Réduction anticipée partielle du capital</option>
                   </select>
                 </div>
