@@ -198,7 +198,7 @@ async function createLoanScheduleAmendment(fd: FormData) {
   const reason = String(fd.get("amendment_reason") || "").trim();
   const periods = Number(fd.get("remaining_installments") || 0);
   if (!/^[0-9a-f-]{36}$/i.test(loanId)) throw new Error("Emprunt invalide.");
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(effectiveFrom) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(firstDueDate) || firstDueDate < effectiveFrom) throw new Error("Dates d'effet ou de première échéance invalides.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(firstDueDate) || firstDueDate < effectiveFrom) throw new Error("Dates d'effet ou de première échéance invalides.");
   if (reference.length < 2 || reference.length > 120 || reason.length < 5 || reason.length > 500) throw new Error("Référence ou motif d'avenant invalide.");
   if (!Number.isInteger(periods) || periods < 1 || periods > 1200) throw new Error("Nombre d'échéances restantes invalide.");
   const { data: loan, error: loanError } = await supabase.from("loans").select("outstanding_principal,interest_rate,repayment_method,payment_frequency,interest_calculation_method,start_date,active_schedule_version_id").eq("id", loanId).eq("organization_id", organizationId).single();
