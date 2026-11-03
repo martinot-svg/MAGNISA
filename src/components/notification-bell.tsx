@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Check, ExternalLink } from "lucide-react";
+import { Bell, ExternalLink } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 type NotificationRow = {
