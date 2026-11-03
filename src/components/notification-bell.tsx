@@ -45,10 +45,16 @@ export function NotificationBell({ userId, organizationId, initialUnread = 0 }: 
       .is("archived_at", null)
       .order("created_at", { ascending: false })
       .limit(8);
-    if (data) {
-      setItems(data as NotificationRow[]);
-      setUnread(data.filter((item) => !item.read_at).length);
-    }
+    if (data) setItems(data as NotificationRow[]);
+
+    const { count } = await supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("recipient_user_id", userId)
+      .is("archived_at", null)
+      .is("read_at", null);
+    setUnread(count ?? 0);
   }
 
   useEffect(() => {
