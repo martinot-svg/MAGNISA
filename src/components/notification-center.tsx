@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CheckCheck, Archive, ArrowUpRight, Filter } from "lucide-react";
+import { Bell, Check, CheckCheck, Archive, ArrowUpRight, Filter } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 type NotificationRow = {
