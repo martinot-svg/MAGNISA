@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { hasPermission, requirePermission } from "@/lib/permissions";
@@ -7,6 +7,43 @@ import { requireOrganization } from "@/lib/current-org";
 import { money } from "@/lib/money";
 import { FormDialog } from "@/components/form-dialog";
 import { buildLoanSchedule, type LoanRepaymentMethod } from "@/lib/loan-finance";
+
+
+async function deleteLoan(fd: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  await requirePermission(ctx, "accounting.manage");
+  const { supabase, organizationId } = ctx;
+  const loanId = String(fd.get("loan_id") || "");
+  const confirmation = String(fd.get("confirm_reference") || "").trim();
+
+  if (!/^[0-9a-f-]{36}$/i.test(loanId)) throw new Error("Emprunt invalide.");
+
+  const { data: loan, error: loanError } = await supabase
+    .from("loans")
+    .select("id,magnisa_reference,contract_reference")
+    .eq("id", loanId)
+    .eq("organization_id", organizationId)
+    .single();
+
+  if (loanError || !loan) throw new Error("Emprunt introuvable ou inaccessible.");
+  const expectedReference = loan.magnisa_reference || loan.contract_reference;
+  if (!expectedReference || confirmation !== expectedReference) {
+    throw new Error("La référence saisie ne correspond pas à cet emprunt. La suppression est annulée.");
+  }
+
+  const { error } = await supabase.rpc("delete_loan_with_dependencies", {
+    p_organization_id: organizationId,
+    p_loan_id: loanId,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/emprunts");
+  revalidatePath("/dettes");
+  revalidatePath("/tresorerie");
+  revalidatePath("/comptabilite");
+  redirect("/emprunts");
+}
 
 
 async function configureExistingLoan(fd: FormData) {
@@ -155,6 +192,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
   const { supabase, organizationId } = ctx;
   const canRepay = await hasPermission(ctx, "treasury.transfer");
   const canConfigureAccounting = await hasPermission(ctx, "accounting.manage");
+  const canDeleteLoan = canConfigureAccounting;
 
   const [{ data: org }, { data: loan }, { data: installments = [] }, { data: repayments = [] }, { data: accounts = [] }] = await Promise.all([
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
@@ -196,7 +234,23 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
           <h1>{loan.lender_name}</h1>
           <p>{loan.magnisa_reference || loan.contract_reference || "Contrat sans référence"} · {method}</p>
         </div>
-        <div className="actions">{loan.status === "active" && canRepay ? <Link className="button primary" href={`/emprunts/${loan.id}/cloture`}>Clôture anticipée</Link> : null}<Link className="button secondary" href="/emprunts">Retour aux emprunts</Link></div>
+        <div className="actions">
+          {canDeleteLoan ? (
+            <FormDialog title="Confirmer la suppression définitive" buttonLabel="Supprimer l'emprunt" buttonClassName="button danger">
+              <form action={deleteLoan} className="form">
+                <input type="hidden" name="loan_id" value={loan.id} />
+                <p>Cette action supprimera définitivement la fiche de l'emprunt et son échéancier. Les traces d'audit seront conservées. La suppression sera bloquée si des remboursements ou des écritures financières réelles sont liés à cet emprunt.</p>
+                <div className="field">
+                  <label>Saisis exactement la référence {loan.magnisa_reference || loan.contract_reference || "de l'emprunt"} pour confirmer</label>
+                  <input name="confirm_reference" required autoComplete="off" placeholder={loan.magnisa_reference || loan.contract_reference || "Référence de l'emprunt"} />
+                </div>
+                <button className="button danger" type="submit">Supprimer définitivement</button>
+              </form>
+            </FormDialog>
+          ) : null}
+          {loan.status === "active" && canRepay ? <Link className="button primary" href={`/emprunts/${loan.id}/cloture`}>Clôture anticipée</Link> : null}
+          <Link className="button secondary" href="/emprunts">Retour aux emprunts</Link>
+        </div>
       </div>
 
       <div className="grid2 section">
