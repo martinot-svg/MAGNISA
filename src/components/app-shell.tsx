@@ -4,6 +4,7 @@ import { requireOrganization } from "@/lib/current-org";
 import { FEATURE_CATALOG, type FeatureKey } from "@/lib/features";
 import { getEffectivePermissions, type Permission } from "@/lib/permissions";
 import { BrandMark } from "@/components/brand-mark";
+import { NotificationBell } from "@/components/notification-bell";
 
 const featurePermission: Partial<Record<FeatureKey, Permission>> = {
   prospects: "sales.view",
@@ -37,14 +38,20 @@ const featurePermission: Partial<Record<FeatureKey, Permission>> = {
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const ctx = await requireOrganization();
-  const { supabase, organizationId } = ctx;
+  const { supabase, organizationId, user } = ctx;
 
-  const [{ data: rows = [] }, permissions] = await Promise.all([
+  const [{ data: rows = [] }, permissions, { count: unreadCount = 0 }] = await Promise.all([
     supabase
       .from("organization_features")
       .select("feature_key,enabled")
       .eq("organization_id", organizationId),
     getEffectivePermissions(ctx),
+    supabase.from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("recipient_user_id", user.id)
+      .is("read_at", null)
+      .is("archived_at", null),
   ]);
 
   const enabled = new Map(rows.map((r: any) => [r.feature_key, r.enabled]));
@@ -86,12 +93,20 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             );
           })}
+          <div>
+            <Link href="/notifications">Notifications</Link>
+          </div>
         </nav>
         <form action={signOut}>
           <button className="button ghost">Se déconnecter</button>
         </form>
       </aside>
-      <main>{children}</main>
+      <main>
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "12px 20px 0" }}>
+          <NotificationBell userId={user.id} organizationId={organizationId} initialUnread={unreadCount ?? 0} />
+        </div>
+        {children}
+      </main>
     </div>
   );
 }
