@@ -59,6 +59,8 @@ $constraints$;
 
 create index if not exists loan_schedule_versions_loan_effective_idx
   on public.loan_schedule_versions(loan_id,effective_from desc);
+create unique index if not exists loan_schedule_versions_one_active_per_loan
+  on public.loan_schedule_versions(loan_id) where status='active';
 create index if not exists loan_installments_schedule_version_idx
   on public.loan_installments(schedule_version_id,installment_number);
 
@@ -75,7 +77,27 @@ create or replace function public.guard_loan_schedule_version_history()
 returns trigger language plpgsql set search_path=public
 as $function$
 begin
-  raise exception 'Les versions d’échéancier sont historiques et immuables. Crée une nouvelle version.';
+  if tg_op='DELETE' then
+    raise exception 'Une version d’échéancier historique ne peut pas être supprimée.';
+  end if;
+  if new.id is distinct from old.id
+     or new.organization_id is distinct from old.organization_id
+     or new.loan_id is distinct from old.loan_id
+     or new.version_number is distinct from old.version_number
+     or new.version_type is distinct from old.version_type
+     or new.effective_from is distinct from old.effective_from
+     or new.amendment_reference is distinct from old.amendment_reference
+     or new.amendment_reason is distinct from old.amendment_reason
+     or new.approved_at is distinct from old.approved_at
+     or new.approved_by is distinct from old.approved_by
+     or new.created_at is distinct from old.created_at
+     or new.created_by is distinct from old.created_by then
+    raise exception 'Les données contractuelles d’une version sont immuables.';
+  end if;
+  if new.status not in ('superseded','cancelled') or old.status <> 'active' then
+    raise exception 'Seule la désactivation d’une version active est autorisée.';
+  end if;
+  return new;
 end;
 $function$;
 
