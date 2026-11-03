@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCronAuthorizationError } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const configuredSecret = process.env.CRON_SECRET;
-  const authorization = request.headers.get("authorization");
+  const authError = getCronAuthorizationError(
+    process.env.CRON_SECRET,
+    request.headers.get("authorization"),
+  );
 
-  if (configuredSecret && authorization !== `Bearer ${configuredSecret}`) {
+  if (authError === 503) {
+    console.error("notification cron blocked: CRON_SECRET is not configured");
+    return NextResponse.json({ error: "Cron authentication is not configured" }, { status: 503 });
+  }
+
+  if (authError === 401) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
