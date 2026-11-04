@@ -30,6 +30,7 @@ export interface LoanSchedule {
   periodicRate: number;
   lastDueDate: string;
   interestCalculationMethod: LoanInterestCalculationMethod;
+  interestType: LoanInterestType;
 }
 
 /** Single source of truth for loan amortization. Unpaid interest is never capitalized implicitly. */
