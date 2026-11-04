@@ -32,6 +32,7 @@ async function createLoan(fd: FormData) {
   const contractReference = String(fd.get("contract_reference") || "").trim() || null;
   const repaymentMethod = String(fd.get("repayment_method") || "annuity") as LoanRepaymentMethod;
   const interestCalculationMethod = String(fd.get("interest_calculation_method") || "outstanding_balance") as LoanInterestCalculationMethod;
+  const interestType = String(fd.get("interest_type") || "simple");
   const paymentFrequency = Number(fd.get("payment_frequency") || 12);
   const totalInstallments = Number(fd.get("total_installments") || 0);
   const notes = String(fd.get("notes") || "").trim() || null;
@@ -75,6 +76,7 @@ async function createLoan(fd: FormData) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || Number.isNaN(Date.parse(startDate))) throw new Error("Date de début invalide.");
   if (![1, 2, 3, 4, 6, 12].includes(paymentFrequency)) throw new Error("Périodicité invalide.");
   if (!["outstanding_balance", "original_principal"].includes(interestCalculationMethod)) throw new Error("Méthode de calcul des intérêts invalide.");
+  if (!["simple", "compound"].includes(interestType)) throw new Error("Type d’intérêt invalide.");
   if (!firstDueDate) firstDueDate = addMonthsClamped(startDate, 12 / paymentFrequency);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(firstDueDate) || Number.isNaN(Date.parse(firstDueDate)) || firstDueDate < startDate) throw new Error("Première échéance invalide.");
 
@@ -116,14 +118,14 @@ async function createLoan(fd: FormData) {
   if (error) throw new Error(error.message);
   if (!loanId) throw new Error("L’emprunt a été créé sans identifiant exploitable pour enregistrer sa localisation.");
   const { error: locationSaveError } = await supabase.from("loans").update({
-    interest_calculation_method: interestCalculationMethod,
+    interest_calculation_method: interestCalculationMethod,\n    interest_type: interestType,
     lender_location_id: lenderLocationId,
     lender_city: lenderCity,
     lender_region: lenderRegion,
     lender_branch_name: lenderBranchName,
     lender_address: lenderAddress,
   }).eq("id", loanId).eq("organization_id", organizationId);
-  if (locationSaveError) throw new Error("L’emprunt est créé, mais sa localisation n’a pas pu être enregistrée : " + locationSaveError.message);
+  if (locationSaveError) throw new Error("L’emprunt est créé, mais ses paramètres n’ont pas pu être enregistrés : " + locationSaveError.message);\n  const { data: createdLoan, error: createdLoanError } = await supabase.from("loans").select("active_schedule_version_id").eq("id", loanId).eq("organization_id", organizationId).single();\n  if (createdLoanError || !createdLoan?.active_schedule_version_id) throw new Error("L’emprunt est créé, mais sa version initiale d’échéancier est introuvable.");\n  const financialTerms = { principal, annual_rate_percent: interestRate, interest_type: interestType, interest_calculation_method: interestCalculationMethod, repayment_method: repaymentMethod, payments_per_year: paymentFrequency, installment_count: totalInstallments, first_due_date: firstDueDate, rate_basis: interestType === "compound" ? "effective_annual" : "nominal_annual" };\n  const { error: snapshotError } = await supabase.rpc("set_loan_schedule_version_terms", { p_organization_id: organizationId, p_loan_id: loanId, p_version_id: createdLoan.active_schedule_version_id, p_financial_terms: financialTerms });\n  if (snapshotError) throw new Error("L’emprunt est créé, mais l’instantané des conditions financières n’a pas pu être enregistré : " + snapshotError.message);
   revalidatePath("/emprunts");
   revalidatePath("/dettes");
 }
