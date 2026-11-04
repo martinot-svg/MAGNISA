@@ -51,7 +51,10 @@ export function buildLoanSchedule(input: LoanScheduleInput): LoanSchedule {
 
   const factor = 10 ** currencyDecimals;
   const round = (value: number) => Math.round((value + Number.EPSILON) * factor) / factor;
-  // Simple: nominal annual rate prorated by period. Compound: effective annual rate converted to the payment period.\n  const periodicRate = interestType === "compound"\n    ? Math.pow(1 + annualRatePercent / 100, 1 / paymentsPerYear) - 1\n    : annualRatePercent / 100 / paymentsPerYear;
+  // Simple: nominal annual rate prorated by period. Compound: effective annual rate converted to the payment period.
+  const periodicRate = interestType === "compound"
+    ? Math.pow(1 + annualRatePercent / 100, 1 / paymentsPerYear) - 1
+    : annualRatePercent / 100 / paymentsPerYear;
   const roundedPrincipal = round(principal);
   const annuity = periodicRate === 0
     ? roundedPrincipal / periods
