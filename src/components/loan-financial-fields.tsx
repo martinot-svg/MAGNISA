@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { addMonthsClamped, buildLoanSchedule, type LoanInterestCalculationMethod, type LoanRepaymentMethod } from "@/lib/loan-finance";
+import { addMonthsClamped, buildLoanSchedule, type LoanInterestCalculationMethod, type LoanInterestType, type LoanRepaymentMethod } from "@/lib/loan-finance";
 
 export function LoanFinancialFields({ currency }: { currency: string }) {
   const [principal, setPrincipal] = useState("");
@@ -13,6 +13,7 @@ export function LoanFinancialFields({ currency }: { currency: string }) {
   const [frequency, setFrequency] = useState("12");
   const [method, setMethod] = useState<LoanRepaymentMethod>("annuity");
   const [interestMethod, setInterestMethod] = useState<LoanInterestCalculationMethod>("outstanding_balance");
+  const [interestType, setInterestType] = useState<LoanInterestType>("simple");
   const paymentsPerYear = Number(frequency);
   const proposedFirstDueDate = startDate ? addMonthsClamped(startDate, 12 / paymentsPerYear) : "";
   const effectiveFirstDueDate = firstDueWasEdited ? firstDueDate : proposedFirstDueDate;
@@ -23,10 +24,10 @@ export function LoanFinancialFields({ currency }: { currency: string }) {
       return buildLoanSchedule({
         principal: Number(principal), annualRatePercent: Number(annualRate),
         periods: Number(periods), paymentsPerYear, firstDueDate: effectiveFirstDueDate,
-        method, interestCalculationMethod: interestMethod,
+        method, interestCalculationMethod: interestMethod, interestType,
       });
     } catch { return null; }
-  }, [principal, annualRate, periods, paymentsPerYear, effectiveFirstDueDate, startDate, method, interestMethod]);
+  }, [principal, annualRate, periods, paymentsPerYear, effectiveFirstDueDate, startDate, method, interestMethod, interestType]);
 
   const format = (value: number) => new Intl.NumberFormat("fr-FR", {
     style: "currency", currency, maximumFractionDigits: 2,
@@ -42,16 +43,17 @@ export function LoanFinancialFields({ currency }: { currency: string }) {
         <div className="field"><label>Nombre d'échéances</label><input name="total_installments" type="number" min="1" max="1200" step="1" value={periods} onChange={(e) => setPeriods(e.target.value)} required /></div>
         <div className="field"><label>Périodicité</label><select name="payment_frequency" value={frequency} onChange={(e) => { setFrequency(e.target.value); if (!firstDueWasEdited && startDate) setFirstDueDate(addMonthsClamped(startDate, 12 / Number(e.target.value))); }}><option value="12">Mensuelle</option><option value="6">Bimestrielle</option><option value="4">Trimestrielle</option><option value="3">Quadrimestrielle</option><option value="2">Semestrielle</option><option value="1">Annuelle</option></select></div>
         <div className="field"><label>Méthode de remboursement</label><select name="repayment_method" value={method} onChange={(e) => setMethod(e.target.value as LoanRepaymentMethod)}><option value="annuity">Annuités constantes</option><option value="equal_principal">Capital constant</option><option value="bullet">In fine</option></select></div>
+        <div className="field"><label>Type de calcul des intérêts</label><select name="interest_type" value={interestType} onChange={(e) => setInterestType(e.target.value as LoanInterestType)}><option value="simple">Intérêt simple</option><option value="compound">Intérêt composé (taux annuel effectif)</option></select><p className="muted">Composé : le taux annuel effectif est converti en taux par échéance. Simple : le taux nominal annuel est proratisé.</p></div>
         <div className="field"><label>Base de calcul des intérêts</label><select name="interest_calculation_method" value={interestMethod} onChange={(e) => setInterestMethod(e.target.value as LoanInterestCalculationMethod)}><option value="outstanding_balance">Capital restant dû</option><option value="original_principal">Capital initial</option></select></div>
       </div>
       <input type="hidden" name="end_date" value={preview?.lastDueDate || ""} />
-      <p className="muted">Le taux périodique est dérivé du taux nominal annuel. Les intérêts impayés ne sont jamais capitalisés automatiquement. La date de fin est calculée à partir de la dernière échéance.</p>
+      <p className="muted">Le taux périodique est calculé selon le type choisi. Le choix composé utilise un taux annuel effectif. Les intérêts impayés ne sont jamais capitalisés automatiquement. La date de fin est calculée à partir de la dernière échéance.</p>
       <section className="section" aria-live="polite">
         <h3>Aperçu financier avant enregistrement</h3>
         {preview ? (
           <>
             <div className="grid2">
-              <div><span className="muted">Taux périodique</span><p><strong>{(preview.periodicRate * 100).toLocaleString("fr-FR", { maximumFractionDigits: 6 })} %</strong></p></div>
+              <div><span className="muted">Taux périodique ({interestType === "simple" ? "simple" : "effectif composé"})</span><p><strong>{(preview.periodicRate * 100).toLocaleString("fr-FR", { maximumFractionDigits: 6 })} %</strong></p></div>
               <div><span className="muted">Intérêts totaux</span><p><strong>{format(preview.totalInterest)}</strong></p></div>
               <div><span className="muted">Total à rembourser</span><p><strong>{format(preview.totalPayments)}</strong></p></div>
               <div><span className="muted">Date de fin calculée</span><p><strong>{preview.lastDueDate}</strong></p></div>
