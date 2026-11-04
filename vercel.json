@@ -5,5 +5,5 @@
       "schedule": "0 5 * * *"
     }
   ],
-  "installCommand": "npm install --no-package-lock"
+  "installCommand": "npx --yes npm@11.19.1 install --no-package-lock"
 }
