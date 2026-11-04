@@ -6,7 +6,7 @@ import { hasPermission, requirePermission } from "@/lib/permissions";
 import { requireOrganization } from "@/lib/current-org";
 import { money } from "@/lib/money";
 import { FormDialog } from "@/components/form-dialog";
-import { buildLoanSchedule, type LoanRepaymentMethod } from "@/lib/loan-finance";
+import { buildLoanSchedule, type LoanInterestCalculationMethod, type LoanInterestType, type LoanRepaymentMethod } from "@/lib/loan-finance";
 
 
 async function deleteLoan(fd: FormData) {
@@ -197,20 +197,31 @@ async function createLoanScheduleAmendment(fd: FormData) {
   const reference = String(fd.get("amendment_reference") || "").trim();
   const reason = String(fd.get("amendment_reason") || "").trim();
   const periods = Number(fd.get("remaining_installments") || 0);
+  const annualRate = Number(fd.get("interest_rate") || 0);
+  const interestType = String(fd.get("interest_type") || "simple") as LoanInterestType;
+  const interestCalculationMethod = String(fd.get("interest_calculation_method") || "outstanding_balance") as LoanInterestCalculationMethod;
+  const repaymentMethod = String(fd.get("repayment_method") || "annuity") as LoanRepaymentMethod;
+  const paymentsPerYear = Number(fd.get("payment_frequency") || 0);
   if (!/^[0-9a-f-]{36}$/i.test(loanId)) throw new Error("Emprunt invalide.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(firstDueDate) || firstDueDate < effectiveFrom) throw new Error("Dates d'effet ou de première échéance invalides.");
   if (reference.length < 2 || reference.length > 120 || reason.length < 5 || reason.length > 500) throw new Error("Référence ou motif d'avenant invalide.");
   if (!Number.isInteger(periods) || periods < 1 || periods > 1200) throw new Error("Nombre d'échéances restantes invalide.");
-  const { data: loan, error: loanError } = await supabase.from("loans").select("outstanding_principal,interest_rate,repayment_method,payment_frequency,interest_calculation_method,start_date,active_schedule_version_id").eq("id", loanId).eq("organization_id", organizationId).single();
+  if (!Number.isFinite(annualRate) || annualRate < 0 || annualRate > 1000) throw new Error("Taux annuel invalide.");
+  if (!["simple","compound"].includes(interestType)) throw new Error("Type d’intérêt invalide.");
+  if (!["outstanding_balance","original_principal"].includes(interestCalculationMethod)) throw new Error("Base de calcul invalide.");
+  if (!["annuity","equal_principal","bullet"].includes(repaymentMethod)) throw new Error("Méthode d’amortissement invalide.");
+  if (![1,2,3,4,6,12].includes(paymentsPerYear)) throw new Error("Périodicité invalide.");
+  const { data: loan, error: loanError } = await supabase.from("loans").select("outstanding_principal,start_date,active_schedule_version_id").eq("id", loanId).eq("organization_id", organizationId).single();
   if (loanError || !loan || !loan.active_schedule_version_id) throw new Error("Emprunt ou échéancier actif introuvable.");
   const schedule = buildLoanSchedule({
     principal: Number(loan.outstanding_principal),
-    annualRatePercent: Number(loan.interest_rate || 0),
+    annualRatePercent: annualRate,
     periods,
-    paymentsPerYear: Number(loan.payment_frequency),
+    paymentsPerYear,
     firstDueDate,
-    method: loan.repayment_method === "equal_principal" || loan.repayment_method === "bullet" ? loan.repayment_method : "annuity",
-    interestCalculationMethod: loan.interest_calculation_method === "original_principal" ? "original_principal" : "outstanding_balance",
+    method: repaymentMethod,
+    interestCalculationMethod,
+    interestType,
   });
   const installments = schedule.installments.map((row) => ({
     installment_number: row.number,
@@ -221,13 +232,15 @@ async function createLoanScheduleAmendment(fd: FormData) {
     fees_due: 0,
     penalty_due: 0,
   }));
-  const { error } = await supabase.rpc("create_loan_schedule_amendment", {
+  const financialTerms = { principal: Number(loan.outstanding_principal), annual_rate_percent: annualRate, interest_type: interestType, interest_calculation_method: interestCalculationMethod, repayment_method: repaymentMethod, payments_per_year: paymentsPerYear, installment_count: periods, first_due_date: firstDueDate, rate_basis: interestType === "compound" ? "effective_annual" : "nominal_annual" };
+  const { error } = await supabase.rpc("create_loan_schedule_amendment_with_terms", {
     p_organization_id: organizationId,
     p_loan_id: loanId,
     p_effective_from: effectiveFrom,
     p_amendment_reference: reference,
     p_amendment_reason: reason,
     p_installments: installments,
+    p_financial_terms: financialTerms,
   });
   if (error) throw new Error(error.message);
   revalidatePath("/emprunts");
@@ -250,7 +263,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
     supabase.from("loan_installments").select("*").eq("loan_id", id).eq("organization_id", organizationId).order("installment_number"),
     supabase.from("loan_repayments").select("*").eq("loan_id", id).eq("organization_id", organizationId).order("payment_date", { ascending: false }),
     supabase.from("financial_accounts").select("id,name,type,balance").eq("organization_id", organizationId).eq("is_active", true).order("name"),
-    supabase.from("loan_schedule_versions").select("id,version_number,version_type,status,effective_from,effective_until,amendment_reference,amendment_reason,approved_at,created_at").eq("loan_id", id).eq("organization_id", organizationId).order("version_number", { ascending: false }),
+    supabase.from("loan_schedule_versions").select("id,version_number,version_type,status,effective_from,effective_until,amendment_reference,amendment_reason,approved_at,created_at,financial_terms").eq("loan_id", id).eq("organization_id", organizationId).order("version_number", { ascending: false }),
   ]);
   if (!loan) notFound();
   const currency = org?.currency || "MGA";
@@ -321,7 +334,8 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
           <tr><th>Ville</th><td>{loan.lender_city || "-"}</td><th>Agence</th><td>{loan.lender_branch_name || "-"}</td></tr>
           <tr><th>Région</th><td>{loan.lender_region || "-"}</td><th>Adresse</th><td>{loan.lender_address || "-"}</td></tr>
           <tr><th>Capital</th><td>{money(Number(loan.principal), currency)}</td><th>Taux annuel nominal</th><td>{loan.interest_rate ?? 0} %</td></tr>
-          <tr><th>Méthode</th><td>{method}</td><th>Base des intérêts</th><td>{loan.interest_calculation_method === "original_principal" ? "Capital initial" : "Capital restant dû"}</td></tr>
+          <tr><th>Méthode</th><td>{method}</td><th>Type d’intérêt</th><td>{loan.interest_type === "compound" ? "Composé (taux annuel effectif)" : "Simple (taux nominal annuel)"}</td></tr>
+          <tr><th>Base des intérêts</th><td>{loan.interest_calculation_method === "original_principal" ? "Capital initial" : "Capital restant dû"}</td><th>Périodicité</th><td>{loan.payment_frequency} fois par an</td></tr>
           <tr><th>Périodicité</th><td>{loan.payment_frequency} fois par an</td><th>Nombre d'échéances</th><td>{loan.total_installments ?? "-"}</td></tr>
           <tr><th>Compte de dette</th><td>{loan.liability_account_code || "À configurer"}</td><th>Compte intérêts</th><td>661 · Charges d'intérêts</td></tr>
           <tr><th>Compte frais</th><td>{loan.fee_account_code || "Non configuré"}</td><th>Compte pénalités</th><td>{loan.penalty_account_code || "Non configuré"}</td></tr>
@@ -369,10 +383,15 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
                   <div className="field"><label>Date d'effet de l'avenant</label><input name="effective_from" type="date" min={loan.start_date} required /></div>
                   <div className="field"><label>Première nouvelle échéance</label><input name="first_due_date" type="date" min={loan.start_date} defaultValue={loan.next_due_date || ""} required /></div>
                   <div className="field"><label>Nombre de nouvelles échéances</label><input name="remaining_installments" type="number" min="1" max="1200" step="1" defaultValue={openInstallments.length || 1} required /></div>
+                  <div className="field"><label>Taux annuel (%)</label><input name="interest_rate" type="number" min="0" max="1000" step="0.0001" defaultValue={loan.interest_rate ?? 0} required /></div>
+                  <div className="field"><label>Type d’intérêt</label><select name="interest_type" defaultValue={loan.interest_type || "simple"}><option value="simple">Simple (taux nominal annuel)</option><option value="compound">Composé (taux annuel effectif)</option></select></div>
+                  <div className="field"><label>Base de calcul</label><select name="interest_calculation_method" defaultValue={loan.interest_calculation_method || "outstanding_balance"}><option value="outstanding_balance">Capital restant dû</option><option value="original_principal">Capital initial</option></select></div>
+                  <div className="field"><label>Méthode d’amortissement</label><select name="repayment_method" defaultValue={loan.repayment_method || "annuity"}><option value="annuity">Annuités constantes</option><option value="equal_principal">Capital constant</option><option value="bullet">In fine</option></select></div>
+                  <div className="field"><label>Périodicité</label><select name="payment_frequency" defaultValue={String(loan.payment_frequency || 12)}><option value="12">Mensuelle</option><option value="6">Bimestrielle</option><option value="4">Trimestrielle</option><option value="3">Quadrimestrielle</option><option value="2">Semestrielle</option><option value="1">Annuelle</option></select></div>
                   <div className="field"><label>Référence de l'avenant bancaire</label><input name="amendment_reference" maxLength={120} required /></div>
                 </div>
                 <div className="field"><label>Motif et conditions modifiées</label><textarea name="amendment_reason" minLength={5} maxLength={500} required placeholder="Ex. Rééchelonnement accepté par la banque, nouveau taux ou nouvelle durée..." /></div>
-                <p className="muted">Le nouvel échéancier est recalculé sur le capital restant dû, au taux, à la périodicité et selon la méthode actuellement enregistrés. Vérifie et mets d'abord à jour les conditions financières du contrat si l'avenant modifie aussi ces paramètres. L'ancienne version sera conservée comme historique. Les remboursements déjà enregistrés ne seront pas réaffectés.</p>
+                <p className="muted">MAGNISA recalcule avec les nouvelles conditions saisies. Le type composé interprète le taux saisi comme un taux annuel effectif, converti à la périodicité choisie. Chaque version conserve un instantané immuable des paramètres. Les remboursements historiques ne sont pas réaffectés.</p>
                 <button className="button primary">Valider et activer la nouvelle version</button>
               </form>
             </FormDialog>
@@ -388,7 +407,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
               <td><b>Version {version.version_number}</b>{version.id === loan.active_schedule_version_id ? <span className="badge">Active</span> : null}</td>
               <td>{version.version_type === "initial" ? "Échéancier initial" : "Avenant bancaire"}</td>
               <td>{version.effective_from}</td><td>{version.effective_until || "-"}</td>
-              <td>{version.amendment_reference || "-"}</td><td>{version.amendment_reason || "-"}</td>
+              <td>{version.amendment_reference || "-"}</td><td>{version.amendment_reason || "-"}<div className="muted">{version.financial_terms ? (version.financial_terms.interest_type === "compound" ? "Composé" : "Simple") + " · " + version.financial_terms.annual_rate_percent + "% · " + (version.financial_terms.repayment_method || "") + " · " + (version.financial_terms.payments_per_year || "") + " périodes/an" : "Conditions non archivées"}</div></td>
               <td>{version.status === "active" ? "Active" : version.status === "superseded" ? "Remplacée" : "Annulée"}</td>
             </tr>)}</tbody>
           </table></div>
