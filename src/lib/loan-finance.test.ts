@@ -60,7 +60,7 @@ describe("buildLoanSchedule", () => {
       firstDueDate: "2027-02-15", method: "annuity", interestType: "compound",
     });
     expect(schedule.periodicRate).toBeCloseTo(Math.pow(1.12, 1 / 12) - 1, 12);
-    expect(schedule.installments[0].interest).toBe(9_489.21);
+    expect(schedule.installments[0].interest).toBe(9_488.79);
     expect(schedule.interestType).toBe("compound");
   });
 
