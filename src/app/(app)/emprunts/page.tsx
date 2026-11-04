@@ -88,6 +88,7 @@ async function createLoan(fd: FormData) {
     firstDueDate,
     method: repaymentMethod,
     interestCalculationMethod,
+    interestType: interestType as "simple" | "compound",
   });
   const endDate = schedule.lastDueDate;
   if (requestedEndDate && requestedEndDate !== endDate) throw new Error("La date de fin doit correspondre à la dernière échéance calculée.");
