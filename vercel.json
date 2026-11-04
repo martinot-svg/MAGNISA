@@ -5,5 +5,5 @@
       "schedule": "0 5 * * *"
     }
   ],
-  "installCommand": "npm ci"
+  "installCommand": "npm install --no-package-lock"
 }
