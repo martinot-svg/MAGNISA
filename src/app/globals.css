@@ -117,3 +117,8 @@
 
 /* Keep invalid form submissions visibly unavailable until native constraints pass. */
 .button:disabled, button:disabled, input[type="submit"]:disabled { opacity: .48; cursor: not-allowed; filter: grayscale(.12); }
+
+
+/* Destructive actions: visually distinct from ordinary primary actions. */
+.button.danger{background:#b42318;color:#fff;border-color:transparent;box-shadow:0 9px 24px rgba(180,35,24,.16)}
+.button.danger:hover{background:#912018}
