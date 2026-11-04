@@ -1,5 +1,6 @@
 export type LoanRepaymentMethod = "annuity" | "equal_principal" | "bullet";
 export type LoanInterestCalculationMethod = "outstanding_balance" | "original_principal";
+export type LoanInterestType = "simple" | "compound";
 
 export interface LoanScheduleInput {
   principal: number;
@@ -9,6 +10,7 @@ export interface LoanScheduleInput {
   firstDueDate: string;
   method: LoanRepaymentMethod;
   interestCalculationMethod?: LoanInterestCalculationMethod;
+  interestType?: LoanInterestType;
   currencyDecimals?: number;
 }
 export interface LoanInstallment {
@@ -34,7 +36,7 @@ export interface LoanSchedule {
 export function buildLoanSchedule(input: LoanScheduleInput): LoanSchedule {
   const {
     principal, annualRatePercent, periods, paymentsPerYear, firstDueDate, method,
-    interestCalculationMethod = "outstanding_balance", currencyDecimals = 2,
+    interestCalculationMethod = "outstanding_balance", interestType = "simple", currencyDecimals = 2,
   } = input;
   if (!Number.isFinite(principal) || principal <= 0) throw new Error("Le capital doit être strictement positif.");
   if (!Number.isFinite(annualRatePercent) || annualRatePercent < 0 || annualRatePercent > 1000) throw new Error("Le taux annuel est invalide.");
@@ -43,11 +45,12 @@ export function buildLoanSchedule(input: LoanScheduleInput): LoanSchedule {
   if (!Number.isInteger(currencyDecimals) || currencyDecimals < 0 || currencyDecimals > 4) throw new Error("La précision monétaire est invalide.");
   if (!["annuity", "equal_principal", "bullet"].includes(method)) throw new Error("Méthode de remboursement invalide.");
   if (!["outstanding_balance", "original_principal"].includes(interestCalculationMethod)) throw new Error("Méthode de calcul des intérêts invalide.");
+  if (!["simple", "compound"].includes(interestType)) throw new Error("Type d’intérêt invalide.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(firstDueDate) || !isValidDate(firstDueDate)) throw new Error("La première date d'échéance est invalide.");
 
   const factor = 10 ** currencyDecimals;
   const round = (value: number) => Math.round((value + Number.EPSILON) * factor) / factor;
-  const periodicRate = annualRatePercent / 100 / paymentsPerYear;
+  // Simple: nominal annual rate prorated by period. Compound: effective annual rate converted to the payment period.\n  const periodicRate = interestType === "compound"\n    ? Math.pow(1 + annualRatePercent / 100, 1 / paymentsPerYear) - 1\n    : annualRatePercent / 100 / paymentsPerYear;
   const roundedPrincipal = round(principal);
   const annuity = periodicRate === 0
     ? roundedPrincipal / periods
@@ -82,7 +85,7 @@ export function buildLoanSchedule(input: LoanScheduleInput): LoanSchedule {
   if (balance !== 0) throw new Error("L'échéancier n'a pas soldé le capital. Vérifie les paramètres.");
   return {
     installments, principal: roundedPrincipal, totalInterest, totalPayments, periodicRate,
-    lastDueDate: installments[installments.length - 1].dueDate, interestCalculationMethod,
+    lastDueDate: installments[installments.length - 1].dueDate, interestCalculationMethod, interestType,
   };
 }
 
