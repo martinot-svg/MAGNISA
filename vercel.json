@@ -4,5 +4,6 @@
       "path": "/api/cron/notifications",
       "schedule": "0 5 * * *"
     }
-  ]
+  ],
+  "installCommand": "npm ci"
 }
