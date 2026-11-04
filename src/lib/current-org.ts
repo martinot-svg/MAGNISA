@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
 export async function requireUser() {
@@ -18,18 +17,7 @@ export async function requireUser() {
 
 export async function requireOrganization() {
   const { supabase, user } = await requireUser();
-  const { data: memberships, error } = await supabase
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("user_id", user.id)
-    .eq("status", "active")
-    .order("created_at", { ascending: true })
-    .limit(50);
-  if (error) throw new Error("Impossible de charger les organisations autorisÃ©es.");
-  if (!memberships?.length) redirect("/onboarding");
-
-  const cookieStore = await cookies();
-  const selectedOrganizationId = cookieStore.get("magnisa_active_org")?.value;
-  const member = selectedOrganizationId
-    ? memberships.find((item) => item.organization_id === selectedOrganizationId) ?? (memberships.length === 1 ? memberships[0] : null)
-    : memberships.length =¶»§q«^
+  const { data: member } = await supabase.from("organization_members").select("organization_id, role").eq("user_id", user.id).eq("status","active").limit(1).maybeSingle();
+  if (!member) redirect("/onboarding");
+  return { supabase, user, organizationId: member.organization_id as string, role: member.role as string };
+}
