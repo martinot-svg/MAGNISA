@@ -119,14 +119,20 @@ async function createLoan(fd: FormData) {
   if (error) throw new Error(error.message);
   if (!loanId) throw new Error("L’emprunt a été créé sans identifiant exploitable pour enregistrer sa localisation.");
   const { error: locationSaveError } = await supabase.from("loans").update({
-    interest_calculation_method: interestCalculationMethod,\n    interest_type: interestType,
+    interest_calculation_method: interestCalculationMethod,
+    interest_type: interestType,
     lender_location_id: lenderLocationId,
     lender_city: lenderCity,
     lender_region: lenderRegion,
     lender_branch_name: lenderBranchName,
     lender_address: lenderAddress,
   }).eq("id", loanId).eq("organization_id", organizationId);
-  if (locationSaveError) throw new Error("L’emprunt est créé, mais ses paramètres n’ont pas pu être enregistrés : " + locationSaveError.message);\n  const { data: createdLoan, error: createdLoanError } = await supabase.from("loans").select("active_schedule_version_id").eq("id", loanId).eq("organization_id", organizationId).single();\n  if (createdLoanError || !createdLoan?.active_schedule_version_id) throw new Error("L’emprunt est créé, mais sa version initiale d’échéancier est introuvable.");\n  const financialTerms = { principal, annual_rate_percent: interestRate, interest_type: interestType, interest_calculation_method: interestCalculationMethod, repayment_method: repaymentMethod, payments_per_year: paymentFrequency, installment_count: totalInstallments, first_due_date: firstDueDate, rate_basis: interestType === "compound" ? "effective_annual" : "nominal_annual" };\n  const { error: snapshotError } = await supabase.rpc("set_loan_schedule_version_terms", { p_organization_id: organizationId, p_loan_id: loanId, p_version_id: createdLoan.active_schedule_version_id, p_financial_terms: financialTerms });\n  if (snapshotError) throw new Error("L’emprunt est créé, mais l’instantané des conditions financières n’a pas pu être enregistré : " + snapshotError.message);
+  if (locationSaveError) throw new Error("L’emprunt est créé, mais ses paramètres n’ont pas pu être enregistrés : " + locationSaveError.message);
+  const { data: createdLoan, error: createdLoanError } = await supabase.from("loans").select("active_schedule_version_id").eq("id", loanId).eq("organization_id", organizationId).single();
+  if (createdLoanError || !createdLoan?.active_schedule_version_id) throw new Error("L’emprunt est créé, mais sa version initiale d’échéancier est introuvable.");
+  const financialTerms = { principal, annual_rate_percent: interestRate, interest_type: interestType, interest_calculation_method: interestCalculationMethod, repayment_method: repaymentMethod, payments_per_year: paymentFrequency, installment_count: totalInstallments, first_due_date: firstDueDate, rate_basis: interestType === "compound" ? "effective_annual" : "nominal_annual" };
+  const { error: snapshotError } = await supabase.rpc("set_loan_schedule_version_terms", { p_organization_id: organizationId, p_loan_id: loanId, p_version_id: createdLoan.active_schedule_version_id, p_financial_terms: financialTerms });
+  if (snapshotError) throw new Error("L’emprunt est créé, mais l’instantané des conditions financières n’a pas pu être enregistré : " + snapshotError.message);
   revalidatePath("/emprunts");
   revalidatePath("/dettes");
 }
