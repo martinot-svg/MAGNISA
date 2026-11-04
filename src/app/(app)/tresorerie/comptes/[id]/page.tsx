@@ -130,6 +130,10 @@ export default async function AccountStatement({
     ? account.details.currency : (org?.currency || "MGA");
   const mobileOperator = ["MVola", "Orange Money", "Airtel Money"].includes(account.name)
     ? account.name : "Mobile Money";
+  const mvolaCategory = account.details && typeof account.details === "object" &&
+    "account_type" in account.details && typeof account.details.account_type === "string"
+    ? account.details.account_type : null;
+  const mvolaCategoryLabel = mvolaCategory === "personal" ? "Particulier" : mvolaCategory === "business" ? "Entreprise" : mvolaCategory === "merchant" ? "Marchand" : "Catégorie non définie";
   const currency = org?.currency || "MGA";
   const credits = movements.reduce((sum, movement) => sum + Math.max(0, Number(movement.amount)), 0);
   const debits = movements.reduce((sum, movement) => sum + Math.max(0, -Number(movement.amount)), 0);
@@ -148,7 +152,7 @@ export default async function AccountStatement({
         <section className="section" aria-label="Gestion Mobile Money - Trésorerie">
           <div className="pageHead">
             <div>
-              <h2>Compte {mobileOperator}</h2>
+              <h2>Compte {mobileOperator} · {mvolaCategoryLabel}</h2>
               <p>Gestion Mobile Money - Trésorerie</p>
             </div>
             <span className="muted">{account.is_active ? "Compte actif" : "Compte inactif"}</span>

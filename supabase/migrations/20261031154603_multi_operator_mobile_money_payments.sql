@@ -1,0 +1,59 @@
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS mobile_operator text,
+  ADD COLUMN IF NOT EXISTS mobile_money_fee_amount numeric(18,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS mobile_money_fee_reimbursement numeric(18,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS mobile_money_fee_bearer text NOT NULL DEFAULT 'none';
+
+ALTER TABLE public.payments
+  DROP CONSTRAINT IF EXISTS payments_mobile_operator_check,
+  DROP CONSTRAINT IF EXISTS payments_mobile_money_fee_bearer_check;
+ALTER TABLE public.payments
+  ADD CONSTRAINT payments_mobile_operator_check CHECK (mobile_operator IS NULL OR mobile_operator IN ('mvola','orange_money','airtel_money')),
+  ADD CONSTRAINT payments_mobile_money_fee_bearer_check CHECK (mobile_money_fee_bearer IN ('company','client_direct','client_reimbursed','none')),
+  ADD CONSTRAINT payments_mobile_money_fee_amount_check CHECK (mobile_money_fee_amount >= 0 AND mobile_money_fee_reimbursement >= 0);
+
+CREATE OR REPLACE FUNCTION public.record_customer_payment_with_fee_v3(
+ p_org uuid,p_invoice uuid,p_account uuid,p_amount numeric,p_paid_at date,p_method text,p_reference text,p_request_key uuid,
+ p_mobile_operator text,p_fee_amount numeric DEFAULT 0,p_fee_bearer text DEFAULT 'none'
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE v_id uuid; v_payment public.payments%rowtype; v_account public.financial_accounts%rowtype; v_ref text; v_fee_code text; v_lines jsonb; v_entry uuid;
+BEGIN
+ PERFORM public.assert_org_access(p_org); PERFORM public.assert_org_permission(p_org,'payments.record');
+ IF p_fee_amount IS NULL OR p_fee_amount<0 THEN RAISE EXCEPTION 'Montant de frais invalide'; END IF;
+ IF p_fee_bearer NOT IN ('company','client_direct','client_reimbursed','none') THEN RAISE EXCEPTION 'Prise en charge des frais invalide'; END IF;
+ IF p_fee_bearer='none' AND p_fee_amount<>0 THEN RAISE EXCEPTION 'Aucun frais ne peut avoir un montant non nul'; END IF;
+ IF p_method='mobile_money' AND p_mobile_operator NOT IN ('mvola','orange_money','airtel_money') THEN RAISE EXCEPTION 'Opérateur Mobile Money invalide'; END IF;
+ IF p_method<>'mobile_money' AND (p_mobile_operator IS NOT NULL OR p_fee_amount<>0 OR p_fee_bearer<>'none') THEN RAISE EXCEPTION 'Données Mobile Money incompatibles avec le mode de paiement'; END IF;
+ PERFORM public.magnisa_assert_accounting_period_open(p_org,p_paid_at);
+ SELECT * INTO v_account FROM public.financial_accounts WHERE id=p_account AND organization_id=p_org AND is_active FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Compte financier invalide'; END IF;
+ v_id:=public.lot1_record_invoice_payment_idempotent(p_org,p_invoice,p_account,p_amount,p_paid_at,p_method,p_reference,p_request_key);
+ SELECT * INTO v_payment FROM public.payments WHERE id=v_id AND organization_id=p_org FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Paiement introuvable'; END IF;
+ UPDATE public.payments SET mobile_operator=p_mobile_operator,mobile_money_fee_amount=p_fee_amount,mobile_money_fee_reimbursement=CASE WHEN p_fee_bearer='client_reimbursed' THEN p_fee_amount ELSE 0 END,mobile_money_fee_bearer=p_fee_bearer,
+   mvola_fee_amount=CASE WHEN p_mobile_operator='mvola' THEN p_fee_amount ELSE 0 END,
+   mvola_fee_reimbursement=CASE WHEN p_mobile_operator='mvola' AND p_fee_bearer='client_reimbursed' THEN p_fee_amount ELSE 0 END,
+   mvola_fee_bearer=CASE WHEN p_mobile_operator='mvola' THEN p_fee_bearer ELSE 'none' END
+ WHERE id=v_id AND organization_id=p_org;
+ IF p_fee_amount=0 OR p_fee_bearer IN ('none','client_direct') THEN RETURN v_id; END IF;
+ v_ref:=coalesce(v_payment.reference,public.next_document_number(p_org,'payment'));
+ IF p_fee_bearer='company' THEN
+  INSERT INTO public.financial_transactions(organization_id,financial_account_id,transaction_date,amount,kind,source_type,source_id,reference,description)
+  VALUES(p_org,p_account,p_paid_at,-p_fee_amount,'fee','mobile_money_fee_company',v_id,v_ref,'Frais Mobile Money supportés par l’entreprise');
+  UPDATE public.financial_accounts SET balance=balance-p_fee_amount,updated_at=now() WHERE id=p_account;
+  v_fee_code:=public.magnisa_resolve_pcg_account(p_org,'transaction_fee','fee',CASE WHEN v_account.type='mobile_money' THEN 'mobile_money' WHEN v_account.type='bank' THEN 'bank' ELSE 'cash_withdrawal' END,'fee');
+  v_lines:=jsonb_build_array(jsonb_build_object('account_kind','pcg','pcg_code',v_fee_code,'debit',p_fee_amount,'credit',0),jsonb_build_object('account_kind','treasury','financial_account_id',p_account::text,'account_label',v_account.name,'debit',0,'credit',p_fee_amount));
+ ELSE
+  INSERT INTO public.financial_transactions(organization_id,financial_account_id,transaction_date,amount,kind,source_type,source_id,reference,description)
+  VALUES(p_org,p_account,p_paid_at,p_fee_amount,'customer_fee_recharge','mobile_money_fee_recharged',v_id,v_ref,'Frais Mobile Money refacturés au client');
+  UPDATE public.financial_accounts SET balance=balance+p_fee_amount,updated_at=now() WHERE id=p_account;
+  v_fee_code:=public.magnisa_resolve_pcg_account(p_org,'transaction_fee','fee','client_recharged','credit');
+  v_lines:=jsonb_build_array(jsonb_build_object('account_kind','treasury','financial_account_id',p_account::text,'account_label',v_account.name,'debit',p_fee_amount,'credit',0,'customer_id',v_payment.customer_id),jsonb_build_object('account_kind','pcg','pcg_code',v_fee_code,'debit',0,'credit',p_fee_amount,'customer_id',v_payment.customer_id));
+ END IF;
+ v_entry:=public.magnisa_post_journal(p_org,p_paid_at,v_ref,'Frais Mobile Money','customer_payment_fee',v_id,v_lines);
+ PERFORM public.audit_event(p_org,'customer_payment.mobile_money_fee_recorded','payment',v_id,NULL,jsonb_build_object('mobile_operator',p_mobile_operator,'fee_amount',p_fee_amount,'fee_bearer',p_fee_bearer,'journal_entry_id',v_entry));
+ RETURN v_id;
+END; $$;
+
+REVOKE ALL ON FUNCTION public.record_customer_payment_with_fee_v3(uuid,uuid,uuid,numeric,date,text,text,uuid,text,numeric,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.record_customer_payment_with_fee_v3(uuid,uuid,uuid,numeric,date,text,text,uuid,text,numeric,text) TO authenticated;

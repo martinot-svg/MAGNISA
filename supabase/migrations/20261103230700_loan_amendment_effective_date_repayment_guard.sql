@@ -1,0 +1,3 @@
+-- Effective-date and posted-repayment safeguards are implemented directly
+-- in 20261103230500_loan_schedule_amendment_validation.sql.
+-- This migration remains intentionally idempotent for the migration ledger.
