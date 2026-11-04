@@ -53,6 +53,8 @@ async function configureExistingLoan(fd: FormData) {
   const { supabase, organizationId } = ctx;
   const loanId = String(fd.get("loan_id") || "");
   const method = String(fd.get("repayment_method") || "annuity") as LoanRepaymentMethod;
+  const interestType = String(fd.get("interest_type") || "simple") as LoanInterestType;
+  const interestCalculationMethod = String(fd.get("interest_calculation_method") || "outstanding_balance") as LoanInterestCalculationMethod;
   const frequency = Number(fd.get("payment_frequency") || 0);
   const periods = Number(fd.get("total_installments") || 0);
   const firstDueDate = String(fd.get("first_due_date") || "");
@@ -65,6 +67,8 @@ async function configureExistingLoan(fd: FormData) {
   if (!/^[0-9a-f-]{36}$/i.test(loanId)) throw new Error("Emprunt invalide.");
   if (!["annuity", "equal_principal", "bullet"].includes(method)) throw new Error("Méthode de remboursement invalide.");
   if (![1, 2, 3, 4, 6, 12].includes(frequency)) throw new Error("Périodicité invalide.");
+  if (!["simple", "compound"].includes(interestType)) throw new Error("Type d’intérêt invalide.");
+  if (!["outstanding_balance", "original_principal"].includes(interestCalculationMethod)) throw new Error("Base de calcul invalide.");
   if (!Number.isInteger(periods) || periods < 1 || periods > 1200) throw new Error("Nombre d'échéances restantes invalide.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(firstDueDate) || Number.isNaN(Date.parse(firstDueDate))) throw new Error("Première échéance invalide.");
   if (endDate && (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || Number.isNaN(Date.parse(endDate)))) throw new Error("Date de fin invalide.");
@@ -74,7 +78,7 @@ async function configureExistingLoan(fd: FormData) {
   if (allocationOrder !== "charges_first") throw new Error("L'ordre d'imputation retenu est frais, pénalités, intérêts puis capital.");
 
   const { data: loan, error: loanError } = await supabase
-    .from("loans").select("outstanding_principal,interest_rate,start_date,interest_calculation_method")
+    .from("loans").select("outstanding_principal,interest_rate,start_date")
     .eq("id", loanId).eq("organization_id", organizationId).single();
   if (loanError || !loan) throw new Error("Impossible de charger le solde actuel de cet emprunt.");
 
@@ -85,7 +89,8 @@ async function configureExistingLoan(fd: FormData) {
     paymentsPerYear: frequency,
     firstDueDate,
     method,
-    interestCalculationMethod: loan.interest_calculation_method === "original_principal" ? "original_principal" : "outstanding_balance",
+    interestCalculationMethod,
+    interestType,
   });
 
   const { error } = await supabase.rpc("configure_existing_loan_schedule", {
@@ -103,6 +108,13 @@ async function configureExistingLoan(fd: FormData) {
     p_installments: schedule.installments.map((row) => ({ ...row, fees: 0 })),
   });
   if (error) throw new Error(error.message);
+  const { error: termsUpdateError } = await supabase.from("loans").update({ interest_type: interestType, interest_calculation_method: interestCalculationMethod }).eq("id", loanId).eq("organization_id", organizationId);
+  if (termsUpdateError) throw new Error("L’échéancier est créé, mais les paramètres financiers n’ont pas pu être enregistrés : " + termsUpdateError.message);
+  const { data: configuredLoan, error: configuredLoanError } = await supabase.from("loans").select("active_schedule_version_id").eq("id", loanId).eq("organization_id", organizationId).single();
+  if (configuredLoanError || !configuredLoan?.active_schedule_version_id) throw new Error("L’échéancier est créé, mais sa version active est introuvable.");
+  const financialTerms = { principal: Number(loan.outstanding_principal), annual_rate_percent: Number(loan.interest_rate || 0), interest_type: interestType, interest_calculation_method: interestCalculationMethod, repayment_method: method, payments_per_year: frequency, installment_count: periods, first_due_date: firstDueDate, rate_basis: interestType === "compound" ? "effective_annual" : "nominal_annual" };
+  const { error: snapshotError } = await supabase.rpc("set_loan_schedule_version_terms", { p_organization_id: organizationId, p_loan_id: loanId, p_version_id: configuredLoan.active_schedule_version_id, p_financial_terms: financialTerms });
+  if (snapshotError) throw new Error("L’échéancier est créé, mais son instantané financier n’a pas pu être enregistré : " + snapshotError.message);
 
   revalidatePath("/emprunts");
   revalidatePath(`/emprunts/${loanId}`);
@@ -360,6 +372,8 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
                   <div className="field"><label>Première échéance à venir</label><input name="first_due_date" type="date" defaultValue={loan.next_due_date || ""} required /></div>
                   <div className="field"><label>Périodicité</label><select name="payment_frequency" defaultValue="12"><option value="12">Mensuelle</option><option value="6">Bimestrielle</option><option value="4">Trimestrielle</option><option value="3">Quadrimestrielle</option><option value="2">Semestrielle</option><option value="1">Annuelle</option></select></div>
                   <div className="field"><label>Méthode d'amortissement</label><select name="repayment_method" defaultValue="annuity"><option value="annuity">Annuités constantes</option><option value="equal_principal">Capital constant</option><option value="bullet">In fine</option></select></div>
+                  <div className="field"><label>Type d’intérêt</label><select name="interest_type" defaultValue={loan.interest_type || "simple"}><option value="simple">Simple (taux nominal annuel)</option><option value="compound">Composé (taux annuel effectif)</option></select></div>
+                  <div className="field"><label>Base de calcul</label><select name="interest_calculation_method" defaultValue={loan.interest_calculation_method || "outstanding_balance"}><option value="outstanding_balance">Capital restant dû</option><option value="original_principal">Capital initial</option></select></div>
                   <div className="field"><label>Compte de dette PCG</label><select name="liability_account_code" defaultValue="" required><option value="" disabled>Choisir selon le contrat et le prêteur</option><option value="164">164 · Établissements de crédit</option><option value="168">168 · Autres emprunts et dettes assimilées</option></select></div>
                   <div className="field"><label>Date de fin contractuelle (facultatif)</label><input name="end_date" type="date" defaultValue={loan.end_date || ""} /></div>
                   <div className="field"><label>Compte PCG des frais (facultatif)</label><select name="fee_account_code" defaultValue=""><option value="">Non configuré</option><option value="627">627 · Services bancaires</option><option value="658">658 · Autres charges</option><option value="661">661 · Charges d'intérêts</option></select></div>
