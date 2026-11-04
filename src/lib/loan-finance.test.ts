@@ -54,6 +54,30 @@ describe("buildLoanSchedule", () => {
     expect(schedule.installments[schedule.installments.length - 1]?.closingPrincipal).toBe(0);
   });
 
+  it("converts an effective annual compound rate to the monthly periodic rate", () => {
+    const schedule = buildLoanSchedule({
+      principal: 1_000_000, annualRatePercent: 12, periods: 12, paymentsPerYear: 12,
+      firstDueDate: "2027-02-15", method: "annuity", interestType: "compound",
+    });
+    expect(schedule.periodicRate).toBeCloseTo(Math.pow(1.12, 1 / 12) - 1, 12);
+    expect(schedule.installments[0].interest).toBe(9_488.79);
+    expect(schedule.interestType).toBe("compound");
+  });
+
+  it("keeps simple and compound calculations distinct for the same annual percentage", () => {
+    const simple = buildLoanSchedule({
+      principal: 1_000_000, annualRatePercent: 12, periods: 12, paymentsPerYear: 12,
+      firstDueDate: "2027-02-15", method: "annuity", interestType: "simple",
+    });
+    const compound = buildLoanSchedule({
+      principal: 1_000_000, annualRatePercent: 12, periods: 12, paymentsPerYear: 12,
+      firstDueDate: "2027-02-15", method: "annuity", interestType: "compound",
+    });
+    expect(simple.installments[0].interest).toBe(10_000);
+    expect(compound.installments[0].interest).toBeLessThan(simple.installments[0].interest);
+    expect(simple.totalInterest).not.toBe(compound.totalInterest);
+  });
+
   it("clamps month-end due dates without drifting", () => {
     expect(addMonthsClamped("2027-01-31", 1)).toBe("2027-02-28");
     expect(addMonthsClamped("2027-01-31", 2)).toBe("2027-03-31");
