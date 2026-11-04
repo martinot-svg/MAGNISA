@@ -37,7 +37,7 @@ export function LoanFinancialFields({ currency }: { currency: string }) {
     <>
       <div className="grid2">
         <div className="field"><label>Capital emprunté</label><input name="principal" type="number" step="0.01" min="0.01" value={principal} onChange={(e) => setPrincipal(e.target.value)} required /></div>
-        <div className="field"><label>Taux annuel nominal (%)</label><input name="interest_rate" type="number" step="0.0001" min="0" max="1000" value={annualRate} onChange={(e) => setAnnualRate(e.target.value)} required /></div>
+        <div className="field"><label>{interestType === "simple" ? "Taux annuel nominal (%)" : "Taux annuel effectif (%)"}</label><input name="interest_rate" type="number" step="0.0001" min="0" max="1000" value={annualRate} onChange={(e) => setAnnualRate(e.target.value)} required /></div>
         <div className="field"><label>Date de mise à disposition</label><input name="start_date" type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); if (!firstDueWasEdited) setFirstDueDate(e.target.value ? addMonthsClamped(e.target.value, 12 / paymentsPerYear) : ""); }} required /></div>
         <div className="field"><label>Première échéance (proposition automatique)</label><input name="first_due_date" type="date" min={startDate || undefined} value={effectiveFirstDueDate} onChange={(e) => { setFirstDueWasEdited(true); setFirstDueDate(e.target.value); }} required /></div>
         <div className="field"><label>Nombre d'échéances</label><input name="total_installments" type="number" min="1" max="1200" step="1" value={periods} onChange={(e) => setPeriods(e.target.value)} required /></div>
