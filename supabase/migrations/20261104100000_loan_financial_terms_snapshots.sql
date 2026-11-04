@@ -21,7 +21,7 @@ set financial_terms = jsonb_build_object(
   'rate_basis', case when coalesce(l.interest_type, 'simple') = 'compound' then 'effective_annual' else 'nominal_annual' end
 )
 from public.loans l
-where l.id = v.loan_id and v.financial_terms = '{}'::jsonb;
+where l.id = v.loan_id and v.status = 'active' and v.financial_terms = '{}'::jsonb;
 
 -- Permit exactly one write of a previously empty snapshot. All subsequent changes remain blocked.
 create or replace function public.guard_loan_schedule_version_history()
