@@ -120,6 +120,7 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
       <div>
         <h1>Comptabilite</h1>
         <p>Journal et balance avec correspondance au Plan Comptable General 2005 de Madagascar.</p>
+        <div className="actions"><a className="button" href="/exercices-comptables">Exercices comptables : ouverture et clôture</a><a className="button" href="/etats-financiers">États financiers</a></div>
       </div>
     </div>
     {entries.length === 0 ? (
