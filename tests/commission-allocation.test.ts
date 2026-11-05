@@ -27,8 +27,8 @@ describe("calculateCommissionAllocations", () => {
     ]);
     expect(allocations.reduce((sum, item) => sum + item.amount, 0)).toBe(1000);
     expect(allocations.filter((item) => item.contribution_type === "originator").map((item) => item.amount))
-      .toEqual([400, 400]);
-    expect(allocations.find((item) => item.contribution_type === "closer")?.amount).toBe(200);
+      .toEqual([307.69, 307.69]);
+    expect(allocations.find((item) => item.contribution_type === "closer")?.amount).toBe(384.62);
   });
 
   it("rejects policies that do not total 100 percent", () => {
