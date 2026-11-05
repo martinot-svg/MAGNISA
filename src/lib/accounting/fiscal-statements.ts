@@ -90,7 +90,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     .sort((a,b)=>a.code.localeCompare(b.code));
   const clearing=make("clearing");
   const assets=[...make("asset"),...clearing.filter(x=>x.balance>0)];
-  const liabilities=[...make("liability"),...clearing.filter(x=>x.balance<0).map(x=>({...x,balance:-x.balance}))];
+  const liabilities=[...make("liability"),...clearing.filter(x=>x.balance<0).map(x=>({...x,balance:-x.balance,comparativeBalance:-x.comparativeBalance}))];
   const equity=make("equity");
   const resultAggregate=new Map<string,{debit:number;credit:number;kind:string;label:string}>();
   for(const l of lines){
@@ -122,7 +122,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   const classifyCounterpart=(code:string):keyof typeof flows|null=>{
     if(/^2/.test(code))return "investing";
     if(/^(10|11|12|13|14|15|16|17)/.test(code))return "financing";
-    if(/^(3|4|5|6|7|8)/.test(code))return "operating";
+    if(/^(3|4|6|7)/.test(code))return "operating";
     return null;
   };
   for(const l of lines){
