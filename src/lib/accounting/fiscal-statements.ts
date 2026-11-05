@@ -60,7 +60,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   const totalAssets=sum(assets),totalLiabilities=sum(liabilities),totalEquity=sum(equity);
   const profit=round(sum(income)-sum(expenses));
   const balanceDifference=round(totalAssets-totalLiabilities-totalEquity-(year.status==="closed"?0:profit));
-  const equityCodes=new Set((accounts||[]).filter((a:any)=>a.kind==="equity").map((a:any)=>a.code));
+  const equityCodes=new Set<string>((accounts||[]).filter((a:any)=>a.kind==="equity").map((a:any)=>String(a.code)));
   const equityChanges=[...equityCodes].map(code=>{
     const a:any=accountMap.get(code);
     const relevant=lines.filter(l=>l.pcg_code===code);
