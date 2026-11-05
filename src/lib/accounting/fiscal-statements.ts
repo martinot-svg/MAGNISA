@@ -14,6 +14,30 @@ export type FiscalStatements = {
   notes: string[];
 };
 
+export type FiscalStatementReadinessInput = {
+  isClosed: boolean;
+  unmapped: number;
+  unbalancedEntries: number;
+  unclassifiedCashFlowEntries: number;
+  cashFlowReconciliationDifference: number;
+  balanceDifference: number;
+  notesReady: boolean;
+  operatingCashFlowReconciliationReady: boolean;
+  pcgPresentationReady: boolean;
+};
+
+export function isFiscalStatementReady(input: FiscalStatementReadinessInput): boolean {
+  return input.isClosed
+    && input.unmapped === 0
+    && input.unbalancedEntries === 0
+    && input.unclassifiedCashFlowEntries === 0
+    && Math.abs(input.cashFlowReconciliationDifference) < 0.01
+    && Math.abs(input.balanceDifference) < 0.01
+    && input.notesReady
+    && input.operatingCashFlowReconciliationReady
+    && input.pcgPresentationReady;
+}
+
 const n=(v:any)=>Number(v||0);
 const round=(v:number)=>Math.round((v+Number.EPSILON)*100)/100;
 const cashCodes=/^(511|512|513|514|515|516|517|518|53|54|58)/;
