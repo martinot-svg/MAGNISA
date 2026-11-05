@@ -254,8 +254,8 @@ using (public.has_org_permission(organization_id,'commissions.view_team')
 create policy commission_payments_insert on public.commission_payments for insert to authenticated
 with check (recorded_by=auth.uid() and public.has_org_permission(organization_id,'commissions.pay'));
 
-grant select, insert, update on public.commission_policies to authenticated;
-grant select, insert, update, delete on public.commission_policy_rules to authenticated;
+grant select on public.commission_policies to authenticated;
+grant select on public.commission_policy_rules to authenticated;
 grant select, insert on public.prospect_contributors to authenticated;
 grant select on public.commission_calculations to authenticated;
 grant select on public.commission_allocations to authenticated;
@@ -462,12 +462,71 @@ begin
     raise exception 'Gestion des politiques réservée aux responsables habilités.';
   end if;
   if length(trim(coalesce(p_name,'')))<2 or p_basis not in ('order_total','invoice_paid_amount','fixed_amount')
-     or p_rate<=0 or p_rate>100 or p_currency !~ '^[A-Z]{3}(uuid,uuid,uuid,text,uuid,uuid) from public, anon;
+     or p_rate<=0 or p_rate>100 or p_currency !~ '^[A-Z]{3}
+
+     or p_effective_until is not null and p_effective_until<p_effective_from
+     or p_rules is null or jsonb_typeof(p_rules)<>'array' then
+    raise exception 'Paramètres de politique invalides.';
+  end if;
+  if p_basis='fixed_amount' and coalesce(p_fixed_basis_amount,0)<=0 then
+    raise exception 'Le montant de base fixe doit être positif.';
+  end if;
+  if p_basis<>'fixed_amount' and p_fixed_basis_amount is not null then
+    raise exception 'Le montant fixe ne s''applique qu''à une base fixe.';
+  end if;
+  select count(*),coalesce(sum((x->>'share_percentage')::numeric),0)
+    into v_count,v_sum from jsonb_array_elements(p_rules) x;
+  if v_count=0 or v_count>4 or v_sum<>100 then
+    raise exception 'Les pourcentages des rôles doivent totaliser exactement 100 %.';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(p_rules) x
+    where x->>'contribution_type' not in ('originator','qualifier','negotiator','closer')
+       or coalesce((x->>'share_percentage')::numeric,0)<=0
+       or (x->>'share_percentage')::numeric>100
+  ) then raise exception 'Une règle de répartition est invalide.'; end if;
+  if (select count(distinct x->>'contribution_type') from jsonb_array_elements(p_rules) x)<>v_count then
+    raise exception 'Un rôle ne peut apparaître qu''une seule fois dans la politique.';
+  end if;
+
+  if p_active then
+    update public.commission_policies set is_active=false,updated_at=now(),updated_by=auth.uid()
+    where organization_id=p_org and is_active and id is distinct from p_policy;
+  end if;
+  if p_policy is null then
+    insert into public.commission_policies(
+      organization_id,name,description,is_active,effective_from,effective_until,
+      calculation_basis,commission_rate,fixed_basis_amount,currency,created_by,updated_by
+    ) values (
+      p_org,trim(p_name),nullif(trim(coalesce(p_description,'')),''),p_active,p_effective_from,p_effective_until,
+      p_basis,p_rate,p_fixed_basis_amount,p_currency,auth.uid(),auth.uid()
+    ) returning id into v_policy;
+  else
+    update public.commission_policies set
+      name=trim(p_name),description=nullif(trim(coalesce(p_description,'')),''),
+      is_active=p_active,effective_from=p_effective_from,effective_until=p_effective_until,
+      calculation_basis=p_basis,commission_rate=p_rate,fixed_basis_amount=p_fixed_basis_amount,
+      currency=p_currency,updated_by=auth.uid(),updated_at=now()
+    where id=p_policy and organization_id=p_org returning id into v_policy;
+    if v_policy is null then raise exception 'Politique introuvable.'; end if;
+  end if;
+  delete from public.commission_policy_rules where policy_id=v_policy and organization_id=p_org;
+  insert into public.commission_policy_rules(organization_id,policy_id,contribution_type,share_percentage)
+  select p_org,v_policy,x->>'contribution_type',(x->>'share_percentage')::numeric
+  from jsonb_array_elements(p_rules) x;
+  return v_policy;
+end;
+$$;
+revoke all on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,jsonb) from public,anon;
+grant execute on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,jsonb) to authenticated;
+
+revoke all on function public.calculate_prospect_commission(uuid,uuid,uuid,text,uuid,uuid) from public, anon;
 revoke all on function public.review_prospect_commission(uuid,uuid,text,text) from public, anon;
 revoke all on function public.record_commission_payment(uuid,uuid,numeric,date,text,uuid) from public, anon;
 grant execute on function public.calculate_prospect_commission(uuid,uuid,uuid,text,uuid,uuid) to authenticated;
 grant execute on function public.review_prospect_commission(uuid,uuid,text,text) to authenticated;
 grant execute on function public.record_commission_payment(uuid,uuid,numeric,date,text,uuid) to authenticated;
+
 
      or p_effective_until is not null and p_effective_until<p_effective_from
      or jsonb_typeof(p_rules)<>'array' then
