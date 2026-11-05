@@ -54,6 +54,16 @@ describe("Matrice documentaire exhaustive", () => {
     }
   });
 
+  it("une exception positive ne contourne pas une interdiction du rôle", async () => {
+    const supabase = createSupabase(null, true);
+    const allowed = await canDocumentAction(
+      { organizationId: "org_A", role: "viewer", user: { id: "user_A" }, supabase },
+      "documents.export",
+      "invoice",
+    );
+    expect(allowed).toBe(false);
+  });
+
   it("un refus individuel prévaut sur les droits du propriétaire", async () => {
     const supabase = createSupabase(null, false);
     const allowed = await canDocumentAction(
