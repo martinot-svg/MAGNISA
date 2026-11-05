@@ -21,7 +21,7 @@ create table public.commission_policies (
   updated_at timestamptz not null default now(),
   unique(id, organization_id),
   check (effective_until is null or effective_until >= effective_from),
-  check ((calculation_basis = 'fixed_amount' and fixed_basis_amount > 0) or (calculation_basis <> 'fixed_amount' and fixed_basis_amount is null))
+  check ((calculation_basis = 'fixed_amount' and fixed_basis_amount is not null and fixed_basis_amount > 0) or (calculation_basis <> 'fixed_amount' and fixed_basis_amount is null))
 );
 
 create unique index commission_policies_one_active_per_org
@@ -77,6 +77,7 @@ create table public.commission_calculations (
   foreign key (prospect_id, organization_id) references public.prospects(id, organization_id),
   foreign key (customer_id, organization_id) references public.customers(id, organization_id),
   foreign key (policy_id, organization_id) references public.commission_policies(id, organization_id),
+  check ((source_document_type is null) = (source_document_id is null)),
   check ((status = 'calculated' and approved_by is null and approved_at is null and rejection_reason is null)
       or (status = 'approved' and approved_by is not null and approved_at is not null and rejection_reason is null)
       or (status = 'rejected' and approved_by is not null and approved_at is not null and length(trim(coalesce(rejection_reason,''))) > 0))
@@ -272,7 +273,7 @@ create or replace function public.calculate_prospect_commission(
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_prospect public.prospects%rowtype;
   v_policy public.commission_policies%rowtype;
@@ -384,7 +385,7 @@ create or replace function public.review_prospect_commission(
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 begin
   if auth.uid() is null or not public.has_org_permission(p_org,'commissions.approve') then
     raise exception 'Validation réservée à la fonction finance.';
@@ -408,7 +409,7 @@ create or replace function public.record_commission_payment(
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_calculation_status text;
   v_allocation public.commission_allocations%rowtype;
@@ -451,7 +452,7 @@ create or replace function public.save_commission_policy(
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_policy uuid;
   v_sum numeric;
@@ -520,7 +521,7 @@ grant execute on function public.record_commission_payment(uuid,uuid,numeric,dat
   from jsonb_array_elements(p_rules) x;
   return v_policy;
 end;
-$;
+$$;
 revoke all on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,jsonb) from public,anon;
 grant execute on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,jsonb) to authenticated;
 
