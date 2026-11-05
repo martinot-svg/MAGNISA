@@ -46,7 +46,7 @@ export default async function Statements({searchParams}:{searchParams:Promise<{y
   </section>
   <section className="section">
    <h2>2. Compte de résultat</h2>
-   {[["Produits",s.income],["Charges",s.expenses]].map(([title,items]:any)=><div className="tableWrap" key={title}><h3>{title}</h3><table><thead><tr><th>Compte</th><th>Intitulé</th><th className="right">Débit</th><th className="right">Crédit</th><th className="right">Solde</th></tr></thead><tbody>{rows(items)}</tbody></table></div>)}
+   {[["Produits",s.income],["Charges",s.expenses]].map(([title,items]:any)=><div className="tableWrap" key={title}><h3>{title}</h3><table><thead><tr><th>Compte</th><th>Intitulé</th><th className="right">Débit</th><th className="right">Crédit</th><th className="right">Solde N</th><th className="right">Solde N-1</th></tr></thead><tbody>{rows(items)}</tbody></table></div>)}
    <p><strong>Résultat de l'exercice : {fmt(s.profit)}</strong></p>
   </section>
   <section className="section"><h2>3. Tableau des variations des capitaux propres</h2><div className="tableWrap"><table><thead><tr><th>Compte</th><th>Intitulé</th><th className="right">Ouverture</th><th className="right">Augmentations</th><th className="right">Diminutions</th><th className="right">Clôture</th></tr></thead><tbody>{s.equityChanges.map(x=><tr key={x.code}><td>{x.code}</td><td>{x.label}</td><td className="right">{fmt(x.opening)}</td><td className="right">{fmt(x.increase)}</td><td className="right">{fmt(x.decrease)}</td><td className="right">{fmt(x.closing)}</td></tr>)}</tbody></table></div></section>
