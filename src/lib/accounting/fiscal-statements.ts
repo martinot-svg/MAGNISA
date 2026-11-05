@@ -10,7 +10,7 @@ export type FiscalStatements = {
   cashFlows: {label:string;amount:number}[];
   openingCash:number; closingCash:number; profit:number; priorYearLabel:string|null;
   totals: {assets:number;liabilities:number;equity:number;balanceDifference:number};
-  controls: {unmapped:number;unbalancedEntries:number;unclassifiedCashFlowEntries:number;cashFlowReconciliationDifference:number;isClosed:boolean;notesReady:boolean;ready:boolean};
+  controls: {unmapped:number;unbalancedEntries:number;unclassifiedCashFlowEntries:number;cashFlowReconciliationDifference:number;operatingCashFlowReconciliationReady:boolean;pcgPresentationReady:boolean;isClosed:boolean;notesReady:boolean;ready:boolean};
   notes: string[];
 };
 
@@ -180,20 +180,20 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   };
   const noteValues=(year.notes||{}) as Record<string,string>;
   const notesReady=Object.keys(noteLabels).every(k=>String(noteValues[k]||"").trim().length>0);
-  const ready=year.status==="closed"&&unmapped===0&&unbalancedEntries===0&&unclassifiedCashFlowEntries===0&&Math.abs(cashFlowReconciliationDifference)<0.01&&Math.abs(balanceDifference)<0.01&&notesReady;
+  // The current ledger does not yet contain validated cash-flow line-item mappings,\n  // a bridge to pre-tax profit, or current/non-current maturity classifications.\n  // Never label these statements as finalized until those PCG controls exist.\n  const operatingCashFlowReconciliationReady=false;\n  const pcgPresentationReady=false;\n  const ready=year.status==="closed"&&unmapped===0&&unbalancedEntries===0&&unclassifiedCashFlowEntries===0&&Math.abs(cashFlowReconciliationDifference)<0.01&&Math.abs(balanceDifference)<0.01&&notesReady&&operatingCashFlowReconciliationReady&&pcgPresentationReady;
   const notes=[
     "Référentiel comptable : Plan Comptable Général 2005 de Madagascar.",
     "Devise de présentation : "+(org?.currency||"MGA")+".",
     "Période : "+year.period_start+" au "+year.period_end+".",
     "Base de préparation : écritures comptables validées et imputées au PCG.",
     ...Object.entries(noteLabels).map(([k,label])=>label+" : "+(String(noteValues[k]||"").trim()||"À renseigner avant arrêté définitif.")),
-    "Le tableau des flux présente les encaissements et décaissements bruts lorsque le lien entre le compte de trésorerie et une contrepartie unique est identifiable. Les écritures complexes non ventilables sont signalées et bloquent la validation."
+    "Le tableau des flux présente uniquement les mouvements bruts dont la contrepartie est unique. Le rapprochement du flux opérationnel avec le résultat avant impôt, requis par le PCG 2005 article 250-3, reste à construire et empêche l’arrêté définitif.",\n    "La ventilation courante/non courante des postes du bilan n’est pas encore documentée par échéance. La présentation réglementaire complète du bilan et du compte de résultat reste à valider et empêche l’arrêté définitif."
   ];
   return {organization:{...org,...settings},year,currency:org?.currency||"MGA",accounts:accounts||[],
     assets,liabilities,equity,expenses,income,equityChanges,cashFlows,
     openingCash:round(openingCash),closingCash:round(closingCash),profit,priorYearLabel:priorYear?.label||null,
     totals:{assets:totalAssets,liabilities:totalLiabilities,equity:totalEquity,balanceDifference},
-    controls:{unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,isClosed:year.status==="closed",notesReady,ready},notes};
+    controls:{unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,operatingCashFlowReconciliationReady,pcgPresentationReady,isClosed:year.status==="closed",notesReady,ready},notes};
 }
 
 export async function getFiscalStatementContext(yearId:string){
