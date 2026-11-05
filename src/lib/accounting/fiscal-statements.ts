@@ -52,9 +52,12 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   }
   const make=(kind:string)=>[...aggregate.entries()].filter(([,v])=>v.kind===kind)
     .map(([code,v])=>({code,label:v.label,debit:round(v.debit),credit:round(v.credit),
-      balance:round(kind==="asset"||kind==="expense"?v.debit-v.credit:v.credit-v.debit)}))
+      balance:round(kind==="asset"||kind==="expense"||kind==="clearing"?v.debit-v.credit:v.credit-v.debit)}))
     .filter(x=>Math.abs(x.balance)>=0.005).sort((a,b)=>a.code.localeCompare(b.code));
-  const assets=make("asset"),liabilities=make("liability"),equity=make("equity");
+  const clearing=make("clearing");
+  const assets=[...make("asset"),...clearing.filter(x=>x.balance>0)];
+  const liabilities=[...make("liability"),...clearing.filter(x=>x.balance<0).map(x=>({...x,balance:-x.balance}))];
+  const equity=make("equity");
   const expenses=make("expense"),income=make("income");
   const sum=(xs:StatementLine[])=>round(xs.reduce((s,x)=>s+x.balance,0));
   const totalAssets=sum(assets),totalLiabilities=sum(liabilities),totalEquity=sum(equity);
