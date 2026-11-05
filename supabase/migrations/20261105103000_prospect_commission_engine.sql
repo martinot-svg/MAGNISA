@@ -387,7 +387,7 @@ begin
     jsonb_build_object('prospect_id',p_prospect,'basis_amount',v_basis,'commission_total',v_total,'currency',v_policy.currency));
   return v_calculation;
 end;
-$;
+$$;
 
 create or replace function public.review_prospect_commission(
   p_org uuid,p_calculation uuid,p_decision text,p_reason text default null
@@ -413,7 +413,7 @@ begin
   perform public.audit_event(p_org,'commission.reviewed','commission_calculations',p_calculation,null,
     jsonb_build_object('decision',p_decision,'reason',p_reason));
 end;
-$;
+$$;
 
 create or replace function public.record_commission_payment(
   p_org uuid,p_allocation uuid,p_amount numeric,p_paid_at date,p_reference text,p_request_key uuid
@@ -455,7 +455,7 @@ begin
     jsonb_build_object('allocation_id',p_allocation,'amount',p_amount,'paid_at',p_paid_at,'reference',trim(p_reference)));
   return v_payment;
 end;
-$;
+$$;
 
 
 create or replace function public.create_prospect_with_originator(
@@ -465,7 +465,7 @@ create or replace function public.create_prospect_with_originator(
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_prospect uuid;
 begin
@@ -482,7 +482,7 @@ begin
   perform public.audit_event(p_org,'prospect.created','prospects',v_prospect,null,jsonb_build_object('name',trim(p_name),'source',p_source));
   return v_prospect;
 end;
-$;
+$$;
 
 create or replace function public.convert_prospect_to_customer(
   p_org uuid,p_prospect uuid
@@ -490,7 +490,7 @@ create or replace function public.convert_prospect_to_customer(
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_prospect public.prospects%rowtype;
   v_existing_customer uuid;
@@ -533,7 +533,7 @@ begin
 
   return v_customer;
 end;
-$;
+$$;
 
 create or replace function public.save_commission_policy(
   p_org uuid,p_policy uuid,p_name text,p_description text,p_active boolean,
@@ -611,7 +611,7 @@ begin
     jsonb_build_object('name',trim(p_name),'basis',p_basis,'rate',p_rate,'active',p_active,'rules',p_rules));
   return v_policy;
 end;
-$;
+$$;
 
 revoke all on function public.convert_prospect_to_customer(uuid,uuid) from public, anon;
 revoke all on function public.create_prospect_with_originator(uuid,text,text,text,text,text) from public, anon;
