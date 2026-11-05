@@ -68,7 +68,8 @@ BEGIN
     FROM (
       SELECT pcg_code, round(sum(debit-credit),2) AS balance
       FROM public.pcg2005_journal_lines
-      WHERE organization_id=p_org AND status='posted' AND entry_date <= v_previous.period_end
+      WHERE organization_id=p_org AND status='posted'
+        AND entry_date BETWEEN v_previous.period_start AND v_previous.period_end
         AND pcg_code ~ '^[1-5]'
       GROUP BY pcg_code
       HAVING round(sum(debit-credit),2) <> 0
