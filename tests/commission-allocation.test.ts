@@ -31,6 +31,17 @@ describe("calculateCommissionAllocations", () => {
     expect(allocations.find((item) => item.contribution_type === "closer")?.amount).toBe(384.62);
   });
 
+  it("distributes residual cents fairly without exceeding a small commission", () => {
+    const allocations = calculateCommissionAllocations(0.05, [
+      { contribution_type: "originator", share_percentage: 100 },
+    ], Array.from({ length: 7 }, (_, index) => ({
+      user_id: "u" + (index + 1),
+      contribution_type: "originator" as const,
+    })));
+    expect(allocations.reduce((sum, item) => sum + item.amount, 0)).toBe(0.05);
+    expect(allocations.filter((item) => item.amount === 0.01)).toHaveLength(5);
+  });
+
   it("rejects policies that do not total 100 percent", () => {
     expect(() => calculateCommissionAllocations(100, policy.slice(1), [
       { user_id: "u1", contribution_type: "qualifier" },
