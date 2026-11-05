@@ -19,7 +19,6 @@ export async function convertProspectToCustomer(formData: FormData) {
   revalidatePath("/prospects");
   revalidatePath("/clients");
   revalidatePath("/commissions");
-  return data as string;
 }
 
 const prospectSchema = z.object({
