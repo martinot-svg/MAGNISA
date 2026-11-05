@@ -61,7 +61,7 @@ export default async function CommissionsPage() {
           <div className="field"><label>Description</label><input name="description" /></div>
           <div className="grid grid-3">
             <div className="field"><label>Base financière</label><select name="calculation_basis" required defaultValue="order_total"><option value="order_total">Montant total d'une commande</option><option value="invoice_paid_amount">Montant encaissé d'une facture</option><option value="fixed_amount">Montant fixe défini par la politique</option></select></div>
-            <div className="field"><label>Taux de prime (%)</label><input name="commission_rate" type="number" min="0.0001" max="100" step="0.0001" defaultValue="100" required /></div>
+            <div className="field"><label>Taux de prime (%)</label><input name="commission_rate" type="number" min="0.0001" max="100" step="0.0001" placeholder="Définir le taux contractuel" required /></div>
             <div className="field"><label>Montant fixe de base</label><input name="fixed_basis_amount" type="number" min="0.01" step="0.01" placeholder="Uniquement pour base fixe" /></div>
             <div className="field"><label>Devise</label><input name="currency" defaultValue="MGA" pattern="[A-Z]{3}" required /></div>
             <div className="field"><label>Applicable à partir du</label><input name="effective_from" type="date" required /></div>
