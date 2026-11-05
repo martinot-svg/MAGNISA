@@ -65,7 +65,8 @@ export default async function FiscalYears({ searchParams }: { searchParams: Prom
   if (selected) {
     const [{ data: balance, error: balanceError }, { data: result, error: resultError }, { data: accounts, error: accountsError }] = await Promise.all([
       supabase.from("pcg2005_journal_lines").select("pcg_code,debit,credit")
-        .eq("organization_id", organizationId).eq("status", "posted").lte("entry_date", selected.period_end)
+        .eq("organization_id", organizationId).eq("status", "posted")
+        .gte("entry_date", selected.period_start).lte("entry_date", selected.period_end)
         .gte("pcg_code", "1").lt("pcg_code", "6"),
       supabase.from("pcg2005_journal_lines").select("pcg_code,debit,credit")
         .eq("organization_id", organizationId).eq("status", "posted").neq("source_type", "fiscal_year_closing")
