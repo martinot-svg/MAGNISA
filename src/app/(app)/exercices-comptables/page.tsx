@@ -96,7 +96,6 @@ export default async function FiscalYears({ searchParams }: { searchParams: Prom
   const totalAssets = balanceRows.filter((r) => accountKinds.get(r.code) === "asset").reduce((n, r) => n + r.balance, 0);
   const totalEquityLiabilities = balanceRows.filter((r) => ["liability", "equity"].includes(accountKinds.get(r.code) || "")).reduce((n, r) => n - r.balance, 0);
   const profit = resultRows.reduce((n, r) => n - r.balance, 0);
-  const isFirstYear = (years as any[]).length === 0;
   return <>
     <div className="pageHead">
       <div><h1>Exercices comptables</h1><p>Ouverture, report des soldes, résultat et clôture selon le PCG 2005 de Madagascar.</p></div>
