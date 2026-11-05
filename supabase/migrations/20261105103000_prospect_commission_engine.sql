@@ -107,7 +107,8 @@ create table public.commission_payments (
   request_key uuid not null,
   created_at timestamptz not null default now(),
   foreign key (allocation_id, organization_id) references public.commission_allocations(id, organization_id),
-  unique(organization_id, request_key)
+  unique(organization_id, request_key),
+  unique(organization_id, allocation_id, payment_reference)
 );
 
 create unique index commission_calculations_source_unique
@@ -382,9 +383,11 @@ begin
     (share_percentage / v_share_total * 100 / role_count),final_amount
   from adjusted where final_amount > 0;
 
+  perform public.audit_event(p_org,'commission.calculated','commission_calculations',v_calculation,null,
+    jsonb_build_object('prospect_id',p_prospect,'basis_amount',v_basis,'commission_total',v_total,'currency',v_policy.currency));
   return v_calculation;
 end;
-$$;
+$;
 
 create or replace function public.review_prospect_commission(
   p_org uuid,p_calculation uuid,p_decision text,p_reason text default null
@@ -407,8 +410,10 @@ begin
       rejection_reason=case when p_decision='reject' then trim(p_reason) else null end
   where id=p_calculation and organization_id=p_org and status='calculated';
   if not found then raise exception 'Prime introuvable ou déjà traitée.'; end if;
+  perform public.audit_event(p_org,'commission.reviewed','commission_calculations',p_calculation,null,
+    jsonb_build_object('decision',p_decision,'reason',p_reason));
 end;
-$$;
+$;
 
 create or replace function public.record_commission_payment(
   p_org uuid,p_allocation uuid,p_amount numeric,p_paid_at date,p_reference text,p_request_key uuid
@@ -446,9 +451,11 @@ begin
   insert into public.commission_payments(organization_id,allocation_id,amount,paid_at,payment_reference,recorded_by,request_key)
   values(p_org,p_allocation,p_amount,p_paid_at,trim(p_reference),auth.uid(),p_request_key)
   returning id into v_payment;
+  perform public.audit_event(p_org,'commission.payment_recorded','commission_payments',v_payment,null,
+    jsonb_build_object('allocation_id',p_allocation,'amount',p_amount,'paid_at',p_paid_at,'reference',trim(p_reference)));
   return v_payment;
 end;
-$$;
+$;
 
 
 create or replace function public.create_prospect_with_originator(
@@ -472,6 +479,7 @@ begin
   insert into public.prospect_contributors(
     organization_id,prospect_id,user_id,contribution_type,created_by
   ) values(p_org,v_prospect,auth.uid(),'originator',auth.uid());
+  perform public.audit_event(p_org,'prospect.created','prospects',v_prospect,null,jsonb_build_object('name',trim(p_name),'source',p_source));
   return v_prospect;
 end;
 $;
@@ -504,7 +512,7 @@ begin
     where organization_id=p_org and is_active and (
       (coalesce(trim(v_prospect.email),'')<>'' and lower(trim(coalesce(email,'')))=lower(trim(v_prospect.email)))
       or (coalesce(trim(v_prospect.phone),'')<>'' and
-          regexp_replace(coalesce(phone,''),'[^0-9]','','g')=regexp_replace(v_prospect.phone,'[^0-9]','','g'))
+          regexp_replace(coalesce(phone,''),'[^0-9]','','g')=nullif(regexp_replace(v_prospect.phone,'[^0-9]','','g'),''))
     )
     limit 1;
     if v_existing_customer is not null then
@@ -519,6 +527,9 @@ begin
   update public.prospects
   set status='won',converted_customer_id=v_customer,updated_at=now()
   where id=p_prospect and organization_id=p_org;
+  perform public.audit_event(p_org,'prospect.converted','prospects',p_prospect,
+    jsonb_build_object('status',v_prospect.status,'converted_customer_id',v_prospect.converted_customer_id),
+    jsonb_build_object('status','won','converted_customer_id',v_customer));
 
   return v_customer;
 end;
@@ -596,9 +607,11 @@ begin
   insert into public.commission_policy_rules(organization_id,policy_id,contribution_type,share_percentage)
   select p_org,v_policy,x->>'contribution_type',(x->>'share_percentage')::numeric
   from jsonb_array_elements(p_rules) x;
+  perform public.audit_event(p_org,'commission_policy.saved','commission_policies',v_policy,null,
+    jsonb_build_object('name',trim(p_name),'basis',p_basis,'rate',p_rate,'active',p_active,'rules',p_rules));
   return v_policy;
 end;
-$$;
+$;
 
 revoke all on function public.convert_prospect_to_customer(uuid,uuid) from public, anon;
 revoke all on function public.create_prospect_with_originator(uuid,text,text,text,text,text) from public, anon;
