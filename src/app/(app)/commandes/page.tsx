@@ -1,19 +1,9 @@
 import { requirePermission, hasPermission } from "@/lib/permissions";
-import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { money } from "@/lib/money";
 import { EmptyState } from "@/components/empty-state";
-import { cancelOrderAction, createRecurringServiceContractAction } from "@/server/actions/commercial";
+import { cancelOrderAction, createRecurringServiceContractAction, quoteToOrderAction } from "@/server/actions/commercial";
 import Link from "next/link";
-
-async function quoteToOrder(fd: FormData) {
-  "use server";
-  const { supabase, organizationId } = await requireOrganization();
-  const id = String(fd.get("quote_id") || "");
-  const { error } = await supabase.rpc("convert_quote_to_order", { p_org: organizationId, p_quote: id });
-  if (error) throw new Error(error.message);
-  revalidatePath("/commandes");
-}
 
 export default async function Orders() {
   const ctx = await requireOrganization();
@@ -32,7 +22,7 @@ export default async function Orders() {
   const activeRecurringLines = new Set((recurringLines || []).map((r: any) => r.order_line_id));
   return <>
     <div className="pageHead"><div><p className="eyebrow">Engagement commercial</p><h1>Commandes</h1><p>Une commande conserve le lien entre le devis accepté, l'exécution de la prestation et la facture.</p></div><Link className="button" href="/prestations-recurrentes">Prestations récurrentes</Link></div>
-    {quotes.length > 0 && <div className="card"><h2>Devis acceptés à transformer</h2><div className="tableWrap"><table><thead><tr><th>Devis</th><th>Client</th><th>Total</th><th></th></tr></thead><tbody>{quotes.map((q: any) => <tr key={q.id}><td>{q.number}</td><td>{q.customers?.name}</td><td>{money(Number(q.total), c)}</td><td className="right"><form action={quoteToOrder}><input type="hidden" name="quote_id" value={q.id}/><button className="button primary">Créer la commande</button></form></td></tr>)}</tbody></table></div></div>}
+    {quotes.length > 0 && <div className="card"><h2>Devis acceptés à transformer</h2><div className="tableWrap"><table><thead><tr><th>Devis</th><th>Client</th><th>Total</th><th></th></tr></thead><tbody>{quotes.map((q: any) => <tr key={q.id}><td>{q.number}</td><td>{q.customers?.name}</td><td>{money(Number(q.total), c)}</td><td className="right"><form action={quoteToOrderAction}><input type="hidden" name="quote_id" value={q.id}/><button className="button primary">Créer la commande</button></form></td></tr>)}</tbody></table></div></div>}
     <div className="section">{orders.length === 0 ? <EmptyState title="Aucune commande" description="Accepte un devis puis transforme-le en commande sans ressaisir les lignes."/> : <div className="tableWrap"><table><thead><tr><th>Commande</th><th>Client</th><th>Date</th><th>Statut</th><th>Total</th><th>Actions</th></tr></thead><tbody>{orders.map((o: any) => {
       const activeInvoice = o.invoices?.find((i: any) => i.status !== "cancelled");
       const cancellable = ["draft", "confirmed", "in_progress"].includes(o.status);
