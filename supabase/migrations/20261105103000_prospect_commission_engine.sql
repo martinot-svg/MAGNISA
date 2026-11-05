@@ -148,6 +148,9 @@ begin
   limit 1;
   if found then return coalesce(v_override,false); end if;
 
+  if p_permission = 'prospects.convert' then
+    return v_role in ('admin','director','finance_manager','accountant','sales','cashier','hr','employee');
+  end if;
   if p_permission = 'commissions.policy.manage' then
     return v_role in ('admin','finance_manager');
   end if;
@@ -299,7 +302,7 @@ begin
 
   select * into v_prospect from public.prospects
   where id=p_prospect and organization_id=p_org for update;
-  if not found or v_prospect.converted_customer_id is null or v_prospect.status <> 'converted' then
+  if not found or v_prospect.converted_customer_id is null or v_prospect.status <> 'won' then
     raise exception 'Le prospect doit être converti en client avant le calcul de la prime.';
   end if;
 
@@ -472,6 +475,54 @@ begin
 end;
 $;
 
+create or replace function public.convert_prospect_to_customer(
+  p_org uuid,p_prospect uuid
+) returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+  v_prospect public.prospects%rowtype;
+  v_existing_customer uuid;
+  v_customer uuid;
+begin
+  if auth.uid() is null or not public.has_org_permission(p_org,'prospects.convert') then
+    raise exception 'Tu n''as pas l''autorisation de convertir ce prospect.';
+  end if;
+  select * into v_prospect from public.prospects
+  where id=p_prospect and organization_id=p_org for update;
+  if not found then raise exception 'Prospect introuvable.'; end if;
+  if v_prospect.converted_customer_id is not null then
+    return v_prospect.converted_customer_id;
+  end if;
+  if v_prospect.status='lost' then raise exception 'Un prospect perdu ne peut pas être converti.'; end if;
+
+  if coalesce(trim(v_prospect.email),'')<>'' or coalesce(trim(v_prospect.phone),'')<>'' then
+    select id into v_existing_customer from public.customers
+    where organization_id=p_org and is_active and (
+      (coalesce(trim(v_prospect.email),'')<>'' and lower(trim(coalesce(email,'')))=lower(trim(v_prospect.email)))
+      or (coalesce(trim(v_prospect.phone),'')<>'' and
+          regexp_replace(coalesce(phone,''),'[^0-9]','','g')=regexp_replace(v_prospect.phone,'[^0-9]','','g'))
+    )
+    limit 1;
+    if v_existing_customer is not null then
+      raise exception 'Un client actif possède déjà cet e-mail ou ce numéro. Vérifie le doublon avant conversion.';
+    end if;
+  end if;
+
+  insert into public.customers(organization_id,name,email,phone,notes)
+  values(p_org,trim(v_prospect.name),v_prospect.email,v_prospect.phone,v_prospect.notes)
+  returning id into v_customer;
+
+  update public.prospects
+  set status='won',converted_customer_id=v_customer,updated_at=now()
+  where id=p_prospect and organization_id=p_org;
+
+  return v_customer;
+end;
+$;
+
 create or replace function public.save_commission_policy(
   p_org uuid,p_policy uuid,p_name text,p_description text,p_active boolean,
   p_effective_from date,p_effective_until date,p_basis text,p_rate numeric,
@@ -548,11 +599,13 @@ begin
 end;
 $$;
 
+revoke all on function public.convert_prospect_to_customer(uuid,uuid) from public, anon;
 revoke all on function public.create_prospect_with_originator(uuid,text,text,text,text,text) from public, anon;
 revoke all on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,jsonb) from public, anon;
 revoke all on function public.calculate_prospect_commission(uuid,uuid,uuid,text,uuid,uuid) from public, anon;
 revoke all on function public.review_prospect_commission(uuid,uuid,text,text) from public, anon;
 revoke all on function public.record_commission_payment(uuid,uuid,numeric,date,text,uuid) from public, anon;
+grant execute on function public.convert_prospect_to_customer(uuid,uuid) to authenticated;
 grant execute on function public.create_prospect_with_originator(uuid,text,text,text,text,text) to authenticated;
 grant execute on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,jsonb) to authenticated;
 grant execute on function public.calculate_prospect_commission(uuid,uuid,uuid,text,uuid,uuid) to authenticated;
