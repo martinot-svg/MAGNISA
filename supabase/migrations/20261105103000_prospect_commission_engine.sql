@@ -65,7 +65,7 @@ create table public.commission_calculations (
   commission_total numeric(18,2) not null check (commission_total > 0),
   currency text not null,
   policy_snapshot jsonb not null,
-  status text not null default 'calculated' check (status in ('calculated','approved','rejected')),
+  status text not null default 'calculated' check (status in ('calculated','approved','partially_paid','paid','rejected')),
   calculated_by uuid not null references auth.users(id),
   calculated_at timestamptz not null default now(),
   approved_by uuid references auth.users(id),
@@ -79,7 +79,7 @@ create table public.commission_calculations (
   foreign key (policy_id, organization_id) references public.commission_policies(id, organization_id),
   check ((source_document_type is null) = (source_document_id is null)),
   check ((status = 'calculated' and approved_by is null and approved_at is null and rejection_reason is null)
-      or (status = 'approved' and approved_by is not null and approved_at is not null and rejection_reason is null)
+      or (status in ('approved','partially_paid','paid') and approved_by is not null and approved_at is not null and rejection_reason is null)
       or (status = 'rejected' and approved_by is not null and approved_at is not null and length(trim(coalesce(rejection_reason,''))) > 0))
 );
 
@@ -495,14 +495,28 @@ begin
   where a.id=p_allocation and a.organization_id=p_org for update;
   if not found then raise exception 'Attribution introuvable.'; end if;
   select status into v_calculation_status from public.commission_calculations
-  where id=v_allocation.calculation_id and organization_id=p_org;
-  if v_calculation_status <> 'approved' then raise exception 'Seules les primes validées par finance peuvent être payées.'; end if;
+  where id=v_allocation.calculation_id and organization_id=p_org for update;
+  if v_calculation_status not in ('approved','partially_paid') then
+    raise exception 'Seules les primes validées et non intégralement payées peuvent être payées.';
+  end if;
   select coalesce(sum(amount),0) into v_paid from public.commission_payments
   where allocation_id=p_allocation and organization_id=p_org;
   if p_amount > v_allocation.amount-v_paid then raise exception 'Le paiement dépasse le solde de la prime.'; end if;
   insert into public.commission_payments(organization_id,allocation_id,amount,paid_at,payment_reference,recorded_by,request_key)
   values(p_org,p_allocation,p_amount,p_paid_at,trim(p_reference),auth.uid(),p_request_key)
   returning id into v_payment;
+  update public.commission_calculations c
+  set status=case when (
+    select bool_and(coalesce(paid.total_paid,0)>=a.amount)
+    from public.commission_allocations a
+    left join lateral (
+      select sum(cp.amount) as total_paid
+      from public.commission_payments cp
+      where cp.organization_id=p_org and cp.allocation_id=a.id
+    ) paid on true
+    where a.organization_id=p_org and a.calculation_id=v_allocation.calculation_id
+  ) then 'paid' else 'partially_paid' end
+  where c.id=v_allocation.calculation_id and c.organization_id=p_org;
   perform public.audit_event(p_org,'commission.payment_recorded','commission_payments',v_payment,null,
     jsonb_build_object('allocation_id',p_allocation,'amount',p_amount,'paid_at',p_paid_at,'reference',trim(p_reference)));
   return v_payment;
