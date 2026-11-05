@@ -12,7 +12,7 @@ create table public.commission_policies (
   effective_from date not null default current_date,
   effective_until date,
   calculation_basis text not null check (calculation_basis in ('order_total','invoice_paid_amount','fixed_amount')),
-  commission_rate numeric(9,4) not null default 100 check (commission_rate > 0 and commission_rate <= 100),
+  commission_rate numeric(9,4) not null check (commission_rate > 0 and commission_rate <= 100),
   fixed_basis_amount numeric(18,2),
   currency text not null default 'MGA',
   created_by uuid not null references auth.users(id),
