@@ -180,14 +180,20 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   };
   const noteValues=(year.notes||{}) as Record<string,string>;
   const notesReady=Object.keys(noteLabels).every(k=>String(noteValues[k]||"").trim().length>0);
-  // The current ledger does not yet contain validated cash-flow line-item mappings,\n  // a bridge to pre-tax profit, or current/non-current maturity classifications.\n  // Never label these statements as finalized until those PCG controls exist.\n  const operatingCashFlowReconciliationReady=false;\n  const pcgPresentationReady=false;\n  const ready=isFiscalStatementReady({isClosed:year.status==="closed",unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,balanceDifference,notesReady,operatingCashFlowReconciliationReady,pcgPresentationReady});
+  // The current ledger does not yet contain validated cash-flow line-item mappings,
+  // a bridge to pre-tax profit, or current/non-current maturity classifications.
+  // Never label these statements as finalized until those PCG controls exist.
+  const operatingCashFlowReconciliationReady=false;
+  const pcgPresentationReady=false;
+  const ready=isFiscalStatementReady({isClosed:year.status==="closed",unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,balanceDifference,notesReady,operatingCashFlowReconciliationReady,pcgPresentationReady});
   const notes=[
     "Référentiel comptable : Plan Comptable Général 2005 de Madagascar.",
     "Devise de présentation : "+(org?.currency||"MGA")+".",
     "Période : "+year.period_start+" au "+year.period_end+".",
     "Base de préparation : écritures comptables validées et imputées au PCG.",
     ...Object.entries(noteLabels).map(([k,label])=>label+" : "+(String(noteValues[k]||"").trim()||"À renseigner avant arrêté définitif.")),
-    "Le tableau des flux présente uniquement les mouvements bruts dont la contrepartie est unique. Le rapprochement du flux opérationnel avec le résultat avant impôt, requis par le PCG 2005 article 250-3, reste à construire et empêche l’arrêté définitif.",\n    "La ventilation courante/non courante des postes du bilan n’est pas encore documentée par échéance. La présentation réglementaire complète du bilan et du compte de résultat reste à valider et empêche l’arrêté définitif."
+    "Le tableau des flux présente uniquement les mouvements bruts dont la contrepartie est unique. Le rapprochement du flux opérationnel avec le résultat avant impôt, requis par le PCG 2005 article 250-3, reste à construire et empêche l’arrêté définitif.",
+    "La ventilation courante/non courante des postes du bilan n’est pas encore documentée par échéance. La présentation réglementaire complète du bilan et du compte de résultat reste à valider et empêche l’arrêté définitif."
   ];
   return {organization:{...org,...settings},year,currency:org?.currency||"MGA",accounts:accounts||[],
     assets,liabilities,equity,expenses,income,equityChanges,cashFlows,
