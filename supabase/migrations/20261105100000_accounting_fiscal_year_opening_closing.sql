@@ -168,3 +168,48 @@ COMMENT ON TABLE public.accounting_fiscal_years IS
   'Exercices comptables MAGNISA. Le premier exercice reçoit des soldes initiaux équilibrés; les suivants reprennent automatiquement les comptes PCG 1 à 5 du dernier exercice clôturé.';
 COMMENT ON FUNCTION public.magnisa_close_fiscal_year(uuid,uuid) IS
   'Clôture contrôlée après contrôle de la partie double et des imputations. Les pièces sources ne sont jamais supprimées.';
+
+
+-- Les écritures PCG explicites (notamment les a-nouveaux) doivent être relues
+-- comme comptes PCG, sans dépendre d'une correspondance de compte métier.
+CREATE OR REPLACE VIEW public.pcg2005_journal_lines
+WITH (security_invoker=true) AS
+SELECT
+  jl.organization_id, je.id AS journal_entry_id, je.entry_date,
+  je.reference, je.status, je.source_type, jl.id AS line_id, jl.account_key, jl.account_label,
+  jl.debit, jl.credit, jl.customer_id, jl.financial_account_id,
+  COALESCE(m.pcg_code,
+    CASE
+      WHEN jl.account_key LIKE 'PCG:%' THEN substring(jl.account_key FROM 5)
+      WHEN jl.account_key='AR' THEN '411'
+      WHEN jl.account_key='AP' THEN '401'
+      WHEN jl.account_key='SALES_REVENUE' THEN '706'
+      WHEN jl.account_key LIKE 'TAX_PAYABLE%' THEN '445'
+      WHEN jl.account_key='PAYROLL_PAYABLE' THEN '421'
+      WHEN jl.account_key='EMPLOYEE_ADVANCE_RECEIVABLE' THEN '425'
+      WHEN jl.account_key='SOCIAL_PAYABLE' THEN '431'
+      WHEN jl.account_key='HEALTH_PAYABLE' THEN '431'
+      WHEN jl.account_key='OTHER_PAYROLL_PAYABLE' THEN '421'
+      WHEN jl.account_key LIKE 'PAYROLL_EXPENSE:%' THEN '641'
+      WHEN jl.account_key LIKE 'TREASURY:%' AND fa.type='bank' THEN '512'
+      WHEN jl.account_key LIKE 'TREASURY:%' AND fa.type='cash' THEN '53'
+      WHEN jl.account_key LIKE 'TREASURY:%' AND fa.type='mobile_money' THEN '517'
+      WHEN jl.account_key LIKE 'TREASURY:%' AND fa.type='cheque_clearing' THEN '511'
+      ELSE NULL
+    END
+  ) AS pcg_code,
+  CASE WHEN m.pcg_code IS NOT NULL THEN 'manuel'
+       WHEN jl.account_key LIKE 'PCG:%'
+        OR jl.account_key IN ('AR','AP','SALES_REVENUE','PAYROLL_PAYABLE','EMPLOYEE_ADVANCE_RECEIVABLE','SOCIAL_PAYABLE','HEALTH_PAYABLE','OTHER_PAYROLL_PAYABLE')
+        OR jl.account_key LIKE 'TAX_PAYABLE%' OR jl.account_key LIKE 'PAYROLL_EXPENSE:%'
+        OR (jl.account_key LIKE 'TREASURY:%' AND fa.type IS NOT NULL)
+        THEN 'automatique'
+       ELSE 'a_mapper'
+  END AS mapping_status
+FROM public.journal_entry_lines jl
+JOIN public.journal_entries je ON je.id=jl.journal_entry_id AND je.organization_id=jl.organization_id
+LEFT JOIN public.financial_accounts fa ON fa.id=jl.financial_account_id AND fa.organization_id=jl.organization_id
+LEFT JOIN public.pcg2005_account_mappings m
+ ON m.organization_id=jl.organization_id AND m.legacy_account_key=jl.account_key;
+REVOKE ALL ON public.pcg2005_journal_lines FROM anon;
+GRANT SELECT ON public.pcg2005_journal_lines TO authenticated;
