@@ -27,7 +27,15 @@ export type Permission =
   | "suppliers.view"
   | "reports.view"
   | "sales.view"
-  | "billing.view";
+  | "billing.view"
+  | "commissions.contribute"
+  | "commissions.view_own"
+  | "commissions.view_team"
+  | "commissions.policy.manage"
+  | "commissions.calculate"
+  | "commissions.approve"
+  | "commissions.pay"
+  | "commissions.audit";
 
 const defaults: Record<string, Set<Permission>> = {
   owner: new Set<Permission>([
@@ -72,7 +80,7 @@ const defaults: Record<string, Set<Permission>> = {
   auditor: new Set<Permission>([
     "reports.export","audit.view","accounting.view","reports.view","billing.view"
   ]),
-  employee: new Set<Permission>(),
+  employee: new Set<Permission>(["commissions.contribute","commissions.view_own","commissions.calculate"]),
   viewer: new Set<Permission>()
 };
 
