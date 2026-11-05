@@ -61,6 +61,7 @@ export default async function FiscalYears({ searchParams }: { searchParams: Prom
   let balanceRows: any[] = [];
   let resultRows: any[] = [];
   let labels = new Map<string, string>();
+  let accountKinds = new Map<string, string>();
   if (selected) {
     const [{ data: balance, error: balanceError }, { data: result, error: resultError }, { data: accounts, error: accountsError }] = await Promise.all([
       supabase.from("pcg2005_journal_lines").select("pcg_code,debit,credit")
@@ -88,14 +89,12 @@ export default async function FiscalYears({ searchParams }: { searchParams: Prom
     balanceRows = aggregate(balance || []);
     resultRows = aggregate(result || []);
     labels = new Map((accounts || []).map((a: any) => [a.code, a.label]));
-    const kinds = new Map((accounts || []).map((a: any) => [a.code, a.kind]));
-    (globalThis as any).__magnisa_unused_kinds = kinds;
+    accountKinds = new Map((accounts || []).map((a: any) => [a.code, a.kind]));
   }
   const currency = org?.currency || "MGA";
-  const accountKinds = new Map<string, string>();
-  // Le type PCG détermine le sens normal du compte, notamment pour les tiers et les comptes de trésorerie créditeurs.
-  const totalAssets = balanceRows.filter((r) => /^[2-5]/.test(r.code)).reduce((n, r) => n + r.balance, 0);
-  const totalEquityLiabilities = balanceRows.filter((r) => /^1/.test(r.code)).reduce((n, r) => n - r.balance, 0);
+  // Le type du compte détermine son sens normal, y compris les dettes fournisseurs et les découverts.
+  const totalAssets = balanceRows.filter((r) => accountKinds.get(r.code) === "asset").reduce((n, r) => n + r.balance, 0);
+  const totalEquityLiabilities = balanceRows.filter((r) => ["liability", "equity"].includes(accountKinds.get(r.code) || "")).reduce((n, r) => n - r.balance, 0);
   const profit = resultRows.reduce((n, r) => n - r.balance, 0);
   const isFirstYear = (years as any[]).length === 0;
   return <>
@@ -135,7 +134,7 @@ export default async function FiscalYears({ searchParams }: { searchParams: Prom
     {selected && <>
       <section className="grid3">
         <div className="card"><div className="muted">Total actif (comptes 2 à 5)</div><div className="metric">{money(totalAssets, currency)}</div></div>
-        <div className="card"><div className="muted">Capitaux propres (classe 1)</div><div className="metric">{money(totalEquityLiabilities, currency)}</div></div>
+        <div className="card"><div className="muted">Capitaux propres et passifs</div><div className="metric">{money(totalEquityLiabilities, currency)}</div></div>
         <div className="card"><div className="muted">Résultat de l'exercice</div><div className="metric">{money(profit, currency)}</div></div>
       </section>
       <section className="section">
@@ -144,7 +143,7 @@ export default async function FiscalYears({ searchParams }: { searchParams: Prom
         <div className="tableWrap"><table><thead><tr><th>Compte PCG</th><th>Intitulé</th><th className="right">Solde débiteur</th><th className="right">Solde créditeur</th></tr></thead>
           <tbody>{balanceRows.map((r) => <tr key={r.code}><td>{r.code}</td><td>{labels.get(r.code) || "Compte PCG"}</td><td className="right">{money(Math.max(r.balance,0),currency)}</td><td className="right">{money(Math.max(-r.balance,0),currency)}</td></tr>)}</tbody>
         </table></div>
-        <p><strong>Actif : {money(totalAssets,currency)} | Capitaux propres (classe 1) : {money(totalEquityLiabilities,currency)} | Écart avec résultat non clôturé : {money(totalAssets-totalEquityLiabilities-profit,currency)}</strong></p>
+        <p><strong>Actif : {money(totalAssets,currency)} | Capitaux propres et passifs : {money(totalEquityLiabilities,currency)} | Écart avec résultat non clôturé : {money(totalAssets-totalEquityLiabilities-profit,currency)}</strong></p>
       </section>
       <section className="section">
         <h2>Compte de résultat</h2>
