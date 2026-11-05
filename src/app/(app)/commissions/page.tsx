@@ -18,23 +18,26 @@ const roleLabels: Record<string, string> = {
 
 export default async function CommissionsPage() {
   const ctx = await requireOrganization();
-  const [canOwn, canTeam, canManagePolicy, canCalculate, canApprove, canPay] = await Promise.all([
+  const [canOwn, canTeam, canManagePolicy, canCalculate, canApprove, canPay, canContribute] = await Promise.all([
     hasPermission(ctx, "commissions.view_own"),
     hasPermission(ctx, "commissions.view_team"),
     hasPermission(ctx, "commissions.policy.manage"),
     hasPermission(ctx, "commissions.calculate"),
     hasPermission(ctx, "commissions.approve"),
     hasPermission(ctx, "commissions.pay"),
+    hasPermission(ctx, "commissions.contribute"),
   ]);
   if (!canOwn && !canTeam && !canManagePolicy) redirect("/dashboard?access=denied");
 
-  const [{ data: policies = [] }, { data: calculations = [] }] = await Promise.all([
+  const [{ data: policies = [] }, { data: calculations = [] }, { data: prospects = [] }] = await Promise.all([
     ctx.supabase.from("commission_policies")
       .select("id,name,is_active,calculation_basis,commission_rate,fixed_basis_amount,currency,effective_from,effective_until,commission_policy_rules(contribution_type,share_percentage)")
       .eq("organization_id", ctx.organizationId).order("created_at", { ascending: false }),
     ctx.supabase.from("commission_calculations")
       .select("id,prospect_id,customer_id,basis_amount,commission_total,currency,status,calculated_at,policy_snapshot,commission_allocations(id,user_id,contribution_type,share_percentage,amount,commission_payments(id,amount,paid_at,payment_reference))")
       .eq("organization_id", ctx.organizationId).order("calculated_at", { ascending: false }).limit(100),
+    ctx.supabase.from("prospects").select("id,name,status,converted_customer_id")
+      .eq("organization_id", ctx.organizationId).order("created_at", { ascending: false }),
   ]);
   const pending = calculations.filter((item: any) => item.status === "calculated");
   const approved = calculations.filter((item: any) => item.status === "approved");
@@ -82,22 +85,22 @@ export default async function CommissionsPage() {
         </tbody></table></div>
       </div>}
 
-      <div className="section">
+      {canContribute && <div className="section">
         <h2>Déclarer une contribution</h2>
         <p className="muted">Tout membre actif autorisé peut déclarer sa propre contribution. Cette déclaration ne crée pas automatiquement une prime.</p>
         <form action={addProspectContributor} className="form card">
-          <div className="field"><label>Identifiant du prospect</label><input name="prospect_id" placeholder="UUID du prospect" required /></div>
+          <div className="field"><label>Prospect</label><select name="prospect_id" required defaultValue=""><option value="" disabled>Choisir un prospect</option>{prospects.map((prospect: any) => <option key={prospect.id} value={prospect.id}>{prospect.name} · {prospect.status}</option>)}</select></div>
           <div className="field"><label>Rôle joué</label><select name="contribution_type" required><option value="originator">Apporteur</option><option value="qualifier">Qualificateur</option><option value="negotiator">Négociateur</option><option value="closer">Convertisseur</option></select></div>
           <div className="field"><label>Précision sur la contribution</label><textarea name="notes" rows={2} maxLength={1000} /></div>
           <button className="button">Enregistrer ma contribution</button>
         </form>
-      </div>
+      </div>}
 
       {canCalculate && <div className="section">
         <h2>Calculer une prime</h2>
         <p className="muted">Le calcul est autorisé uniquement après conversion du prospect. La base est lue dans la commande, la facture ou la politique fixe, jamais acceptée comme un montant libre saisi.</p>
         <form action={calculateProspectCommission} className="form card">
-          <div className="field"><label>Identifiant du prospect converti</label><input name="prospect_id" required /></div>
+          <div className="field"><label>Prospect converti</label><select name="prospect_id" required defaultValue=""><option value="" disabled>Choisir un prospect converti</option>{prospects.filter((prospect: any) => prospect.converted_customer_id).map((prospect: any) => <option key={prospect.id} value={prospect.id}>{prospect.name}</option>)}</select></div>
           <div className="field"><label>Politique</label><select name="policy_id" required defaultValue=""><option value="" disabled>Choisir une politique</option>{policies.filter((p: any) => p.is_active).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
           <div className="field"><label>Type de pièce source (selon la politique)</label><select name="source_document_type" defaultValue=""><option value="">Aucune, base fixe</option><option value="order">Commande</option><option value="invoice">Facture</option></select></div>
           <div className="field"><label>Identifiant de la pièce source</label><input name="source_document_id" placeholder="UUID commande ou facture" /></div>
