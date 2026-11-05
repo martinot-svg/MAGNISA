@@ -89,6 +89,10 @@ export async function assertPermission(
   ctx: { supabase: any; organizationId: string; role: string },
   permission: Permission
 ) {
+  if (permission === "commissions.approve" || permission === "commissions.pay") {
+    if (ctx.role === "owner" || ctx.role === "finance_manager" || ctx.role === "accountant") return;
+    throw new Error("Cette opération est réservée à la fonction finance.");
+  }
   if (ctx.role === "owner") return;
 
   const { data, error } = await ctx.supabase
@@ -108,6 +112,9 @@ export async function hasPermission(
   ctx: { supabase: any; organizationId: string; role: string },
   permission: Permission
 ) {
+  if (permission === "commissions.approve" || permission === "commissions.pay") {
+    return ctx.role === "owner" || ctx.role === "finance_manager" || ctx.role === "accountant";
+  }
   if (ctx.role === "owner") return true;
   const { data, error } = await ctx.supabase
     .from("role_permissions")
