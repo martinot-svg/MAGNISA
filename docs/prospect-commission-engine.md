@@ -10,8 +10,8 @@
 
 ## Bases financières disponibles dans une politique
 
-1. `order_total` : total d'une commande rattachée au client issu du prospect.
-2. `invoice_paid_amount` : montant encaissé d'une facture rattachée au client. Le calcul n'est autorisé que lorsque la facture est intégralement réglée.
+1. `order_total` : total d'une commande émise ou payée, rattachée au client issu du prospect. Les brouillons sont exclus.
+2. `invoice_paid_amount` : montant encaissé d'une facture au statut payé et intégralement réglée, rattachée au client.
 3. `fixed_amount` : montant de base fixé dans la politique.
 
 Le taux de prime de la politique s'applique à la base vérifiée par PostgreSQL. Le montant de base n'est jamais fourni librement par le navigateur.
