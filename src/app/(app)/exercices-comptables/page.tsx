@@ -143,7 +143,7 @@ export default async function FiscalYears({ searchParams }: { searchParams: Prom
         <div className="tableWrap"><table><thead><tr><th>Compte PCG</th><th>Intitulé</th><th className="right">Solde débiteur</th><th className="right">Solde créditeur</th></tr></thead>
           <tbody>{balanceRows.map((r) => <tr key={r.code}><td>{r.code}</td><td>{labels.get(r.code) || "Compte PCG"}</td><td className="right">{money(Math.max(r.balance,0),currency)}</td><td className="right">{money(Math.max(-r.balance,0),currency)}</td></tr>)}</tbody>
         </table></div>
-        <p><strong>Actif : {money(totalAssets,currency)} | Capitaux propres et passifs : {money(totalEquityLiabilities,currency)} | Écart avec résultat non clôturé : {money(totalAssets-totalEquityLiabilities-profit,currency)}</strong></p>
+        <p><strong>Actif : {money(totalAssets,currency)} | Capitaux propres et passifs : {money(totalEquityLiabilities,currency)} | Écart de bilan : {money(totalAssets-totalEquityLiabilities-(selected.status === "closed" ? 0 : profit),currency)}</strong></p>
       </section>
       <section className="section">
         <h2>Compte de résultat</h2>
