@@ -3,7 +3,7 @@ import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
 import { EmptyState } from "@/components/empty-state";
 import { FormDialog } from "@/components/form-dialog";
-import { addProspectContributor, createProspectWithOriginator } from "@/server/actions/commissions";
+import { addProspectContributor, convertProspectToCustomer, createProspectWithOriginator } from "@/server/actions/commissions";
 
 const contributionLabels: Record<string, string> = {
   originator: "Apporteur",
@@ -14,9 +14,10 @@ const contributionLabels: Record<string, string> = {
 
 export default async function Prospects() {
   const ctx = await requireOrganization();
-  const [canViewSales, canContribute] = await Promise.all([
+  const [canViewSales, canContribute, canConvert] = await Promise.all([
     hasPermission(ctx, "sales.view"),
     hasPermission(ctx, "commissions.contribute"),
+    hasPermission(ctx, "prospects.convert"),
   ]);
   if (!canViewSales && !canContribute) redirect("/dashboard?access=denied");
 
@@ -47,7 +48,7 @@ export default async function Prospects() {
       <div className="section">
         {!data.length ? <EmptyState title="Aucun prospect" description="Ajoute un prospect réel. Tu seras automatiquement enregistré comme apporteur." /> : (
           <div className="tableWrap">
-            <table><thead><tr><th>Prospect</th><th>Statut</th><th>Coordonnées</th><th>Source</th><th>Contribution</th></tr></thead>
+            <table><thead><tr><th>Prospect</th><th>Statut</th><th>Coordonnées</th><th>Source</th><th>Contribution</th><th>Conversion</th></tr></thead>
               <tbody>{data.map((item: any) => <tr key={item.id}>
                 <td><strong>{item.name}</strong><div className="muted">{item.id}</div></td>
                 <td><span className="badge">{item.status}</span></td>
@@ -59,6 +60,10 @@ export default async function Prospects() {
                     {Object.entries(contributionLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                   </select>
                   <button className="button small">Déclarer</button>
+                </form> : "—"}</td>
+                <td>{item.converted_customer_id ? <span className="badge">Client créé</span> : canConvert && item.status !== "lost" ? <form action={convertProspectToCustomer}>
+                  <input type="hidden" name="prospect_id" value={item.id} />
+                  <button className="button small">Marquer gagné et convertir</button>
                 </form> : "—"}</td>
               </tr>)}</tbody>
             </table>
