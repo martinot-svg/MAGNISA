@@ -324,7 +324,7 @@ begin
     if p_source_document_type <> 'invoice' or p_source_document_id is null then raise exception 'Facture source obligatoire.'; end if;
     select paid_amount into v_basis from public.invoices
       where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id
-        and status <> 'cancelled';
+        and status <> 'cancelled' and balance_due <= 0 and paid_amount > 0;
   end if;
   if coalesce(v_basis,0) <= 0 then raise exception 'La base financière vérifiée est nulle ou introuvable.'; end if;
 
@@ -334,8 +334,8 @@ begin
         where organization_id=p_org and prospect_id=p_prospect) c
   left join public.commission_policy_rules r
     on r.policy_id=v_policy.id and r.organization_id=p_org and r.contribution_type=c.contribution_type;
-  if v_roles=0 or v_rules<>v_roles or v_share_total<>100 then
-    raise exception 'Les rôles contributeurs doivent être couverts par la politique et totaliser exactement 100 %.';
+  if v_roles=0 or v_rules<>v_roles or v_share_total<=0 then
+    raise exception 'Chaque rôle contributeur doit être couvert par la politique avec un pourcentage positif.';
   end if;
 
   v_total := round(v_basis * v_policy.commission_rate / 100, 2);
@@ -367,7 +367,7 @@ begin
       and r.organization_id=p_org and r.contribution_type=c.contribution_type
     where c.organization_id=p_org and c.prospect_id=p_prospect
   ), split as (
-    select *, round((v_total * share_percentage / role_count) / 1.0,2) as preliminary
+    select *, round((v_total * share_percentage / v_share_total / role_count),2) as preliminary
     from contributors
   ), adjusted as (
     select *, case when rn=total_rows
@@ -378,7 +378,8 @@ begin
   insert into public.commission_allocations(
     organization_id,calculation_id,user_id,contribution_type,share_percentage,amount
   )
-  select p_org,v_calculation,user_id,contribution_type,share_percentage/role_count,final_amount
+  select p_org,v_calculation,user_id,contribution_type,
+    (share_percentage / v_share_total * 100 / role_count),final_amount
   from adjusted where final_amount > 0;
 
   return v_calculation;
