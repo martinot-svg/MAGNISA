@@ -56,7 +56,10 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   const enabled = new Map(rows.map((r: any) => [r.feature_key, r.enabled]));
   const visible = FEATURE_CATALOG.filter((feature) => {
     const featureEnabled =
-      feature.required || feature.key === "settings" || enabled.get(feature.key) !== false;
+      feature.required ||
+      feature.key === "settings" ||
+      (feature.key === "prospects" && permissions.has("commissions.contribute")) ||
+      enabled.get(feature.key) !== false;
     if (!featureEnabled) return false;
 
     if (feature.key === "prospects") {
