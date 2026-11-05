@@ -62,14 +62,11 @@ export async function saveCommissionPolicy(formData: FormData) {
   if (v.calculation_basis !== "fixed_amount" && v.fixed_basis_amount !== undefined && v.fixed_basis_amount !== "") {
     throw new Error("Le montant fixe ne s'applique qu'à une politique à base fixe.");
   }
-  const rules = ([
-    ["originator", v.originator],
-    ["qualifier", v.qualifier],
-    ["negotiator", v.negotiator],
-    ["closer", v.closer],
-  ] as const)
-    .filter((item): item is readonly [string, number] => typeof item[1] === "number")
-    .map(([contribution_type, share_percentage]) => ({ contribution_type, share_percentage }));
+  const rules: { contribution_type: string; share_percentage: number }[] = [];
+  if (typeof v.originator === "number") rules.push({ contribution_type: "originator", share_percentage: v.originator });
+  if (typeof v.qualifier === "number") rules.push({ contribution_type: "qualifier", share_percentage: v.qualifier });
+  if (typeof v.negotiator === "number") rules.push({ contribution_type: "negotiator", share_percentage: v.negotiator });
+  if (typeof v.closer === "number") rules.push({ contribution_type: "closer", share_percentage: v.closer });
   const total = rules.reduce((sum, rule) => sum + rule.share_percentage, 0);
   if (!rules.length || Math.round(total * 100) !== 10000) {
     throw new Error("Les pourcentages de répartition doivent totaliser exactement 100 %.");
@@ -105,8 +102,8 @@ export async function calculateProspectCommission(formData: FormData) {
   const parsed = calculateSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Paramètres de calcul invalides.");
   const v = parsed.data;
-  if ((v.source_document_type === "order") !== !!v.source_document_id && v.source_document_type) {
-    throw new Error("La pièce source sélectionnée est incomplète.");
+  if (!!v.source_document_type !== !!v.source_document_id) {
+    throw new Error("Le type et l'identifiant de la pièce source doivent être renseignés ensemble.");
   }
   const { error } = await ctx.supabase.rpc("calculate_prospect_commission", {
     p_org: ctx.organizationId,
