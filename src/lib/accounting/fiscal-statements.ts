@@ -10,7 +10,7 @@ export type FiscalStatements = {
   cashFlows: {label:string;amount:number}[];
   openingCash:number; closingCash:number; profit:number;
   totals: {assets:number;liabilities:number;equity:number;balanceDifference:number};
-  controls: {unmapped:number;unbalancedEntries:number;isClosed:boolean;ready:boolean};
+  controls: {unmapped:number;unbalancedEntries:number;isClosed:boolean;notesReady:boolean;ready:boolean};
   notes: string[];
 };
 
@@ -101,20 +101,33 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     .gte("entry_date",year.period_start).lte("entry_date",year.period_end);
   if(integrityError)throw new Error(integrityError.message);
   const unbalancedEntries=(integrity||[]).filter((x:any)=>x.integrity_status!=="equilibree").length;
-  const ready=year.status==="closed"&&unmapped===0&&unbalancedEntries===0&&Math.abs(balanceDifference)<0.01;
+  const noteLabels:Record<string,string>={
+    accounting_policies:"Règles et méthodes comptables",
+    valuation_methods:"Méthodes d'évaluation et estimations",
+    fixed_assets:"Immobilisations, amortissements et dépréciations",
+    inventories:"Stocks et en-cours",
+    receivables_payables:"Échéances des créances et dettes",
+    commitments:"Engagements hors bilan",
+    contingencies:"Passifs éventuels et litiges",
+    related_parties:"Parties liées et opérations avec dirigeants",
+    subsequent_events:"Événements postérieurs à la clôture",
+  };
+  const noteValues=(year.notes||{}) as Record<string,string>;
+  const notesReady=Object.keys(noteLabels).every(k=>String(noteValues[k]||"").trim().length>0);
+  const ready=year.status==="closed"&&unmapped===0&&unbalancedEntries===0&&Math.abs(balanceDifference)<0.01&&notesReady;
   const notes=[
     "Référentiel comptable : Plan Comptable Général 2005 de Madagascar.",
     "Devise de présentation : "+(org?.currency||"MGA")+".",
     "Période : "+year.period_start+" au "+year.period_end+".",
     "Base de préparation : écritures comptables validées et imputées au PCG.",
-    "Les méthodes d'évaluation détaillées, les engagements hors bilan, les échéances des créances et dettes, les éventualités et les informations complémentaires sur les immobilisations et stocks doivent être renseignés et validés par la direction.",
+    ...Object.entries(noteLabels).map(([k,label])=>label+" : "+(String(noteValues[k]||"").trim()||"À renseigner avant arrêté définitif.")),
     "Le tableau des flux classe les mouvements de trésorerie à partir des comptes de contrepartie PCG ; les opérations multi-comptes sont ventilées au prorata des montants des contreparties.",
   ];
   return {organization:{...org,...settings},year,currency:org?.currency||"MGA",accounts:accounts||[],
     assets,liabilities,equity,expenses,income,equityChanges,cashFlows,
     openingCash:round(openingCash),closingCash:round(closingCash),profit,
     totals:{assets:totalAssets,liabilities:totalLiabilities,equity:totalEquity,balanceDifference},
-    controls:{unmapped,unbalancedEntries,isClosed:year.status==="closed",ready},notes};
+    controls:{unmapped,unbalancedEntries,isClosed:year.status==="closed",notesReady,ready},notes};
 }
 
 export async function getFiscalStatementContext(yearId:string){
