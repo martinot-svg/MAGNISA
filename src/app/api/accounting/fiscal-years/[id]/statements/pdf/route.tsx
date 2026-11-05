@@ -20,8 +20,8 @@ function money(v:number,c:string){return new Intl.NumberFormat("fr-FR",{style:"c
 function Table({title,rows,currency}:{title:string;rows:any[];currency:string}){
  return <View>
   <Text style={styles.section}>{title}</Text>
-  <View style={[styles.row,styles.header]}><Text style={styles.cell}>Compte</Text><Text style={styles.cell}>Intitulé</Text><Text style={styles.right}>Débit</Text><Text style={styles.right}>Crédit</Text><Text style={styles.right}>Solde</Text></View>
-  {rows.map((r:any)=><View style={styles.row} key={r.code}><Text style={styles.cell}>{r.code}</Text><Text style={styles.cell}>{r.label}</Text><Text style={styles.right}>{money(r.debit||0,currency)}</Text><Text style={styles.right}>{money(r.credit||0,currency)}</Text><Text style={styles.right}>{money(r.balance||0,currency)}</Text></View>)}
+  <View style={[styles.row,styles.header]}><Text style={styles.cell}>Compte</Text><Text style={styles.cell}>Intitulé</Text><Text style={styles.right}>Débit</Text><Text style={styles.right}>Crédit</Text><Text style={styles.right}>Solde N</Text><Text style={styles.right}>Solde N-1</Text></View>
+  {rows.map((r:any)=><View style={styles.row} key={r.code}><Text style={styles.cell}>{r.code}</Text><Text style={styles.cell}>{r.label}</Text><Text style={styles.right}>{money(r.debit||0,currency)}</Text><Text style={styles.right}>{money(r.credit||0,currency)}</Text><Text style={styles.right}>{money(r.balance||0,currency)}</Text><Text style={styles.right}>{money(r.comparativeBalance||0,currency)}</Text></View>)}
   {!rows.length&&<Text style={styles.note}>Aucun mouvement comptabilisé sur cette rubrique.</Text>}
  </View>;
 }
@@ -35,7 +35,7 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
  const doc=<Document>
   <Page size="A4" style={styles.page} wrap>
    <Text style={styles.title}>{title}</Text>
-   <Text style={styles.subtitle}>États financiers annuels • PCG 2005 Madagascar • {s.year.label} • {s.year.period_start} au {s.year.period_end}</Text>
+   <Text style={styles.subtitle}>États financiers annuels • PCG 2005 Madagascar • {s.year.label} • {s.year.period_start} au {s.year.period_end} • Comparatif : {s.priorYearLabel||"Non disponible"}</Text>
    <Text style={styles.warning}>{s.controls.ready?"ÉTATS FINANCIERS ARRÊTÉS":"PROJET / NON VALIDÉ — "+(s.controls.isClosed?"Contrôles incomplets":"Exercice non clôturé")}</Text>
    <Text style={styles.section}>1. BILAN</Text>
    <Text>Actif : {money(s.totals.assets,s.currency)} • Passifs : {money(s.totals.liabilities,s.currency)} • Capitaux propres : {money(s.totals.equity,s.currency)}</Text>
@@ -55,7 +55,7 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
    <Text style={styles.section}>5. ANNEXE</Text>
    {s.notes.map((r,i)=><Text style={styles.note} key={i}>{i+1}. {r}</Text>)}
    <Text style={styles.section}>Contrôles de préparation</Text>
-   <Text style={styles.note}>Exercice clôturé : {s.controls.isClosed?"Oui":"Non"} • Comptes non imputés : {s.controls.unmapped} • Écritures déséquilibrées : {s.controls.unbalancedEntries} • Bilan équilibré : {Math.abs(s.totals.balanceDifference)<0.01?"Oui":"Non"}</Text>
+   <Text style={styles.note}>Exercice clôturé : {s.controls.isClosed?"Oui":"Non"} • Comptes non imputés : {s.controls.unmapped} • Écritures déséquilibrées : {s.controls.unbalancedEntries} • Flux non classés : {s.controls.unclassifiedCashFlowEntries} • Écart de trésorerie : {money(s.controls.cashFlowReconciliationDifference,s.currency)} • Bilan équilibré : {Math.abs(s.totals.balanceDifference)<0.01?"Oui":"Non"}</Text><Text style={styles.warning}>Rapprochement du flux opérationnel avec le résultat avant impôt : {s.controls.operatingCashFlowReconciliationReady?"Validé":"À construire"}. Présentation PCG complète : {s.controls.pcgPresentationReady?"Validée":"À compléter"}. Cet export demeure un document de travail.</Text>
    <Text style={styles.note}>Document généré par MAGNISA. L'arrêté des états financiers demeure sous la responsabilité des dirigeants et nécessite la validation des informations complémentaires de l'annexe.</Text>
   </Page>
  </Document>;
