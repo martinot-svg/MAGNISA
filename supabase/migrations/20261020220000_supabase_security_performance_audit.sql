@@ -25,14 +25,23 @@ revoke execute on function public.magnisa_record_transfer_debit(uuid, uuid, uuid
 -- This table is a shared legal-reference catalogue, not tenant data.
 -- Authenticated users may read catalogue entries; anonymous users and clients
 -- may not write or administer it. Writes remain available to trusted server roles.
-revoke all on table public.payroll_legal_documents from anon, authenticated;
-grant select on table public.payroll_legal_documents to authenticated;
-drop policy if exists payroll_legal_documents_authenticated_read on public.payroll_legal_documents;
-create policy payroll_legal_documents_authenticated_read
-  on public.payroll_legal_documents
-  for select
-  to authenticated
-  using (true);
+-- The legal catalogue is optional in installations that do not enable
+-- the payroll legal-document module. Apply its client permissions only when
+-- the relation has actually been provisioned.
+do $migration$
+begin
+  if to_regclass('public.payroll_legal_documents') is not null then
+    revoke all on table public.payroll_legal_documents from anon, authenticated;
+    grant select on table public.payroll_legal_documents to authenticated;
+    drop policy if exists payroll_legal_documents_authenticated_read on public.payroll_legal_documents;
+    create policy payroll_legal_documents_authenticated_read
+      on public.payroll_legal_documents
+      for select
+      to authenticated
+      using (true);
+  end if;
+end;
+$migration$;
 
 -- Index each public foreign-key column that lacks a suitable index.
 create index if not exists idx_document_template_versions_organization_id
