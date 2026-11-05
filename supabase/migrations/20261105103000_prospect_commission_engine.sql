@@ -122,6 +122,10 @@ security definer
 set search_path = public
 as $
 begin
+  perform 1 from public.prospects p
+  where p.id=new.prospect_id and p.organization_id=new.organization_id
+  for update;
+  if not found then raise exception 'Prospect introuvable pour cette organisation.'; end if;
   if exists (
     select 1 from public.commission_calculations c
     where c.organization_id=new.organization_id and c.prospect_id=new.prospect_id
