@@ -346,12 +346,13 @@ begin
   elsif v_policy.calculation_basis='order_total' then
     if p_source_document_type <> 'order' or p_source_document_id is null then raise exception 'Commande source obligatoire.'; end if;
     select total into v_basis from public.orders
-      where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id;
+      where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id
+        and status in ('issued','paid');
   elsif v_policy.calculation_basis='invoice_paid_amount' then
     if p_source_document_type <> 'invoice' or p_source_document_id is null then raise exception 'Facture source obligatoire.'; end if;
     select paid_amount into v_basis from public.invoices
       where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id
-        and status <> 'cancelled' and balance_due <= 0 and paid_amount > 0;
+        and status = 'paid' and balance_due <= 0 and paid_amount > 0;
   end if;
   if coalesce(v_basis,0) <= 0 then raise exception 'La base financière vérifiée est nulle ou introuvable.'; end if;
 
