@@ -28,6 +28,7 @@ export type Permission =
   | "reports.view"
   | "sales.view"
   | "billing.view"
+  | "prospects.convert"
   | "commissions.contribute"
   | "commissions.view_own"
   | "commissions.view_team"
@@ -43,39 +44,39 @@ const defaults: Record<string, Set<Permission>> = {
     "invoices.create","invoices.issue","invoices.cancel","payments.record","expenses.record",
     "treasury.transfer","suppliers.manage","payroll.manage","payroll.pay","accounting.manage",
     "reports.export","settings.manage","users.manage","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","sales.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.policy.manage","commissions.calculate","commissions.approve","commissions.pay","commissions.audit"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","sales.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.policy.manage","commissions.calculate","commissions.approve","commissions.pay","commissions.audit","prospects.convert"
   ]),
   admin: new Set<Permission>([
     "customers.create","services.create","quotes.create","quotes.edit","quotes.accept","orders.manage",
     "invoices.create","invoices.issue","invoices.cancel","payments.record","expenses.record",
     "treasury.transfer","suppliers.manage","payroll.manage","payroll.pay","accounting.manage",
     "reports.export","settings.manage","users.manage","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","sales.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.policy.manage","commissions.calculate","commissions.audit"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","sales.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.policy.manage","commissions.calculate","commissions.audit","prospects.convert"
   ]),
   director: new Set<Permission>([
     "customers.create","services.create","quotes.create","quotes.edit","quotes.accept","orders.manage",
     "invoices.create","invoices.issue","payments.record","expenses.record","treasury.transfer",
     "suppliers.manage","reports.export","audit.view",
-    "treasury.view","finance.view","accounting.view","suppliers.view","reports.view","sales.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.calculate"
+    "treasury.view","finance.view","accounting.view","suppliers.view","reports.view","sales.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.calculate","prospects.convert"
   ]),
   finance_manager: new Set<Permission>([
     "invoices.issue","invoices.cancel","payments.record","expenses.record","treasury.transfer",
     "suppliers.manage","payroll.pay","accounting.manage","reports.export","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.policy.manage","commissions.calculate","commissions.approve","commissions.pay","commissions.audit"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.policy.manage","commissions.calculate","commissions.approve","commissions.pay","commissions.audit","prospects.convert"
   ]),
   accountant: new Set<Permission>([
     "invoices.issue","payments.record","expenses.record","suppliers.manage","payroll.manage",
     "accounting.manage","reports.export","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.calculate","commissions.approve","commissions.pay","commissions.audit"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.calculate","commissions.approve","commissions.pay","commissions.audit","prospects.convert"
   ]),
   sales: new Set<Permission>([
-    "customers.create","services.create","quotes.create","quotes.edit","sales.view","billing.view","commissions.contribute","commissions.view_own","commissions.calculate"
+    "customers.create","services.create","quotes.create","quotes.edit","sales.view","billing.view","commissions.contribute","commissions.view_own","commissions.calculate","prospects.convert"
   ]),
   cashier: new Set<Permission>([
-    "payments.record","expenses.record","treasury.view","billing.view","commissions.contribute","commissions.view_own","commissions.calculate"
+    "payments.record","expenses.record","treasury.view","billing.view","commissions.contribute","commissions.view_own","commissions.calculate","prospects.convert"
   ]),
   hr: new Set<Permission>([
-    "payroll.manage","payroll.view","commissions.contribute","commissions.view_own","commissions.calculate"
+    "payroll.manage","payroll.view","commissions.contribute","commissions.view_own","commissions.calculate","prospects.convert"
   ]),
   auditor: new Set<Permission>([
     "reports.export","audit.view","accounting.view","reports.view","billing.view","commissions.view_team","commissions.audit"
