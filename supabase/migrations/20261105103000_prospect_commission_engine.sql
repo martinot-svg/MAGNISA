@@ -395,7 +395,7 @@ begin
       and r.organization_id=p_org and r.contribution_type=c.contribution_type
     where c.organization_id=p_org and c.prospect_id=p_prospect
   ), split as (
-    select *, round((v_total * share_percentage / v_share_total / role_count),2) as preliminary
+    select *, trunc((v_total * share_percentage / v_share_total / role_count),2) as preliminary
     from contributors
   ), adjusted as (
     select *, case when rn=total_rows
