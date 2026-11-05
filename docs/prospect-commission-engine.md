@@ -4,7 +4,7 @@
 
 - Base de calcul : chaque politique définit sa base financière et son taux de prime.
 - Répartition : pourcentage par rôle contributeur. Les règles configurées totalisent 100 %.
-- Validation : exclusivement par la fonction finance (finance_manager ou accountant ; le propriétaire conserve son privilège global).
+- Validation : exclusivement par les rôles finance_manager ou accountant. Le propriétaire ne peut pas approuver ni payer une prime s'il n'a pas l'un de ces rôles.
 - Paiement : enregistrement séparé, avec référence, date, possibilité de paiements partiels et contrôle du solde.
 - Conversion prospect-client : action explicite et atomique. Elle crée le client et marque le prospect gagné dans la même transaction.
 
