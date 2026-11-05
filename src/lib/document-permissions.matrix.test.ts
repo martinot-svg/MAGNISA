@@ -7,7 +7,7 @@ function db(roleAllowed:null|boolean,userAllowed:null|boolean){
  return {calls,from:(table:string)=>{
   calls.push(table);
   const value=table==="role_permissions"?roleAllowed:userAllowed;
-  const q:any={select:()=>q,eq:()=>q,maybeSingle:async (): Promise<any> => ({data:value===null?null:{allowed:value},error:null})};
+  const q:any={select:()=>q,eq:()=>q,maybeSingle:async()=>({data:value===null?null:{allowed:value},error:null})};
   return q;
  }};
 }
@@ -22,4 +22,15 @@ describe("ContrÃ´le documentaire : matrice exhaustive des rÃ´les existants",()=>
  }
  it("un refus individuel interdit toujours l'export, mÃªme au propriÃ©taire",async()=>{
   const supabase=db(null,false);
-  expect(await canDocumentAction({organizationId:"org_A",role:"owner",user:{id:"user_A"},supabase},¶»§q«^
+  expect(await canDocumentAction({organizationId:"org_A",role:"owner",user:{id:"user_A"},supabase},"documents.export","invoice")).toBe(false);
+ });
+ it("une exception positive n'accorde pas de droit interdit au rÃ´le",async()=>{
+  const supabase=db(null,true);
+  expect(await canDocumentAction({organizationId:"org_A",role:"viewer",user:{id:"user_A"},supabase},"documents.export","invoice")).toBe(false);
+ });
+ it("une exception positive n'ouvre jamais une famille de documents interdite",async()=>{
+  const supabase=db(true,true);
+  expect(await canDocumentAction({organizationId:"org_A",role:"accountant",user:{id:"user_A"},supabase},"documents.export","payslip")).toBe(false);
+  expect(supabase.calls).toEqual([]);
+ });
+});
