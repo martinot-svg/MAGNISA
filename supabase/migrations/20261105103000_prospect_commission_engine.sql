@@ -109,6 +109,10 @@ create table public.commission_payments (
   unique(organization_id, request_key)
 );
 
+create unique index commission_calculations_source_unique
+  on public.commission_calculations(organization_id, prospect_id, policy_id,
+    coalesce(source_document_type,''), coalesce(source_document_id,'00000000-0000-0000-0000-000000000000'::uuid));
+
 create index prospect_contributors_prospect_idx on public.prospect_contributors(organization_id, prospect_id);
 create index prospect_contributors_user_idx on public.prospect_contributors(organization_id, user_id);
 create index commission_calculations_status_idx on public.commission_calculations(organization_id, status, calculated_at desc);
@@ -224,8 +228,7 @@ using (user_id=auth.uid() or public.has_org_permission(organization_id,'commissi
     or public.has_org_permission(organization_id,'commissions.audit'));
 create policy prospect_contributors_insert on public.prospect_contributors for insert to authenticated
 with check (user_id=auth.uid() and created_by=auth.uid()
-    and public.has_org_permission(organization_id,'commissions.contribute')
-    and exists(select 1 from public.prospects p where p.id=prospect_id and p.organization_id=prospect_contributors.organization_id));
+    and public.has_org_permission(organization_id,'commissions.contribute'));
 
 create policy commission_calculations_select on public.commission_calculations for select to authenticated
 using (public.has_org_permission(organization_id,'commissions.view_team')
@@ -415,6 +418,7 @@ begin
   if auth.uid() is null or not public.has_org_permission(p_org,'commissions.pay') then
     raise exception 'Enregistrement réservé à la fonction finance.';
   end if;
+  if p_request_key is null then raise exception 'Clé d idempotence obligatoire.'; end if;
   select id into v_payment from public.commission_payments
   where organization_id=p_org and request_key=p_request_key;
   if v_payment is not null then return v_payment; end if;
