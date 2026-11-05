@@ -180,7 +180,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   };
   const noteValues=(year.notes||{}) as Record<string,string>;
   const notesReady=Object.keys(noteLabels).every(k=>String(noteValues[k]||"").trim().length>0);
-  // The current ledger does not yet contain validated cash-flow line-item mappings,\n  // a bridge to pre-tax profit, or current/non-current maturity classifications.\n  // Never label these statements as finalized until those PCG controls exist.\n  const operatingCashFlowReconciliationReady=false;\n  const pcgPresentationReady=false;\n  const ready=year.status==="closed"&&unmapped===0&&unbalancedEntries===0&&unclassifiedCashFlowEntries===0&&Math.abs(cashFlowReconciliationDifference)<0.01&&Math.abs(balanceDifference)<0.01&&notesReady&&operatingCashFlowReconciliationReady&&pcgPresentationReady;
+  // The current ledger does not yet contain validated cash-flow line-item mappings,\n  // a bridge to pre-tax profit, or current/non-current maturity classifications.\n  // Never label these statements as finalized until those PCG controls exist.\n  const operatingCashFlowReconciliationReady=false;\n  const pcgPresentationReady=false;\n  const ready=isFiscalStatementReady({isClosed:year.status==="closed",unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,balanceDifference,notesReady,operatingCashFlowReconciliationReady,pcgPresentationReady});
   const notes=[
     "Référentiel comptable : Plan Comptable Général 2005 de Madagascar.",
     "Devise de présentation : "+(org?.currency||"MGA")+".",
