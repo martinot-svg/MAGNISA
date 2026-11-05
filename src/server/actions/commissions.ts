@@ -6,6 +6,32 @@ import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
 
+const prospectSchema = z.object({
+  name: z.string().trim().min(2).max(180),
+  email: z.string().trim().email().optional().or(z.literal("")),
+  phone: z.string().trim().max(80).optional(),
+  source: z.string().trim().max(120).optional(),
+  notes: z.string().trim().max(1000).optional(),
+});
+
+export async function createProspectWithOriginator(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "commissions.contribute");
+  const parsed = prospectSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Vérifie les informations du prospect.");
+  const { error } = await ctx.supabase.rpc("create_prospect_with_originator", {
+    p_org: ctx.organizationId,
+    p_name: parsed.data.name,
+    p_email: parsed.data.email || null,
+    p_phone: parsed.data.phone || null,
+    p_source: parsed.data.source || null,
+    p_notes: parsed.data.notes || null,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/prospects");
+  revalidatePath("/commissions");
+}
+
 const contributionSchema = z.object({
   prospect_id: z.string().uuid(),
   contribution_type: z.enum(["originator", "qualifier", "negotiator", "closer"]),
