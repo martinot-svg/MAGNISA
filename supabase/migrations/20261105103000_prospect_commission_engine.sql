@@ -120,7 +120,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 begin
   perform 1 from public.prospects p
   where p.id=new.prospect_id and p.organization_id=new.organization_id
@@ -134,7 +134,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 create trigger prospect_contribution_freeze_after_calculation
 before insert on public.prospect_contributors
