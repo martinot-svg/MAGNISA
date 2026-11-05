@@ -29,7 +29,7 @@ Le taux de prime de la politique s'applique à la base vérifiée par PostgreSQL
 
 ## Cycle de vie
 
-`Prospect créé` → `contributions déclarées` → `prospect gagné et client créé` → `prime calculée` → `validation finance` → `paiement(s)`
+`Prospect créé` → `contributions déclarées` → `prospect gagné et client créé` → `prime calculée` → `validation finance` → `partiellement payée` → `payée`
 
 Le calcul exige un prospect au statut `won` et un `converted_customer_id`. Une conversion est idempotente. Un doublon potentiel de client basé sur l'e-mail ou le téléphone bloque la conversion pour éviter de créer un deuxième client.
 
@@ -41,6 +41,7 @@ Le calcul exige un prospect au statut `won` et un `converted_customer_id`. Une c
 - Les fonctions d'approbation et de paiement ne sont exécutables que par les rôles finance autorisés.
 - Clés d'idempotence sur les calculs et paiements ; référence de paiement unique par allocation.
 - Snapshot immuable des paramètres de politique utilisés pour chaque calcul.
+- États distincts : calculée, validée à payer, partiellement payée, payée et rejetée.
 - Journalisation dans `audit_logs` des créations, conversions, calculs, validations, politiques et paiements.
 
 ## Limites volontairement séparées
