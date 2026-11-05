@@ -55,7 +55,7 @@ export default async function CommissionsPage() {
 
       {canManagePolicy && <div className="section">
         <h2>Politiques de primes</h2>
-        <p className="muted">La politique détermine la base financière, le taux de prime et les parts des contributeurs. Chaque calcul conserve une copie figée de la politique.</p>
+        <p className="muted">La politique détermine la base financière, le taux de prime et les parts des contributeurs. Chaque calcul conserve une copie figée de la politique. Les parts des rôles absents sont redistribuées proportionnellement entre les rôles représentés.</p>
         <form action={saveCommissionPolicy} className="form card">
           <div className="field"><label>Nom de la politique</label><input name="name" required minLength={2} /></div>
           <div className="field"><label>Description</label><input name="description" /></div>
@@ -90,7 +90,7 @@ export default async function CommissionsPage() {
         <p className="muted">Tout membre actif autorisé peut déclarer sa propre contribution. Cette déclaration ne crée pas automatiquement une prime.</p>
         <form action={addProspectContributor} className="form card">
           <div className="field"><label>Prospect</label><select name="prospect_id" required defaultValue=""><option value="" disabled>Choisir un prospect</option>{prospects.map((prospect: any) => <option key={prospect.id} value={prospect.id}>{prospect.name} · {prospect.status}</option>)}</select></div>
-          <div className="field"><label>Rôle joué</label><select name="contribution_type" required><option value="originator">Apporteur</option><option value="qualifier">Qualificateur</option><option value="negotiator">Négociateur</option><option value="closer">Convertisseur</option></select></div>
+          <div className="field"><label>Rôle joué</label><select name="contribution_type" required defaultValue="qualifier"><option value="originator">Apporteur</option><option value="qualifier">Qualificateur</option><option value="negotiator">Négociateur</option><option value="closer">Convertisseur</option></select></div>
           <div className="field"><label>Précision sur la contribution</label><textarea name="notes" rows={2} maxLength={1000} /></div>
           <button className="button">Enregistrer ma contribution</button>
         </form>
