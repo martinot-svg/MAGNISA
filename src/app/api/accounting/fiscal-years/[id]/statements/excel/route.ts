@@ -9,9 +9,9 @@ const num=(v:any)=>'<Cell><Data ss:Type="Number">'+(Number.isFinite(Number(v))?N
 const row=(cells:string[])=>'<Row>'+cells.join("")+'</Row>';
 const sheet=(name:string,rows:string[])=>'<Worksheet ss:Name="'+esc(name)+'"><Table>'+rows.join("")+'</Table></Worksheet>';
 function accountRows(title:string,items:any[]){
- return [row([str(title)]),row([str("Compte"),str("Intitulé"),str("Débit (MGA)"),str("Crédit (MGA)"),str("Solde")]),
- ...items.map(x=>row([str(x.code),str(x.label),num(x.debit),num(x.credit),num(x.balance)])),
- row([str("Total"),str(""),num(items.reduce((s,x)=>s+x.debit,0)),num(items.reduce((s,x)=>s+x.credit,0)),num(items.reduce((s,x)=>s+x.balance,0))])];
+ return [row([str(title)]),row([str("Compte"),str("Intitulé"),str("Débit N"),str("Crédit N"),str("Solde N"),str("Solde N-1")]),
+ ...items.map(x=>row([str(x.code),str(x.label),num(x.debit),num(x.credit),num(x.balance),num(x.comparativeBalance)])),
+ row([str("Total"),str(""),num(items.reduce((s,x)=>s+x.debit,0)),num(items.reduce((s,x)=>s+x.credit,0)),num(items.reduce((s,x)=>s+x.balance,0)),num(items.reduce((s,x)=>s+x.comparativeBalance,0))])];
 }
 export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
  const {id}=await params;const ctx=await requireOrganization();
@@ -35,12 +35,12 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
  ...s.equityChanges.map(x=>row([str(x.code),str(x.label),num(x.opening),num(x.increase),num(x.decrease),num(x.closing)]))];
  const cash=[row([str("TABLEAU DES FLUX DE TRÉSORERIE")]),row([str("Rubrique"),str("Montant")]),
  ...s.cashFlows.map(x=>row([str(x.label),num(x.amount)])),
- row([str("Trésorerie d'ouverture"),num(s.openingCash)]),row([str("Trésorerie de clôture"),num(s.closingCash)])];
+ row([str("Trésorerie d'ouverture"),num(s.openingCash)]),row([str("Trésorerie de clôture"),num(s.closingCash)]),row([str("Écart de rapprochement"),num(s.controls.cashFlowReconciliationDifference)])];
  const notes=[row([str("ANNEXE AUX ÉTATS FINANCIERS")]),...s.notes.map((x,i)=>row([str("Note "+(i+1)),str(x)]))];
  const controls=[row([str("CONTRÔLES")]),row([str("Exercice clôturé"),str(s.controls.isClosed?"Oui":"Non")]),
- row([str("Comptes non imputés"),num(s.controls.unmapped)]),row([str("Écritures déséquilibrées"),num(s.controls.unbalancedEntries)]),
+ row([str("Comptes non imputés"),num(s.controls.unmapped)]),row([str("Écritures déséquilibrées"),num(s.controls.unbalancedEntries)]),row([str("Écritures de trésorerie non classées"),num(s.controls.unclassifiedCashFlowEntries)]),row([str("Écart de rapprochement de trésorerie"),num(s.controls.cashFlowReconciliationDifference)]),
  row([str("Bilan équilibré"),str(Math.abs(s.totals.balanceDifference)<0.01?"Oui":"Non")]),
- row([str("Annexe renseignée"),str(s.controls.notesReady?"Oui":"Non")]),
+ row([str("Annexe renseignée"),str(s.controls.notesReady?"Oui":"Non")]),row([str("Rapprochement flux opérationnel / résultat avant impôt"),str(s.controls.operatingCashFlowReconciliationReady?"Validé":"À construire")]),row([str("Présentation PCG complète"),str(s.controls.pcgPresentationReady?"Validée":"À compléter")]),
  row([str("Prêt à être arrêté"),str(s.controls.ready?"Oui":"Non")]),
  row([str("Statut"),str(s.controls.ready?"États financiers arrêtés":"PROJET / NON VALIDÉ")])];
  const xml='<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>'+
