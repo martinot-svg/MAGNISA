@@ -93,7 +93,8 @@ create table public.commission_allocations (
   amount numeric(18,2) not null check (amount > 0),
   created_at timestamptz not null default now(),
   foreign key (calculation_id, organization_id) references public.commission_calculations(id, organization_id) on delete cascade,
-  unique(calculation_id, user_id, contribution_type)
+  unique(calculation_id, user_id, contribution_type),
+  unique(id, organization_id)
 );
 
 create table public.commission_payments (
