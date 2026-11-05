@@ -350,6 +350,12 @@ begin
   end if;
   if coalesce(v_basis,0) <= 0 then raise exception 'La base financière vérifiée est nulle ou introuvable.'; end if;
 
+  select id into v_calculation from public.commission_calculations
+  where organization_id=p_org and prospect_id=p_prospect and policy_id=p_policy
+    and source_document_type is not distinct from p_source_document_type
+    and source_document_id is not distinct from p_source_document_id;
+  if v_calculation is not null then return v_calculation; end if;
+
   select count(distinct c.contribution_type), count(distinct r.contribution_type), coalesce(sum(r.share_percentage),0)
     into v_roles, v_rules, v_share_total
   from (select distinct contribution_type from public.prospect_contributors
@@ -464,6 +470,15 @@ begin
   if v_payment is not null then return v_payment; end if;
   if p_amount is null or p_amount<=0 or p_paid_at is null or length(trim(coalesce(p_reference,'')))<2 then
     raise exception 'Données de paiement invalides.';
+  end if;
+  select id into v_payment from public.commission_payments
+  where organization_id=p_org and allocation_id=p_allocation and payment_reference=trim(p_reference);
+  if v_payment is not null then
+    if exists(select 1 from public.commission_payments
+      where id=v_payment and amount=p_amount and paid_at=p_paid_at) then
+      return v_payment;
+    end if;
+    raise exception 'Cette référence de paiement existe déjà avec un autre montant ou une autre date.';
   end if;
   select a.* into v_allocation
   from public.commission_allocations a
