@@ -115,6 +115,27 @@ create unique index commission_calculations_source_unique
   on public.commission_calculations(organization_id, prospect_id, policy_id,
     coalesce(source_document_type,''), coalesce(source_document_id,'00000000-0000-0000-0000-000000000000'::uuid));
 
+create or replace function public.prevent_late_prospect_contribution()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $
+begin
+  if exists (
+    select 1 from public.commission_calculations c
+    where c.organization_id=new.organization_id and c.prospect_id=new.prospect_id
+  ) then
+    raise exception 'Les contributions sont verrouillées dès le premier calcul de prime.';
+  end if;
+  return new;
+end;
+$;
+
+create trigger prospect_contribution_freeze_after_calculation
+before insert on public.prospect_contributors
+for each row execute function public.prevent_late_prospect_contribution();
+
 create index prospect_contributors_prospect_idx on public.prospect_contributors(organization_id, prospect_id);
 create index prospect_contributors_user_idx on public.prospect_contributors(organization_id, user_id);
 create index commission_calculations_status_idx on public.commission_calculations(organization_id, status, calculated_at desc);
@@ -404,6 +425,12 @@ begin
   if p_decision='reject' and length(trim(coalesce(p_reason,'')))<3 then
     raise exception 'Un motif de rejet détaillé est obligatoire.';
   end if;
+  if exists (
+    select 1 from public.commission_allocations a
+    where a.calculation_id=p_calculation and a.organization_id=p_org and a.user_id=auth.uid()
+  ) then
+    raise exception 'Un bénéficiaire ne peut pas valider sa propre prime.';
+  end if;
   update public.commission_calculations
   set status=case when p_decision='approve' then 'approved' else 'rejected' end,
       approved_by=auth.uid(),approved_at=now(),
@@ -613,6 +640,7 @@ begin
 end;
 $$;
 
+revoke all on function public.prevent_late_prospect_contribution() from public, anon, authenticated;
 revoke all on function public.convert_prospect_to_customer(uuid,uuid) from public, anon;
 revoke all on function public.create_prospect_with_originator(uuid,text,text,text,text,text) from public, anon;
 revoke all on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,jsonb) from public, anon;
