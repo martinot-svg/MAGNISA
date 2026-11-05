@@ -224,6 +224,9 @@ with check (public.has_org_permission(organization_id,'commissions.policy.manage
 create policy commission_policy_rules_delete on public.commission_policy_rules for delete to authenticated
 using (public.has_org_permission(organization_id,'commissions.policy.manage'));
 
+create policy prospects_commissions_select on public.prospects for select to authenticated
+using (public.has_org_permission(organization_id,'commissions.contribute'));
+
 create policy prospect_contributors_select on public.prospect_contributors for select to authenticated
 using (user_id=auth.uid() or public.has_org_permission(organization_id,'commissions.view_team')
     or public.has_org_permission(organization_id,'commissions.audit'));
@@ -444,6 +447,31 @@ end;
 $$;
 
 
+create or replace function public.create_prospect_with_originator(
+  p_org uuid,p_name text,p_email text default null,p_phone text default null,
+  p_source text default null,p_notes text default null
+) returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+  v_prospect uuid;
+begin
+  if auth.uid() is null or not public.has_org_permission(p_org,'commissions.contribute') then
+    raise exception 'Tu n''as pas le droit de créer un prospect.';
+  end if;
+  if length(trim(coalesce(p_name,'')))<2 then raise exception 'Le nom du prospect est obligatoire.'; end if;
+  insert into public.prospects(organization_id,name,email,phone,source,status,notes)
+  values(p_org,trim(p_name),nullif(trim(coalesce(p_email,'')),''),nullif(trim(coalesce(p_phone,'')),''),
+    nullif(trim(coalesce(p_source,'')),''),'new',nullif(trim(coalesce(p_notes,'')),'')) returning id into v_prospect;
+  insert into public.prospect_contributors(
+    organization_id,prospect_id,user_id,contribution_type,created_by
+  ) values(p_org,v_prospect,auth.uid(),'originator',auth.uid());
+  return v_prospect;
+end;
+$;
+
 create or replace function public.save_commission_policy(
   p_org uuid,p_policy uuid,p_name text,p_description text,p_active boolean,
   p_effective_from date,p_effective_until date,p_basis text,p_rate numeric,
@@ -520,10 +548,12 @@ begin
 end;
 $$;
 
+revoke all on function public.create_prospect_with_originator(uuid,text,text,text,text,text) from public, anon;
 revoke all on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,jsonb) from public, anon;
 revoke all on function public.calculate_prospect_commission(uuid,uuid,uuid,text,uuid,uuid) from public, anon;
 revoke all on function public.review_prospect_commission(uuid,uuid,text,text) from public, anon;
 revoke all on function public.record_commission_payment(uuid,uuid,numeric,date,text,uuid) from public, anon;
+grant execute on function public.create_prospect_with_originator(uuid,text,text,text,text,text) to authenticated;
 grant execute on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,jsonb) to authenticated;
 grant execute on function public.calculate_prospect_commission(uuid,uuid,uuid,text,uuid,uuid) to authenticated;
 grant execute on function public.review_prospect_commission(uuid,uuid,text,text) to authenticated;
