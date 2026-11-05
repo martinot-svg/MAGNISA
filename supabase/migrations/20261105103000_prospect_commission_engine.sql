@@ -177,6 +177,7 @@ begin
   if p_permission = 'prospects.convert' then
     return v_role in ('admin','director','finance_manager','accountant','sales','cashier','hr','employee');
   end if;
+
   if p_permission = 'commissions.policy.manage' then
     return v_role in ('admin','finance_manager');
   end if;
