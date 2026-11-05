@@ -93,6 +93,9 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             );
           })}
+          {(permissions.has("commissions.view_own") || permissions.has("commissions.view_team") || permissions.has("commissions.policy.manage")) && (
+            <div><Link href="/commissions">Primes et commissions</Link></div>
+          )}
           <div>
             <Link href="/notifications">Notifications</Link>
           </div>
