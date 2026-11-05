@@ -18,6 +18,7 @@ export interface CommissionAllocation {
 }
 
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+const floorMoney = (value: number) => Math.floor((value + Number.EPSILON) * 100) / 100;
 
 export function calculateCommissionAllocations(
   commissionTotal: number,
@@ -61,7 +62,7 @@ export function calculateCommissionAllocations(
     const share = (roleShare / representedShare) * 100 / roleCount;
     const amount = index === ordered.length - 1
       ? roundMoney(commissionTotal - allocated)
-      : roundMoney((commissionTotal * roleShare) / representedShare / roleCount);
+      : floorMoney((commissionTotal * roleShare) / representedShare / roleCount);
     allocated = roundMoney(allocated + amount);
     return {
       user_id: contributor.user_id,
