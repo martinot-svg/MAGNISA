@@ -388,27 +388,32 @@ begin
   with contributors as (
     select c.user_id,c.contribution_type,r.share_percentage,
       count(*) over(partition by c.contribution_type) as role_count,
-      row_number() over(order by c.contribution_type,c.user_id,c.id) as rn,
-      count(*) over() as total_rows
+      (v_total * r.share_percentage / v_share_total /
+        count(*) over(partition by c.contribution_type)) as raw_amount,
+      c.id
     from public.prospect_contributors c
     join public.commission_policy_rules r on r.policy_id=v_policy.id
       and r.organization_id=p_org and r.contribution_type=c.contribution_type
     where c.organization_id=p_org and c.prospect_id=p_prospect
-  ), split as (
-    select *, trunc((v_total * share_percentage / v_share_total / role_count),2) as preliminary
+  ), base as (
+    select *,trunc(raw_amount,2) as base_amount,
+      row_number() over(
+        order by (raw_amount-trunc(raw_amount,2)) desc,contribution_type,user_id,id
+      ) as remainder_rank,
+      sum(trunc(raw_amount,2)) over() as base_total
     from contributors
   ), adjusted as (
-    select *, case when rn=total_rows
-      then v_total - coalesce(sum(preliminary) over(order by rn rows between unbounded preceding and 1 preceding),0)
-      else preliminary end as final_amount
-    from split
+    select *,round((v_total-base_total)*100)::integer as remainder_cents
+    from base
   )
   insert into public.commission_allocations(
     organization_id,calculation_id,user_id,contribution_type,share_percentage,amount
   )
   select p_org,v_calculation,user_id,contribution_type,
-    (share_percentage / v_share_total * 100 / role_count),final_amount
-  from adjusted where final_amount > 0;
+    (share_percentage / v_share_total * 100 / role_count),
+    base_amount + case when remainder_rank <= remainder_cents then 0.01 else 0 end
+  from adjusted
+  where base_amount + case when remainder_rank <= remainder_cents then 0.01 else 0 end > 0;
 
   perform public.audit_event(p_org,'commission.calculated','commission_calculations',v_calculation,null,
     jsonb_build_object('prospect_id',p_prospect,'basis_amount',v_basis,'commission_total',v_total,'currency',v_policy.currency));
