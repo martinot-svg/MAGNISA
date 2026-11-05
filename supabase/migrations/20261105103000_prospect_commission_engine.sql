@@ -554,6 +554,17 @@ begin
   end if;
   if v_prospect.status='lost' then raise exception 'Un prospect perdu ne peut pas être converti.'; end if;
 
+  if nullif(trim(v_prospect.email),'') is not null then
+    perform pg_advisory_xact_lock(hashtextextended(
+      p_org::text || ':customer-email:' || lower(trim(v_prospect.email)),0
+    ));
+  end if;
+  if nullif(regexp_replace(coalesce(v_prospect.phone,''),'[^0-9]','','g'),'') is not null then
+    perform pg_advisory_xact_lock(hashtextextended(
+      p_org::text || ':customer-phone:' || regexp_replace(v_prospect.phone,'[^0-9]','','g'),0
+    ));
+  end if;
+
   if coalesce(trim(v_prospect.email),'')<>'' or coalesce(trim(v_prospect.phone),'')<>'' then
     select id into v_existing_customer from public.customers
     where organization_id=p_org and is_active and (
