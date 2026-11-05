@@ -305,3 +305,41 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.magnisa_close_fiscal_year(uuid,uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.magnisa_close_fiscal_year(uuid,uuid) TO authenticated;
+
+
+-- Annexe annuelle : informations qualitatives obligatoires à documenter avant arrêté.
+ALTER TABLE public.accounting_fiscal_years
+  ADD COLUMN IF NOT EXISTS notes jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE OR REPLACE FUNCTION public.magnisa_update_fiscal_year_notes(
+  p_org uuid,p_year uuid,p_notes jsonb
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE v_year public.accounting_fiscal_years%rowtype;
+BEGIN
+  PERFORM public.assert_org_access(p_org);
+  PERFORM public.assert_org_permission(p_org,'accounting.manage');
+  IF jsonb_typeof(p_notes)<>'object' OR octet_length(p_notes::text)>30000 THEN
+    RAISE EXCEPTION 'Annexe comptable invalide ou trop volumineuse';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM (VALUES
+      ('accounting_policies'),('valuation_methods'),('fixed_assets'),
+      ('inventories'),('receivables_payables'),('commitments'),
+      ('contingencies'),('related_parties'),('subsequent_events')
+    ) required(key)
+    WHERE length(trim(coalesce(p_notes->>required.key,'')))>5000
+  ) THEN RAISE EXCEPTION 'Chaque rubrique de l’annexe est limitée à 5 000 caractères'; END IF;
+  SELECT * INTO v_year FROM public.accounting_fiscal_years
+  WHERE id=p_year AND organization_id=p_org FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Exercice comptable introuvable'; END IF;
+  UPDATE public.accounting_fiscal_years SET notes=p_notes WHERE id=p_year AND organization_id=p_org;
+  PERFORM public.audit_event(p_org,'accounting.fiscal_year.notes_updated','accounting_fiscal_year',p_year,
+    v_year.notes,p_notes);
+  RETURN p_year;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.magnisa_update_fiscal_year_notes(uuid,uuid,jsonb) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.magnisa_update_fiscal_year_notes(uuid,uuid,jsonb) TO authenticated;
+COMMENT ON COLUMN public.accounting_fiscal_years.notes IS
+  'Annexe qualitative des états financiers PCG 2005, versionnée par audit_logs.';
