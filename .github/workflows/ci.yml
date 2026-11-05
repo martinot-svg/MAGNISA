@@ -2,9 +2,9 @@ name: MAGNISA CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, ui/design-prod]
   pull_request:
-    branches: [main]
+    branches: [main, ui/design-prod]
 
 permissions:
   contents: read
