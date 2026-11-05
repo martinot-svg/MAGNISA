@@ -60,6 +60,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   const priorBalances=new Map<string,{debit:number;credit:number}>();
   for(const l of priorLines){
     if(!l.pcg_code||l.mapping_status==="a_mapper")continue;
+    if(l.source_type==="fiscal_year_closing"&&/^[67]/.test(l.pcg_code))continue;
     const v=priorBalances.get(l.pcg_code)||{debit:0,credit:0};
     v.debit+=n(l.debit);v.credit+=n(l.credit);priorBalances.set(l.pcg_code,v);
   }
@@ -73,10 +74,20 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     const v=aggregate.get(l.pcg_code)||{debit:0,credit:0,kind:a.kind,label:a.label};
     v.debit+=n(l.debit);v.credit+=n(l.credit);aggregate.set(l.pcg_code,v);
   }
-  const make=(kind:string,source=aggregate)=>[...source.entries()].filter(([,v])=>v.kind===kind)
-    .map(([code,v])=>({code,label:v.label,debit:round(v.debit),credit:round(v.credit),
-      balance:round(kind==="asset"||kind==="expense"||kind==="clearing"?v.debit-v.credit:v.credit-v.debit)}))
-    .filter(x=>Math.abs(x.balance)>=0.005).sort((a,b)=>a.code.localeCompare(b.code));
+  const make=(kind:string,source=aggregate)=>[...new Set([...source.keys(),...priorBalances.keys()])]
+    .map(code=>{
+      const current=source.get(code);
+      const account:any=accountMap.get(code);
+      if(!account||account.kind!==kind)return null;
+      const v=current||{debit:0,credit:0,kind,label:account.label};
+      const prior=priorBalances.get(code)||{debit:0,credit:0};
+      const debitNormal=kind==="asset"||kind==="expense"||kind==="clearing";
+      return {code,label:v.label,debit:round(v.debit),credit:round(v.credit),
+        balance:round(debitNormal?v.debit-v.credit:v.credit-v.debit),
+        comparativeBalance:round(debitNormal?prior.debit-prior.credit:prior.credit-prior.debit)};
+    })
+    .filter((x):x is NonNullable<typeof x>=>!!x&&(Math.abs(x.balance)>=0.005||Math.abs(x.comparativeBalance)>=0.005))
+    .sort((a,b)=>a.code.localeCompare(b.code));
   const clearing=make("clearing");
   const assets=[...make("asset"),...clearing.filter(x=>x.balance>0)];
   const liabilities=[...make("liability"),...clearing.filter(x=>x.balance<0).map(x=>({...x,balance:-x.balance}))];
