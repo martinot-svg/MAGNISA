@@ -92,6 +92,15 @@ describe("Protection des exports documentaires", () => {
     expect(fixture.calls).toEqual([]);
   });
 
+  it("refuse aussi le PDF de devis pour un employé", async () => {
+    fixture.role = "employee";
+    const response = await commercialPdf(new Request("https://magnisa.test"), {
+      params: Promise.resolve({ type: "quote", id: "quote-a" }),
+    });
+    expect(response.status).toBe(403);
+    expect(fixture.calls).toEqual([]);
+  });
+
   it("rejette un type de document commercial inconnu avant tout accès aux données", async () => {
     const response = await commercialPdf(new Request("https://magnisa.test"), {
       params: Promise.resolve({ type: "payslip", id: "document-a" }),
