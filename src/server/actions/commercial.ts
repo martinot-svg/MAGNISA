@@ -8,6 +8,25 @@ import { assertPermission } from "@/lib/permissions";
 
 const lineSchema = z.object({ service_id: z.string().uuid(), quantity: z.coerce.number().finite().positive(), discount_pct: z.coerce.number().finite().min(0).max(100), unit_price: z.coerce.number().finite().nonnegative(), order_line_id: z.string().uuid().optional() });
 
+export async function quoteToOrderAction(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "orders.manage");
+
+  const parsed = z.object({ quote_id: z.string().uuid() }).safeParse({
+    quote_id: String(formData.get("quote_id") || ""),
+  });
+  if (!parsed.success) throw new Error("Devis invalide.");
+
+  const { error } = await ctx.supabase.rpc("convert_quote_to_order", {
+    p_org: ctx.organizationId,
+    p_quote: parsed.data.quote_id,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/commandes");
+  revalidatePath("/devis");
+}
+
 export async function createQuoteDraft(formData: FormData) {
   const ctx = await requireOrganization(); await assertPermission(ctx, "quotes.create");
   const customerId = String(formData.get("customer_id") || ""); const validUntil = String(formData.get("valid_until") || "");
