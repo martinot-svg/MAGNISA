@@ -50,7 +50,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     const v=aggregate.get(l.pcg_code)||{debit:0,credit:0,kind:a.kind,label:a.label};
     v.debit+=n(l.debit);v.credit+=n(l.credit);aggregate.set(l.pcg_code,v);
   }
-  const make=(kind:string)=>[...aggregate.entries()].filter(([,v])=>v.kind===kind)
+  const make=(kind:string,source=aggregate)=>[...source.entries()].filter(([,v])=>v.kind===kind)
     .map(([code,v])=>({code,label:v.label,debit:round(v.debit),credit:round(v.credit),
       balance:round(kind==="asset"||kind==="expense"||kind==="clearing"?v.debit-v.credit:v.credit-v.debit)}))
     .filter(x=>Math.abs(x.balance)>=0.005).sort((a,b)=>a.code.localeCompare(b.code));
@@ -58,7 +58,15 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   const assets=[...make("asset"),...clearing.filter(x=>x.balance>0)];
   const liabilities=[...make("liability"),...clearing.filter(x=>x.balance<0).map(x=>({...x,balance:-x.balance}))];
   const equity=make("equity");
-  const expenses=make("expense"),income=make("income");
+  const resultAggregate=new Map<string,{debit:number;credit:number;kind:string;label:string}>();
+  for(const l of lines){
+    if(l.source_type==="fiscal_year_closing"||!l.pcg_code)continue;
+    const a:any=accountMap.get(l.pcg_code);
+    if(!a||!["expense","income"].includes(a.kind))continue;
+    const v=resultAggregate.get(l.pcg_code)||{debit:0,credit:0,kind:a.kind,label:a.label};
+    v.debit+=n(l.debit);v.credit+=n(l.credit);resultAggregate.set(l.pcg_code,v);
+  }
+  const expenses=make("expense",resultAggregate),income=make("income",resultAggregate);
   const sum=(xs:StatementLine[])=>round(xs.reduce((s,x)=>s+x.balance,0));
   const totalAssets=sum(assets),totalLiabilities=sum(liabilities),totalEquity=sum(equity);
   const profit=round(sum(income)-sum(expenses));
