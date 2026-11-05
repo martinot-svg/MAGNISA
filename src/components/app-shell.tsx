@@ -7,7 +7,6 @@ import { BrandMark } from "@/components/brand-mark";
 import { NotificationBell } from "@/components/notification-bell";
 
 const featurePermission: Partial<Record<FeatureKey, Permission>> = {
-  prospects: "sales.view",
   clients: "billing.view",
   services: "sales.view",
   projects: "sales.view",
@@ -60,6 +59,9 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       feature.required || feature.key === "settings" || enabled.get(feature.key) !== false;
     if (!featureEnabled) return false;
 
+    if (feature.key === "prospects") {
+      return permissions.has("sales.view") || permissions.has("commissions.contribute");
+    }
     const requiredPermission = featurePermission[feature.key];
     return !requiredPermission || permissions.has(requiredPermission);
   });
