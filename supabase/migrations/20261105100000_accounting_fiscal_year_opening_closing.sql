@@ -213,3 +213,94 @@ LEFT JOIN public.pcg2005_account_mappings m
  ON m.organization_id=jl.organization_id AND m.legacy_account_key=jl.account_key;
 REVOKE ALL ON public.pcg2005_journal_lines FROM anon;
 GRANT SELECT ON public.pcg2005_journal_lines TO authenticated;
+
+
+-- Clôture des comptes de gestion vers le résultat de l'exercice (120/129)
+-- avant verrouillage de la période. Le résultat est ainsi repris aux a-nouveaux.
+CREATE OR REPLACE FUNCTION public.magnisa_close_fiscal_year(p_org uuid,p_year uuid)
+RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  v_year public.accounting_fiscal_years%rowtype;
+  v_bad bigint;
+  v_period uuid;
+  v_lines jsonb;
+  v_result numeric;
+  v_closing_entry uuid;
+BEGIN
+  PERFORM public.assert_org_access(p_org);
+  PERFORM public.assert_org_permission(p_org,'accounting.manage');
+  SELECT * INTO v_year FROM public.accounting_fiscal_years
+  WHERE id=p_year AND organization_id=p_org FOR UPDATE;
+  IF NOT FOUND OR v_year.status <> 'open' THEN RAISE EXCEPTION 'Exercice introuvable ou déjà clôturé'; END IF;
+
+  SELECT count(*) INTO v_bad
+  FROM public.pcg2005_journal_integrity j
+  WHERE j.organization_id=p_org AND j.entry_date BETWEEN v_year.period_start AND v_year.period_end
+    AND j.integrity_status <> 'equilibree';
+  IF v_bad > 0 THEN RAISE EXCEPTION 'Clôture refusée : % écriture(s) déséquilibrée(s)',v_bad; END IF;
+
+  SELECT count(*) INTO v_bad
+  FROM public.pcg2005_journal_lines l
+  WHERE l.organization_id=p_org AND l.entry_date BETWEEN v_year.period_start AND v_year.period_end
+    AND l.status='posted' AND l.mapping_status='a_mapper';
+  IF v_bad > 0 THEN RAISE EXCEPTION 'Clôture refusée : % ligne(s) sans imputation PCG',v_bad; END IF;
+
+  PERFORM public.magnisa_assert_accounting_invariants(p_org);
+
+  SELECT coalesce(sum(CASE WHEN pcg_code LIKE '7%' THEN credit-debit ELSE 0 END),0)
+       - coalesce(sum(CASE WHEN pcg_code LIKE '6%' THEN debit-credit ELSE 0 END),0)
+  INTO v_result
+  FROM public.pcg2005_journal_lines
+  WHERE organization_id=p_org AND status='posted'
+    AND entry_date BETWEEN v_year.period_start AND v_year.period_end
+    AND (pcg_code LIKE '6%' OR pcg_code LIKE '7%');
+
+  SELECT jsonb_agg(x.line ORDER BY x.sort_code) INTO v_lines
+  FROM (
+    SELECT pcg_code AS sort_code,
+      jsonb_build_object('account_kind','pcg','pcg_code',pcg_code,
+        'debit',greatest(-balance,0),'credit',greatest(balance,0)) AS line
+    FROM (
+      SELECT pcg_code,round(sum(debit-credit),2) AS balance
+      FROM public.pcg2005_journal_lines
+      WHERE organization_id=p_org AND status='posted'
+        AND entry_date BETWEEN v_year.period_start AND v_year.period_end
+        AND (pcg_code LIKE '6%' OR pcg_code LIKE '7%')
+      GROUP BY pcg_code HAVING round(sum(debit-credit),2)<>0
+    ) balances
+    UNION ALL
+    SELECT CASE WHEN v_result >= 0 THEN '120' ELSE '129' END,
+      jsonb_build_object('account_kind','pcg','pcg_code',CASE WHEN v_result >= 0 THEN '120' ELSE '129' END,
+        'debit',greatest(-v_result,0),'credit',greatest(v_result,0))
+    WHERE round(v_result,2)<>0
+  ) x;
+
+  IF v_lines IS NOT NULL AND jsonb_array_length(v_lines)>0 THEN
+    v_closing_entry:=public.magnisa_post_journal(
+      p_org,v_year.period_end,'CL-'||to_char(v_year.period_end,'YYYYMMDD')||'-'||substr(v_year.id::text,1,8),
+      'Centralisation des comptes de gestion - résultat '||v_year.label,
+      'fiscal_year_closing',v_year.id,v_lines
+    );
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.accounting_periods p
+    WHERE p.organization_id=p_org AND p.status='closed'
+      AND daterange(p.period_start,p.period_end,'[]') && daterange(v_year.period_start,v_year.period_end,'[]')
+  ) THEN RAISE EXCEPTION 'Une période de cet exercice est déjà clôturée'; END IF;
+
+  INSERT INTO public.accounting_periods(organization_id,period_start,period_end,status,closed_at,closed_by)
+  VALUES(p_org,v_year.period_start,v_year.period_end,'closed',now(),auth.uid())
+  RETURNING id INTO v_period;
+  UPDATE public.accounting_fiscal_years
+  SET status='closed',closed_at=now(),closed_by=auth.uid()
+  WHERE id=p_year AND organization_id=p_org;
+  PERFORM public.audit_event(p_org,'accounting.fiscal_year.closed','accounting_fiscal_year',p_year,NULL,
+    jsonb_build_object('period_start',v_year.period_start,'period_end',v_year.period_end,
+      'period_id',v_period,'closing_entry_id',v_closing_entry,'result',v_result));
+  RETURN p_year;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.magnisa_close_fiscal_year(uuid,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.magnisa_close_fiscal_year(uuid,uuid) TO authenticated;
