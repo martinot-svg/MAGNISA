@@ -6,6 +6,22 @@ import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
 
+export async function convertProspectToCustomer(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "prospects.convert");
+  const parsed = z.object({ prospect_id: z.string().uuid() }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Identifiant du prospect invalide.");
+  const { data, error } = await ctx.supabase.rpc("convert_prospect_to_customer", {
+    p_org: ctx.organizationId,
+    p_prospect: parsed.data.prospect_id,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/prospects");
+  revalidatePath("/clients");
+  revalidatePath("/commissions");
+  return data as string;
+}
+
 const prospectSchema = z.object({
   name: z.string().trim().min(2).max(180),
   email: z.string().trim().email().optional().or(z.literal("")),
