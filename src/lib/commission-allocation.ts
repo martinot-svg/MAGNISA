@@ -32,7 +32,8 @@ export function calculateCommissionAllocations(
     throw new Error("Une politique et au moins un contributeur sont obligatoires.");
   }
   const policyTotal = policyShares.reduce((sum, rule) => sum + rule.share_percentage, 0);
-  if (Math.round(policyTotal * 100) !== 10000) {
+  if (policyShares.some((rule) => !Number.isFinite(rule.share_percentage) || rule.share_percentage <= 0 || rule.share_percentage > 100)
+      || Math.round(policyTotal * 100) !== 10000) {
     throw new Error("Les règles de la politique doivent totaliser exactement 100 %.");
   }
   const seen = new Set<string>();
@@ -55,20 +56,36 @@ export function calculateCommissionAllocations(
   const ordered = [...contributors].sort((a, b) =>
     a.contribution_type.localeCompare(b.contribution_type) || a.user_id.localeCompare(b.user_id),
   );
-  let allocated = 0;
-  return ordered.map((contributor, index) => {
+  const base = ordered.map((contributor) => {
     const roleCount = roleCounts.get(contributor.contribution_type)!;
     const roleShare = rules.get(contributor.contribution_type)!;
-    const share = (roleShare / representedShare) * 100 / roleCount;
-    const amount = index === ordered.length - 1
-      ? roundMoney(commissionTotal - allocated)
-      : floorMoney((commissionTotal * roleShare) / representedShare / roleCount);
-    allocated = roundMoney(allocated + amount);
+    const rawAmount = (commissionTotal * roleShare) / representedShare / roleCount;
     return {
-      user_id: contributor.user_id,
-      contribution_type: contributor.contribution_type,
-      share_percentage: share,
-      amount,
+      contributor,
+      roleCount,
+      roleShare,
+      rawAmount,
+      amount: floorMoney(rawAmount),
+      remainder: rawAmount - floorMoney(rawAmount),
     };
+  });
+  const baseTotal = roundMoney(base.reduce((sum, item) => sum + item.amount, 0));
+  const remainderCents = Math.round((commissionTotal - baseTotal) * 100);
+  const remainderOrder = [...base.keys()].sort((a, b) =>
+    base[b].remainder - base[a].remainder ||
+    base[a].contributor.contribution_type.localeCompare(base[b].contributor.contribution_type) ||
+    base[a].contributor.user_id.localeCompare(base[b].contributor.user_id),
+  );
+  const centRecipients = new Set(remainderOrder.slice(0, remainderCents));
+
+  return base.flatMap((item, index) => {
+    const amount = roundMoney(item.amount + (centRecipients.has(index) ? 0.01 : 0));
+    if (amount <= 0) return [];
+    return [{
+      user_id: item.contributor.user_id,
+      contribution_type: item.contributor.contribution_type,
+      share_percentage: (item.roleShare / representedShare) * 100 / item.roleCount,
+      amount,
+    }];
   });
 }
