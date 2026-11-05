@@ -1,5 +1,8 @@
 -- MAGNISA: configurable prospect commission engine
 -- Policy-driven calculation, percentage allocation, finance approval and traceable payments.
+create unique index prospects_id_org_unique on public.prospects(id, organization_id);
+create unique index customers_id_org_unique on public.customers(id, organization_id);
+
 create table public.commission_policies (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -16,6 +19,7 @@ create table public.commission_policies (
   updated_by uuid references auth.users(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  unique(id, organization_id),
   check (effective_until is null or effective_until >= effective_from),
   check ((calculation_basis = 'fixed_amount' and fixed_basis_amount > 0) or (calculation_basis <> 'fixed_amount' and fixed_basis_amount is null))
 );
@@ -26,10 +30,11 @@ create unique index commission_policies_one_active_per_org
 create table public.commission_policy_rules (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
-  policy_id uuid not null references public.commission_policies(id) on delete cascade,
+  policy_id uuid not null,
   contribution_type text not null check (contribution_type in ('originator','qualifier','negotiator','closer')),
   share_percentage numeric(7,4) not null check (share_percentage > 0 and share_percentage <= 100),
   created_at timestamptz not null default now(),
+  foreign key (policy_id, organization_id) references public.commission_policies(id, organization_id) on delete cascade,
   unique(policy_id, contribution_type),
   unique(id, organization_id)
 );
@@ -37,20 +42,21 @@ create table public.commission_policy_rules (
 create table public.prospect_contributors (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
-  prospect_id uuid not null references public.prospects(id) on delete cascade,
+  prospect_id uuid not null,
   user_id uuid not null references auth.users(id),
   contribution_type text not null check (contribution_type in ('originator','qualifier','negotiator','closer')),
   notes text,
   created_at timestamptz not null default now(),
   created_by uuid not null references auth.users(id),
+  foreign key (prospect_id, organization_id) references public.prospects(id, organization_id) on delete cascade,
   unique(organization_id, prospect_id, user_id, contribution_type)
 );
 
 create table public.commission_calculations (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
-  prospect_id uuid not null references public.prospects(id),
-  customer_id uuid not null references public.customers(id),
+  prospect_id uuid not null,
+  customer_id uuid not null,
   policy_id uuid not null references public.commission_policies(id),
   source_document_type text check (source_document_type in ('order','invoice')),
   source_document_id uuid,
@@ -68,6 +74,9 @@ create table public.commission_calculations (
   request_key uuid not null,
   unique(organization_id, request_key),
   unique(id, organization_id),
+  foreign key (prospect_id, organization_id) references public.prospects(id, organization_id),
+  foreign key (customer_id, organization_id) references public.customers(id, organization_id),
+  foreign key (policy_id, organization_id) references public.commission_policies(id, organization_id),
   check ((status = 'calculated' and approved_by is null and approved_at is null and rejection_reason is null)
       or (status = 'approved' and approved_by is not null and approved_at is not null and rejection_reason is null)
       or (status = 'rejected' and approved_by is not null and approved_at is not null and length(trim(coalesce(rejection_reason,''))) > 0))
@@ -123,6 +132,9 @@ begin
   where organization_id=p_org and user_id=auth.uid() and status='active'
   limit 1;
   if v_role is null then return false; end if;
+  if p_permission = 'commissions.approve' or p_permission = 'commissions.pay' then
+    return v_role in ('finance_manager','accountant','owner');
+  end if;
   if v_role='owner' then return true; end if;
 
   select allowed into v_override
@@ -131,9 +143,6 @@ begin
   limit 1;
   if found then return coalesce(v_override,false); end if;
 
-  if p_permission = 'commissions.approve' or p_permission = 'commissions.pay' then
-    return v_role in ('finance_manager','accountant');
-  end if;
   if p_permission = 'commissions.policy.manage' then
     return v_role in ('admin','finance_manager');
   end if;
@@ -172,7 +181,7 @@ begin
       'treasury.view','finance.view','accounting.view','payroll.view','suppliers.view','reports.view',
       'billing.view'
     ])
-    when 'sales' then p_permission = p_permission = any(array['customers.create','services.create','quotes.create','quotes.edit','sales.view','billing.view'])
+    when 'sales' then p_permission = any(array['customers.create','services.create','quotes.create','quotes.edit','sales.view','billing.view'])
     when 'cashier' then p_permission = any(array['payments.record','expenses.record','treasury.view','billing.view'])
     when 'hr' then p_permission = any(array['payroll.manage','payroll.view'])
     when 'auditor' then p_permission = any(array['reports.export','audit.view','accounting.view','reports.view','billing.view'])
@@ -216,12 +225,12 @@ using (user_id=auth.uid() or public.has_org_permission(organization_id,'commissi
 create policy prospect_contributors_insert on public.prospect_contributors for insert to authenticated
 with check (user_id=auth.uid() and created_by=auth.uid()
     and public.has_org_permission(organization_id,'commissions.contribute')
-    and exists(select 1 from public.prospects p where p.id=prospect_id and p.organization_id=organization_id));
+    and exists(select 1 from public.prospects p where p.id=prospect_id and p.organization_id=prospect_contributors.organization_id));
 
 create policy commission_calculations_select on public.commission_calculations for select to authenticated
 using (public.has_org_permission(organization_id,'commissions.view_team')
     or public.has_org_permission(organization_id,'commissions.audit')
-    or exists(select 1 from public.commission_allocations a where a.calculation_id=id and a.organization_id=organization_id and a.user_id=auth.uid()));
+    or exists(select 1 from public.commission_allocations a where a.calculation_id=commission_calculations.id and a.organization_id=commission_calculations.organization_id and a.user_id=auth.uid()));
 create policy commission_calculations_insert on public.commission_calculations for insert to authenticated
 with check (calculated_by=auth.uid() and public.has_org_permission(organization_id,'commissions.calculate'));
 create policy commission_calculations_update on public.commission_calculations for update to authenticated
@@ -237,16 +246,16 @@ with check (public.has_org_permission(organization_id,'commissions.calculate'));
 create policy commission_payments_select on public.commission_payments for select to authenticated
 using (public.has_org_permission(organization_id,'commissions.view_team')
     or public.has_org_permission(organization_id,'commissions.audit')
-    or exists(select 1 from public.commission_allocations a where a.id=allocation_id and a.organization_id=organization_id and a.user_id=auth.uid()));
+    or exists(select 1 from public.commission_allocations a where a.id=commission_payments.allocation_id and a.organization_id=commission_payments.organization_id and a.user_id=auth.uid()));
 create policy commission_payments_insert on public.commission_payments for insert to authenticated
 with check (recorded_by=auth.uid() and public.has_org_permission(organization_id,'commissions.pay'));
 
 grant select, insert, update on public.commission_policies to authenticated;
 grant select, insert, update, delete on public.commission_policy_rules to authenticated;
 grant select, insert on public.prospect_contributors to authenticated;
-grant select, insert, update on public.commission_calculations to authenticated;
-grant select, insert on public.commission_allocations to authenticated;
-grant select, insert on public.commission_payments to authenticated;
+grant select on public.commission_calculations to authenticated;
+grant select on public.commission_allocations to authenticated;
+grant select on public.commission_payments to authenticated;
 
 -- Calculate from a policy-defined, database-verified source. A prospect must already be converted.
 create or replace function public.calculate_prospect_commission(
@@ -258,9 +267,9 @@ create or replace function public.calculate_prospect_commission(
   p_request_key uuid
 ) returns uuid
 language plpgsql
-security invoker
+security definer
 set search_path = public
-as $$
+as $
 declare
   v_prospect public.prospects%rowtype;
   v_policy public.commission_policies%rowtype;
@@ -370,9 +379,9 @@ create or replace function public.review_prospect_commission(
   p_org uuid,p_calculation uuid,p_decision text,p_reason text default null
 ) returns void
 language plpgsql
-security invoker
+security definer
 set search_path = public
-as $$
+as $
 begin
   if auth.uid() is null or not public.has_org_permission(p_org,'commissions.approve') then
     raise exception 'Validation réservée à la fonction finance.';
@@ -394,9 +403,9 @@ create or replace function public.record_commission_payment(
   p_org uuid,p_allocation uuid,p_amount numeric,p_paid_at date,p_reference text,p_request_key uuid
 ) returns uuid
 language plpgsql
-security invoker
+security definer
 set search_path = public
-as $$
+as $
 declare
   v_calculation_status text;
   v_allocation public.commission_allocations%rowtype;
@@ -428,6 +437,88 @@ begin
   return v_payment;
 end;
 $$;
+
+
+create or replace function public.save_commission_policy(
+  p_org uuid,p_policy uuid,p_name text,p_description text,p_active boolean,
+  p_effective_from date,p_effective_until date,p_basis text,p_rate numeric,
+  p_fixed_basis_amount numeric,p_currency text,p_rules jsonb
+) returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+  v_policy uuid;
+  v_sum numeric;
+  v_count integer;
+begin
+  if auth.uid() is null or not public.has_org_permission(p_org,'commissions.policy.manage') then
+    raise exception 'Gestion des politiques réservée aux responsables habilités.';
+  end if;
+  if length(trim(coalesce(p_name,'')))<2 or p_basis not in ('order_total','invoice_paid_amount','fixed_amount')
+     or p_rate<=0 or p_rate>100 or p_currency !~ '^[A-Z]{3}(uuid,uuid,uuid,text,uuid,uuid) from public, anon;
+revoke all on function public.review_prospect_commission(uuid,uuid,text,text) from public, anon;
+revoke all on function public.record_commission_payment(uuid,uuid,numeric,date,text,uuid) from public, anon;
+grant execute on function public.calculate_prospect_commission(uuid,uuid,uuid,text,uuid,uuid) to authenticated;
+grant execute on function public.review_prospect_commission(uuid,uuid,text,text) to authenticated;
+grant execute on function public.record_commission_payment(uuid,uuid,numeric,date,text,uuid) to authenticated;
+
+     or p_effective_until is not null and p_effective_until<p_effective_from
+     or jsonb_typeof(p_rules)<>'array' then
+    raise exception 'Paramètres de politique invalides.';
+  end if;
+  if p_basis='fixed_amount' and coalesce(p_fixed_basis_amount,0)<=0 then
+    raise exception 'Le montant de base fixe doit être positif.';
+  end if;
+  if p_basis<>'fixed_amount' and p_fixed_basis_amount is not null then
+    raise exception 'Le montant fixe ne s''applique qu''à une base fixe.';
+  end if;
+  select count(*),coalesce(sum((x->>'share_percentage')::numeric),0)
+    into v_count,v_sum from jsonb_array_elements(p_rules) x;
+  if v_count=0 or v_count>4 or v_sum<>100 then
+    raise exception 'Les pourcentages des rôles doivent totaliser exactement 100 %.';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(p_rules) x
+    where x->>'contribution_type' not in ('originator','qualifier','negotiator','closer')
+       or coalesce((x->>'share_percentage')::numeric,0)<=0
+       or (x->>'share_percentage')::numeric>100
+  ) then raise exception 'Une règle de répartition est invalide.'; end if;
+  if (select count(distinct x->>'contribution_type') from jsonb_array_elements(p_rules) x)<>v_count then
+    raise exception 'Un rôle ne peut apparaître qu''une seule fois dans la politique.';
+  end if;
+
+  if p_active then
+    update public.commission_policies set is_active=false,updated_at=now(),updated_by=auth.uid()
+    where organization_id=p_org and is_active and id is distinct from p_policy;
+  end if;
+  if p_policy is null then
+    insert into public.commission_policies(
+      organization_id,name,description,is_active,effective_from,effective_until,
+      calculation_basis,commission_rate,fixed_basis_amount,currency,created_by,updated_by
+    ) values (
+      p_org,trim(p_name),nullif(trim(coalesce(p_description,'')),''),p_active,p_effective_from,p_effective_until,
+      p_basis,p_rate,p_fixed_basis_amount,p_currency,auth.uid(),auth.uid()
+    ) returning id into v_policy;
+  else
+    update public.commission_policies set
+      name=trim(p_name),description=nullif(trim(coalesce(p_description,'')),''),
+      is_active=p_active,effective_from=p_effective_from,effective_until=p_effective_until,
+      calculation_basis=p_basis,commission_rate=p_rate,fixed_basis_amount=p_fixed_basis_amount,
+      currency=p_currency,updated_by=auth.uid(),updated_at=now()
+    where id=p_policy and organization_id=p_org returning id into v_policy;
+    if v_policy is null then raise exception 'Politique introuvable.'; end if;
+  end if;
+  delete from public.commission_policy_rules where policy_id=v_policy and organization_id=p_org;
+  insert into public.commission_policy_rules(organization_id,policy_id,contribution_type,share_percentage)
+  select p_org,v_policy,x->>'contribution_type',(x->>'share_percentage')::numeric
+  from jsonb_array_elements(p_rules) x;
+  return v_policy;
+end;
+$;
+revoke all on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,jsonb) from public,anon;
+grant execute on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,jsonb) to authenticated;
 
 revoke all on function public.calculate_prospect_commission(uuid,uuid,uuid,text,uuid,uuid) from public, anon;
 revoke all on function public.review_prospect_commission(uuid,uuid,text,text) from public, anon;
