@@ -92,6 +92,15 @@ describe("Protection des exports documentaires", () => {
     expect(fixture.calls).toEqual([]);
   });
 
+  it("ne révèle pas une facture appartenant à une autre organisation", async () => {
+    fixture.role = "accountant";
+    const response = await commercialPdf(new Request("https://magnisa.test"), {
+      params: Promise.resolve({ type: "invoice", id: "foreign-invoice" }),
+    });
+    expect(response.status).toBe(404);
+    expect(fixture.calls).toContain("invoices");
+  });
+
   it("rejette un type de document commercial inconnu avant tout accès aux données", async () => {
     const response = await commercialPdf(new Request("https://magnisa.test"), {
       params: Promise.resolve({ type: "payslip", id: "document-a" }),
