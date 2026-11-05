@@ -119,3 +119,253 @@ html body .appShell>main{
   .mg-skeleton{animation:none}
   .button:active:not(:disabled){transform:none}
 }
+
+
+/* ---------- Application shell : grille stable et contenu lisible ---------- */
+html body .appShell{
+  grid-template-columns:264px minmax(0,1fr);
+  align-items:start;
+}
+html body .appShell>aside{
+  min-width:0;
+  box-shadow:8px 0 28px rgba(12,22,48,.06);
+}
+html body .appShell>main{
+  min-width:0;
+  width:100%;
+  max-width:none;
+}
+.appShell main>.pageHead{
+  padding-top:8px;
+}
+.appShell .pageHead>div:first-child{
+  min-width:0;
+}
+.appShell .pageHead h1{
+  overflow-wrap:anywhere;
+}
+.appShell .card{
+  border-color:#e4eaf3;
+  box-shadow:0 8px 26px rgba(27,42,79,.045);
+}
+.appShell .card:focus-within{
+  border-color:#c8d7f1;
+}
+.appShell .section{
+  min-width:0;
+}
+.appShell .tableWrap{
+  max-width:100%;
+}
+.appShell table{
+  border-spacing:0;
+}
+.appShell th{
+  white-space:nowrap;
+}
+.appShell td{
+  overflow-wrap:anywhere;
+}
+.appShell .actions{
+  align-items:center;
+}
+.appShell .actions .button,
+.appShell .actions button{
+  white-space:nowrap;
+}
+
+/* ---------- Formulaires : hiérarchie et alignement cohérents ---------- */
+.appShell .form,
+.appShell form.form{
+  gap:16px;
+}
+.appShell .field{
+  min-width:0;
+}
+.appShell .field label{
+  color:#344054;
+}
+.appShell input:not([type=checkbox]):not([type=radio]):not([type=range]),
+.appShell select,
+.appShell textarea{
+  border-color:#d7e0ed;
+  border-radius:10px;
+  background-color:#fff;
+}
+.appShell textarea{
+  min-height:112px;
+}
+.appShell input:disabled,
+.appShell select:disabled,
+.appShell textarea:disabled{
+  background:#f2f4f7;
+  color:#667085;
+  cursor:not-allowed;
+}
+.appShell .button.primary{
+  box-shadow:0 7px 18px rgba(22,99,255,.16);
+}
+.appShell .button.primary:hover:not(:disabled){
+  box-shadow:0 10px 24px rgba(22,99,255,.23);
+}
+
+/* ---------- Facturation : synthèse et filtres adaptatifs ---------- */
+.invoice-tracker{
+  display:grid;
+  gap:16px;
+  min-width:0;
+}
+.invoice-tracker-metrics{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;
+}
+.invoice-tracker-metrics>.card{
+  min-width:0;
+}
+.invoice-tracker-metrics small{
+  display:block;
+  margin-top:8px;
+  color:var(--mg-text-secondary);
+}
+.invoice-tracker-controls{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:14px;
+  flex-wrap:wrap;
+}
+.invoice-tracker-tabs{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.invoice-tracker-tabs button{
+  min-height:38px;
+  padding:8px 12px;
+  border:1px solid transparent;
+  border-radius:10px;
+  background:#f3f6fb;
+  color:#475467;
+  cursor:pointer;
+  font-weight:600;
+}
+.invoice-tracker-tabs button.active{
+  color:#1249bd;
+  border-color:#cbdaf7;
+  background:#edf4ff;
+}
+.invoice-tracker-search{
+  flex:1 1 240px;
+  max-width:360px;
+}
+.invoice-tracker-helper{
+  font-size:.8125rem;
+  line-height:1.55;
+}
+.invoice-tracker-foot{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  padding-top:12px;
+  color:var(--mg-text-secondary);
+  font-size:.8125rem;
+}
+.invoice-status-late{
+  background:#fff1f0;
+  color:#b42318;
+}
+
+/* ---------- Dialogues : lisibilité sur petit écran ---------- */
+[role=dialog]{
+  overscroll-behavior:contain;
+}
+[role=dialog] .field{
+  margin-bottom:2px;
+}
+
+/* ---------- Tablette ---------- */
+@media(max-width:980px){
+  html body .appShell{
+    grid-template-columns:minmax(0,1fr);
+  }
+  html body .appShell>aside{
+    width:100%;
+    min-height:0;
+    box-shadow:0 8px 24px rgba(12,22,48,.10);
+  }
+  html body .appShell>main{
+    padding-top:18px;
+  }
+  .appShell .grid4{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .appShell .twoCols{
+    grid-template-columns:minmax(0,1fr);
+  }
+}
+
+/* ---------- Smartphone ---------- */
+@media(max-width:620px){
+  html body .appShell>main{
+    padding-top:12px;
+  }
+  .appShell .pageHead{
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    gap:12px;
+  }
+  .appShell .pageHead>.button,
+  .appShell .pageHead>.actions{
+    width:100%;
+  }
+  .appShell .grid4,
+  .appShell .grid3,
+  .appShell .grid2,
+  .invoice-tracker-metrics{
+    grid-template-columns:minmax(0,1fr);
+  }
+  .invoice-tracker-controls{
+    align-items:stretch;
+  }
+  .invoice-tracker-tabs{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .invoice-tracker-tabs button{
+    width:100%;
+  }
+  .invoice-tracker-search{
+    max-width:none;
+    flex-basis:100%;
+  }
+  .invoice-tracker-foot{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+  .appShell .actions{
+    flex-wrap:wrap;
+  }
+  .appShell .actions .button,
+  .appShell .actions form,
+  .appShell .actions form .button{
+    max-width:100%;
+  }
+  .appShell .card{
+    border-radius:14px;
+  }
+}
+
+/* ---------- Mouvement réduit ---------- */
+@media(prefers-reduced-motion:reduce){
+  *,
+  *::before,
+  *::after{
+    scroll-behavior:auto!important;
+    animation-duration:.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.01ms!important;
+  }
+}
