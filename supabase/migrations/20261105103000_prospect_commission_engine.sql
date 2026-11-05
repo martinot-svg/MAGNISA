@@ -160,7 +160,7 @@ begin
   limit 1;
   if v_role is null then return false; end if;
   if p_permission = 'commissions.approve' or p_permission = 'commissions.pay' then
-    return v_role in ('finance_manager','accountant','owner');
+    return v_role in ('finance_manager','accountant');
   end if;
   if v_role='owner' then return true; end if;
 
