@@ -46,10 +46,8 @@ async function saveRuleInternal(fd:FormData){
  if(!String(data.legal_reference||"").trim())throw new Error("Pour appliquer le référentiel, renseigne la référence officielle contrôlée.");
  if(data.cnaps_monthly_ceiling===null||data.health_monthly_ceiling===null)throw new Error("Pour appliquer le référentiel, renseigne les deux plafonds obligatoires.");
  if(rounding!=="floor_100")throw new Error("Choisis la règle d’arrondi vérifiée avant l’application.");
- const {data:created,error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,...smieFields(fd),irsa_brackets:brackets,irsa_minimum:minimum,rounding_policy:rounding,organization_id:ctx.organizationId}).select("id").single();
- if(error||!created)throw new Error(error?.message||"Impossible d'enregistrer le référentiel.");
- const {error:activationError}=await ctx.supabase.rpc("activate_payroll_rule",{p_org:ctx.organizationId,p_rule:created.id});
- if(activationError)throw new Error("Référentiel enregistré mais non activé : "+activationError.message);
+ const {error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,...smieFields(fd),irsa_brackets:brackets,irsa_minimum:minimum,rounding_policy:rounding,organization_id:ctx.organizationId});
+ if(error)throw new Error(error.message);
  revalidatePath("/paie/parametres");
 }
 
@@ -57,16 +55,13 @@ async function saveRuleInternal(fd:FormData){
 async function saveRule(fd:FormData){
  "use server";
  let outcome:"success"|"error"="success";
- let message="Référentiel enregistré et appliqué.";
+ let message="Référentiel enregistré à vérifier. Il n'est pas activé.";
  try {
   await saveRuleInternal(fd);
  } catch(error) {
   outcome="error";
   const raw=error instanceof Error?error.message:"Erreur inattendue pendant l’enregistrement.";
-  const saved=raw.startsWith("Référentiel enregistré mais non activé");
-  message=saved
-   ? raw+" Les données sont conservées dans l’historique : ne relance pas l’enregistrement. Corrige les champs signalés puis utilise « Appliquer cette version »."
-   : raw;
+  message=raw;
  }
  redirect("/paie/parametres?result="+outcome+"&message="+encodeURIComponent(message));
 }
@@ -130,8 +125,6 @@ async function executeRuleAction(fd:FormData){
   patch.rounding_policy=rounding;
   const {error}=await ctx.supabase.from("payroll_rule_sets").update(patch).eq("organization_id",ctx.organizationId).eq("id",id);
   if(error)throw new Error(error.message);
-  const {error:activationError}=await ctx.supabase.rpc("activate_payroll_rule",{p_org:ctx.organizationId,p_rule:id});
-  if(activationError)throw new Error("Modifications enregistrées mais non activées : "+activationError.message);
  }else throw new Error("Opération non reconnue.");
  revalidatePath("/paie/parametres");
 }
@@ -162,7 +155,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  const notice=await searchParams;
  return <><div className="pageHead"><div><p className="eyebrow">Personnel & Paie</p><h1>Paramètres de paie - Madagascar</h1><p>Règles datées par organisation, contrôle de conformité et prévisualisation non comptable.</p></div><Link className="button" href="/paie">Retour aux bulletins</Link></div>
  {notice.result && notice.message && <div role="status" aria-live="polite" className="card section" style={{borderLeft:notice.result==="error"?"4px solid #b45309":"4px solid #15803d"}}><strong>{notice.result==="error"?"Opération non effectuée":"Opération effectuée"}</strong><p>{notice.message.slice(0,450)}</p></div>}
- <div className="card"><details><summary style={{cursor:"pointer",fontWeight:600}}>Créer un référentiel réglementaire</summary><h2>Nouveau jeu de paramètres</h2><p className="muted">À l'enregistrement, MAGNISA sauvegarde puis tente d'activer immédiatement cette version pour sa période d'application. Vérifie les taux et plafonds auprès des sources officielles avant de l'utiliser en paie.</p>
+ <div className="card"><details><summary style={{cursor:"pointer",fontWeight:600}}>Créer un référentiel réglementaire</summary><h2>Nouveau jeu de paramètres</h2><p className="muted">À l'enregistrement, MAGNISA sauvegarde une version au statut À vérifier. L'activation est une action séparée et explicite, après contrôle des taux, plafonds et références.</p>
  <form action={saveRule} className="form"><div className="grid2">
  <div className="field"><label>Nom / version</label><input name="name" placeholder="Ex. Référentiel 2026 à vérifier" required/></div>
  <div className="field"><label>Référence officielle contrôlée</label><input name="legal_reference" placeholder="Texte, article, date de publication et URL officielle" required/></div>
@@ -182,7 +175,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <h3>Barème IRSA pour cette version</h3>
  <div className="grid2"><div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" required placeholder="À vérifier dans le texte officiel"/></div><div className="field"><label>Arrondi de l’assiette IRSA</label><select name="rounding_policy" defaultValue="unverified" required><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d’ariary inférieure - après vérification</option></select></div></div>
  <IrsaBracketEditor />
- <button className="button primary">Enregistrer et appliquer</button></form>
+ <button className="button primary">Enregistrer le brouillon à vérifier</button></form>
  </details></div>
  <section id="bareme-irsa" className="card section" aria-label="Barème IRSA configurable">
  <h2>Barème IRSA configurable</h2>

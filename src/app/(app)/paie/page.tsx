@@ -7,7 +7,7 @@ import { assertPermission, requirePermission } from "@/lib/permissions";
 import { money } from "@/lib/money";
 import { EmptyState } from "@/components/empty-state";
 import { PayrollGrossPreview } from "@/components/payroll-gross-preview";
-import { computeHealthContribution } from "@/lib/payroll/health-contribution";
+import { calculatePayrollAmounts } from "@/lib/payroll/calculate-payroll";
 import { FormDialog } from "@/components/form-dialog";
 
 async function createEmployee(fd: FormData) {
@@ -148,26 +148,27 @@ async function createPayslip(fd: FormData) {
     const value=Number(rule[key]);
     if (!Number.isFinite(value) || value < 0 || (key.endsWith("_rate") && value > 1)) throw new Error("Paramètre réglementaire invalide : "+key);
   }
-  const cnapsBase=Math.min(gross,Number(rule.cnaps_monthly_ceiling));
-  const healthContribution=computeHealthContribution(gross,Number(rule.health_monthly_ceiling),Number(rule.health_employee_rate),Number(rule.health_employer_rate));
-  const healthBase=healthContribution.base;
-  const social=Math.round(cnapsBase*Number(rule.cnaps_employee_rate)*100)/100;
-  const health=healthContribution.employee;
-  const taxable=Math.floor(Math.max(0,gross-social-health)/100)*100;
-  let incomeTax=0;let previous=0;
-  for(const bracket of rule.irsa_brackets as {up_to:number|null;rate:number}[]){const cap=bracket.up_to==null?Infinity:Number(bracket.up_to);const rate=Number(bracket.rate);if(!Number.isFinite(rate)||rate<0||rate>1||!(cap>previous))throw new Error("Barème IRSA invalide.");incomeTax+=Math.max(0,Math.min(taxable,cap)-previous)*rate;previous=cap;if(taxable<=cap)break;}
-  // Un barème sans tranche couvrant le revenu imposable ne doit jamais produire une taxe sous-estimée.
-  if (taxable > previous) throw new Error("Barème IRSA incomplet : aucune tranche ne couvre le revenu imposable.");
-  const minimumIrsa = Number(rule.irsa_minimum);
-  if (!Number.isFinite(minimumIrsa) || minimumIrsa < 0) throw new Error("Minimum IRSA invalide.");
-  incomeTax=Math.max(minimumIrsa,Math.round(incomeTax*100)/100);
-  const dependants=Number(employee.irsa_dependants);
-  if (!Number.isInteger(dependants) || dependants<0 || dependants>30) throw new Error("Personnes à charge IRSA invalides.");
-  if (taxable>350000 && dependants>0) incomeTax=Math.max(minimumIrsa,incomeTax-2000*dependants);
-  amounts.employee_social=social;amounts.employee_health=health;amounts.income_tax=incomeTax;
-  amounts.employer_social=Math.round(cnapsBase*Number(rule.cnaps_employer_rate)*100)/100;
-  amounts.employer_health=healthContribution.employer;
-  if(gross-social-health-incomeTax-amounts.advances_recovered-amounts.other_deductions<0)throw new Error("Le net calculé serait négatif.");
+  const calculation = calculatePayrollAmounts({
+    gross,
+    dependants: Number(employee.irsa_dependants),
+    rule: {
+      cnaps_employee_rate: Number(rule.cnaps_employee_rate),
+      cnaps_employer_rate: Number(rule.cnaps_employer_rate),
+      health_employee_rate: Number(rule.health_employee_rate),
+      health_employer_rate: Number(rule.health_employer_rate),
+      fmfp_employer_rate: Number(rule.fmfp_employer_rate),
+      cnaps_monthly_ceiling: Number(rule.cnaps_monthly_ceiling),
+      health_monthly_ceiling: Number(rule.health_monthly_ceiling),
+      irsa_brackets: rule.irsa_brackets as { up_to: number | null; rate: number }[],
+      irsa_minimum: Number(rule.irsa_minimum),
+    },
+  });
+  amounts.employee_social=calculation.employeeSocial;
+  amounts.employee_health=calculation.employeeHealth;
+  amounts.income_tax=calculation.incomeTax;
+  amounts.employer_social=calculation.employerSocial;
+  amounts.employer_health=calculation.employerHealth;
+  if(calculation.netBeforeOtherDeductions-amounts.advances_recovered-amounts.other_deductions<0)throw new Error("Le net calculé serait négatif.");
   // Le FMFP est calculé côté Supabase à partir du référentiel validé et comptabilisé séparément.
   const { error } = await ctx.supabase.rpc("create_payslip", {
     p_org: ctx.organizationId,
