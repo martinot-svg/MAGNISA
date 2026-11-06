@@ -102,7 +102,6 @@ create table public.commission_payments (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   allocation_id uuid not null,
-  financial_account_id uuid not null references public.financial_accounts(id) on delete restrict,
   expense_id uuid not null unique references public.expenses(id) on delete restrict,
   amount numeric(18,2) not null check (amount > 0),
   paid_at date not null,
@@ -521,10 +520,10 @@ begin
   );
 
   insert into public.commission_payments(
-    organization_id,allocation_id,financial_account_id,expense_id,amount,paid_at,
+    organization_id,allocation_id,expense_id,amount,paid_at,
     payment_reference,recorded_by,request_key,request_digest
   ) values (
-    p_org,p_allocation,p_account,v_expense,p_amount,p_paid_at,
+    p_org,p_allocation,v_expense,p_amount,p_paid_at,
     trim(p_reference),auth.uid(),p_request_key,v_digest
   ) returning id into v_payment;
 
