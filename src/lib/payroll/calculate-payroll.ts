@@ -24,6 +24,7 @@ export type PayrollCalculation = {
   employerFmfp: number;
   taxableBase: number;
   incomeTax: number;
+  taxableSupplementaryPension: number;
   netBeforeOtherDeductions: number;
   employerCost: number;
 };
@@ -40,8 +41,13 @@ export function calculatePayrollAmounts(input: {
   gross: number;
   dependants: number;
   rule: PayrollCalculationRule;
+  taxableSupplementaryPension?: number;
 }): PayrollCalculation {
   const { gross, dependants, rule } = input;
+  const taxableSupplementaryPension = input.taxableSupplementaryPension ?? 0;
+  if (!Number.isFinite(taxableSupplementaryPension) || taxableSupplementaryPension < 0) {
+    throw new Error("Versement patronal de retraite complémentaire invalide.");
+  }
   if (!Number.isFinite(gross) || gross < 0) {
     throw new Error("Salaire brut invalide.");
   }
@@ -80,7 +86,7 @@ export function calculatePayrollAmounts(input: {
   const deductibleHealth = Math.min(health.employee, roundMoney(gross * 0.01));
 
   const irsa = calculateIrsa({
-    taxableIncome: Math.max(0, gross - employeeSocial - deductibleHealth),
+    taxableIncome: Math.max(0, gross + taxableSupplementaryPension - employeeSocial - deductibleHealth),
     dependants,
     brackets: rule.irsa_brackets,
     minimum: rule.irsa_minimum,
@@ -91,7 +97,7 @@ export function calculatePayrollAmounts(input: {
     gross - employeeSocial - health.employee - irsa.tax,
   );
   const employerCost = roundMoney(
-    gross + employerSocial + health.employer + employerFmfp,
+    gross + employerSocial + health.employer + employerFmfp + taxableSupplementaryPension,
   );
 
   return {
@@ -105,6 +111,7 @@ export function calculatePayrollAmounts(input: {
     employerFmfp,
     taxableBase: irsa.taxableBase,
     incomeTax: irsa.tax,
+    taxableSupplementaryPension,
     netBeforeOtherDeductions,
     employerCost,
   };
