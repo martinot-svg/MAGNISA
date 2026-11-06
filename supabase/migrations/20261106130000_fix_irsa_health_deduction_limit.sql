@@ -98,7 +98,11 @@ begin
     raise exception 'Barème IRSA sans tranche couvrant le revenu imposable';
   end if;
 
-  v_tax := greatest(coalesce(v_rule.irsa_minimum, 0), round(v_tax, 2));
+  if v_taxable = 0 then
+    v_tax := 0;
+  else
+    v_tax := greatest(coalesce(v_rule.irsa_minimum, 0), round(v_tax, 2));
+  end if;
 
   select irsa_dependants into v_dependants
   from public.employees
