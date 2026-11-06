@@ -51,7 +51,7 @@ begin
     reviewed_by,reviewed_at
   ) values (
     v_rule,v_org,'TEST payroll 2026',current_date-1,null,'validated',
-    0.01,0.13,0.02,0.08,0.01,
+    0.01,0.13,0.03,0.08,0.01,
     2400000,1600000,
     '[{"up_to":350000,"rate":0},{"up_to":400000,"rate":0.05},{"up_to":500000,"rate":0.10},{"up_to":600000,"rate":0.15},{"up_to":4000000,"rate":0.20},{"up_to":null,"rate":0.25}]'::jsonb,
     3000,'floor_100','TEST ONLY',v_owner,now()
@@ -71,8 +71,8 @@ begin
     p_overtime => 0,
     p_other_earnings => 0,
     p_employee_social => 10000,
-    p_employee_health => 20000,
-    p_income_tax => 123500,
+    p_employee_health => 30000,
+    p_income_tax => 101500,
     p_advances_recovered => 0,
     p_other_deductions => 0,
     p_employer_social => 130000,
@@ -84,7 +84,7 @@ begin
     into v_tax,v_net,v_fmfp,v_pension,v_status
     from public.payslips where id=v_payslip;
 
-  if v_status <> 'calculated' or v_tax <> 123500 or v_net <> 846500
+  if v_status <> 'calculated' or v_tax <> 101500 or v_net <> 858500
     or v_fmfp <> 10000 or v_pension <> 100000 then
     raise exception 'TEST FAILED: payslip values do not include taxable supplementary pension correctly';
   end if;
