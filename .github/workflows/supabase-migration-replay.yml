@@ -42,7 +42,7 @@ jobs:
       - name: Install app and browser test dependencies
         run: |
           npm ci --no-audit --no-fund
-          npm install --no-save --package-lock=false playwright
+          npx --yes npm@11.19.1 install --no-save --package-lock=false playwright
           npx playwright install --with-deps chromium
       - name: Export isolated local Supabase credentials
         run: |
