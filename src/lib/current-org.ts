@@ -41,6 +41,9 @@ export async function requireOrganization() {
     .order("created_at", { ascending: true })
     .limit(50);
 
+  if (process.env.CI === "true") {
+    console.info("[org-context] membership_count=", memberships?.length ?? 0, "query_error=", error?.code ?? "none");
+  }
   if (error) {
     throw new Error("Impossible de charger les organisations autorisées.");
   }
