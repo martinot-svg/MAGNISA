@@ -64,8 +64,19 @@ try {
   await page.getByRole("button", { name: "Se connecter" }).click();
   await page.waitForURL((url) => url.pathname === "/dashboard", { timeout: 30000 });
 
-  await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
-  await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor();
+  const membershipCheck = await admin.from("organization_members")
+    .select("organization_id,role,status").eq("user_id", process.env.TEST_USER_ID);
+  if (membershipCheck.error) throw membershipCheck.error;
+  process.stdout.write("TEST USER MEMBERSHIPS " + JSON.stringify(membershipCheck.data) + "\\n");
+
+  const payrollResponse = await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
+  try {
+    await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor({ timeout: 15000 });
+  } catch (error) {
+    process.stdout.write("PAYROLL PAGE URL " + page.url() + " STATUS " + payrollResponse?.status() + "\\n");
+    process.stdout.write("PAYROLL PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\\n");
+    throw error;
+  }
   await ruleRow(page, "UI TEST historical").waitFor();
 
   let row = await openRuleActions(page, "UI TEST historical");
