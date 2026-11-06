@@ -223,7 +223,7 @@ export async function createExpense(formData:FormData){
   await assertPermission(ctx,"expenses.record");
   const p=z.object({
     description:z.string().trim().min(2),amount:z.coerce.number().positive(),
-    expense_date:z.string().date(),financial_account_id:z.string().uuid(),
+    expense_date:z.iso.date(),financial_account_id:z.string().uuid(),
     category:z.string().trim().min(1).max(120),idempotency_key:z.string().uuid(),
     useful_life_months:z.coerce.number().int().min(12).max(120).optional(),
   }).safeParse(Object.fromEntries(formData));
@@ -283,7 +283,7 @@ export async function transferFunds(formData:FormData){const ctx=await requireOr
 
 export async function recordInternalTransferDebit(fd:FormData){
  const ctx=await requireOrganization();await assertPermission(ctx,"treasury.transfer");
- const p=z.object({source:z.string().uuid(),destination:z.string().uuid(),date:z.string().date(),
+ const p=z.object({source:z.string().uuid(),destination:z.string().uuid(),date:z.iso.date(),
   reference_amount:z.coerce.number().int().positive(),fee_mode:z.enum(["included","added"]),
   source_debit:z.coerce.number().positive(),destination_credit:z.coerce.number().positive(),
   operator_fee:z.coerce.number().nonnegative(),reference:z.string().trim().min(2),request_key:z.string().uuid()}).safeParse(Object.fromEntries(fd));
@@ -331,7 +331,7 @@ export async function recordInternalTransferDebit(fd:FormData){
 }
 export async function confirmInternalTransferCredit(fd:FormData){
  const ctx=await requireOrganization();await assertPermission(ctx,"treasury.transfer");
- const p=z.object({transfer_id:z.string().uuid(),date:z.string().date(),reference:z.string().trim().min(2)}).safeParse(Object.fromEntries(fd));
+ const p=z.object({transfer_id:z.string().uuid(),date:z.iso.date(),reference:z.string().trim().min(2)}).safeParse(Object.fromEntries(fd));
  if(!p.success)throw new Error("Confirmation du crédit invalide.");
  const {error}=await ctx.supabase.rpc("magnisa_confirm_transfer_credit",{p_org:ctx.organizationId,p_transfer:p.data.transfer_id,p_date:p.data.date,p_reference:p.data.reference});
  if(error)throw new Error(error.message);
