@@ -527,6 +527,70 @@ begin
 end;
 $$;
 
+-- Marking a prospect as won is the single conversion event.
+-- The trigger creates the customer in the same transaction, so no won prospect
+-- can be left without its corresponding customer.
+create or replace function public.auto_convert_won_prospect()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_existing_customer uuid;
+  v_customer uuid;
+  v_email text := lower(trim(coalesce(new.email,'')));
+  v_phone text := regexp_replace(coalesce(new.phone,''),'[^0-9]','','g');
+begin
+  if new.status <> 'won' or new.converted_customer_id is not null then
+    return new;
+  end if;
+  if auth.uid() is null or not public.has_org_permission(new.organization_id,'prospects.convert') then
+    raise exception 'Tu n''as pas l''autorisation de clôturer ce prospect comme gagné.';
+  end if;
+
+  -- Serialize conversions sharing the same contact details to avoid duplicate
+  -- customers when two prospects are closed concurrently.
+  if v_email <> '' then
+    perform pg_advisory_xact_lock(hashtextextended(new.organization_id::text || ':email:' || v_email,0));
+  end if;
+  if v_phone <> '' then
+    perform pg_advisory_xact_lock(hashtextextended(new.organization_id::text || ':phone:' || v_phone,0));
+  end if;
+
+  if v_email <> '' or v_phone <> '' then
+    select id into v_existing_customer
+    from public.customers
+    where organization_id=new.organization_id and is_active and (
+      (v_email <> '' and lower(trim(coalesce(email,'')))=v_email)
+      or (v_phone <> '' and regexp_replace(coalesce(phone,''),'[^0-9]','','g')=v_phone)
+    )
+    limit 1;
+    if v_existing_customer is not null then
+      raise exception 'Un client actif possède déjà cet e-mail ou ce numéro. Vérifie le doublon avant conversion.';
+    end if;
+  end if;
+
+  insert into public.customers(organization_id,name,email,phone,notes)
+  values(new.organization_id,trim(new.name),new.email,new.phone,new.notes)
+  returning id into v_customer;
+
+  new.converted_customer_id := v_customer;
+  new.updated_at := now();
+  perform public.audit_event(new.organization_id,'prospect.converted','prospects',new.id,
+    jsonb_build_object('status',old.status,'converted_customer_id',old.converted_customer_id),
+    jsonb_build_object('status','won','converted_customer_id',v_customer,'conversion_mode','automatic_on_won'));
+  return new;
+end;
+$$;
+
+drop trigger if exists prospect_auto_convert_won on public.prospects;
+create trigger prospect_auto_convert_won
+before update of status on public.prospects
+for each row
+when (new.status = 'won' and new.converted_customer_id is null)
+execute function public.auto_convert_won_prospect();
+
 create or replace function public.convert_prospect_to_customer(
   p_org uuid,p_prospect uuid
 ) returns uuid
@@ -536,7 +600,6 @@ set search_path = public
 as $$
 declare
   v_prospect public.prospects%rowtype;
-  v_existing_customer uuid;
   v_customer uuid;
 begin
   if auth.uid() is null or not public.has_org_permission(p_org,'prospects.convert') then
@@ -550,30 +613,14 @@ begin
   end if;
   if v_prospect.status='lost' then raise exception 'Un prospect perdu ne peut pas être converti.'; end if;
 
-  if coalesce(trim(v_prospect.email),'')<>'' or coalesce(trim(v_prospect.phone),'')<>'' then
-    select id into v_existing_customer from public.customers
-    where organization_id=p_org and is_active and (
-      (coalesce(trim(v_prospect.email),'')<>'' and lower(trim(coalesce(email,'')))=lower(trim(v_prospect.email)))
-      or (coalesce(trim(v_prospect.phone),'')<>'' and
-          regexp_replace(coalesce(phone,''),'[^0-9]','','g')=nullif(regexp_replace(v_prospect.phone,'[^0-9]','','g'),''))
-    )
-    limit 1;
-    if v_existing_customer is not null then
-      raise exception 'Un client actif possède déjà cet e-mail ou ce numéro. Vérifie le doublon avant conversion.';
-    end if;
-  end if;
-
-  insert into public.customers(organization_id,name,email,phone,notes)
-  values(p_org,trim(v_prospect.name),v_prospect.email,v_prospect.phone,v_prospect.notes)
-  returning id into v_customer;
-
   update public.prospects
-  set status='won',converted_customer_id=v_customer,updated_at=now()
-  where id=p_prospect and organization_id=p_org;
-  perform public.audit_event(p_org,'prospect.converted','prospects',p_prospect,
-    jsonb_build_object('status',v_prospect.status,'converted_customer_id',v_prospect.converted_customer_id),
-    jsonb_build_object('status','won','converted_customer_id',v_customer));
+  set status='won',updated_at=now()
+  where id=p_prospect and organization_id=p_org
+  returning converted_customer_id into v_customer;
 
+  if v_customer is null then
+    raise exception 'La conversion automatique n''a pas créé le client attendu.';
+  end if;
   return v_customer;
 end;
 $$;
