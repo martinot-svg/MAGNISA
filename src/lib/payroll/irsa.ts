@@ -8,7 +8,7 @@ export const MADAGASCAR_IRSA_2026 = {
   dependantThreshold: 350000,
   roundingUnit: 100,
   legalReference:
-    "Loi n°2025-021 portant loi de finances pour 2026, article 01.03.16 ; Code des impôts 2026, articles 01.03.16 et 01.03.19. Texte officiel : https://cnlegis.gov.mg/uploads/L2025-021_VF.pdf",
+    "Loi n°2025-021 portant loi de finances pour 2026, article 01.03.16 (barème 2026) ; Code général des impôts publié par la DGI le 6 février 2025, articles 01.03.16 et 01.03.19 (minimum de 3 000 Ar et réduction de 2 000 Ar par personne à charge). Textes officiels : https://cnlegis.gov.mg/uploads/L2025-021_VF.pdf ; https://portal.impots.mg/textes/textes/2025-02-06--N-2025-MEF.SG.DGI-Ref-HIH9EC-3OPLT3.pdf",
   brackets: [
     { up_to: 350000, rate: 0 },
     { up_to: 400000, rate: 0.05 },
