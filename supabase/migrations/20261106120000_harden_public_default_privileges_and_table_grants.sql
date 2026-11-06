@@ -5,15 +5,11 @@ begin;
 revoke truncate, trigger, references on all tables in schema public
   from public, anon, authenticated;
 
--- Keep future tables created by either migration owner equally restricted.
+-- Migrations run as postgres; keep future objects created by that role restricted.
+-- Supabase-managed role supabase_admin is not alterable by the migration role.
 alter default privileges for role postgres in schema public
   revoke truncate, trigger, references on tables from public, anon, authenticated;
-alter default privileges for role supabase_admin in schema public
-  revoke truncate, trigger, references on tables from public, anon, authenticated;
-
--- Prevent newly created public RPC functions from becoming callable by anon
--- unless a later migration explicitly grants that access.
-alter default privileges for role supabase_admin in schema public
+alter default privileges for role postgres in schema public
   revoke execute on functions from anon, public;
 
 commit;
