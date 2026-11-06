@@ -55,7 +55,7 @@ export default async function CommissionsPage() {
       .select("id,name,is_active,calculation_basis,commission_rate,fixed_basis_amount,currency,expense_account_code,effective_from,effective_until,commission_policy_rules(contribution_type,share_percentage)")
       .eq("organization_id", ctx.organizationId).order("created_at", { ascending: false }),
     ctx.supabase.from("commission_calculations")
-      .select("id,prospect_id,customer_id,basis_amount,commission_total,currency,status,calculated_at,policy_snapshot,commission_allocations(id,user_id,contribution_type,share_percentage,amount,commission_payments(id,amount,paid_at,payment_reference,financial_account_id,expense_id,financial_accounts(name)))")
+      .select("id,prospect_id,customer_id,basis_amount,commission_total,currency,status,calculated_at,policy_snapshot,commission_allocations(id,user_id,contribution_type,share_percentage,amount,commission_payments(id,amount,paid_at,payment_reference,expense_id))")
       .eq("organization_id", ctx.organizationId).order("calculated_at", { ascending: false }).limit(100),
     ctx.supabase.from("prospects").select("id,name,status,converted_customer_id")
       .eq("organization_id", ctx.organizationId).order("created_at", { ascending: false }),
@@ -91,7 +91,7 @@ export default async function CommissionsPage() {
             <div className="field"><label>Taux de prime (%)</label><input name="commission_rate" type="number" min="0.0001" max="100" step="0.0001" placeholder="Définir le taux contractuel" required /></div>
             <div className="field"><label>Montant fixe de base</label><input name="fixed_basis_amount" type="number" min="0.01" step="0.01" placeholder="Uniquement pour base fixe" /></div>
             <div className="field"><label>Devise de l'entreprise</label><input value={organization?.currency ?? "Non disponible"} readOnly /></div>
-            <div className="field"><label>Compte PCG de charge</label><select name="expense_account_code" required defaultValue=""><option value="" disabled>Choisir un compte de charge</option>{(expenseAccounts ?? []).map((account: any) => <option key={account.code} value={account.code}>{account.code} · {account.label}</option>)}</select></div>
+            <div className="field"><label>Compte PCG de charge</label><select name="expense_account_code" required defaultValue=""><option value="" disabled>Choisir un compte de charge</option>{(expenseAccounts ?? []).map((account: any) => <option key={account.code} value={account.code}>{account.code} · {account.label}</option>)}</select><small className="muted">622 pour un intermédiaire externe ; 641 pour un salarié. Vérifie le statut contractuel du bénéficiaire.</small></div>
             <div className="field"><label>Applicable à partir du</label><input name="effective_from" type="date" required /></div>
             <div className="field"><label>Fin de validité</label><input name="effective_until" type="date" /></div>
           </div>
@@ -154,7 +154,7 @@ export default async function CommissionsPage() {
                 <strong>{roleLabels[allocation.contribution_type]}</strong> · {allocation.user_id.slice(0, 8)} · {allocation.share_percentage} %
                 <div>{money(Number(allocation.amount), item.currency)} · payé {money(paid, item.currency)} · reste {money(balance, item.currency)}</div>
                 {(allocation.commission_payments || []).map((payment: any) => <div className="muted" key={payment.id}>
-                  {payment.paid_at} · {payment.payment_reference} · {payment.financial_accounts?.name ?? "Compte financier"} · dépense {String(payment.expense_id ?? "").slice(0, 8)}
+                  {payment.paid_at} · {payment.payment_reference} · dépense {String(payment.expense_id ?? "").slice(0, 8)}
                 </div>)}
                 {canPay && (item.status === "approved" || item.status === "partially_paid") && balance > 0 && paymentAccounts.length > 0 && <form action={recordCommissionPayment} className="inline">
                   <input type="hidden" name="allocation_id" value={allocation.id} />
