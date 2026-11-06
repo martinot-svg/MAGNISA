@@ -62,21 +62,13 @@ UPDATE public.payroll_rule_sets
 
 -- Assert that the authenticated role can read its own active membership.
 SET LOCAL ROLE authenticated;
-DO $
-DECLARE
-  visible_memberships integer;
-BEGIN
-  IF auth.uid() IS NULL THEN
-    RAISE EXCEPTION 'RLS probe has no authenticated user id';
-  END IF;
-  SELECT count(*) INTO visible_memberships
-    FROM public.organization_members
-   WHERE user_id = auth.uid() AND status = 'active';
-  IF visible_memberships <> 1 THEN
-    RAISE EXCEPTION 'Expected exactly one own active membership under RLS, found %', visible_memberships;
-  END IF;
-END
-$;
+SELECT 1 / CASE
+  WHEN auth.uid() IS NOT NULL
+   AND (SELECT count(*) FROM public.organization_members
+         WHERE user_id = auth.uid() AND status = 'active') = 1
+  THEN 1
+  ELSE 0
+END AS rls_self_read_assertion;
 RESET ROLE;
 
 COMMIT;
