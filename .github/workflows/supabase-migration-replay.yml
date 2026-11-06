@@ -79,6 +79,9 @@ jobs:
         if: always()
         run: |
           if [ -f /tmp/magnisa-next.pid ]; then kill "$(cat /tmp/magnisa-next.pid)" || true; fi
+      - name: Show local app logs after UI smoke failure
+        if: failure()
+        run: cat /tmp/magnisa-next.log || true
       - name: Stop local Supabase
         if: always() && steps.supabase_cli.outcome == 'success'
         run: supabase stop --no-backup
