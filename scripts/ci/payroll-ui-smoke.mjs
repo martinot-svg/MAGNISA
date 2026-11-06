@@ -47,21 +47,8 @@ const clickAction = async (page, button) => {
   ]);
 };
 const resetPage = async (page) => {
-  const { data: memberships, error: membershipError } = await admin
-    .from("organization_members")
-    .select("organization_id,role,status")
-    .eq("user_id", process.env.TEST_USER_ID);
-  if (membershipError) throw membershipError;
-  process.stdout.write(`TEST USER MEMBERSHIPS: ${JSON.stringify(memberships)}\\n`);
-
-  const payrollResponse = await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
-  try {
-    await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor({ timeout: 15000 });
-  } catch (error) {
-    process.stdout.write(`PAYROLL UI DIAGNOSTIC URL: ${page.url()} STATUS: ${payrollResponse?.status()}\\n`);
-    process.stdout.write(`PAYROLL UI DIAGNOSTIC BODY: ${(await page.locator("body").innerText()).slice(0, 3000)}\\n`);
-    throw error;
-  }
+  await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor();
 };
 
 const browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
