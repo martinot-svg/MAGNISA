@@ -92,6 +92,10 @@ async function prepareIrsa2026Rule(fd:FormData){
   rounding_policy:"floor_100",legal_reference:MADAGASCAR_IRSA_2026.legalReference
  };
  for(const key of copiedFields)draft[key]=source[key];
+ // Le régime général non agricole M1-1A est passé à 315 000 Ar au 01/10/2026.
+ // Le plafond CNaPS/SMIE/FMFP est de 8 x SME = 2 520 000 Ar.
+ draft.cnaps_monthly_ceiling=2_520_000;
+ draft.health_monthly_ceiling=2_520_000;
  const {error:insertError}=await ctx.supabase.from("payroll_rule_sets").insert(draft);
  if(insertError)throw new Error(insertError.message);
  revalidatePath("/paie/parametres");
