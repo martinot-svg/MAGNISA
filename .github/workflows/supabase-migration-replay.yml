@@ -46,7 +46,7 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Export isolated local Supabase credentials
         run: |
-          eval "$(supabase status -o env | sed 's/^/export /')"
+          eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY|DB_URL)=')"
           echo "DB_URL=$DB_URL" >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
