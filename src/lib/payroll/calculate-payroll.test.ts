@@ -36,7 +36,7 @@ describe("Calcul centralisé des bulletins", () => {
     expect(result.healthBase).toBe(2_520_000);
     expect(result.employeeSocial).toBe(25_200);
     expect(result.employeeHealth).toBe(25_200);
-    expect(result.employerFmfp).toBe(25_200);
+    expect(result.employerFmfp).toBe(30_000);
   });
 
   it.each([350_000, 350_100, 400_000, 400_100, 500_000, 500_100, 600_000, 600_100, 4_000_000, 4_000_100])(
