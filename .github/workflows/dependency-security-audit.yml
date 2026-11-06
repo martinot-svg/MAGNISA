@@ -1,0 +1,38 @@
+name: Dependency security audit
+on:
+  push:
+    branches:
+      - fix/security-prospects-commissions
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Resolve dependencies like the Vercel build
+        run: npx --yes npm@11.19.1 install --no-package-lock
+      - name: Print complete npm audit findings
+        shell: bash
+        run: |
+          npm audit --json > npm-audit.json || true
+          node <<'NODE'
+          const report = require('./npm-audit.json');
+          console.log('VULNERABILITY_COUNTS', JSON.stringify(report.metadata?.vulnerabilities ?? {}));
+          for (const [name, item] of Object.entries(report.vulnerabilities ?? {})) {
+            console.log(JSON.stringify({
+              package: name,
+              severity: item.severity,
+              direct: item.isDirect,
+              range: item.range,
+              fixAvailable: item.fixAvailable,
+              via: item.via.map(v => typeof v === 'string' ? v : {
+                name: v.name, title: v.title, range: v.range, url: v.url, cwe: v.cwe, cvss: v.cvss?.score
+              })
+            }));
+          }
+          NODE
