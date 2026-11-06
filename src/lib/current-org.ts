@@ -7,6 +7,7 @@ export async function requireUser() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
 
   if (!user) redirect("/login");
 
@@ -42,7 +43,7 @@ export async function requireOrganization() {
     .limit(50);
 
   if (process.env.CI === "true") {
-    console.info("[org-context] membership_count=", memberships?.length ?? 0, "query_error=", error?.code ?? "none", "test_user_match=", process.env.TEST_USER_ID ? user.id === process.env.TEST_USER_ID : "n/a");
+    console.info("[org-context] membership_count=", memberships?.length ?? 0, "query_error=", error?.code ?? "none", "test_user_match=", process.env.TEST_USER_ID ? user.id === process.env.TEST_USER_ID : "n/a", "has_session=", Boolean(session), "has_access_token=", Boolean(session?.access_token));
   }
   if (error) {
     throw new Error("Impossible de charger les organisations autorisées.");
