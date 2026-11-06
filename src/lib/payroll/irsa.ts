@@ -73,7 +73,7 @@ export function calculateIrsa({
 
   const taxableBase = Math.floor(taxableIncome / MADAGASCAR_IRSA_2026.roundingUnit) *
     MADAGASCAR_IRSA_2026.roundingUnit;
-  if (taxableBase === 0) {
+  if (taxableIncome === 0) {
     return { taxableBase, progressiveTax: 0, dependantReduction: 0, tax: 0 };
   }
 
