@@ -17,9 +17,8 @@ VALUES (:'org_id'::uuid, 'MAGNISA Payroll UI Test');
 INSERT INTO public.organization_members (organization_id, user_id, role, status)
 VALUES (:'org_id'::uuid, :'user_id'::uuid, 'owner', 'active');
 
-INSERT INTO public.profiles (id, email, account_status)
-VALUES (:'user_id'::uuid, 'payroll-ui-smoke@magnisa.test', 'active')
-ON CONFLICT (id) DO UPDATE SET account_status = 'active';
+-- The reconstructed local profiles table does not yet include account_status.
+-- The confirmed Auth user is sufficient for this isolated smoke test.
 
 SELECT set_config('request.jwt.claim.sub', :'user_id', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
