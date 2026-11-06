@@ -506,9 +506,9 @@ begin
     raise exception 'Enregistrement réservé à la fonction finance.';
   end if;
   if p_request_key is null then raise exception 'Clé d idempotence obligatoire.'; end if;
-  if p_account is null or p_amount is null or p_amount<=0 or p_paid_at is null
+  if p_account is null or p_amount is null or p_amount<=0 or p_amount<>round(p_amount,2) or p_paid_at is null
      or length(trim(coalesce(p_reference,'')))<2 then
-    raise exception 'Données de décaissement invalides.';
+    raise exception 'Données de décaissement invalides : montant positif à deux décimales, compte, date et référence obligatoires.';
   end if;
 
   v_digest := md5(jsonb_build_array(p_org,p_allocation,p_account,p_amount,p_paid_at,trim(p_reference))::text);
