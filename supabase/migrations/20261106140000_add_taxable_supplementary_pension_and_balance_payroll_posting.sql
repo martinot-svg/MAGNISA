@@ -314,8 +314,7 @@ begin
   end if;
 
   if ps.employer_fmfp > 0 then
-    insert into public.journal_entry_lines(organization_id,journal_entry_id,account_key,account_label,debit,credit)
-    values(p_org,v_entry,'PAYROLL_EXPENSE:FMFP','Contribution patronale FMFP',ps.employer_fmfp,0);
+    -- Existing journal_entry_lines trigger creates the matching FMFP expense debit.
     insert into public.journal_entry_lines(organization_id,journal_entry_id,account_key,account_label,debit,credit)
     values(p_org,v_entry,'FMFP_PAYABLE','FMFP à payer',0,ps.employer_fmfp);
   end if;
