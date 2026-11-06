@@ -262,6 +262,15 @@ using (public.has_org_permission(organization_id,'commissions.view_team')
 create policy commission_payments_insert on public.commission_payments for insert to authenticated
 with check (recorded_by=auth.uid() and public.has_org_permission(organization_id,'commissions.pay'));
 
+revoke all on table
+  public.commission_policies,
+  public.commission_policy_rules,
+  public.prospect_contributors,
+  public.commission_calculations,
+  public.commission_allocations,
+  public.commission_payments
+from anon, public;
+
 grant select on public.commission_policies to authenticated;
 grant select on public.commission_policy_rules to authenticated;
 grant select, insert on public.prospect_contributors to authenticated;
