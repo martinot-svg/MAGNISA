@@ -19,14 +19,13 @@ const roleLabels: Record<string, string> = {
 
 export default async function CommissionsPage() {
   const ctx = await requireOrganization();
-  const [canOwn, canTeam, canManagePolicy, canCalculate, canApprove, canPayRole, canContribute, canRecordExpense, canViewOrders, canViewInvoices] = await Promise.all([
+  const [canOwn, canTeam, canManagePolicy, canCalculate, canApprove, canPayRole, canRecordExpense, canViewOrders, canViewInvoices] = await Promise.all([
     hasPermission(ctx, "commissions.view_own"),
     hasPermission(ctx, "commissions.view_team"),
     hasPermission(ctx, "commissions.policy.manage"),
     hasPermission(ctx, "commissions.calculate"),
     hasPermission(ctx, "commissions.approve"),
     hasPermission(ctx, "commissions.pay"),
-    hasPermission(ctx, "commissions.contribute"),
     hasPermission(ctx, "expenses.record"),
     hasPermission(ctx, "sales.view"),
     hasPermission(ctx, "billing.view"),
@@ -43,6 +42,14 @@ export default async function CommissionsPage() {
   const hasFinanceApprover = (financeMembers ?? []).some((member: { role: string }) =>
     member.role === "finance_manager" || member.role === "accountant"
   );
+  let assignableMembers: Array<{ user_id: string; role: string; email: string }> = [];
+  if (canManagePolicy) {
+    const { data, error } = await ctx.supabase.rpc("list_commission_assignable_members", {
+      p_org: ctx.organizationId,
+    });
+    if (error) throw new Error("Impossible de charger les membres autorisés.");
+    assignableMembers = data ?? [];
+  }
   let paymentAccounts: Array<{ id: string; name: string; type: string }> = [];
   if (canPay) {
     const { data, error } = await ctx.supabase.from("financial_accounts")
@@ -143,14 +150,15 @@ export default async function CommissionsPage() {
         </tbody></table></div>
       </div>}
 
-      {canContribute && <div className="section">
-        <h2>Déclarer une contribution</h2>
-        <p className="muted">Tout membre actif autorisé peut déclarer sa propre contribution. Cette déclaration ne crée pas automatiquement une prime.</p>
+      {canManagePolicy && <div className="section">
+        <h2>Affecter une contribution</h2>
+        <p className="muted">Seuls les responsables autorisés peuvent affecter un membre actif à un prospect. Le créateur d'un prospect est automatiquement enregistré comme apporteur.</p>
         <form action={addProspectContributor} className="form card">
           <div className="field"><label>Prospect</label><select name="prospect_id" required defaultValue=""><option value="" disabled>Choisir un prospect</option>{prospects.map((prospect: any) => <option key={prospect.id} value={prospect.id}>{prospect.name} · {prospect.status}</option>)}</select></div>
-          <div className="field"><label>Rôle joué</label><select name="contribution_type" required defaultValue="qualifier"><option value="originator">Apporteur</option><option value="qualifier">Qualificateur</option><option value="negotiator">Négociateur</option><option value="closer">Convertisseur</option></select></div>
+          <div className="field"><label>Membre actif</label><select name="user_id" required defaultValue=""><option value="" disabled>Choisir un membre</option>{assignableMembers.map((member) => <option key={member.user_id} value={member.user_id}>{member.email} · {member.role}</option>)}</select></div>
+          <div className="field"><label>Contribution</label><select name="contribution_type" required defaultValue="qualifier"><option value="originator">Apporteur</option><option value="qualifier">Qualificateur</option><option value="negotiator">Négociateur</option><option value="closer">Convertisseur</option></select></div>
           <div className="field"><label>Précision sur la contribution</label><textarea name="notes" rows={2} maxLength={1000} /></div>
-          <button className="button">Enregistrer ma contribution</button>
+          <button className="button">Affecter le contributeur</button>
         </form>
       </div>}
 
