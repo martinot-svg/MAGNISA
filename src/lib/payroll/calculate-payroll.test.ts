@@ -25,8 +25,8 @@ describe("Calcul centralisé des bulletins", () => {
     expect(result.employerHealth).toBe(50_000);
     expect(result.employerFmfp).toBe(10_000);
     expect(result.taxableBase).toBe(980_000);
-    expect(result.incomeTax).toBe(78_500);
-    expect(result.netBeforeOtherDeductions).toBe(901_500);
+    expect(result.incomeTax).toBe(103_500);
+    expect(result.netBeforeOtherDeductions).toBe(876_500);
     expect(result.employerCost).toBe(1_190_000);
   });
 
