@@ -40,4 +40,98 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   const ctx = await requireOrganization();
   const { supabase, organizationId, user } = ctx;
 
-  const [{ data: rows = [] }, permissions, { count: u¶»§q«^
+  const [{ data: rows = [] }, permissions, { count: unreadCount = 0 }] =
+    await Promise.all([
+      supabase
+        .from("organization_features")
+        .select("feature_key,enabled")
+        .eq("organization_id", organizationId),
+      getEffectivePermissions(ctx),
+      supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", organizationId)
+        .eq("recipient_user_id", user.id)
+        .is("read_at", null)
+        .is("archived_at", null),
+    ]);
+
+  const enabled = new Map(rows.map((row: any) => [row.feature_key, row.enabled]));
+  const visible = FEATURE_CATALOG.filter((feature) => {
+    const featureEnabled =
+      feature.required ||
+      feature.key === "settings" ||
+      enabled.get(feature.key) !== false;
+
+    if (!featureEnabled) return false;
+
+    if (feature.key === "prospects") {
+      return permissions.has("sales.view") || permissions.has("commissions.contribute");
+    }
+    if (feature.key === "commissions") {
+      return permissions.has("commissions.view_own") ||
+        permissions.has("commissions.view_team") ||
+        permissions.has("commissions.policy.manage");
+    }
+    const requiredPermission = featurePermission[feature.key];
+    return !requiredPermission || permissions.has(requiredPermission);
+  });
+
+  let lastGroup = "";
+
+  return (
+    <div className="appShell">
+      <aside>
+        <BrandMark href="/dashboard" compact />
+        <nav>
+          {visible.map((feature) => {
+            const showGroup = feature.group !== lastGroup;
+            lastGroup = feature.group;
+
+            return (
+              <div key={feature.key}>
+                {showGroup ? (
+                  <div
+                    style={{
+                      padding: "15px 10px 5px",
+                      fontSize: 9,
+                      textTransform: "uppercase",
+                      letterSpacing: ".14em",
+                      color: "#71819f",
+                    }}
+                  >
+                    {feature.group}
+                  </div>
+                ) : null}
+                <Link href={feature.href}>{feature.label}</Link>
+              </div>
+            );
+          })}
+          <div>
+            <Link href="/notifications">Notifications</Link>
+          </div>
+        </nav>
+        <form action={signOut}>
+          <button className="button ghost">Se dÃ©connecter</button>
+        </form>
+      </aside>
+      <main>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            padding: "12px 20px 0",
+          }}
+        >
+          <NotificationBell
+            userId={user.id}
+            organizationId={organizationId}
+            initialUnread={unreadCount ?? 0}
+          />
+        </div>
+        {children}
+      </main>
+    </div>
+  );
+}

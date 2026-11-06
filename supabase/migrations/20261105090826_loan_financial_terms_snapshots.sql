@@ -7,23 +7,6 @@ alter table public.loans
 alter table public.loan_schedule_versions
   add column if not exists financial_terms jsonb not null default '{}'::jsonb;
 
--- Freeze the financial terms on historical versions using the values already stored on each loan.
-update public.loan_schedule_versions v
-set financial_terms = jsonb_build_object(
-  'principal', l.principal,
-  'annual_rate_percent', l.interest_rate,
-  'interest_type', coalesce(l.interest_type, 'simple'),
-  'interest_calculation_method', coalesce(l.interest_calculation_method, 'outstanding_balance'),
-  'repayment_method', coalesce(l.repayment_method, 'annuity'),
-  'payments_per_year', coalesce(l.payment_frequency, 12),
-  'installment_count', coalesce(l.total_installments, 0),
-  'first_due_date', l.first_due_date,
-  'rate_basis', case when coalesce(l.interest_type, 'simple') = 'compound' then 'effective_annual' else 'nominal_annual' end
-)
-from public.loans l
-where l.id = v.loan_id and v.status = 'active' and v.financial_terms = '{}'::jsonb;
-
--- Permit exactly one write of a previously empty snapshot. All subsequent changes remain blocked.
 create or replace function public.guard_loan_schedule_version_history()
 returns trigger language plpgsql set search_path=public
 as $function$
@@ -57,6 +40,25 @@ begin
   return new;
 end;
 $function$;
+
+-- Freeze the financial terms on historical versions using the values already stored on each loan.
+update public.loan_schedule_versions v
+set financial_terms = jsonb_build_object(
+  'principal', l.principal,
+  'annual_rate_percent', l.interest_rate,
+  'interest_type', coalesce(l.interest_type, 'simple'),
+  'interest_calculation_method', coalesce(l.interest_calculation_method, 'outstanding_balance'),
+  'repayment_method', coalesce(l.repayment_method, 'annuity'),
+  'payments_per_year', coalesce(l.payment_frequency, 12),
+  'installment_count', coalesce(l.total_installments, 0),
+  'first_due_date', l.first_due_date,
+  'rate_basis', case when coalesce(l.interest_type, 'simple') = 'compound' then 'effective_annual' else 'nominal_annual' end
+)
+from public.loans l
+where l.id = v.loan_id and v.status = 'active' and v.financial_terms = '{}'::jsonb;
+
+-- Permit exactly one write of a previously empty snapshot. All subsequent changes remain blocked.
+
 
 create or replace function public.set_loan_schedule_version_terms(
   p_organization_id uuid,
