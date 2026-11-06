@@ -64,6 +64,7 @@ begin
   insert into public.payroll_runs(id,organization_id,period_start,period_end,status,created_by)
   values(v_run,v_org,date_trunc('month',current_date)::date,(date_trunc('month',current_date)+interval '1 month - 1 day')::date,'draft',v_owner);
 
+  -- IRSA base includes the Ar 100,000 taxable supplementary pension contribution.
   v_payslip := public.create_payslip(
     p_org => v_org,
     p_run => v_run,
@@ -73,7 +74,7 @@ begin
     p_other_earnings => 0,
     p_employee_social => 10000,
     p_employee_health => 30000,
-    p_income_tax => 101500,
+    p_income_tax => 121500,
     p_advances_recovered => 0,
     p_other_deductions => 0,
     p_employer_social => 130000,
@@ -85,7 +86,7 @@ begin
     into v_tax,v_net,v_fmfp,v_pension,v_status
     from public.payslips where id=v_payslip;
 
-  if v_status <> 'calculated' or v_tax <> 101500 or v_net <> 858500
+  if v_status <> 'calculated' or v_tax <> 121500 or v_net <> 838500
     or v_fmfp <> 10000 or v_pension <> 100000 then
     raise exception 'TEST FAILED: payslip values do not include taxable supplementary pension correctly';
   end if;
