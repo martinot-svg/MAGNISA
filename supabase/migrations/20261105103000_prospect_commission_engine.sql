@@ -294,6 +294,7 @@ as $$
 declare
   v_prospect public.prospects%rowtype;
   v_policy public.commission_policies%rowtype;
+  v_org_currency text;
   v_basis numeric(18,2);
   v_total numeric(18,2);
   v_roles integer;
@@ -321,6 +322,11 @@ begin
   where id=p_policy and organization_id=p_org and is_active
     and effective_from <= current_date and (effective_until is null or effective_until >= current_date);
   if not found then raise exception 'Aucune politique de prime active applicable.'; end if;
+
+  select currency into v_org_currency from public.organizations where id=p_org;
+  if not found or v_policy.currency is distinct from v_org_currency then
+    raise exception 'La devise de la politique ne correspond pas à la devise de l''organisation.';
+  end if;
 
   if v_policy.calculation_basis='fixed_amount' then
     if p_source_document_type is not null or p_source_document_id is not null then
@@ -591,9 +597,17 @@ declare
   v_policy uuid;
   v_sum numeric;
   v_count integer;
+  v_org_currency text;
 begin
   if auth.uid() is null or not public.has_org_permission(p_org,'commissions.policy.manage') then
     raise exception 'Gestion des politiques réservée aux responsables habilités.';
+  end if;
+  select currency into v_org_currency from public.organizations where id=p_org;
+  if not found or v_org_currency is null then
+    raise exception 'Devise de l''organisation introuvable.';
+  end if;
+  if p_currency is distinct from v_org_currency then
+    raise exception 'La devise de la politique doit être celle de l''organisation (%).', v_org_currency;
   end if;
   if length(trim(coalesce(p_name,'')))<2
      or p_basis not in ('order_total','invoice_paid_amount','fixed_amount')
