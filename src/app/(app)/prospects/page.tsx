@@ -26,7 +26,7 @@ export default async function ProspectsPage() {
       <div className="pageHead">
         <div>
           <h1>Prospects</h1>
-          <p>Suivi des contacts, contributions et conversion contrôlée en client.</p>
+          <p>Suivi des contacts et des contributions. Le passage au statut Gagné crée automatiquement la fiche client.</p>
         </div>
         {canContribute && (
           <div className="actions">
@@ -62,7 +62,7 @@ export default async function ProspectsPage() {
                       {canConvert && !prospect.converted_customer_id && prospect.status !== "lost" ? (
                         <form action={convertProspectToCustomer}>
                           <input type="hidden" name="prospect_id" value={prospect.id} />
-                          <button className="button small">Convertir en client</button>
+                          <button className="button small">Clôturer comme gagné</button>
                         </form>
                       ) : prospect.converted_customer_id ? "Déjà converti" : "—"}
                     </td>
