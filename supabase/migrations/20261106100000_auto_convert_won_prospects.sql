@@ -5,7 +5,7 @@ create or replace function public.auto_convert_won_prospect()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_existing_customer uuid;
@@ -83,7 +83,7 @@ create or replace function public.convert_prospect_to_customer(
 ) returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_prospect public.prospects%rowtype;
