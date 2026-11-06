@@ -9,7 +9,7 @@ Les plafonds enregistrés sont 2 400 000 Ar pour la CNaPS et 1 600 000 Ar pour l
 ## Correctifs logiciels
 
 - Le calcul IRSA est centralisé dans un module unique, partagé par la paie et l'aperçu des référentiels.
-- La déduction fiscale de la cotisation santé du salarié est plafonnée à 1 % du salaire brut, conformément à l'article 01.03.09, 2°, du Code des impôts DGI. La retenue SMIE réellement due reste calculée au taux enregistré ; seule la fraction déductible réduit l'assiette IRSA.
+- La déduction fiscale de la cotisation santé du salarié est plafonnée à 2 % du salaire brut, conformément à la loi n°2024-025 portant loi de finances 2025, qui modifie l'article 01.03.09, 2°. La retenue SMIE réellement due reste calculée au taux enregistré ; seule la fraction déductible réduit l'assiette IRSA.
 - Le calcul TypeScript et le déclencheur PostgreSQL utilisent la même règle.
 - Un revenu imposable nul produit une retenue IRSA nulle dans les deux moteurs.
 - Les versements patronaux aux régimes de retraite complémentaire sont maintenant saisis dans un champ distinct, ajoutés à l'assiette IRSA et au coût employeur, mais jamais au net payé au salarié.
@@ -29,9 +29,10 @@ Source officielle : https://cnlegis.gov.mg/uploads/L2025-021_VF.pdf
 
 ### Déduction santé et assiette
 
-Le Code général des impôts publié par la DGI prévoit à l'article 01.03.09, 2°, la déduction de la cotisation ouvrière à un organisme sanitaire / assurance santé dans la limite de 1 % du salaire brut. L'article 01.03.16 prévoit l'arrondi de l'assiette imposable à la centaine inférieure. La retenue de santé réelle reste déduite du net, même lorsque sa fraction déductible est plafonnée.
+Le Code général des impôts publié par la DGI prévoit à l'article 01.03.09, 2°, la déduction de la cotisation ouvrière à un organisme sanitaire / assurance santé dans la limite de 2 % du salaire brut. L'article 01.03.16 prévoit l'arrondi de l'assiette imposable à la centaine inférieure. La retenue de santé réelle reste déduite du net, même lorsque sa fraction déductible est plafonnée.
 
-Source DGI : https://portal.impots.mg/textes/textes/2025-02-06--N-2025-MEF.SG.DGI-Ref-HIH9EC-3OPLT3.pdf
+Source officielle DGI, loi n°2024-025 : https://portal.impots.mg/textes/textes/2024-12-18--N-025-2024-MEF-Ref-VDXBIA-4UW3VY.pdf
+Confirmation dans la Circulaire d'Exécution Budgétaire 2025, ministère de l'Économie et des Finances : https://www.mef.gov.mg/assets/file/accueil/2025/CEB.pdf
 
 ### Loi de finances rectificative 2026
 
