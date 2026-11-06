@@ -27,19 +27,23 @@ jobs:
         run: supabase db reset --yes
       - name: Verify public RPC execution grants
         run: |
-          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\\"')
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\\\"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/default-rpc-execution.sql
       - name: Verify anonymous table and sequence privileges
         run: |
-          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\\"')
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\\\"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/anon-privileges.sql
+      - name: Verify private legal archive access
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\\\"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/private-payroll-archive.sql
       - name: Verify payroll activation rejects identical start dates
         run: |
-          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\\"')
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\\\"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/payroll-rule-activation-date-conflicts.sql
       - name: Verify payroll accounting posting and supplementary pension
         run: |
-          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\\"')
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\\\"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/payroll-accounting-posting.sql
       - name: Stop local Supabase
         if: always() && steps.supabase_cli.outcome == 'success'
