@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { calculateMvolaTransfer, classifyMvolaTransfer } from "@/lib/mvola-tariffs";
+import { calculateMobileMoneyTransfer, normalizeMobileMoneyOperator } from "@/lib/mobile-money-tariffs";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
 
@@ -295,16 +295,36 @@ export async function recordInternalTransferDebit(fd:FormData){
  const source=accounts?.find(a=>a.id===v.source),dest=accounts?.find(a=>a.id===v.destination);
  if(!source||!dest||!source.is_active||!dest.is_active||source.id===dest.id)throw new Error("Comptes source et destinataire invalides.");
  const accountCategory=(a:typeof source)=>String((a?.details as Record<string,unknown>|null)?.account_type??"personal");
- const operation=classifyMvolaTransfer(
-  source ? {type:source.type,name:source.name,category:accountCategory(source)} : undefined,
-  dest ? {type:dest.type,name:dest.name,category:accountCategory(dest)} : undefined
+ const sourceAccount=source?{type:source.type,name:source.name,category:accountCategory(source)}:undefined;
+ const destinationAccount=dest?{type:dest.type,name:dest.name,category:accountCategory(dest)}:undefined;
+ const mobileMoneyPresent=source?.type==="mobile_money"||dest?.type==="mobile_money";
+ const operator=normalizeMobileMoneyOperator(
+  source?.type==="mobile_money"?source.name:dest?.type==="mobile_money"?dest.name:null
  );
- if(!operation)throw new Error("Le tarif officiel de ce parcours n'est pas encore disponible.");
- const calculated=calculateMvolaTransfer(operation,v.reference_amount,v.fee_mode);
- if(!calculated)throw new Error("Calcul automatique indisponible pour cette tranche ou ce mode. Vérifie le tarif.");
- const {debit,credit,fee}=calculated;
+ if(mobileMoneyPresent&&!operator)throw new Error("Opérateur Mobile Money non reconnu. Vérifie le compte sélectionné.");
+ let debit:number,credit:number,fee:number;
+ if(operator){
+  const calculated=calculateMobileMoneyTransfer(operator,sourceAccount,destinationAccount,v.reference_amount,v.fee_mode);
+  if(calculated){
+   ({debit,credit,fee}=calculated);
+  }else{
+   // Missing, conflicting or unsupported tariff bands require the fee actually
+   // shown on the provider receipt. Never infer a free transfer or invent a rate.
+   fee=v.operator_fee;
+   if(!Number.isInteger(fee)||fee<=0)throw new Error("Tarif non disponible pour ce parcours. Saisis les frais réellement constatés sur le justificatif.");
+   debit=v.fee_mode==="added"?v.reference_amount+fee:v.reference_amount;
+   credit=v.fee_mode==="added"?v.reference_amount:v.reference_amount-fee;
+   if(credit<=0)throw new Error("Les frais dépassent le montant transféré.");
+  }
+ }else{
+  // Bank and cash transfers have no Mobile Money tariff. Record the actual
+  // equal debit/credit; any separate bank charge must be recorded separately.
+  fee=0;
+  debit=v.reference_amount;
+  credit=v.reference_amount;
+ }
  if(v.source_debit!==debit||v.destination_credit!==credit||v.operator_fee!==fee)
-   throw new Error("Les montants ne correspondent pas au calcul automatique. Recharge la page.");
+  throw new Error("Les montants ne correspondent pas au calcul ou au justificatif déclaré. Recharge la page.");
  const {error}=await ctx.supabase.rpc("magnisa_record_transfer_debit",{p_org:ctx.organizationId,p_source:v.source,p_destination:v.destination,p_date:v.date,p_source_debit:debit,p_destination_credit:credit,p_fee:fee,p_reference:v.reference,p_request_key:v.request_key});
  if(error)throw new Error(error.message);
  revalidatePath("/tresorerie");revalidatePath("/dashboard");revalidatePath("/tresorerie/comptes/"+v.source);
