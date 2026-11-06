@@ -1,3 +1,5 @@
+-- Ordering note: keep this fiscal-year foundation before the 20261106 payroll/security migrations.
+-- The module is deliberately gated as PROJET / NON VALIDÉ until operational PCG reconciliation is complete.
 -- MAGNISA: exercices comptables, a-nouveaux et cloture controlee (PCG 2005 Madagascar).
 -- Les ecritures sources restent immuables. Les a-nouveaux sont une nouvelle piece tracee.
 
