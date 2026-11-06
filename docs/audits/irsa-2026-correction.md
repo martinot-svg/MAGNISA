@@ -54,12 +54,12 @@ La configuration actuelle de l'organisation pour l'OMIT est de 8 % employeur et 
 
 ### Plafonds CNaPS / SMIE
 
-La page historique officielle CNaPS affiche un plafond général de 2 400 000 Ar associé à un SME de 300 000 Ar :
+La page historique officielle CNaPS consultée le 6 novembre 2026 indique, pour le régime général non agricole, un SME de 300 000 Ar et un plafond mensuel cotisable de 2 400 000 Ar à compter du 1er mars 2026. Pour le régime agricole, elle affiche un SME de 304 300 Ar et un plafond de 2 434 400 Ar :
 https://www.cnaps.mg/historique-sme
 
-Le CNLegis répertorie le décret n°2026-1358 et son errata du 2 octobre 2026 comme étant en vigueur. Une source professionnelle FISEMA mentionne un SME M1-1A non agricole de 315 000 Ar, soit 2 520 000 Ar à huit fois le SME. Toutefois, l'annexe officielle du décret et l'incidence exacte sur les plafonds de cotisation n'ont pas encore été rapprochées de la page CNaPS.
+Le CNLegis répertorie le décret n°2026-1358 du 2 juin 2026 et son errata du 2 octobre 2026 comme étant en vigueur. Une source professionnelle mentionne 315 000 Ar pour la catégorie M1-1A non agricole, soit 2 520 000 Ar à huit fois le SME, mais cette valeur n'est pas confirmée par la page historique CNaPS actuellement publiée. Le chiffre de 2 520 000 Ar n'est donc pas retenu.
 
-En conséquence, le correctif ne remplace pas les plafonds actuels de 2 400 000 Ar et 1 600 000 Ar. Le plafond de 2 520 000 Ar reste à confirmer par la CNaPS et le texte officiel complet.
+Le référentiel contrôlé conserve 2 400 000 Ar pour la CNaPS et 1 600 000 Ar pour la santé, sans modification. La valeur CNaPS de 2 400 000 Ar est cohérente avec la page officielle actuelle pour le régime général ; l'interaction détaillée du décret n°2026-1358 et de son errata avec la base cotisable devra néanmoins être confirmée par écrit auprès de la CNaPS avant toute révision.
 
 ## Contrôle comptable du bulletin
 
