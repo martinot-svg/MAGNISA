@@ -31,3 +31,14 @@ Le 7 novembre 2026 est utilisé comme date de préparation opérationnelle afin 
 2. Vérifier chaque autre paramètre social copié depuis le référentiel de l'organisation : aucun taux CNaPS, SMIE, FMFP ou plafond n'est certifié par ce correctif.
 3. Faire relire le référentiel par un responsable paie/fiscalité.
 4. Activer explicitement la version dans MAGNISA seulement après validation documentaire.
+
+
+## Mise à jour sociale vérifiée au 6 novembre 2026
+
+- Décret n°2026-1358 : à compter du 1er octobre 2026, le SME M1-1A non agricole est de 315 000 Ar. Le plafond de cotisation CNaPS/SMIE/FMFP à 8 × SME est donc de 2 520 000 Ar. La version préparée pour le régime général remplace les anciens plafonds de 2 400 000 Ar et 1 600 000 Ar par 2 520 000 Ar.
+- CNaPS : 1 % salarié et 13 % employeur.
+- SMIE : l'article 25 du décret n°2003-1162 fixe un minimum de 1 % salarié et 5 % employeur. La configuration de l'organisation pour l'OMIT est actuellement à 2 % / 8 %. Ces taux sont conservés dans la version en attente, mais ils ne sont pas certifiés par un contrat ou un avis de l'OMIT ; ne pas activer avant justification.
+- FMFP : 1 % employeur sur l'assiette salariale brute plafonnée, et non sur le brut non plafonné.
+- Aucun bulletin historique n'est modifié. La version créée reste au statut pending_review.
+
+Références : https://fisema.mg/fiche-salaire/ ; https://www.edbm.mg/wp-content/uploads/2017/12/Decret_2003-1162_medecine_entreprise.pdf ; https://www.fmfp.mg/faq/la-cotisation-fmfp/ ; https://www.cnaps.mg/fr/telechargement/cotisations/talonfmfp-CNaPS_600fcb8215b502.69912222.pdf
