@@ -102,7 +102,7 @@ export async function saveCommissionPolicy(formData: FormData) {
     calculation_basis: z.enum(policyBasis),
     commission_rate: z.coerce.number().finite().positive().max(100),
     fixed_basis_amount: z.string(),
-    effective_from: z.string().date(),
+    effective_from: z.iso.date(),
     effective_until: z.string().optional(),
     is_active: z.boolean(),
     originator: z.coerce.number().min(0).max(100),
@@ -217,7 +217,7 @@ export async function recordCommissionPayment(formData: FormData) {
   const parsed = z.object({
     allocation_id: z.string().uuid(),
     amount: z.coerce.number().finite().positive(),
-    paid_at: z.string().date(),
+    paid_at: z.iso.date(),
     reference: z.string().trim().min(2).max(160),
   }).safeParse({
     allocation_id: String(formData.get("allocation_id") ?? ""),
