@@ -30,11 +30,42 @@ describe("Calcul centralisé des bulletins", () => {
     expect(result.employerCost).toBe(1_190_000);
   });
 
-  it("limite la déduction IRSA de la cotisation santé à 1 % du brut", () => {
+  it("limite la déduction IRSA de la cotisation santé à 2 % du brut", () => {
     const result = calculatePayrollAmounts({
       gross: 1_000_000,
       dependants: 0,
-      rule: { ...rule, health_employee_rate: 0.02 },
+      rule: { ...rule, health_employee_rate: 0.03 },
+    });
+    expect(result.employeeSocial).toBe(10_000);
+    expect(result.employeeHealth).toBe(30_000);
+    // La retenue réelle reste de 3 %, mais la déduction fiscale est plafonnée à 2 %.
+    expect(result.taxableBase).toBe(970_000);
+  });
+
+  it("intègre la retraite complémentaire patronale à l'assiette IRSA sans la payer en net", () => {
+    const result = calculatePayrollAmounts({
+      gross: 1_000_000,
+      taxableSupplementaryPension: 100_000,
+      dependants: 0,
+      rule,
+    });
+    expect(result.taxableSupplementaryPension).toBe(100_000);
+    expect(result.taxableBase).toBe(1_080_000);
+    expect(result.incomeTax).toBe(123_500);
+    expect(result.netBeforeOtherDeductions).toBe(856_500);
+    expect(result.employerCost).toBe(1_290_000);
+  });
+
+  it("rejette un versement patronal de retraite complémentaire invalide", () => {
+    expect(() => calculatePayrollAmounts({
+      gross: 500_000,
+      taxableSupplementaryPension: -1,
+      dependants: 0,
+      rule,
+    })).toThrow(/retraite complémentaire/);
+  });
+
+  it("plafonne séparément les assiettes CNaPS et SMIE selon le référentiel", () => {
     });
     expect(result.employeeSocial).toBe(10_000);
     expect(result.employeeHealth).toBe(20_000);
