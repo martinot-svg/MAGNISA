@@ -60,6 +60,13 @@ describe("Calcul centralisé des bulletins", () => {
     },
   );
 
+  it("retourne zéro d'impôt pour un brut nul", () => {
+    const result = calculatePayrollAmounts({ gross: 0, dependants: 0, rule });
+    expect(result.taxableBase).toBe(0);
+    expect(result.incomeTax).toBe(0);
+    expect(result.netBeforeOtherDeductions).toBe(0);
+  });
+
   it("rejette les taux et plafonds incohérents", () => {
     expect(() => calculatePayrollAmounts({
       gross: 500_000,
