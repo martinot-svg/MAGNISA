@@ -2,7 +2,7 @@ export type IrsaBracket = { up_to: number | null; rate: number };
 
 export const MADAGASCAR_IRSA_2026 = {
   effectiveFrom: "2026-01-01",
-  preparationEffectiveFrom: "2026-11-01",
+  preparationEffectiveFrom: "2026-11-07",
   minimum: 3000,
   dependantReduction: 2000,
   dependantThreshold: 350000,
