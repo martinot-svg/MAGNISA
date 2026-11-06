@@ -10,7 +10,7 @@ create or replace function public.payroll_compute_fmfp_on_insert()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $function$
 declare
   v_rule public.payroll_rule_sets%rowtype;
