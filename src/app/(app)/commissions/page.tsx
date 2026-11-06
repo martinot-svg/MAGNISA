@@ -29,6 +29,15 @@ export default async function CommissionsPage() {
   ]);
   if (!canOwn && !canTeam && !canManagePolicy) redirect("/dashboard?access=denied");
 
+  const [{ data: organization }, { data: financeMembers = [] }] = await Promise.all([
+    ctx.supabase.from("organizations").select("currency").eq("id", ctx.organizationId).single(),
+    ctx.supabase.from("organization_members").select("role")
+      .eq("organization_id", ctx.organizationId).eq("status", "active"),
+  ]);
+  const hasFinanceApprover = financeMembers.some((member: { role: string }) =>
+    member.role === "finance_manager" || member.role === "accountant"
+  );
+
   const [{ data: policies = [] }, { data: calculations = [] }, { data: prospects = [] }] = await Promise.all([
     ctx.supabase.from("commission_policies")
       .select("id,name,is_active,calculation_basis,commission_rate,fixed_basis_amount,currency,effective_from,effective_until,commission_policy_rules(contribution_type,share_percentage)")
@@ -46,6 +55,9 @@ export default async function CommissionsPage() {
   return (
     <>
       <div className="pageHead"><div><h1>Primes et commissions</h1><p>Attribution des contributions, calcul selon la politique active et validation par la finance.</p></div></div>
+      {canManagePolicy && !hasFinanceApprover && <div className="section">
+        <p className="muted">Aucun membre Finance actif n'est actuellement habilité à approuver ou enregistrer les paiements de commissions. Attribue le rôle Finance manager ou Comptable à un membre autorisé avant la première validation.</p>
+      </div>}
       <div className="section">
         <div className="grid grid-4">
           <div className="card"><div className="muted">Politiques actives</div><strong className="metric">{policies.filter((p: any) => p.is_active).length}</strong></div>
@@ -57,15 +69,15 @@ export default async function CommissionsPage() {
 
       {canManagePolicy && <div className="section">
         <h2>Politiques de primes</h2>
-        <p className="muted">La politique détermine la base financière, le taux de prime et les parts des contributeurs. Chaque calcul conserve une copie figée de la politique. Les parts des rôles absents sont redistribuées proportionnellement entre les rôles représentés.</p>
+        <p className="muted">La politique détermine la base financière, le taux de prime et les parts des contributeurs. Chaque calcul conserve une copie figée de la politique. Les parts des rôles absents sont redistribuées proportionnellement entre les rôles représentés. Une prime fondée sur une facture exige que cette facture soit entièrement soldée. La devise est celle de l'entreprise.</p>
         <form action={saveCommissionPolicy} className="form card">
           <div className="field"><label>Nom de la politique</label><input name="name" required minLength={2} /></div>
           <div className="field"><label>Description</label><input name="description" /></div>
           <div className="grid grid-3">
-            <div className="field"><label>Base financière</label><select name="calculation_basis" required defaultValue="order_total"><option value="order_total">Montant total d'une commande</option><option value="invoice_paid_amount">Montant encaissé d'une facture</option><option value="fixed_amount">Montant fixe défini par la politique</option></select></div>
+            <div className="field"><label>Base financière</label><select name="calculation_basis" required defaultValue="order_total"><option value="order_total">Montant total d'une commande</option><option value="invoice_paid_amount">Facture entièrement encaissée</option><option value="fixed_amount">Montant fixe défini par la politique</option></select></div>
             <div className="field"><label>Taux de prime (%)</label><input name="commission_rate" type="number" min="0.0001" max="100" step="0.0001" placeholder="Définir le taux contractuel" required /></div>
             <div className="field"><label>Montant fixe de base</label><input name="fixed_basis_amount" type="number" min="0.01" step="0.01" placeholder="Uniquement pour base fixe" /></div>
-            <div className="field"><label>Devise</label><input name="currency" defaultValue="MGA" pattern="[A-Z]{3}" required /></div>
+            <div className="field"><label>Devise de l'entreprise</label><input value={organization?.currency ?? "MGA"} readOnly /></div>
             <div className="field"><label>Applicable à partir du</label><input name="effective_from" type="date" required /></div>
             <div className="field"><label>Fin de validité</label><input name="effective_until" type="date" /></div>
           </div>
