@@ -1,0 +1,29 @@
+name: Supabase migration replay
+on:
+  pull_request:
+    paths:
+      - "supabase/**"
+      - ".github/workflows/supabase-migration-replay.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "supabase/**"
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase stack on PostgreSQL 17
+        run: supabase start -x studio,edge-runtime,logflare,vector,analytics
+      - name: Replay every migration from a clean database
+        run: supabase db reset --local --yes
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup
