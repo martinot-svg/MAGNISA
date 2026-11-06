@@ -62,7 +62,7 @@ En conséquence, le correctif ne remplace pas les plafonds actuels de 2 400 000 
 
 ## Contrôle comptable du bulletin
 
-L'audit de la production n'a trouvé aucune fiche de paie validée avec une cotisation FMFP. Les deux écritures de paie existantes sont équilibrées. La fonction de validation ne prévoyait toutefois pas de débit de charge correspondant au crédit FMFP à payer ; le nouveau code ajoute explicitement le débit FMFP. Le même principe est appliqué aux versements patronaux de retraite complémentaire.
+L'audit de la production n'a trouvé aucune fiche de paie validée avec une cotisation FMFP. Les deux écritures de paie existantes sont équilibrées. Le débit FMFP est généré par un déclencheur existant sur les lignes comptables lorsqu'un crédit FMFP_PAYABLE est ajouté. Le nouveau code conserve ce mécanisme et ajoute une paire débit/crédit distincte pour les versements patronaux de retraite complémentaire.
 
 ## Conditions de mise en production
 
