@@ -17,6 +17,23 @@ const ids = {
 const admin = createClient(supabaseUrl, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
+const userClient = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+const { data: userAuth, error: userAuthError } = await userClient.auth.signInWithPassword({
+  email,
+  password,
+});
+if (userAuthError || !userAuth.user) throw userAuthError ?? new Error("Unable to authenticate direct RLS probe.");
+const { data: directMemberships, error: directMembershipError } = await userClient
+  .from("organization_members")
+  .select("organization_id,role,status")
+  .eq("user_id", userAuth.user.id)
+  .eq("status", "active");
+process.stdout.write("DIRECT USER JWT MEMBERSHIPS " + JSON.stringify({
+  count: directMemberships?.length ?? 0,
+  query_error: directMembershipError?.code ?? "none",
+}) + "\\n");
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
 };
