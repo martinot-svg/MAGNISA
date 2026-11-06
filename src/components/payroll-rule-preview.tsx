@@ -1,5 +1,6 @@
 "use client";
 import {formatDocumentAmount} from "@/lib/format-document-amount";
+import {calculateIrsa} from "@/lib/payroll/irsa";
 import {useState} from "react";
 
 type Bracket={up_to:number|null;rate:number};
@@ -29,22 +30,15 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  let tax:number|null=null;
  let error="";
  if(configured&&valid&&validDependants&&applicable){
-   const brackets=applicable.irsa_brackets as Bracket[];
-   let accumulated=0,prev=0,covered=false;
-   for(const b of brackets){
-     const cap=b.up_to===null?Infinity:Number(b.up_to),rate=Number(b.rate);
-     if(!Number.isFinite(rate)||rate<0||rate>1||!(cap>prev)){error="Tranches IRSA incohérentes.";break;}
-     accumulated+=Math.max(0,Math.min(taxable,cap)-prev)*rate;
-     prev=cap;
-     if(taxable<=cap){covered=true;break;}
-   }
-   if(!error&&!covered)error="Barème IRSA incomplet.";
-   const minimum=Number(applicable.irsa_minimum);
-   if(!Number.isFinite(minimum)||minimum<0)error="Minimum IRSA invalide.";
-   if(!error){
-     accumulated=Math.max(minimum,round(accumulated));
-     if(taxable>350000&&people>0)accumulated=Math.max(minimum,accumulated-2000*people);
-     tax=accumulated;
+   try {
+     tax=calculateIrsa({
+       taxableIncome:taxable,
+       dependants:people,
+       brackets:applicable.irsa_brackets as Bracket[],
+       minimum:Number(applicable.irsa_minimum),
+     }).tax;
+   } catch (cause) {
+     error=cause instanceof Error?cause.message:"Barème IRSA invalide.";
    }
  }
  const fmt=(n:number)=>Number.isFinite(n)?money(n):"-";
