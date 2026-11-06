@@ -65,7 +65,7 @@ create table public.commission_calculations (
   commission_total numeric(18,2) not null check (commission_total > 0),
   currency text not null,
   policy_snapshot jsonb not null,
-  status text not null default 'calculated' check (status in ('calculated','approved','rejected')),
+  status text not null default 'calculated' check (status in ('calculated','approved','rejected','partially_paid','paid')),
   calculated_by uuid not null references auth.users(id),
   calculated_at timestamptz not null default now(),
   approved_by uuid references auth.users(id),
@@ -79,7 +79,7 @@ create table public.commission_calculations (
   foreign key (policy_id, organization_id) references public.commission_policies(id, organization_id),
   check ((source_document_type is null) = (source_document_id is null)),
   check ((status = 'calculated' and approved_by is null and approved_at is null and rejection_reason is null)
-      or (status = 'approved' and approved_by is not null and approved_at is not null and rejection_reason is null)
+      or (status in ('approved','partially_paid','paid') and approved_by is not null and approved_at is not null and rejection_reason is null)
       or (status = 'rejected' and approved_by is not null and approved_at is not null and length(trim(coalesce(rejection_reason,''))) > 0))
 );
 
@@ -89,7 +89,7 @@ create table public.commission_allocations (
   calculation_id uuid not null,
   user_id uuid not null references auth.users(id),
   contribution_type text not null check (contribution_type in ('originator','qualifier','negotiator','closer')),
-  share_percentage numeric(7,4) not null check (share_percentage > 0 and share_percentage <= 100),
+  share_percentage numeric(12,8) not null check (share_percentage > 0 and share_percentage <= 100),
   amount numeric(18,2) not null check (amount > 0),
   created_at timestamptz not null default now(),
   foreign key (calculation_id, organization_id) references public.commission_calculations(id, organization_id) on delete cascade,
@@ -140,7 +140,7 @@ begin
   limit 1;
   if v_role is null then return false; end if;
   if p_permission = 'commissions.approve' or p_permission = 'commissions.pay' then
-    return v_role in ('finance_manager','accountant','owner');
+    return v_role in ('finance_manager','accountant');
   end if;
   if v_role='owner' then return true; end if;
 
@@ -262,6 +262,15 @@ using (public.has_org_permission(organization_id,'commissions.view_team')
 create policy commission_payments_insert on public.commission_payments for insert to authenticated
 with check (recorded_by=auth.uid() and public.has_org_permission(organization_id,'commissions.pay'));
 
+revoke all on table
+  public.commission_policies,
+  public.commission_policy_rules,
+  public.prospect_contributors,
+  public.commission_calculations,
+  public.commission_allocations,
+  public.commission_payments
+from anon, authenticated, public;
+
 grant select on public.commission_policies to authenticated;
 grant select on public.commission_policy_rules to authenticated;
 grant select, insert on public.prospect_contributors to authenticated;
@@ -360,29 +369,34 @@ begin
   ) returning id into v_calculation;
 
   with contributors as (
-    select c.user_id,c.contribution_type,r.share_percentage,
+    select c.id,c.user_id,c.contribution_type,r.share_percentage,
       count(*) over(partition by c.contribution_type) as role_count,
-      row_number() over(order by c.contribution_type,c.user_id,c.id) as rn,
-      count(*) over() as total_rows
+      (v_total * r.share_percentage / v_share_total
+        / count(*) over(partition by c.contribution_type)) as raw_amount
     from public.prospect_contributors c
     join public.commission_policy_rules r on r.policy_id=v_policy.id
       and r.organization_id=p_org and r.contribution_type=c.contribution_type
     where c.organization_id=p_org and c.prospect_id=p_prospect
-  ), split as (
-    select *, round((v_total * share_percentage / v_share_total / role_count),2) as preliminary
+  ), ranked as (
+    select *,
+      floor(raw_amount * 100) / 100 as floor_amount,
+      row_number() over(
+        order by (raw_amount * 100 - floor(raw_amount * 100)) desc,
+          contribution_type,user_id,id
+      ) as remainder_rank,
+      (v_total * 100 - sum(floor(raw_amount * 100)) over())::integer as remaining_cents
     from contributors
-  ), adjusted as (
-    select *, case when rn=total_rows
-      then v_total - coalesce(sum(preliminary) over(order by rn rows between unbounded preceding and 1 preceding),0)
-      else preliminary end as final_amount
-    from split
+  ), allocated as (
+    select *,
+      floor_amount + case when remainder_rank <= remaining_cents then 0.01 else 0 end as final_amount
+    from ranked
   )
   insert into public.commission_allocations(
     organization_id,calculation_id,user_id,contribution_type,share_percentage,amount
   )
   select p_org,v_calculation,user_id,contribution_type,
     (share_percentage / v_share_total * 100 / role_count),final_amount
-  from adjusted where final_amount > 0;
+  from allocated where final_amount > 0;
 
   perform public.audit_event(p_org,'commission.calculated','commission_calculations',v_calculation,null,
     jsonb_build_object('prospect_id',p_prospect,'basis_amount',v_basis,'commission_total',v_total,'currency',v_policy.currency));
@@ -426,7 +440,10 @@ as $$
 declare
   v_calculation_status text;
   v_allocation public.commission_allocations%rowtype;
-  v_paid numeric(18,2);
+  v_calculation uuid;
+  v_commission_total numeric(18,2);
+  v_paid_allocation numeric(18,2);
+  v_paid_total numeric(18,2);
   v_payment uuid;
 begin
   if auth.uid() is null or not public.has_org_permission(p_org,'commissions.pay') then
@@ -439,19 +456,44 @@ begin
   if p_amount is null or p_amount<=0 or p_paid_at is null or length(trim(coalesce(p_reference,'')))<2 then
     raise exception 'Données de paiement invalides.';
   end if;
+
   select a.* into v_allocation
   from public.commission_allocations a
   where a.id=p_allocation and a.organization_id=p_org for update;
   if not found then raise exception 'Attribution introuvable.'; end if;
-  select status into v_calculation_status from public.commission_calculations
-  where id=v_allocation.calculation_id and organization_id=p_org;
-  if v_calculation_status <> 'approved' then raise exception 'Seules les primes validées par finance peuvent être payées.'; end if;
-  select coalesce(sum(amount),0) into v_paid from public.commission_payments
+
+  select id,status,commission_total
+    into v_calculation,v_calculation_status,v_commission_total
+  from public.commission_calculations
+  where id=v_allocation.calculation_id and organization_id=p_org
+  for update;
+  if v_calculation_status not in ('approved','partially_paid') then
+    raise exception 'Seules les primes validées par finance peuvent être payées.';
+  end if;
+
+  select coalesce(sum(amount),0) into v_paid_allocation
+  from public.commission_payments
   where allocation_id=p_allocation and organization_id=p_org;
-  if p_amount > v_allocation.amount-v_paid then raise exception 'Le paiement dépasse le solde de la prime.'; end if;
-  insert into public.commission_payments(organization_id,allocation_id,amount,paid_at,payment_reference,recorded_by,request_key)
-  values(p_org,p_allocation,p_amount,p_paid_at,trim(p_reference),auth.uid(),p_request_key)
-  returning id into v_payment;
+  if p_amount > v_allocation.amount-v_paid_allocation then
+    raise exception 'Le paiement dépasse le solde de la prime.';
+  end if;
+
+  insert into public.commission_payments(
+    organization_id,allocation_id,amount,paid_at,payment_reference,recorded_by,request_key
+  ) values (
+    p_org,p_allocation,p_amount,p_paid_at,trim(p_reference),auth.uid(),p_request_key
+  ) returning id into v_payment;
+
+  select coalesce(sum(p.amount),0) into v_paid_total
+  from public.commission_payments p
+  join public.commission_allocations a
+    on a.id=p.allocation_id and a.organization_id=p.organization_id
+  where a.calculation_id=v_calculation and a.organization_id=p_org;
+
+  update public.commission_calculations
+  set status=case when v_paid_total >= v_commission_total then 'paid' else 'partially_paid' end
+  where id=v_calculation and organization_id=p_org;
+
   perform public.audit_event(p_org,'commission.payment_recorded','commission_payments',v_payment,null,
     jsonb_build_object('allocation_id',p_allocation,'amount',p_amount,'paid_at',p_paid_at,'reference',trim(p_reference)));
   return v_payment;

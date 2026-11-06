@@ -4,6 +4,7 @@ export const FEATURE_CATALOG=[
   {key:"smart_analysis",label:"Analyse intelligente",href:"/analyse",required:false,group:"Pilotage",description:"Santé économique, risques et recommandations."},
   {key:"clients",label:"Clients",href:"/clients",required:true,group:"Clients & ventes",description:"Fiches clients et historique commercial."},
   {key:"prospects",label:"Prospects",href:"/prospects",required:false,group:"Clients & ventes",description:"Pipeline commercial avant conversion en client."},
+  {key:"commissions",label:"Primes & commissions",href:"/commissions",required:false,group:"Clients & ventes",description:"Politiques de primes, contributions, validation Finance et suivi des règlements."},
   {key:"quotes",label:"Devis",href:"/devis",required:false,group:"Clients & ventes",description:"Propositions commerciales, versions et acceptation."},
   {key:"orders",label:"Commandes",href:"/commandes",required:false,group:"Clients & ventes",description:"Engagement après acceptation d'un devis."},
   {key:"services",label:"Services & prestations",href:"/services",required:true,group:"Clients & ventes",description:"Catalogue des prestations vendues."},

@@ -65,6 +65,14 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
     if (!featureEnabled) return false;
 
+    if (feature.key === "prospects") {
+      return permissions.has("sales.view") || permissions.has("commissions.contribute");
+    }
+    if (feature.key === "commissions") {
+      return permissions.has("commissions.view_own") ||
+        permissions.has("commissions.view_team") ||
+        permissions.has("commissions.policy.manage");
+    }
     const requiredPermission = featurePermission[feature.key];
     return !requiredPermission || permissions.has(requiredPermission);
   });
