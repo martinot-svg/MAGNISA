@@ -133,7 +133,7 @@ create or replace function public.has_org_permission(p_org uuid,p_permission tex
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_role text;
@@ -298,7 +298,7 @@ create or replace function public.calculate_prospect_commission(
 ) returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_prospect public.prospects%rowtype;
@@ -446,7 +446,7 @@ create or replace function public.review_prospect_commission(
 ) returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_status text;
@@ -487,7 +487,7 @@ create or replace function public.record_commission_payment(
 ) returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_allocation public.commission_allocations%rowtype;
@@ -597,7 +597,7 @@ create or replace function public.create_prospect_with_originator(
 ) returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_prospect uuid;
@@ -622,7 +622,7 @@ create or replace function public.convert_prospect_to_customer(
 ) returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_prospect public.prospects%rowtype;
@@ -675,7 +675,7 @@ create or replace function public.save_commission_policy(
 ) returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_policy uuid;
