@@ -47,8 +47,14 @@ const clickAction = async (page, button) => {
   ]);
 };
 const resetPage = async (page) => {
-  await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
-  await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor();
+  const response = await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
+  try {
+    await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor({ timeout: 15000 });
+  } catch (error) {
+    process.stdout.write("RESET PAGE URL " + page.url() + " STATUS " + response?.status() + "\\n");
+    process.stdout.write("RESET PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\\n");
+    throw error;
+  }
 };
 
 const browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
