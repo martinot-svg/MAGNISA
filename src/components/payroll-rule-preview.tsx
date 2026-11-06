@@ -1,11 +1,10 @@
 "use client";
 import {formatDocumentAmount} from "@/lib/format-document-amount";
-import {calculateIrsa} from "@/lib/payroll/irsa";
+import {calculatePayrollAmounts} from "@/lib/payroll/calculate-payroll";
 import {useState} from "react";
 
 type Bracket={up_to:number|null;rate:number};
 type Rule={id:string;name:string;effective_from:string;effective_to:string|null;status:string;cnaps_employee_rate:number;cnaps_employer_rate:number;health_employee_rate:number;health_employer_rate:number;fmfp_employer_rate:number;cnaps_monthly_ceiling:number|null;health_monthly_ceiling:number|null;irsa_brackets:unknown;irsa_minimum:number|null;rounding_policy:string|null;legal_reference:string|null;smie_partner_name?:string|null;};
-const round=(n:number)=>Math.round(n*100)/100;
 export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rules:Rule[];currency:string;companyName:string;defaultSmie:string|null}){
  const [date,setDate]=useState(new Date().toISOString().slice(0,10));
  const [gross,setGross]=useState("1000000");
@@ -18,27 +17,38 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  const people=Number(dependants);
  const validDependants=dependants.trim()!==""&&Number.isInteger(people)&&people>=0&&people<=30;
  const configured=!!applicable&&applicable.status==="validated"&&applicable.cnaps_monthly_ceiling!==null&&applicable.health_monthly_ceiling!==null&&applicable.rounding_policy==="floor_100"&&Array.isArray(applicable.irsa_brackets)&&applicable.irsa_brackets.length>0;
- const baseCnaps=valid&&applicable?Math.min(brut,Number(applicable.cnaps_monthly_ceiling??brut)):0;
- const baseHealth=valid&&applicable?Math.min(brut,Number(applicable.health_monthly_ceiling??brut)):0;
- const social=applicable?round(baseCnaps*Number(applicable.cnaps_employee_rate)):0;
- const health=applicable?round(baseHealth*Number(applicable.health_employee_rate)):0;
- const patronCnaps=applicable?round(baseCnaps*Number(applicable.cnaps_employer_rate)):0;
- const patronHealth=applicable?round(baseHealth*Number(applicable.health_employer_rate)):0;
- const patronFmfp=applicable?round(brut*Number(applicable.fmfp_employer_rate)):0;
- const employer=patronCnaps+patronHealth+patronFmfp;
- const taxable=Math.floor(Math.max(0,brut-social-health)/100)*100;
+ let baseCnaps=0,baseHealth=0,social=0,health=0,patronCnaps=0,patronHealth=0,patronFmfp=0,employer=0,taxable=0;
  let tax:number|null=null;
  let error="";
  if(configured&&valid&&validDependants&&applicable){
    try {
-     tax=calculateIrsa({
-       taxableIncome:taxable,
+     const calculation=calculatePayrollAmounts({
+       gross:brut,
        dependants:people,
-       brackets:applicable.irsa_brackets as Bracket[],
-       minimum:Number(applicable.irsa_minimum),
-     }).tax;
+       rule:{
+         cnaps_employee_rate:Number(applicable.cnaps_employee_rate),
+         cnaps_employer_rate:Number(applicable.cnaps_employer_rate),
+         health_employee_rate:Number(applicable.health_employee_rate),
+         health_employer_rate:Number(applicable.health_employer_rate),
+         fmfp_employer_rate:Number(applicable.fmfp_employer_rate),
+         cnaps_monthly_ceiling:Number(applicable.cnaps_monthly_ceiling),
+         health_monthly_ceiling:Number(applicable.health_monthly_ceiling),
+         irsa_brackets:applicable.irsa_brackets as Bracket[],
+         irsa_minimum:Number(applicable.irsa_minimum),
+       },
+     });
+     baseCnaps=calculation.cnapsBase;
+     baseHealth=calculation.healthBase;
+     social=calculation.employeeSocial;
+     health=calculation.employeeHealth;
+     patronCnaps=calculation.employerSocial;
+     patronHealth=calculation.employerHealth;
+     patronFmfp=calculation.employerFmfp;
+     employer=patronCnaps+patronHealth+patronFmfp;
+     taxable=calculation.taxableBase;
+     tax=calculation.incomeTax;
    } catch (cause) {
-     error=cause instanceof Error?cause.message:"Barème IRSA invalide.";
+     error=cause instanceof Error?cause.message:"Calcul de paie invalide.";
    }
  }
  const fmt=(n:number)=>Number.isFinite(n)?money(n):"-";
