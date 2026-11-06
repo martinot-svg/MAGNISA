@@ -2,7 +2,7 @@
 
 ## Périmètre
 
-Cette branche prépare le barème IRSA de droit commun applicable en 2026. Elle ne modifie aucune donnée Supabase et ne change aucun bulletin déjà enregistré. Le nouveau jeu de paramètres est créé, à la demande d'un administrateur dans l'application, au statut `pending_review` avec une date de préparation au 1er novembre 2026. Il n'est jamais activé automatiquement.
+Cette branche prépare le barème IRSA de droit commun applicable en 2026. Elle ne modifie aucune donnée Supabase et ne change aucun bulletin déjà enregistré. Le nouveau jeu de paramètres est créé, à la demande d'un administrateur dans l'application, au statut `pending_review` avec une date de préparation au 7 novembre 2026. Il n'est jamais activé automatiquement.
 
 ## Référence fiscale
 
@@ -14,7 +14,7 @@ La loi de finances rectificative n°2026-004 a été adoptée le 22 juin 2026 et
 
 ## Date d'effet préparée
 
-Le 1er novembre 2026 est utilisé comme date de préparation opérationnelle afin de ne pas recalculer rétroactivement les périodes antérieures ni modifier les bulletins déjà établis. Cette date n'affirme pas que la loi fiscale est entrée en vigueur à cette date : le barème légal 2026 est celui de la loi de finances initiale. Les périodes antérieures restent dans leur historique.
+Le 7 novembre 2026 est utilisé comme date de préparation opérationnelle afin de ne pas recalculer rétroactivement les périodes antérieures ni modifier les bulletins déjà établis. Cette date n'affirme pas que la loi fiscale est entrée en vigueur à cette date : le barème légal 2026 est celui de la loi de finances initiale. Les périodes antérieures restent dans leur historique.
 
 ## Contrôles ajoutés
 
