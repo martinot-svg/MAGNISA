@@ -66,6 +66,27 @@ describe("buildLoanSchedule", () => {
     expect(addMonthsClamped("2028-01-31", 1)).toBe("2028-02-29");
   });
 
+  it("conserve les intérêts calculés sur le capital initial après remboursement anticipé", () => {
+    const schedule = buildLoanSchedule({
+      principal: 850_000, annualRatePercent: 12, periods: 10, paymentsPerYear: 12,
+      firstDueDate: "2027-04-15", method: "annuity",
+      interestCalculationMethod: "original_principal",
+    });
+    expect(schedule.installments.every((row) => row.interest === 8_500)).toBe(true);
+    expect(schedule.installments[0].principal).toBeGreaterThan(0);
+    expect(schedule.installments.at(-1)?.closingPrincipal).toBe(0);
+  });
+
+  it("solde intégralement un prêt à taux nul", () => {
+    const schedule = buildLoanSchedule({
+      principal: 100, annualRatePercent: 0, periods: 3, paymentsPerYear: 12,
+      firstDueDate: "2027-02-01", method: "annuity",
+    });
+    expect(schedule.totalInterest).toBe(0);
+    expect(schedule.totalPayments).toBe(100);
+    expect(schedule.installments.at(-1)?.closingPrincipal).toBe(0);
+  });
+
   it("rejette les paramètres financiers invalides", () => {
     const base = {
       principal: 1_000_000, annualRatePercent: 12, periods: 12, paymentsPerYear: 12,

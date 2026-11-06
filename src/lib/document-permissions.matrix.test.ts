@@ -23,8 +23,8 @@ function createSupabase(roleAllowed: boolean | null = null, userAllowed: boolean
         select: () => query,
         eq: () => query,
         maybeSingle: async () => ({
-          data: allowed === null ? null : { allowed },
-          error: null,
+          data: (allowed === null ? null : { allowed }) as { allowed: boolean } | null,
+          error: null as Error | null,
         }),
       };
       return query;
@@ -52,6 +52,16 @@ describe("Matrice documentaire exhaustive", () => {
         }
       }
     }
+  });
+
+  it("une exception positive ne contourne pas une interdiction du rôle", async () => {
+    const supabase = createSupabase(null, true);
+    const allowed = await canDocumentAction(
+      { organizationId: "org_A", role: "viewer", user: { id: "user_A" }, supabase },
+      "documents.export",
+      "invoice",
+    );
+    expect(allowed).toBe(false);
   });
 
   it("un refus individuel prévaut sur les droits du propriétaire", async () => {

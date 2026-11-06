@@ -1,10 +1,10 @@
 "use client";
 import {formatDocumentAmount} from "@/lib/format-document-amount";
+import {calculatePayrollAmounts} from "@/lib/payroll/calculate-payroll";
 import {useState} from "react";
 
 type Bracket={up_to:number|null;rate:number};
 type Rule={id:string;name:string;effective_from:string;effective_to:string|null;status:string;cnaps_employee_rate:number;cnaps_employer_rate:number;health_employee_rate:number;health_employer_rate:number;fmfp_employer_rate:number;cnaps_monthly_ceiling:number|null;health_monthly_ceiling:number|null;irsa_brackets:unknown;irsa_minimum:number|null;rounding_policy:string|null;legal_reference:string|null;smie_partner_name?:string|null;};
-const round=(n:number)=>Math.round(n*100)/100;
 export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rules:Rule[];currency:string;companyName:string;defaultSmie:string|null}){
  const [date,setDate]=useState(new Date().toISOString().slice(0,10));
  const [gross,setGross]=useState("1000000");
@@ -17,34 +17,38 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  const people=Number(dependants);
  const validDependants=dependants.trim()!==""&&Number.isInteger(people)&&people>=0&&people<=30;
  const configured=!!applicable&&applicable.status==="validated"&&applicable.cnaps_monthly_ceiling!==null&&applicable.health_monthly_ceiling!==null&&applicable.rounding_policy==="floor_100"&&Array.isArray(applicable.irsa_brackets)&&applicable.irsa_brackets.length>0;
- const baseCnaps=valid&&applicable?Math.min(brut,Number(applicable.cnaps_monthly_ceiling??brut)):0;
- const baseHealth=valid&&applicable?Math.min(brut,Number(applicable.health_monthly_ceiling??brut)):0;
- const social=applicable?round(baseCnaps*Number(applicable.cnaps_employee_rate)):0;
- const health=applicable?round(baseHealth*Number(applicable.health_employee_rate)):0;
- const patronCnaps=applicable?round(baseCnaps*Number(applicable.cnaps_employer_rate)):0;
- const patronHealth=applicable?round(baseHealth*Number(applicable.health_employer_rate)):0;
- const patronFmfp=applicable?round(brut*Number(applicable.fmfp_employer_rate)):0;
- const employer=patronCnaps+patronHealth+patronFmfp;
- const taxable=Math.floor(Math.max(0,brut-social-health)/100)*100;
+ let baseCnaps=0,baseHealth=0,social=0,health=0,patronCnaps=0,patronHealth=0,patronFmfp=0,employer=0,taxable=0;
  let tax:number|null=null;
  let error="";
  if(configured&&valid&&validDependants&&applicable){
-   const brackets=applicable.irsa_brackets as Bracket[];
-   let accumulated=0,prev=0,covered=false;
-   for(const b of brackets){
-     const cap=b.up_to===null?Infinity:Number(b.up_to),rate=Number(b.rate);
-     if(!Number.isFinite(rate)||rate<0||rate>1||!(cap>prev)){error="Tranches IRSA incohérentes.";break;}
-     accumulated+=Math.max(0,Math.min(taxable,cap)-prev)*rate;
-     prev=cap;
-     if(taxable<=cap){covered=true;break;}
-   }
-   if(!error&&!covered)error="Barème IRSA incomplet.";
-   const minimum=Number(applicable.irsa_minimum);
-   if(!Number.isFinite(minimum)||minimum<0)error="Minimum IRSA invalide.";
-   if(!error){
-     accumulated=Math.max(minimum,round(accumulated));
-     if(taxable>350000&&people>0)accumulated=Math.max(minimum,accumulated-2000*people);
-     tax=accumulated;
+   try {
+     const calculation=calculatePayrollAmounts({
+       gross:brut,
+       dependants:people,
+       rule:{
+         cnaps_employee_rate:Number(applicable.cnaps_employee_rate),
+         cnaps_employer_rate:Number(applicable.cnaps_employer_rate),
+         health_employee_rate:Number(applicable.health_employee_rate),
+         health_employer_rate:Number(applicable.health_employer_rate),
+         fmfp_employer_rate:Number(applicable.fmfp_employer_rate),
+         cnaps_monthly_ceiling:Number(applicable.cnaps_monthly_ceiling),
+         health_monthly_ceiling:Number(applicable.health_monthly_ceiling),
+         irsa_brackets:applicable.irsa_brackets as Bracket[],
+         irsa_minimum:Number(applicable.irsa_minimum),
+       },
+     });
+     baseCnaps=calculation.cnapsBase;
+     baseHealth=calculation.healthBase;
+     social=calculation.employeeSocial;
+     health=calculation.employeeHealth;
+     patronCnaps=calculation.employerSocial;
+     patronHealth=calculation.employerHealth;
+     patronFmfp=calculation.employerFmfp;
+     employer=patronCnaps+patronHealth+patronFmfp;
+     taxable=calculation.taxableBase;
+     tax=calculation.incomeTax;
+   } catch (cause) {
+     error=cause instanceof Error?cause.message:"Calcul de paie invalide.";
    }
  }
  const fmt=(n:number)=>Number.isFinite(n)?money(n):"-";

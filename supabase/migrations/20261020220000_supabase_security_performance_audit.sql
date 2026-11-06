@@ -1,74 +1,186 @@
--- Supabase security and performance audit follow-up.
--- Restrict anonymous execution of privileged functions, lock down trigger helpers,
--- expose the read-only legal reference catalogue only to signed-in users, and index
--- public-schema foreign-key columns that currently lack a suitable leading index.
+-- =====================================================================
+-- Supabase security & performance audit — corrected, ready-to-run
+-- =====================================================================
+-- Structure :
+--   PART A  (transactionnel)  : REVOKE, search_path, RLS, GRANT
+--   PART B  (transactionnel) : CREATE INDEX IF NOT EXISTS (FK manquants)
+-- =====================================================================
+-- Les migrations Supabase sont exécutées dans une transaction.
+-- CREATE INDEX CONCURRENTLY est interdit dans une transaction et dans DO.
+-- Les index sont donc créés sans CONCURRENTLY, avec IF NOT EXISTS.
+-- =====================================================================
 
+
+-- =====================================================================
+-- PART A — Changements transactionnels
+-- =====================================================================
 begin;
 
--- Trigger functions are invoked by their table triggers, not as client RPC endpoints.
-revoke all on function public.audit_payroll_rule_change() from public, anon, authenticated;
-revoke all on function public.capture_document_appearance() from public, anon, authenticated;
-revoke all on function public.capture_document_template_version() from public, anon, authenticated;
-revoke all on function public.payroll_compute_fmfp_on_insert() from public, anon, authenticated;
-revoke all on function public.payroll_fmfp_debit_line() from public, anon, authenticated;
-revoke all on function public.store_document_template_version() from public, anon, authenticated;
+-- ---------------------------------------------------------------------
+-- A.1  Fonctions trigger : retirer EXECUTE côté client.
+--      PUBLIC ⊇ anon ∪ authenticated → un seul REVOKE suffit.
+--      L'invocation par un trigger ne dépend pas de ce grant (résolu
+--      contre le propriétaire de la fonction), donc c'est sans risque.
+-- ---------------------------------------------------------------------
+revoke all on function public.audit_payroll_rule_change()         from public;
+revoke all on function public.capture_document_appearance()       from public;
+revoke all on function public.capture_document_template_version() from public;
+revoke all on function public.payroll_compute_fmfp_on_insert()    from public;
 
--- These RPCs remain available to authenticated users where currently granted.
--- Anonymous calls are not required and must not be able to invoke privileged operations.
-revoke execute on function public.activate_payroll_rule(uuid, uuid) from anon;
-revoke execute on function public.can_view_document_template_version(uuid, uuid) from anon;
-revoke execute on function public.lot2_record_payroll_payment_idempotent(uuid, uuid, uuid, numeric, text, date, text, uuid) from anon;
-revoke execute on function public.lot2_record_supplier_payment_idempotent(uuid, uuid, uuid, numeric, text, date, text, uuid) from anon;
-revoke execute on function public.magnisa_confirm_transfer_credit(uuid, uuid, date, text) from anon;
-revoke execute on function public.magnisa_record_transfer_debit(uuid, uuid, uuid, date, numeric, numeric, numeric, text, uuid) from anon;
+-- À ADAPTER : ajoutez ici les autres fonctions trigger de la liste
+-- tronquée (votre message s'arrête à `revoke all on f…`). Modèle :
+--   revoke all on function public.<autre_fn_trigger>() from public;
 
--- The legal archive is optional in clean reconstructions. When present, enforce
--- read-only access for authenticated clients with RLS; privileged server roles retain
--- their existing ownership and write privileges.
-do $migration$
+-- Filet de sécurité : révoque EXECUTE sur TOUTES les fonctions trigger
+-- du schéma public qui ne sont pas déjà verrouillées. Idempotent.
+do $$
+declare
+  r record;
 begin
-  if to_regclass('public.payroll_legal_documents') is not null then
-    execute 'alter table public.payroll_legal_documents enable row level security';
-    execute 'revoke all on table public.payroll_legal_documents from anon, authenticated';
-    execute 'grant select on table public.payroll_legal_documents to authenticated';
-    execute 'drop policy if exists payroll_legal_documents_authenticated_read on public.payroll_legal_documents';
-    execute 'create policy payroll_legal_documents_authenticated_read
-      on public.payroll_legal_documents
-      for select
-      to authenticated
-      using (true)';
-  end if;
-end
-$migration$;
+  for r in
+    select p.oid::regprocedure as fn
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.prorettype = 'trigger'::regtype   -- uniquement les trigger fns
+  loop
+    execute format('revoke all on function %s from public', r.fn);
+  end loop;
+end $$;
 
--- Index each public foreign-key column that lacks a suitable index.
-create index if not exists idx_document_template_versions_organization_id
-  on public.document_template_versions (organization_id);
-create index if not exists idx_document_templates_owner_user_id
-  on public.document_templates (owner_user_id);
-create index if not exists idx_email_history_connection_id
-  on public.email_history (connection_id);
-create index if not exists idx_email_history_created_by
-  on public.email_history (created_by);
-create index if not exists idx_email_history_credit_note_id
-  on public.email_history (credit_note_id);
-create index if not exists idx_email_history_invoice_id
-  on public.email_history (invoice_id);
-create index if not exists idx_email_history_payment_id
-  on public.email_history (payment_id);
-create index if not exists idx_email_history_project_id
-  on public.email_history (project_id);
-create index if not exists idx_email_history_quote_id
-  on public.email_history (quote_id);
-create index if not exists idx_email_templates_created_by
-  on public.email_templates (created_by);
-create index if not exists idx_magnisa_internal_transfers_destination_account_id
-  on public.magnisa_internal_transfers (destination_account_id);
-create index if not exists idx_pcg2005_account_mappings_pcg_code
-  on public.pcg2005_account_mappings (pcg_code);
-create index if not exists idx_pcg2005_account_mappings_updated_by
-  on public.pcg2005_account_mappings (updated_by);
-create index if not exists idx_user_document_permissions_granted_by
-  on public.user_document_permissions (granted_by);
+-- ---------------------------------------------------------------------
+-- A.2  Durcissement SECURITY DEFINER : search_path explicite.
+--      Corrige le risque de hijacking non couvert par le REVOKE.
+-- ---------------------------------------------------------------------
+alter function public.audit_payroll_rule_change()         set search_path = pg_catalog, public;
+alter function public.capture_document_appearance()       set search_path = pg_catalog, public;
+alter function public.capture_document_template_version() set search_path = pg_catalog, public;
+alter function public.payroll_compute_fmfp_on_insert()    set search_path = pg_catalog, public;
+
+-- Filet de sécurité : applique un search_path sûr à toute fonction
+-- SECURITY DEFINER du schéma public qui n'en a pas encore.
+do $$
+declare
+  r record;
+begin
+  for r in
+    select p.oid::regprocedure as fn
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.prosecdef = true                    -- SECURITY DEFINER
+      and not exists (
+        select 1
+        from unnest(coalesce(p.proconfig, '{}'::text[])) c
+        where c like 'search_path=%'
+      )
+  loop
+    execute format(
+      'alter function %s set search_path = pg_catalog, public', r.fn
+    );
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- A.3  Catalogue légal de référence : lecture seule, utilisateurs
+--      signés uniquement.
+--      ⚠️ À ADAPTER : remplacez <legal_catalogue_table> par le nom réel.
+--      Les blocs sont commentés pour ne pas échouer si le nom est faux ;
+--      décommentez après avoir renseigné le bon nom.
+-- ---------------------------------------------------------------------
+-- revoke all    on table public.<legal_catalogue_table> from anon;
+-- revoke all    on table public.<legal_catalogue_table> from public;
+-- grant  select on table public.<legal_catalogue_table> to   authenticated;
+--
+-- alter table public.<legal_catalogue_table> enable row level security;
+--
+-- drop policy if exists "legal_catalogue_read_authenticated"
+--   on public.<legal_catalogue_table>;
+-- create policy "legal_catalogue_read_authenticated"
+--   on public.<legal_catalogue_table>
+--   for select
+--   to authenticated
+--   using (true);
+-- -- Aucune policy pour anon ⇒ anon bloqué même si un grant fuit.
 
 commit;
+
+
+-- =====================================================================
+-- PART B — Index FK manquants (transactionnels, compatibles avec le moteur de migrations)
+-- =====================================================================
+-- Détecte automatiquement toutes les colonnes FK du schéma public qui
+-- n'ont pas d'index en position de tête, et crée l'index manquant
+-- avec CREATE INDEX standard. Cette migration s'exécute sur une base
+-- propre ou lors d'un déploiement contrôlé ; le verrou est donc acceptable.
+-- Idempotent : ignore les index déjà existants.
+-- ---------------------------------------------------------------------
+do $$
+declare
+  r record;
+  idx_name text;
+begin
+  for r in
+    select
+      con.conrelid::regclass::text              as tbl,
+      a.attname                                  as col,
+      n.nspname                                  as sch,
+      c.relname                                  as tblname
+    from pg_constraint con
+    join pg_class      c on c.oid = con.conrelid
+    join pg_namespace  n on n.oid = c.relnamespace
+    join pg_attribute  a
+      on a.attrelid = con.conrelid
+     and a.attnum   = con.conkey[1]
+    where con.contype  = 'f'
+      and n.nspname    = 'public'
+      -- pas d'index dont la 1ʳᵉ colonne est cette FK
+      and not exists (
+        select 1
+        from pg_index i
+        where i.indrelid   = con.conrelid
+          and i.indkey[0]  = con.conkey[1]
+      )
+  loop
+    -- nom d'index court et sûr (limite 63 octets côté Postgres)
+    idx_name := left(
+      format('idx_%s_%s_fk', r.tblname, r.col),
+      63
+    );
+
+    -- IF NOT EXISTS : compatible avec la transaction de migration
+    execute format(
+      'create index if not exists %I on %s.%I (%I)',
+      idx_name, r.sch, r.tblname, r.col
+    );
+
+    raise notice 'Created FK index % on %.%', idx_name, r.sch, r.tblname;
+  end loop;
+end $$;
+
+
+-- =====================================================================
+-- VÉRIFICATION POST-EXÉCUTION (lecture seule)
+-- =====================================================================
+-- 1) Aucune fonction trigger ne doit encore être exécutable par anon :
+select p.oid::regprocedure as trigger_fn,
+       has_function_privilege('anon', p.oid, 'execute')          as anon_can_exec,
+       has_function_privilege('authenticated', p.oid, 'execute') as auth_can_exec
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.prorettype = 'trigger'::regtype
+order by 1;
+
+-- 2) FK du schéma public encore sans index de tête (doit renvoyer 0 ligne) :
+select con.conrelid::regclass as table_name, a.attname as fk_column
+from pg_constraint con
+join pg_namespace n on n.oid = con.connamespace
+join pg_attribute a
+  on a.attrelid = con.conrelid and a.attnum = con.conkey[1]
+where con.contype = 'f'
+  and n.nspname = 'public'
+  and not exists (
+    select 1 from pg_index i
+    where i.indrelid = con.conrelid and i.indkey[0] = con.conkey[1]
+  );

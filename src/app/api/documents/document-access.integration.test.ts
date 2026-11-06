@@ -19,8 +19,8 @@ vi.mock("@/lib/current-org", () => ({
           eq: () => query,
           order: () => query,
           limit: () => query,
-          maybeSingle: async () => ({ data: null, error: null }),
-          single: async () => ({ data: { name: "QA", currency: "MGA" }, error: null }),
+          maybeSingle: async () => ({ data: null as unknown, error: null as Error | null }),
+          single: async () => ({ data: { name: "QA", currency: "MGA" } as unknown, error: null as Error | null }),
         };
         return query;
       },
@@ -30,7 +30,7 @@ vi.mock("@/lib/current-org", () => ({
 
 vi.mock("@/lib/permissions", () => ({
   hasPermission: async () => true,
-  requirePermission: async () => undefined,
+  requirePermission: async (): Promise<void> => undefined,
 }));
 
 vi.mock("@/lib/payroll/payslip-document", () => ({
@@ -39,7 +39,7 @@ vi.mock("@/lib/payroll/payslip-document", () => ({
       organizationId: fixture.organizationId,
       role: fixture.role,
       user: { id: "member-a" },
-      supabase: { from: () => { throw new Error("query not expected for viewer"); } },
+      supabase: { from: (): never => { throw new Error("query not expected for viewer"); } },
     },
     slip: { status: "validated" },
     data: { number: "QA-BPA" },
@@ -88,6 +88,24 @@ describe("Protection des exports documentaires", () => {
 
   it("refuse le PDF de rapport pour un rôle lecteur", async () => {
     const response = await reportPdf();
+    expect(response.status).toBe(403);
+    expect(fixture.calls).toEqual([]);
+  });
+
+  it("ne révèle pas une facture appartenant à une autre organisation", async () => {
+    fixture.role = "accountant";
+    const response = await commercialPdf(new Request("https://magnisa.test"), {
+      params: Promise.resolve({ type: "invoice", id: "foreign-invoice" }),
+    });
+    expect(response.status).toBe(404);
+    expect(fixture.calls).toContain("invoices");
+  });
+
+  it("refuse aussi le PDF de devis pour un employé", async () => {
+    fixture.role = "employee";
+    const response = await commercialPdf(new Request("https://magnisa.test"), {
+      params: Promise.resolve({ type: "quote", id: "quote-a" }),
+    });
     expect(response.status).toBe(403);
     expect(fixture.calls).toEqual([]);
   });

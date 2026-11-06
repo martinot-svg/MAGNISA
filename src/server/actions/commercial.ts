@@ -32,7 +32,7 @@ export async function createQuoteDraft(formData: FormData) {
   const customerId = String(formData.get("customer_id") || ""); const validUntil = String(formData.get("valid_until") || "");
   let lines: unknown; try { lines = JSON.parse(String(formData.get("lines") || "[]")); } catch { throw new Error("Les lignes du devis sont invalides."); }
   const parsed = z.array(lineSchema).min(1).max(100).safeParse(lines);
-  if (!parsed.success || !z.string().date().safeParse(validUntil).success) throw new Error("Vérifie le client, la validité et les prestations du devis.");
+  if (!parsed.success || !z.iso.date().safeParse(validUntil).success) throw new Error("Vérifie le client, la validité et les prestations du devis.");
   const { data, error } = await ctx.supabase.rpc("create_quote_draft", { p_org: ctx.organizationId, p_customer: customerId, p_valid_until: validUntil, p_lines: parsed.data });
   if (error) throw new Error(error.message); revalidatePath("/devis"); redirect(`/devis/${data}`);
 }
@@ -42,7 +42,7 @@ export async function createInvoiceDraft(formData: FormData) {
   const customerId = String(formData.get("customer_id") || ""); const dueDate = String(formData.get("due_date") || ""); const orderId = String(formData.get("order_id") || "").trim() || null;
   let lines: unknown; try { lines = JSON.parse(String(formData.get("lines") || "[]")); } catch { throw new Error("Les lignes de facture sont invalides."); }
   const parsedLines = z.array(lineSchema).min(1, "Ajoute au moins une prestation.").max(100).safeParse(lines); if (!parsedLines.success) throw new Error("Vérifie les prestations de la facture.");
-  if (!z.string().date().safeParse(dueDate).success) throw new Error("Date d'échéance invalide.");
+  if (!z.iso.date().safeParse(dueDate).success) throw new Error("Date d'échéance invalide.");
   const { data, error } = await ctx.supabase.rpc("create_invoice_draft", { p_org: ctx.organizationId, p_customer: customerId, p_due_date: dueDate, p_lines: parsedLines.data, p_order: orderId });
   if (error) throw new Error(error.message); revalidatePath("/factures"); if (orderId) revalidatePath("/commandes"); redirect(`/factures/${data}`);
 }
@@ -74,8 +74,8 @@ export async function createRecurringServiceContractAction(formData: FormData) {
   const parsed = z.object({
     order_id: z.string().uuid(),
     order_line_id: z.string().uuid(),
-    start_date: z.string().date(),
-    end_date: z.string().date().optional().or(z.literal("")),
+    start_date: z.iso.date(),
+    end_date: z.iso.date().optional().or(z.literal("")),
     billing_day: z.coerce.number().int().min(1).max(28),
   }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Vérifie les paramètres de la prestation récurrente.");
