@@ -8,6 +8,7 @@ import { money } from "@/lib/money";
 import { EmptyState } from "@/components/empty-state";
 import { PayrollGrossPreview } from "@/components/payroll-gross-preview";
 import { computeHealthContribution } from "@/lib/payroll/health-contribution";
+import { calculateIrsa } from "@/lib/payroll/irsa";
 import { FormDialog } from "@/components/form-dialog";
 
 async function createEmployee(fd: FormData) {
@@ -153,17 +154,13 @@ async function createPayslip(fd: FormData) {
   const healthBase=healthContribution.base;
   const social=Math.round(cnapsBase*Number(rule.cnaps_employee_rate)*100)/100;
   const health=healthContribution.employee;
-  const taxable=Math.floor(Math.max(0,gross-social-health)/100)*100;
-  let incomeTax=0;let previous=0;
-  for(const bracket of rule.irsa_brackets as {up_to:number|null;rate:number}[]){const cap=bracket.up_to==null?Infinity:Number(bracket.up_to);const rate=Number(bracket.rate);if(!Number.isFinite(rate)||rate<0||rate>1||!(cap>previous))throw new Error("Barème IRSA invalide.");incomeTax+=Math.max(0,Math.min(taxable,cap)-previous)*rate;previous=cap;if(taxable<=cap)break;}
-  // Un barème sans tranche couvrant le revenu imposable ne doit jamais produire une taxe sous-estimée.
-  if (taxable > previous) throw new Error("Barème IRSA incomplet : aucune tranche ne couvre le revenu imposable.");
-  const minimumIrsa = Number(rule.irsa_minimum);
-  if (!Number.isFinite(minimumIrsa) || minimumIrsa < 0) throw new Error("Minimum IRSA invalide.");
-  incomeTax=Math.max(minimumIrsa,Math.round(incomeTax*100)/100);
-  const dependants=Number(employee.irsa_dependants);
-  if (!Number.isInteger(dependants) || dependants<0 || dependants>30) throw new Error("Personnes à charge IRSA invalides.");
-  if (taxable>350000 && dependants>0) incomeTax=Math.max(minimumIrsa,incomeTax-2000*dependants);
+  const irsa = calculateIrsa({
+    taxableIncome: Math.max(0, gross - social - health),
+    dependants: Number(employee.irsa_dependants),
+    brackets: rule.irsa_brackets as { up_to: number | null; rate: number }[],
+    minimum: Number(rule.irsa_minimum),
+  });
+  const incomeTax = irsa.tax;
   amounts.employee_social=social;amounts.employee_health=health;amounts.income_tax=incomeTax;
   amounts.employer_social=Math.round(cnapsBase*Number(rule.cnaps_employer_rate)*100)/100;
   amounts.employer_health=healthContribution.employer;
