@@ -108,6 +108,7 @@ export async function assertPermission(
     if (ctx.role !== "finance_manager" && ctx.role !== "accountant") {
       throw new Error("Cette opération est réservée à l'équipe Finance.");
     }
+    return;
   }
   if (ctx.role === "owner") return;
 
