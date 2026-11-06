@@ -45,8 +45,13 @@ describe("Barème IRSA Madagascar 2026", () => {
     expect(calculateIrsa({ taxableIncome: 400100, dependants: 30 }).tax).toBe(3000);
   });
 
-  it("ne calcule pas de retenue sur une base imposable nulle", () => {
+  it("ne calcule pas de retenue en l'absence de revenu imposable", () => {
     expect(calculateIrsa({ taxableIncome: 0 }).tax).toBe(0);
+  });
+
+  it("maintient le minimum légal lorsqu'un revenu positif est arrondi à zéro", () => {
+    expect(calculateIrsa({ taxableIncome: 1 }).tax).toBe(3000);
+    expect(calculateIrsa({ taxableIncome: 99 }).tax).toBe(3000);
   });
 
   it("rejette les bases, personnes à charge et barèmes invalides", () => {
