@@ -24,13 +24,23 @@ const { data: userAuth, error: userAuthError } = await userClient.auth.signInWit
   email,
   password,
 });
-if (userAuthError || !userAuth.user) throw userAuthError ?? new Error("Unable to authenticate direct RLS probe.");
-const { data: directMemberships, error: directMembershipError } = await userClient
+if (userAuthError || !userAuth.user || !userAuth.session?.access_token) {
+  throw userAuthError ?? new Error("Unable to authenticate direct RLS probe.");
+}
+const authenticatedClient = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+  global: { headers: { Authorization: `Bearer ${userAuth.session.access_token}` } },
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+const { data: directMemberships, error: directMembershipError } = await authenticatedClient
   .from("organization_members")
   .select("organization_id,role,status")
   .eq("user_id", userAuth.user.id)
   .eq("status", "active");
+const jwtClaims = JSON.parse(Buffer.from(userAuth.session.access_token.split(".")[1], "base64url").toString("utf8"));
 process.stdout.write("DIRECT USER JWT MEMBERSHIPS " + JSON.stringify({
+  user_id: userAuth.user.id,
+  jwt_sub: jwtClaims.sub,
+  jwt_role: jwtClaims.role,
   count: directMemberships?.length ?? 0,
   query_error: directMembershipError?.code ?? "none",
 }) + "\\n");
