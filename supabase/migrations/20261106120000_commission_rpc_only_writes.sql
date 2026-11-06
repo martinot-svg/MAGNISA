@@ -39,7 +39,10 @@ begin
   if p_org is null or p_prospect is null or p_user is null then
     raise exception 'Organisation, prospect et membre obligatoires.';
   end if;
-  if p_contribution_type not in ('originator','qualifier','negotiator','closer') then
+  if p_user=auth.uid() then
+    raise exception 'Tu ne peux pas t''affecter toi-même. La création d''un prospect t''enregistre automatiquement comme apporteur.';
+  end if;
+  if p_contribution_type is null or p_contribution_type not in ('originator','qualifier','negotiator','closer') then
     raise exception 'Type de contribution invalide.';
   end if;
   if length(trim(coalesce(p_notes,''))) > 1000 then
@@ -97,6 +100,7 @@ begin
   from public.organization_members m
   join public.profiles p on p.id=m.user_id
   where m.organization_id=p_org and m.status='active'
+    and m.user_id<>auth.uid()
   order by m.role,p.email;
 end;
 $$;
