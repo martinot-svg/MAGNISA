@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,7 +16,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       NEXT_PUBLIC_APP_URL: https://magnisa.vercel.app
       NEXT_PUBLIC_SUPABASE_URL: https://pmlzirobpdlzsrvtkvir.supabase.co
@@ -29,9 +29,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
+
+      - name: Dependency audit report
+        run: |
+          npm audit --json > npm-audit.json || true
+          node -e "for (const [name, v] of Object.entries(require('./npm-audit.json').vulnerabilities || {})) console.log(name, v.severity, v.range, JSON.stringify(v.fixAvailable))"
+
+      - name: Production build
+        run: npm run build
 
       - name: Unit tests (Vitest)
         run: npm test
@@ -39,17 +48,17 @@ jobs:
       - name: Install PDF inspection tools
         run: command -v pdftotext || (sudo apt-get update && sudo apt-get install -y poppler-utils)
 
-      - name: Inspect all 32 PDF files and render first-page screenshots
+      - name: Inspect all 33 PDF files and render first-page screenshots
         run: python3 tests/integration/inspect-pdfs.py
 
-      - name: Upload PDF verification evidence
+      - name: Upload verification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: document-presets-pdf-evidence
+          name: magnisa-verification-evidence
           path: |
+            npm-audit.json
             test-results/document-presets-pdf.json
             test-results/pdf/*.pdf
             test-results/previews/*.png
             test-results/logos/*.pdf
-            test-results/pdf-l¶»§q«^
