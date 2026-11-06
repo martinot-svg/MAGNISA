@@ -12,6 +12,9 @@ on:
       - "supabase/**"
 permissions:
   contents: read
+concurrency:
+  group: supabase-replay-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   replay:
     runs-on: ubuntu-latest
