@@ -60,26 +60,27 @@ export async function convertProspectToCustomer(formData: FormData) {
 
 export async function addProspectContributor(formData: FormData) {
   const ctx = await requireOrganization();
-  await assertPermission(ctx, "commissions.contribute");
+  await assertPermission(ctx, "commissions.policy.manage");
   const parsed = z.object({
     prospect_id: z.string().uuid(),
+    user_id: z.string().uuid(),
     contribution_type: z.enum(contributionTypes),
     notes: z.string().trim().max(1000),
   }).safeParse({
     prospect_id: String(formData.get("prospect_id") ?? ""),
+    user_id: String(formData.get("user_id") ?? ""),
     contribution_type: String(formData.get("contribution_type") ?? ""),
     notes: String(formData.get("notes") ?? ""),
   });
-  if (!parsed.success) throw new Error("Contribution invalide.");
-  const { error } = await ctx.supabase.from("prospect_contributors").insert({
-    organization_id: ctx.organizationId,
-    prospect_id: parsed.data.prospect_id,
-    user_id: ctx.user.id,
-    contribution_type: parsed.data.contribution_type,
-    notes: parsed.data.notes || null,
-    created_by: ctx.user.id,
+  if (!parsed.success) throw new Error("Affectation de contribution invalide.");
+  const { error } = await ctx.supabase.rpc("add_prospect_contributor", {
+    p_org: ctx.organizationId,
+    p_prospect: parsed.data.prospect_id,
+    p_user: parsed.data.user_id,
+    p_contribution_type: parsed.data.contribution_type,
+    p_notes: parsed.data.notes || null,
   });
-  if (error) throw new Error(error.code === "23505" ? "Cette contribution est déjà enregistrée." : error.message);
+  if (error) throw new Error(error.message);
   revalidatePath("/commissions");
   revalidatePath("/prospects");
 }
