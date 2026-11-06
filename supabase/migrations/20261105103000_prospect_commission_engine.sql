@@ -12,6 +12,7 @@ create table public.commission_policies (
   effective_from date not null default current_date,
   effective_until date,
   calculation_basis text not null check (calculation_basis in ('order_total','invoice_paid_amount','fixed_amount')),
+  tax_basis text not null default 'net' check (tax_basis in ('net','gross')),
   commission_rate numeric(9,4) not null default 100 check (commission_rate > 0 and commission_rate <= 100),
   fixed_basis_amount numeric(18,2),
   currency text not null default 'MGA',
@@ -348,14 +349,19 @@ begin
     v_basis := v_policy.fixed_basis_amount;
   elsif v_policy.calculation_basis='order_total' then
     if p_source_document_type <> 'order' or p_source_document_id is null then raise exception 'Commande source obligatoire.'; end if;
-    select total into v_basis from public.orders
-      where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id
-        and status='confirmed';
+    select case when v_policy.tax_basis='net' then subtotal else total end into v_basis
+    from public.orders
+    where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id
+      and status='confirmed';
   elsif v_policy.calculation_basis='invoice_paid_amount' then
     if p_source_document_type <> 'invoice' or p_source_document_id is null then raise exception 'Facture source obligatoire.'; end if;
-    select paid_amount into v_basis from public.invoices
-      where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id
-        and status='paid' and balance_due <= 0 and paid_amount > 0;
+    select case when v_policy.tax_basis='net'
+        then greatest(subtotal-discount_total,0)
+        else paid_amount
+      end into v_basis
+    from public.invoices
+    where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id
+      and status='paid' and balance_due <= 0 and paid_amount > 0;
   end if;
   if coalesce(v_basis,0) <= 0 then raise exception 'La base financière vérifiée est nulle ou introuvable.'; end if;
 
@@ -390,7 +396,7 @@ begin
     v_basis,v_policy.commission_rate,v_total,v_policy.currency,
     jsonb_build_object('policy_id',v_policy.id,'policy_name',v_policy.name,'calculation_basis',v_policy.calculation_basis,
       'commission_rate',v_policy.commission_rate,'fixed_basis_amount',v_policy.fixed_basis_amount,
-      'expense_account_code',v_policy.expense_account_code,
+      'tax_basis',v_policy.tax_basis,'expense_account_code',v_policy.expense_account_code,
       'effective_from',v_policy.effective_from,'effective_until',v_policy.effective_until,'rules',v_rule_snapshot),
     auth.uid(),p_request_key,v_digest
   ) returning id into v_calculation;
@@ -656,7 +662,7 @@ $$;
 
 create or replace function public.save_commission_policy(
   p_org uuid,p_policy uuid,p_name text,p_description text,p_active boolean,
-  p_effective_from date,p_effective_until date,p_basis text,p_rate numeric,
+  p_effective_from date,p_effective_until date,p_basis text,p_tax_basis text,p_rate numeric,
   p_fixed_basis_amount numeric,p_currency text,p_expense_account_code text,p_rules jsonb
 ) returns uuid
 language plpgsql
@@ -684,6 +690,7 @@ begin
   end if;
   if length(trim(coalesce(p_name,'')))<2
      or p_basis not in ('order_total','invoice_paid_amount','fixed_amount')
+     or p_tax_basis not in ('net','gross')
      or p_rate<=0 or p_rate>100 or p_currency !~ '^[A-Z]{3}$'
      or p_effective_from is null
      or (p_effective_until is not null and p_effective_until<p_effective_from)
@@ -719,16 +726,16 @@ begin
   if p_policy is null then
     insert into public.commission_policies(
       organization_id,name,description,is_active,effective_from,effective_until,
-      calculation_basis,commission_rate,fixed_basis_amount,currency,expense_account_code,created_by,updated_by
+      calculation_basis,tax_basis,commission_rate,fixed_basis_amount,currency,expense_account_code,created_by,updated_by
     ) values (
       p_org,trim(p_name),nullif(trim(coalesce(p_description,'')),''),p_active,p_effective_from,p_effective_until,
-      p_basis,p_rate,p_fixed_basis_amount,p_currency,p_expense_account_code,auth.uid(),auth.uid()
+      p_basis,p_tax_basis,p_rate,p_fixed_basis_amount,p_currency,p_expense_account_code,auth.uid(),auth.uid()
     ) returning id into v_policy;
   else
     update public.commission_policies set
       name=trim(p_name),description=nullif(trim(coalesce(p_description,'')),''),
       is_active=p_active,effective_from=p_effective_from,effective_until=p_effective_until,
-      calculation_basis=p_basis,commission_rate=p_rate,fixed_basis_amount=p_fixed_basis_amount,
+      calculation_basis=p_basis,tax_basis=p_tax_basis,commission_rate=p_rate,fixed_basis_amount=p_fixed_basis_amount,
       currency=p_currency,expense_account_code=p_expense_account_code,updated_by=auth.uid(),updated_at=now()
     where id=p_policy and organization_id=p_org returning id into v_policy;
     if v_policy is null then raise exception 'Politique introuvable.'; end if;
@@ -745,13 +752,13 @@ $$;
 
 revoke all on function public.convert_prospect_to_customer(uuid,uuid) from public, anon;
 revoke all on function public.create_prospect_with_originator(uuid,text,text,text,text,text) from public, anon;
-revoke all on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,text,jsonb) from public, anon;
+revoke all on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,text,numeric,numeric,text,text,jsonb) from public, anon;
 revoke all on function public.calculate_prospect_commission(uuid,uuid,uuid,text,uuid,uuid) from public, anon;
 revoke all on function public.review_prospect_commission(uuid,uuid,text,text) from public, anon;
 revoke all on function public.record_commission_payment(uuid,uuid,uuid,numeric,date,text,uuid) from public, anon;
 grant execute on function public.convert_prospect_to_customer(uuid,uuid) to authenticated;
 grant execute on function public.create_prospect_with_originator(uuid,text,text,text,text,text) to authenticated;
-grant execute on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,text,jsonb) to authenticated;
+grant execute on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,text,numeric,numeric,text,text,jsonb) to authenticated;
 grant execute on function public.calculate_prospect_commission(uuid,uuid,uuid,text,uuid,uuid) to authenticated;
 grant execute on function public.review_prospect_commission(uuid,uuid,text,text) to authenticated;
 grant execute on function public.record_commission_payment(uuid,uuid,uuid,numeric,date,text,uuid) to authenticated;
