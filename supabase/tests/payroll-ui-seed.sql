@@ -59,4 +59,24 @@ UPDATE public.payroll_rule_sets
    SET status = 'validated', reviewed_by = :'user_id'::uuid, reviewed_at = now()
  WHERE id IN (:'history_id'::uuid, :'current_id'::uuid, :'future_id'::uuid);
 
+
+-- Assert that the authenticated role can read its own active membership.
+SET LOCAL ROLE authenticated;
+DO $
+DECLARE
+  visible_memberships integer;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'RLS probe has no authenticated user id';
+  END IF;
+  SELECT count(*) INTO visible_memberships
+    FROM public.organization_members
+   WHERE user_id = auth.uid() AND status = 'active';
+  IF visible_memberships <> 1 THEN
+    RAISE EXCEPTION 'Expected exactly one own active membership under RLS, found %', visible_memberships;
+  END IF;
+END
+$;
+RESET ROLE;
+
 COMMIT;
