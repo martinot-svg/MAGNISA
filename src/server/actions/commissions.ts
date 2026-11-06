@@ -93,7 +93,7 @@ export async function saveCommissionPolicy(formData: FormData) {
     description: z.string().trim().max(1000),
     calculation_basis: z.enum(policyBasis),
     commission_rate: z.coerce.number().finite().positive().max(100),
-    fixed_basis_amount: z.union([z.coerce.number().finite().positive(), z.nan()]).optional(),
+    fixed_basis_amount: z.string(),
     currency: z.string().regex(/^[A-Z]{3}$/),
     effective_from: z.string().date(),
     effective_until: z.string().optional(),
@@ -107,7 +107,7 @@ export async function saveCommissionPolicy(formData: FormData) {
     description: String(formData.get("description") ?? ""),
     calculation_basis: String(formData.get("calculation_basis") ?? ""),
     commission_rate: String(formData.get("commission_rate") ?? ""),
-    fixed_basis_amount: String(formData.get("fixed_basis_amount") ?? "") || undefined,
+    fixed_basis_amount: String(formData.get("fixed_basis_amount") ?? ""),
     currency: String(formData.get("currency") ?? "MGA"),
     effective_from: String(formData.get("effective_from") ?? ""),
     effective_until: String(formData.get("effective_until") ?? ""),
@@ -118,6 +118,13 @@ export async function saveCommissionPolicy(formData: FormData) {
     closer: String(formData.get("closer") ?? "0"),
   });
   if (!parsed.success) throw new Error("Vérifie les paramètres de la politique de prime.");
+  const fixedBasisAmount = parsed.data.fixed_basis_amount.trim()
+    ? Number(parsed.data.fixed_basis_amount)
+    : null;
+  if (parsed.data.calculation_basis === "fixed_amount" &&
+      (!Number.isFinite(fixedBasisAmount) || fixedBasisAmount === null || fixedBasisAmount <= 0)) {
+    throw new Error("Le montant de base fixe doit être strictement positif.");
+  }
   const rules = [
     { contribution_type: "originator", share_percentage: parsed.data.originator },
     { contribution_type: "qualifier", share_percentage: parsed.data.qualifier },
@@ -137,7 +144,7 @@ export async function saveCommissionPolicy(formData: FormData) {
     p_effective_until: parsed.data.effective_until || null,
     p_basis: parsed.data.calculation_basis,
     p_rate: parsed.data.commission_rate,
-    p_fixed_basis_amount: parsed.data.calculation_basis === "fixed_amount" ? parsed.data.fixed_basis_amount ?? null : null,
+    p_fixed_basis_amount: parsed.data.calculation_basis === "fixed_amount" ? fixedBasisAmount : null,
     p_currency: parsed.data.currency,
     p_rules: rules,
   });
