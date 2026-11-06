@@ -88,13 +88,20 @@ export async function addProspectContributor(formData: FormData) {
 export async function saveCommissionPolicy(formData: FormData) {
   const ctx = await requireOrganization();
   await assertPermission(ctx, "commissions.policy.manage");
+  const { data: organization, error: organizationError } = await ctx.supabase
+    .from("organizations")
+    .select("currency")
+    .eq("id", ctx.organizationId)
+    .single();
+  if (organizationError || !organization?.currency) {
+    throw new Error("Impossible de déterminer la devise de l'entreprise.");
+  }
   const parsed = z.object({
     name: z.string().trim().min(2).max(120),
     description: z.string().trim().max(1000),
     calculation_basis: z.enum(policyBasis),
     commission_rate: z.coerce.number().finite().positive().max(100),
     fixed_basis_amount: z.string(),
-    currency: z.string().regex(/^[A-Z]{3}$/),
     effective_from: z.string().date(),
     effective_until: z.string().optional(),
     is_active: z.boolean(),
@@ -108,7 +115,6 @@ export async function saveCommissionPolicy(formData: FormData) {
     calculation_basis: String(formData.get("calculation_basis") ?? ""),
     commission_rate: String(formData.get("commission_rate") ?? ""),
     fixed_basis_amount: String(formData.get("fixed_basis_amount") ?? ""),
-    currency: String(formData.get("currency") ?? "MGA"),
     effective_from: String(formData.get("effective_from") ?? ""),
     effective_until: String(formData.get("effective_until") ?? ""),
     is_active: formData.get("is_active") === "on",
@@ -145,7 +151,7 @@ export async function saveCommissionPolicy(formData: FormData) {
     p_basis: parsed.data.calculation_basis,
     p_rate: parsed.data.commission_rate,
     p_fixed_basis_amount: parsed.data.calculation_basis === "fixed_amount" ? fixedBasisAmount : null,
-    p_currency: parsed.data.currency,
+    p_currency: organization.currency,
     p_rules: rules,
   });
   if (error) throw new Error(error.message);
