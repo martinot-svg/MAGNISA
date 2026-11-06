@@ -648,7 +648,7 @@ begin
   select count(*),coalesce(sum((x->>'share_percentage')::numeric),0)
     into v_count,v_sum from jsonb_array_elements(p_rules) x;
   if v_count=0 or v_count>4 or v_sum<>100 then
-    raise exception 'Les pourcentages des rôles doivent totaliser exactement 100 %.';
+    raise exception 'Les pourcentages des rôles doivent totaliser exactement 100 pour cent.';
   end if;
   if exists (
     select 1 from jsonb_array_elements(p_rules) x
