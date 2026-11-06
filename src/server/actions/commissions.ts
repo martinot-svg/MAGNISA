@@ -167,22 +167,44 @@ export async function calculateProspectCommission(formData: FormData) {
     prospect_id: z.string().uuid(),
     policy_id: z.string().uuid(),
     request_key: z.string().uuid(),
-    source_document_type: z.enum(["order", "invoice"]).optional(),
-    source_document_id: z.string().uuid().optional(),
+    source_document: z.string().optional(),
   }).safeParse({
     prospect_id: String(formData.get("prospect_id") ?? ""),
     policy_id: String(formData.get("policy_id") ?? ""),
     request_key: String(formData.get("request_key") ?? ""),
-    source_document_type: String(formData.get("source_document_type") ?? "") || undefined,
-    source_document_id: String(formData.get("source_document_id") ?? "") || undefined,
+    source_document: String(formData.get("source_document") ?? "") || undefined,
   });
   if (!parsed.success) throw new Error("Sélectionne le prospect, la politique et la pièce source correspondante.");
+  let sourceDocumentType: "order" | "invoice" | null = null;
+  let sourceDocumentId: string | null = null;
+  if (parsed.data.source_document) {
+    const [type, id, extra] = parsed.data.source_document.split(":");
+    const typeResult = z.enum(["order", "invoice"]).safeParse(type);
+    const idResult = z.string().uuid().safeParse(id);
+    if (!typeResult.success || !idResult.success || extra !== undefined) {
+      throw new Error("La pièce source sélectionnée est invalide.");
+    }
+    sourceDocumentType = typeResult.data;
+    sourceDocumentId = idResult.data;
+  }
+  const { data: policy, error: policyError } = await ctx.supabase
+    .from("commission_policies").select("calculation_basis")
+    .eq("id", parsed.data.policy_id).eq("organization_id", ctx.organizationId).single();
+  if (policyError || !policy) throw new Error("Politique de commission introuvable.");
+  const expectedSourceType = policy.calculation_basis === "order_total"
+    ? "order"
+    : policy.calculation_basis === "invoice_paid_amount" ? "invoice" : null;
+  if (expectedSourceType !== sourceDocumentType) {
+    throw new Error(expectedSourceType
+      ? "La politique exige une pièce source du type correspondant."
+      : "Une politique à montant fixe ne doit pas recevoir de pièce source.");
+  }
   const { error } = await ctx.supabase.rpc("calculate_prospect_commission", {
     p_org: ctx.organizationId,
     p_prospect: parsed.data.prospect_id,
     p_policy: parsed.data.policy_id,
-    p_source_document_type: parsed.data.source_document_type ?? null,
-    p_source_document_id: parsed.data.source_document_id ?? null,
+    p_source_document_type: sourceDocumentType,
+    p_source_document_id: sourceDocumentId,
     p_request_key: parsed.data.request_key,
   });
   if (error) throw new Error(error.message);
