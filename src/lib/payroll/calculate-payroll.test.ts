@@ -8,8 +8,8 @@ const rule: PayrollCalculationRule = {
   health_employee_rate: 0.01,
   health_employer_rate: 0.05,
   fmfp_employer_rate: 0.01,
-  cnaps_monthly_ceiling: 2_520_000,
-  health_monthly_ceiling: 2_520_000,
+  cnaps_monthly_ceiling: 2_400_000,
+  health_monthly_ceiling: 1_600_000,
   irsa_brackets: MADAGASCAR_IRSA_2026.brackets,
   irsa_minimum: 3_000,
 };
@@ -69,11 +69,11 @@ describe("Calcul centralisé des bulletins", () => {
 
   it("plafonne séparément les assiettes CNaPS et SMIE selon le référentiel", () => {
     const result = calculatePayrollAmounts({ gross: 3_000_000, dependants: 0, rule });
-    expect(result.cnapsBase).toBe(2_520_000);
-    expect(result.healthBase).toBe(2_520_000);
-    expect(result.employeeSocial).toBe(25_200);
-    expect(result.employeeHealth).toBe(25_200);
-    expect(result.employerFmfp).toBe(25_200);
+    expect(result.cnapsBase).toBe(2_400_000);
+    expect(result.healthBase).toBe(1_600_000);
+    expect(result.employeeSocial).toBe(24_000);
+    expect(result.employeeHealth).toBe(16_000);
+    expect(result.employerFmfp).toBe(24_000);
   });
 
   it.each([350_000, 350_100, 400_000, 400_100, 500_000, 500_100, 600_000, 600_100, 4_000_000, 4_000_100])(
