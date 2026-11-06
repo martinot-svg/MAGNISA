@@ -1,44 +1,68 @@
-# Correctif IRSA Madagascar 2026 - préparation isolée
+# Audit du calcul de paie et de l'IRSA 2026
 
-## Périmètre
+## Conclusion vérifiée au 6 novembre 2026
 
-Cette branche prépare le barème IRSA de droit commun applicable en 2026. Elle ne modifie aucune donnée Supabase et ne change aucun bulletin déjà enregistré. Le nouveau jeu de paramètres est créé, à la demande d'un administrateur dans l'application, au statut `pending_review` avec une date de préparation au 7 novembre 2026. Il n'est jamais activé automatiquement.
+Le référentiel actuellement validé de l'organisation contrôlée correspond déjà au barème IRSA 2026 : six tranches, taux marginal de 25 % au-delà de 4 000 000 Ar, minimum de 3 000 Ar et arrondi de la base à la centaine inférieure. Les taux enregistrés sont CNaPS 1 % salarié / 13 % employeur et SMIE 2 % salarié / 8 % employeur.
 
-## Référence fiscale
+Les plafonds enregistrés sont toutefois de 2 400 000 Ar pour la CNaPS et de 1 600 000 Ar pour la SMIE. Aucune modification de ces plafonds n'est activée par ce correctif.
 
-La loi n°2025-021 portant loi de finances pour 2026, article 01.03.16, fixe les taux marginaux suivants : 0 % jusqu'à 350 000 Ar, 5 % jusqu'à 400 000 Ar, 10 % jusqu'à 500 000 Ar, 15 % jusqu'à 600 000 Ar, 20 % jusqu'à 4 000 000 Ar, puis 25 % au-delà. Le texte officiel est disponible à https://cnlegis.gov.mg/uploads/L2025-021_VF.pdf.
+## Correctifs logiciels
 
-Le référentiel proposé reprend également le minimum de perception de 3 000 Ar et la réduction de 2 000 Ar par personne à charge au-delà de 350 000 Ar, conformément aux articles 01.03.16 et 01.03.19 du Code général des impôts publié par la DGI le 6 février 2025. La base est arrondie à la centaine d'Ariary inférieure. Source DGI : https://portal.impots.mg/textes/textes/2025-02-06--N-2025-MEF.SG.DGI-Ref-HIH9EC-3OPLT3.pdf.
+- Le calcul IRSA est centralisé dans un module unique, partagé par la paie et l'aperçu du référentiel.
+- La déduction fiscale de la cotisation santé du salarié est plafonnée à 1 % du salaire brut, conformément à l'article 01.03.09, 2°, du Code des impôts DGI. La retenue SMIE réellement due reste calculée au taux enregistré ; seule la déduction IRSA est plafonnée.
+- Le calcul TypeScript et le déclencheur PostgreSQL utilisent la même règle.
+- Un revenu imposable nul produit une retenue IRSA nulle dans les deux moteurs.
+- Les validations couvrent les tranches, les bornes, l'arrondi, le minimum, les personnes à charge, les taux, les plafonds et les valeurs invalides.
+- Aucune donnée de paie historique n'est recalculée par la migration préparée.
 
-La loi de finances rectificative n°2026-004 a été adoptée le 22 juin 2026 et déclarée conforme par la HCC le 15 juillet 2026. La décision HCC consultée ne cite ni l'IRSA ni l'article 01.03.16, mais elle ne reproduit pas le texte fiscal intégral. La référence IRSA doit donc être relue dans le corps de la LFR promulguée avant toute activation.
+## Références légales
 
-## Date d'effet préparée
+### Barème IRSA 2026
 
-Le 7 novembre 2026 est utilisé comme date de préparation opérationnelle afin de ne pas recalculer rétroactivement les périodes antérieures ni modifier les bulletins déjà établis. Cette date n'affirme pas que la loi fiscale est entrée en vigueur à cette date : le barème légal 2026 est celui de la loi de finances initiale. Les périodes antérieures restent dans leur historique.
+La loi n°2025-021 portant loi de finances pour 2026, article 01.03.16, fixe les taux marginaux suivants : 0 % jusqu'à 350 000 Ar, 5 % jusqu'à 400 000 Ar, 10 % jusqu'à 500 000 Ar, 15 % jusqu'à 600 000 Ar, 20 % jusqu'à 4 000 000 Ar, puis 25 % au-delà.
 
-## Contrôles ajoutés
+Source officielle : https://cnlegis.gov.mg/uploads/L2025-021_VF.pdf
 
-- Barème progressif à six tranches, avec plafond final ouvert.
-- Arrondi de la base à la centaine inférieure.
-- Minimum de perception de 3 000 Ar, sauf base imposable nulle.
-- Réduction de 2 000 Ar par personne à charge, sans descendre sous le minimum.
-- Validation stricte des bornes, taux, personnes à charge et montants.
-- Tests unitaires sur les seuils, les frontières, la tranche supérieure à 4 millions, l'arrondi, les réductions et les entrées invalides.
+Le minimum de perception de 3 000 Ar, la réduction de 2 000 Ar par personne à charge et l'arrondi de l'assiette sont documentés dans le Code général des impôts publié par la DGI. L'article 01.03.09, 2°, limite la déduction de la cotisation santé du salarié à 1 % du salaire brut.
 
-## Conditions avant activation
+Source DGI : https://portal.impots.mg/textes/textes/2025-02-06--N-2025-MEF.SG.DGI-Ref-HIH9EC-3OPLT3.pdf
 
-1. Vérifier le texte intégral promulgué de la LFR 2026 pour confirmer qu'aucune disposition n'a modifié les articles 01.03.16 et 01.03.19.
-2. Vérifier chaque autre paramètre social copié depuis le référentiel de l'organisation : aucun taux CNaPS, SMIE, FMFP ou plafond n'est certifié par ce correctif.
-3. Faire relire le référentiel par un responsable paie/fiscalité.
-4. Activer explicitement la version dans MAGNISA seulement après validation documentaire.
+### Retraite complémentaire
 
+La loi n°2025-021 ajoute aux articles 01.03.02 et 01.03.06 les pensions de retraite complémentaire et les versements effectués par l'employeur auprès d'organismes spécialisés dans la constitution de ces pensions au champ de l'IRSA.
 
-## Mise à jour sociale vérifiée au 6 novembre 2026
+Le modèle de bulletin actuel ne possède pas de champ distinct pour ces versements patronaux. Si l'organisation en effectue, ils doivent être intégrés explicitement à l'assiette imposable sans être confondus avec un salaire net payé. Ce cas n'est pas certifié par le présent correctif.
 
-- Décret n°2026-1358 : à compter du 1er octobre 2026, le SME M1-1A non agricole est de 315 000 Ar. Le plafond de cotisation CNaPS/SMIE/FMFP à 8 × SME est donc de 2 520 000 Ar. La version préparée pour le régime général remplace les anciens plafonds de 2 400 000 Ar et 1 600 000 Ar par 2 520 000 Ar.
-- CNaPS : 1 % salarié et 13 % employeur.
-- SMIE : l'article 25 du décret n°2003-1162 fixe un minimum de 1 % salarié et 5 % employeur. La configuration de l'organisation pour l'OMIT est actuellement à 2 % / 8 %. Ces taux sont conservés dans la version en attente, mais ils ne sont pas certifiés par un contrat ou un avis de l'OMIT ; ne pas activer avant justification.
-- FMFP : 1 % employeur sur l'assiette salariale brute plafonnée, et non sur le brut non plafonné.
-- Aucun bulletin historique n'est modifié. La version créée reste au statut pending_review.
+### Cotisations sociales
 
-Références : https://fisema.mg/fiche-salaire/ ; https://www.edbm.mg/wp-content/uploads/2017/12/Decret_2003-1162_medecine_entreprise.pdf ; https://www.fmfp.mg/faq/la-cotisation-fmfp/ ; https://www.cnaps.mg/fr/telechargement/cotisations/talonfmfp-CNaPS_600fcb8215b502.69912222.pdf
+Le talon officiel CNaPS/FMFP confirme les taux CNaPS de 13 % employeur et 1 % travailleur, ainsi que le taux FMFP de 1 % employeur :
+https://www.cnaps.mg/fr/telechargement/cotisations/talonfmfp-CNaPS_600fcb8215b502.69912222.pdf
+
+L'article 25 du décret n°2003-1162 fixe un minimum SMIE de 5 % employeur et 1 % salarié :
+https://www.edbm.mg/wp-content/uploads/2017/12/Decret_2003-1162_medecine_entreprise.pdf
+
+La configuration actuelle de l'organisation pour l'OMIT est de 8 % employeur et 2 % salarié. Elle est conservée ; son fondement contractuel doit être vérifié avant toute modification.
+
+### Plafonds CNaPS / SMIE
+
+La page historique officielle CNaPS affiche un plafond général de 2 400 000 Ar associé à un SME de 300 000 Ar :
+https://www.cnaps.mg/historique-sme
+
+Le CNLegis répertorie le décret n°2026-1358 et son errata du 2 octobre 2026 comme étant en vigueur. Une source professionnelle FISEMA mentionne un SME M1-1A non agricole de 315 000 Ar, soit 2 520 000 Ar à huit fois le SME. Toutefois, l'annexe officielle du décret et l'incidence exacte sur les plafonds de cotisation n'ont pas encore été obtenues et rapprochées de la page CNaPS.
+
+En conséquence, le correctif ne remplace pas les plafonds actuels de 2 400 000 Ar et 1 600 000 Ar. Le plafond de 2 520 000 Ar reste une hypothèse à confirmer par la CNaPS et le texte officiel complet.
+
+### Loi de finances rectificative 2026
+
+La loi n°2026-004 a été adoptée et déclarée conforme par la HCC. Le texte intégral promulgué n'a pas encore été rapproché des articles IRSA 01.03.02, 01.03.06, 01.03.09, 01.03.16 et 01.03.19. Aucune activation réglementaire ne doit être fondée sur une simple supposition d'absence de modification.
+
+## Conditions de mise en production
+
+1. Faire confirmer par la CNaPS le plafond de cotisation applicable à la catégorie de l'organisation à compter du 1er octobre 2026.
+2. Obtenir le contrat ou l'avis écrit justifiant les taux spécifiques OMIT de 8 % / 2 %.
+3. Récupérer le texte intégral promulgué de la LFR 2026 et vérifier les dispositions IRSA.
+4. Définir le traitement des versements patronaux de retraite complémentaire si l'organisation utilise ce dispositif.
+5. Faire réussir les tests d'interface authentifiés et la prévisualisation Vercel du dernier commit.
+6. Ne pas activer un nouveau référentiel tant que ces points ne sont pas levés.
+
+La migration préparée corrige uniquement le calcul fiscal et son contrôle côté base de données. Elle ne modifie aucune règle validée, aucun bulletin historique et aucune donnée de production.
