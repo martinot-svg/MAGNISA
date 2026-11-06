@@ -128,7 +128,7 @@ jobs:
         run: |
           supabase start
           supabase db reset
-          supabase db lint --local
+          supabase db lint --local --fail-on error
           supabase db dump --local --schema public --file /tmp/magnisa-replay-a.sql
 
       - name: Clean replay A - assert migration ledger and reconstructed objects
@@ -142,7 +142,7 @@ jobs:
           supabase stop --no-backup
           supabase start
           supabase db reset
-          supabase db lint --local
+          supabase db lint --local --fail-on error
           supabase db dump --local --schema public --file /tmp/magnisa-replay-b.sql
 
       - name: Compare independent clean reconstructions
