@@ -156,7 +156,7 @@ begin
   if found then return coalesce(v_override,false); end if;
 
   if p_permission = 'prospects.convert' then
-    return v_role in ('admin','director','finance_manager','accountant','sales','cashier','hr','employee');
+    return v_role in ('admin','director','finance_manager','accountant','sales');
   end if;
   if p_permission = 'commissions.policy.manage' then
     return v_role in ('admin','finance_manager');
@@ -164,8 +164,11 @@ begin
   if p_permission = 'commissions.view_team' or p_permission = 'commissions.audit' then
     return v_role in ('admin','director','finance_manager','accountant','auditor');
   end if;
-  if p_permission = 'commissions.contribute' or p_permission = 'commissions.view_own' or p_permission = 'commissions.calculate' then
+  if p_permission = 'commissions.contribute' or p_permission = 'commissions.view_own' then
     return v_role in ('admin','director','finance_manager','accountant','sales','cashier','hr','employee');
+  end if;
+  if p_permission = 'commissions.calculate' then
+    return v_role in ('admin','director','finance_manager','accountant','sales');
   end if;
 
   return case v_role
