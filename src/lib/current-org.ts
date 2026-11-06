@@ -42,7 +42,7 @@ export async function requireOrganization() {
     .limit(50);
 
   if (process.env.CI === "true") {
-    console.info("[org-context] membership_count=", memberships?.length ?? 0, "query_error=", error?.code ?? "none");
+    console.info("[org-context] membership_count=", memberships?.length ?? 0, "query_error=", error?.code ?? "none", "test_user_match=", process.env.TEST_USER_ID ? user.id === process.env.TEST_USER_ID : "n/a");
   }
   if (error) {
     throw new Error("Impossible de charger les organisations autorisées.");
