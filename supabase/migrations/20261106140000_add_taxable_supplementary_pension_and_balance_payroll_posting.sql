@@ -72,7 +72,7 @@ begin
 
   v_social := round(least(new.gross_pay, v_rule.cnaps_monthly_ceiling) * v_rule.cnaps_employee_rate, 2);
   v_health := round(least(new.gross_pay, v_rule.health_monthly_ceiling) * v_rule.health_employee_rate, 2);
-  v_deductible_health := least(v_health, round(new.gross_pay * 0.01, 2));
+  v_deductible_health := least(v_health, round(new.gross_pay * 0.02, 2));
   v_emp_social := round(least(new.gross_pay, v_rule.cnaps_monthly_ceiling) * v_rule.cnaps_employer_rate, 2);
   v_emp_health := round(least(new.gross_pay, v_rule.health_monthly_ceiling) * v_rule.health_employer_rate, 2);
 
