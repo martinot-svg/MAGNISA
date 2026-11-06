@@ -30,7 +30,19 @@ describe("Calcul centralisé des bulletins", () => {
     expect(result.employerCost).toBe(1_190_000);
   });
 
-  it("plafonne séparément les assiettes CNaPS et SMIE", () => {
+  it("limite la déduction IRSA de la cotisation santé à 1 % du brut", () => {
+    const result = calculatePayrollAmounts({
+      gross: 1_000_000,
+      dependants: 0,
+      rule: { ...rule, health_employee_rate: 0.02 },
+    });
+    expect(result.employeeSocial).toBe(10_000);
+    expect(result.employeeHealth).toBe(20_000);
+    // CNaPS salarié 1 % déduit au titre de la retraite ; santé déductible plafonnée à 1 %.
+    expect(result.taxableBase).toBe(980_000);
+  });
+
+  it("plafonne séparément les assiettes CNaPS et SMIE selon le référentiel", () => {
     const result = calculatePayrollAmounts({ gross: 3_000_000, dependants: 0, rule });
     expect(result.cnapsBase).toBe(2_520_000);
     expect(result.healthBase).toBe(2_520_000);
