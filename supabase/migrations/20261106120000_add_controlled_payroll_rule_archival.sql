@@ -4,7 +4,7 @@ create or replace function public.archive_payroll_rule(p_org uuid, p_rule uuid)
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $function$
 declare
   v public.payroll_rule_sets%rowtype;
