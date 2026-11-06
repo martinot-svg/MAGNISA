@@ -12,9 +12,11 @@ create table public.commission_policies (
   effective_from date not null default current_date,
   effective_until date,
   calculation_basis text not null check (calculation_basis in ('order_total','invoice_paid_amount','fixed_amount')),
+  tax_basis text not null default 'net' check (tax_basis in ('net','gross')),
   commission_rate numeric(9,4) not null default 100 check (commission_rate > 0 and commission_rate <= 100),
   fixed_basis_amount numeric(18,2),
   currency text not null default 'MGA',
+  expense_account_code text not null,
   created_by uuid not null references auth.users(id),
   updated_by uuid references auth.users(id),
   created_at timestamptz not null default now(),
@@ -72,6 +74,7 @@ create table public.commission_calculations (
   approved_at timestamptz,
   rejection_reason text,
   request_key uuid not null,
+  request_digest text not null,
   unique(organization_id, request_key),
   unique(id, organization_id),
   foreign key (prospect_id, organization_id) references public.prospects(id, organization_id),
@@ -101,11 +104,14 @@ create table public.commission_payments (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   allocation_id uuid not null,
+  expense_id uuid not null unique references public.expenses(id) on delete restrict,
+  expense_reference text not null,
   amount numeric(18,2) not null check (amount > 0),
   paid_at date not null,
   payment_reference text not null,
   recorded_by uuid not null references auth.users(id),
   request_key uuid not null,
+  request_digest text not null,
   created_at timestamptz not null default now(),
   foreign key (allocation_id, organization_id) references public.commission_allocations(id, organization_id),
   unique(organization_id, request_key),
@@ -151,7 +157,7 @@ begin
   if found then return coalesce(v_override,false); end if;
 
   if p_permission = 'prospects.convert' then
-    return v_role in ('admin','director','finance_manager','accountant','sales','cashier','hr','employee');
+    return v_role in ('admin','director','finance_manager','accountant','sales');
   end if;
   if p_permission = 'commissions.policy.manage' then
     return v_role in ('admin','finance_manager');
@@ -159,8 +165,11 @@ begin
   if p_permission = 'commissions.view_team' or p_permission = 'commissions.audit' then
     return v_role in ('admin','director','finance_manager','accountant','auditor');
   end if;
-  if p_permission = 'commissions.contribute' or p_permission = 'commissions.view_own' or p_permission = 'commissions.calculate' then
+  if p_permission = 'commissions.contribute' or p_permission = 'commissions.view_own' then
     return v_role in ('admin','director','finance_manager','accountant','sales','cashier','hr','employee');
+  end if;
+  if p_permission = 'commissions.calculate' then
+    return v_role in ('admin','director','finance_manager','accountant','sales');
   end if;
 
   return case v_role
@@ -294,6 +303,7 @@ as $$
 declare
   v_prospect public.prospects%rowtype;
   v_policy public.commission_policies%rowtype;
+  v_org_currency text;
   v_basis numeric(18,2);
   v_total numeric(18,2);
   v_roles integer;
@@ -301,15 +311,24 @@ declare
   v_share_total numeric(9,4);
   v_calculation uuid;
   v_rule_snapshot jsonb;
+  v_digest text;
+  v_existing_digest text;
 begin
   if auth.uid() is null or not public.has_org_permission(p_org,'commissions.calculate') then
     raise exception 'Action non autorisée.';
   end if;
   if p_request_key is null then raise exception 'Clé de demande obligatoire.'; end if;
+  v_digest := md5(jsonb_build_array(p_org,p_prospect,p_policy,p_source_document_type,p_source_document_id)::text);
 
-  select id into v_calculation from public.commission_calculations
+  select id,request_digest into v_calculation,v_existing_digest
+  from public.commission_calculations
   where organization_id=p_org and request_key=p_request_key;
-  if v_calculation is not null then return v_calculation; end if;
+  if found then
+    if v_existing_digest is distinct from v_digest then
+      raise exception 'Clé de demande déjà utilisée pour un autre calcul.';
+    end if;
+    return v_calculation;
+  end if;
 
   select * into v_prospect from public.prospects
   where id=p_prospect and organization_id=p_org for update;
@@ -322,6 +341,11 @@ begin
     and effective_from <= current_date and (effective_until is null or effective_until >= current_date);
   if not found then raise exception 'Aucune politique de prime active applicable.'; end if;
 
+  select currency into v_org_currency from public.organizations where id=p_org;
+  if not found or v_policy.currency is distinct from v_org_currency then
+    raise exception 'La devise de la politique ne correspond pas à la devise de l''organisation.';
+  end if;
+
   if v_policy.calculation_basis='fixed_amount' then
     if p_source_document_type is not null or p_source_document_id is not null then
       raise exception 'Une politique à montant fixe ne doit pas recevoir de pièce source.';
@@ -329,15 +353,27 @@ begin
     v_basis := v_policy.fixed_basis_amount;
   elsif v_policy.calculation_basis='order_total' then
     if p_source_document_type <> 'order' or p_source_document_id is null then raise exception 'Commande source obligatoire.'; end if;
-    select total into v_basis from public.orders
-      where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id;
+    select case when v_policy.tax_basis='net' then subtotal else total end into v_basis
+    from public.orders
+    where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id
+      and status='confirmed';
   elsif v_policy.calculation_basis='invoice_paid_amount' then
     if p_source_document_type <> 'invoice' or p_source_document_id is null then raise exception 'Facture source obligatoire.'; end if;
-    select paid_amount into v_basis from public.invoices
-      where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id
-        and status <> 'cancelled' and balance_due <= 0 and paid_amount > 0;
+    select case when v_policy.tax_basis='net'
+        then greatest(subtotal-discount_total,0)
+        else paid_amount
+      end into v_basis
+    from public.invoices
+    where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id
+      and status='paid' and balance_due <= 0 and paid_amount > 0;
   end if;
   if coalesce(v_basis,0) <= 0 then raise exception 'La base financière vérifiée est nulle ou introuvable.'; end if;
+
+  select id into v_calculation from public.commission_calculations
+  where organization_id=p_org and prospect_id=p_prospect and policy_id=p_policy
+    and source_document_type is not distinct from p_source_document_type
+    and source_document_id is not distinct from p_source_document_id;
+  if found then return v_calculation; end if;
 
   select count(distinct c.contribution_type), count(distinct r.contribution_type), coalesce(sum(r.share_percentage),0)
     into v_roles, v_rules, v_share_total
@@ -358,14 +394,15 @@ begin
 
   insert into public.commission_calculations(
     organization_id,prospect_id,customer_id,policy_id,source_document_type,source_document_id,
-    basis_amount,commission_rate,commission_total,currency,policy_snapshot,calculated_by,request_key
+    basis_amount,commission_rate,commission_total,currency,policy_snapshot,calculated_by,request_key,request_digest
   ) values (
     p_org,p_prospect,v_prospect.converted_customer_id,v_policy.id,p_source_document_type,p_source_document_id,
     v_basis,v_policy.commission_rate,v_total,v_policy.currency,
     jsonb_build_object('policy_id',v_policy.id,'policy_name',v_policy.name,'calculation_basis',v_policy.calculation_basis,
       'commission_rate',v_policy.commission_rate,'fixed_basis_amount',v_policy.fixed_basis_amount,
+      'tax_basis',v_policy.tax_basis,'expense_account_code',v_policy.expense_account_code,
       'effective_from',v_policy.effective_from,'effective_until',v_policy.effective_until,'rules',v_rule_snapshot),
-    auth.uid(),p_request_key
+    auth.uid(),p_request_key,v_digest
   ) returning id into v_calculation;
 
   with contributors as (
@@ -411,6 +448,9 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_status text;
+  v_rejection_reason text;
 begin
   if auth.uid() is null or not public.has_org_permission(p_org,'commissions.approve') then
     raise exception 'Validation réservée à la fonction finance.';
@@ -419,42 +459,67 @@ begin
   if p_decision='reject' and length(trim(coalesce(p_reason,'')))<3 then
     raise exception 'Un motif de rejet détaillé est obligatoire.';
   end if;
+
+  select status,rejection_reason into v_status,v_rejection_reason
+  from public.commission_calculations
+  where id=p_calculation and organization_id=p_org
+  for update;
+  if not found then raise exception 'Prime introuvable.'; end if;
+  if p_decision='approve' and v_status='approved' then return; end if;
+  if p_decision='reject' and v_status='rejected'
+     and v_rejection_reason=trim(p_reason) then return; end if;
+  if v_status<>'calculated' then
+    raise exception 'Prime déjà traitée avec une décision différente ou déjà payée.';
+  end if;
+
   update public.commission_calculations
   set status=case when p_decision='approve' then 'approved' else 'rejected' end,
       approved_by=auth.uid(),approved_at=now(),
       rejection_reason=case when p_decision='reject' then trim(p_reason) else null end
-  where id=p_calculation and organization_id=p_org and status='calculated';
-  if not found then raise exception 'Prime introuvable ou déjà traitée.'; end if;
+  where id=p_calculation and organization_id=p_org;
   perform public.audit_event(p_org,'commission.reviewed','commission_calculations',p_calculation,null,
     jsonb_build_object('decision',p_decision,'reason',p_reason));
 end;
 $$;
 
 create or replace function public.record_commission_payment(
-  p_org uuid,p_allocation uuid,p_amount numeric,p_paid_at date,p_reference text,p_request_key uuid
+  p_org uuid,p_allocation uuid,p_account uuid,p_amount numeric,p_paid_at date,p_reference text,p_request_key uuid
 ) returns uuid
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_calculation_status text;
   v_allocation public.commission_allocations%rowtype;
-  v_calculation uuid;
-  v_commission_total numeric(18,2);
+  v_calculation public.commission_calculations%rowtype;
+  v_existing public.commission_payments%rowtype;
+  v_payment uuid;
+  v_expense uuid;
+  v_expense_reference text;
+  v_expense_account_code text;
+  v_prospect_name text;
+  v_digest text;
   v_paid_allocation numeric(18,2);
   v_paid_total numeric(18,2);
-  v_payment uuid;
 begin
   if auth.uid() is null or not public.has_org_permission(p_org,'commissions.pay') then
     raise exception 'Enregistrement réservé à la fonction finance.';
   end if;
   if p_request_key is null then raise exception 'Clé d idempotence obligatoire.'; end if;
-  select id into v_payment from public.commission_payments
-  where organization_id=p_org and request_key=p_request_key;
-  if v_payment is not null then return v_payment; end if;
-  if p_amount is null or p_amount<=0 or p_paid_at is null or length(trim(coalesce(p_reference,'')))<2 then
-    raise exception 'Données de paiement invalides.';
+  if p_account is null or p_amount is null or p_amount<=0 or p_amount<>round(p_amount,2) or p_paid_at is null
+     or length(trim(coalesce(p_reference,'')))<2 then
+    raise exception 'Données de décaissement invalides : montant positif à deux décimales, compte, date et référence obligatoires.';
+  end if;
+
+  v_digest := md5(jsonb_build_array(p_org,p_allocation,p_account,p_amount,p_paid_at,trim(p_reference))::text);
+  select * into v_existing from public.commission_payments
+  where organization_id=p_org and request_key=p_request_key
+  for update;
+  if found then
+    if v_existing.request_digest is distinct from v_digest then
+      raise exception 'Clé de requête déjà utilisée pour un autre décaissement.';
+    end if;
+    return v_existing.id;
   end if;
 
   select a.* into v_allocation
@@ -462,12 +527,11 @@ begin
   where a.id=p_allocation and a.organization_id=p_org for update;
   if not found then raise exception 'Attribution introuvable.'; end if;
 
-  select id,status,commission_total
-    into v_calculation,v_calculation_status,v_commission_total
-  from public.commission_calculations
-  where id=v_allocation.calculation_id and organization_id=p_org
+  select c.* into v_calculation
+  from public.commission_calculations c
+  where c.id=v_allocation.calculation_id and c.organization_id=p_org
   for update;
-  if v_calculation_status not in ('approved','partially_paid') then
+  if not found or v_calculation.status not in ('approved','partially_paid') then
     raise exception 'Seules les primes validées par finance peuvent être payées.';
   end if;
 
@@ -478,24 +542,50 @@ begin
     raise exception 'Le paiement dépasse le solde de la prime.';
   end if;
 
+  v_expense_account_code := v_calculation.policy_snapshot->>'expense_account_code';
+  if not exists (
+    select 1 from public.pcg2005_accounts
+    where code=v_expense_account_code and kind='expense'
+  ) then
+    raise exception 'Le compte PCG de charge mémorisé dans la politique est invalide.';
+  end if;
+
+  select name into v_prospect_name
+  from public.prospects
+  where id=v_calculation.prospect_id and organization_id=p_org;
+  if v_prospect_name is null then raise exception 'Prospect source introuvable.'; end if;
+
+  v_expense := public.lot1_record_expense_v2_idempotent(
+    p_org,
+    'Commission commerciale - ' || v_prospect_name || ' - ' || v_allocation.contribution_type,
+    p_amount,p_paid_at,p_account,v_expense_account_code,p_request_key,
+    'expense',null,trim(p_reference),null,0,0,0,'none'
+  );
+  select magnisa_reference into v_expense_reference
+  from public.expenses where id=v_expense and organization_id=p_org;
+  if v_expense_reference is null then raise exception 'Référence de dépense comptable introuvable.'; end if;
+
   insert into public.commission_payments(
-    organization_id,allocation_id,amount,paid_at,payment_reference,recorded_by,request_key
+    organization_id,allocation_id,expense_id,expense_reference,amount,paid_at,
+    payment_reference,recorded_by,request_key,request_digest
   ) values (
-    p_org,p_allocation,p_amount,p_paid_at,trim(p_reference),auth.uid(),p_request_key
+    p_org,p_allocation,v_expense,v_expense_reference,p_amount,p_paid_at,
+    trim(p_reference),auth.uid(),p_request_key,v_digest
   ) returning id into v_payment;
 
   select coalesce(sum(p.amount),0) into v_paid_total
   from public.commission_payments p
   join public.commission_allocations a
     on a.id=p.allocation_id and a.organization_id=p.organization_id
-  where a.calculation_id=v_calculation and a.organization_id=p_org;
+  where a.calculation_id=v_calculation.id and a.organization_id=p_org;
 
   update public.commission_calculations
-  set status=case when v_paid_total >= v_commission_total then 'paid' else 'partially_paid' end
-  where id=v_calculation and organization_id=p_org;
+  set status=case when v_paid_total >= v_calculation.commission_total then 'paid' else 'partially_paid' end
+  where id=v_calculation.id and organization_id=p_org;
 
   perform public.audit_event(p_org,'commission.payment_recorded','commission_payments',v_payment,null,
-    jsonb_build_object('allocation_id',p_allocation,'amount',p_amount,'paid_at',p_paid_at,'reference',trim(p_reference)));
+    jsonb_build_object('allocation_id',p_allocation,'amount',p_amount,'paid_at',p_paid_at,
+      'reference',trim(p_reference),'financial_account_id',p_account,'expense_id',v_expense));
   return v_payment;
 end;
 $$;
@@ -580,8 +670,8 @@ $$;
 
 create or replace function public.save_commission_policy(
   p_org uuid,p_policy uuid,p_name text,p_description text,p_active boolean,
-  p_effective_from date,p_effective_until date,p_basis text,p_rate numeric,
-  p_fixed_basis_amount numeric,p_currency text,p_rules jsonb
+  p_effective_from date,p_effective_until date,p_basis text,p_tax_basis text,p_rate numeric,
+  p_fixed_basis_amount numeric,p_currency text,p_expense_account_code text,p_rules jsonb
 ) returns uuid
 language plpgsql
 security definer
@@ -591,12 +681,24 @@ declare
   v_policy uuid;
   v_sum numeric;
   v_count integer;
+  v_org_currency text;
 begin
   if auth.uid() is null or not public.has_org_permission(p_org,'commissions.policy.manage') then
     raise exception 'Gestion des politiques réservée aux responsables habilités.';
   end if;
+  select currency into v_org_currency from public.organizations where id=p_org;
+  if not found or v_org_currency is null then
+    raise exception 'Devise de l''organisation introuvable.';
+  end if;
+  if p_currency is distinct from v_org_currency then
+    raise exception 'La devise de la politique doit être celle de l''organisation (%).', v_org_currency;
+  end if;
+  if not exists (select 1 from public.pcg2005_accounts where code=p_expense_account_code and kind='expense') then
+    raise exception 'Le compte PCG de charge des commissions est invalide.';
+  end if;
   if length(trim(coalesce(p_name,'')))<2
      or p_basis not in ('order_total','invoice_paid_amount','fixed_amount')
+     or p_tax_basis not in ('net','gross')
      or p_rate<=0 or p_rate>100 or p_currency !~ '^[A-Z]{3}$'
      or p_effective_from is null
      or (p_effective_until is not null and p_effective_until<p_effective_from)
@@ -632,17 +734,17 @@ begin
   if p_policy is null then
     insert into public.commission_policies(
       organization_id,name,description,is_active,effective_from,effective_until,
-      calculation_basis,commission_rate,fixed_basis_amount,currency,created_by,updated_by
+      calculation_basis,tax_basis,commission_rate,fixed_basis_amount,currency,expense_account_code,created_by,updated_by
     ) values (
       p_org,trim(p_name),nullif(trim(coalesce(p_description,'')),''),p_active,p_effective_from,p_effective_until,
-      p_basis,p_rate,p_fixed_basis_amount,p_currency,auth.uid(),auth.uid()
+      p_basis,p_tax_basis,p_rate,p_fixed_basis_amount,p_currency,p_expense_account_code,auth.uid(),auth.uid()
     ) returning id into v_policy;
   else
     update public.commission_policies set
       name=trim(p_name),description=nullif(trim(coalesce(p_description,'')),''),
       is_active=p_active,effective_from=p_effective_from,effective_until=p_effective_until,
-      calculation_basis=p_basis,commission_rate=p_rate,fixed_basis_amount=p_fixed_basis_amount,
-      currency=p_currency,updated_by=auth.uid(),updated_at=now()
+      calculation_basis=p_basis,tax_basis=p_tax_basis,commission_rate=p_rate,fixed_basis_amount=p_fixed_basis_amount,
+      currency=p_currency,expense_account_code=p_expense_account_code,updated_by=auth.uid(),updated_at=now()
     where id=p_policy and organization_id=p_org returning id into v_policy;
     if v_policy is null then raise exception 'Politique introuvable.'; end if;
   end if;
@@ -658,13 +760,13 @@ $$;
 
 revoke all on function public.convert_prospect_to_customer(uuid,uuid) from public, anon;
 revoke all on function public.create_prospect_with_originator(uuid,text,text,text,text,text) from public, anon;
-revoke all on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,jsonb) from public, anon;
+revoke all on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,text,numeric,numeric,text,text,jsonb) from public, anon;
 revoke all on function public.calculate_prospect_commission(uuid,uuid,uuid,text,uuid,uuid) from public, anon;
 revoke all on function public.review_prospect_commission(uuid,uuid,text,text) from public, anon;
-revoke all on function public.record_commission_payment(uuid,uuid,numeric,date,text,uuid) from public, anon;
+revoke all on function public.record_commission_payment(uuid,uuid,uuid,numeric,date,text,uuid) from public, anon;
 grant execute on function public.convert_prospect_to_customer(uuid,uuid) to authenticated;
 grant execute on function public.create_prospect_with_originator(uuid,text,text,text,text,text) to authenticated;
-grant execute on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,numeric,numeric,text,jsonb) to authenticated;
+grant execute on function public.save_commission_policy(uuid,uuid,text,text,boolean,date,date,text,text,numeric,numeric,text,text,jsonb) to authenticated;
 grant execute on function public.calculate_prospect_commission(uuid,uuid,uuid,text,uuid,uuid) to authenticated;
 grant execute on function public.review_prospect_commission(uuid,uuid,text,text) to authenticated;
-grant execute on function public.record_commission_payment(uuid,uuid,numeric,date,text,uuid) to authenticated;
+grant execute on function public.record_commission_payment(uuid,uuid,uuid,numeric,date,text,uuid) to authenticated;

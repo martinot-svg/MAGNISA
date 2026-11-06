@@ -3,11 +3,11 @@
 -- =====================================================================
 -- Structure :
 --   PART A  (transactionnel)  : REVOKE, search_path, RLS, GRANT
---   PART B  (hors transaction): CREATE INDEX CONCURRENTLY (FK manquants)
+--   PART B  (transactionnel) : CREATE INDEX IF NOT EXISTS (FK manquants)
 -- =====================================================================
--- ⚠️  CREATE INDEX CONCURRENTLY ne peut PAS s'exécuter dans BEGIN/COMMIT.
---     C'est le conflit principal du script original : les deux parties
---     sont donc séparées.
+-- Les migrations Supabase sont exécutées dans une transaction.
+-- CREATE INDEX CONCURRENTLY est interdit dans une transaction et dans DO.
+-- Les index sont donc créés sans CONCURRENTLY, avec IF NOT EXISTS.
 -- =====================================================================
 
 
@@ -107,14 +107,13 @@ commit;
 
 
 -- =====================================================================
--- PART B — Hors transaction : index FK manquants (CONCURRENTLY)
+-- PART B — Index FK manquants (transactionnels, compatibles avec le moteur de migrations)
 -- =====================================================================
 -- Détecte automatiquement toutes les colonnes FK du schéma public qui
 -- n'ont pas d'index en position de tête, et crée l'index manquant
--- avec CONCURRENTLY (aucun verrou en écriture sur la table).
+-- avec CREATE INDEX standard. Cette migration s'exécute sur une base
+-- propre ou lors d'un déploiement contrôlé ; le verrou est donc acceptable.
 -- Idempotent : ignore les index déjà existants.
---
--- ⚠️ Ne PAS envelopper cette partie dans BEGIN/COMMIT.
 -- ---------------------------------------------------------------------
 do $$
 declare
@@ -149,9 +148,9 @@ begin
       63
     );
 
-    -- CONCURRENTLY + IF NOT EXISTS : sûr et rejouable
+    -- IF NOT EXISTS : compatible avec la transaction de migration
     execute format(
-      'create index concurrently if not exists %I on %s.%I (%I)',
+      'create index if not exists %I on %s.%I (%I)',
       idx_name, r.sch, r.tblname, r.col
     );
 

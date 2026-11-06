@@ -223,7 +223,7 @@ export async function createExpense(formData:FormData){
   await assertPermission(ctx,"expenses.record");
   const p=z.object({
     description:z.string().trim().min(2),amount:z.coerce.number().positive(),
-    expense_date:z.string().date(),financial_account_id:z.string().uuid(),
+    expense_date:z.iso.date(),financial_account_id:z.string().uuid(),
     category:z.string().trim().min(1).max(120),idempotency_key:z.string().uuid(),
     useful_life_months:z.coerce.number().int().min(12).max(120).optional(),
   }).safeParse(Object.fromEntries(formData));
@@ -283,10 +283,10 @@ export async function transferFunds(formData:FormData){const ctx=await requireOr
 
 export async function recordInternalTransferDebit(fd:FormData){
  const ctx=await requireOrganization();await assertPermission(ctx,"treasury.transfer");
- const p=z.object({source:z.string().uuid(),destination:z.string().uuid(),date:z.string().date(),
+ const p=z.object({source:z.string().uuid(),destination:z.string().uuid(),date:z.iso.date(),
   reference_amount:z.coerce.number().int().positive(),fee_mode:z.enum(["included","added"]),
   source_debit:z.coerce.number().positive(),destination_credit:z.coerce.number().positive(),
-  operator_fee:z.coerce.number().nonnegative(),reference:z.string().trim().min(2),request_key:z.string().uuid()}).safeParse(Object.fromEntries(fd));
+  operator_fee:z.coerce.number().nonnegative(),reference:z.string().optional(),request_key:z.string().uuid()}).safeParse(Object.fromEntries(fd));
  if(!p.success)throw new Error("Données du transfert invalides.");
  const v=p.data;
  const {data:accounts,error:accountsError}=await ctx.supabase.from("financial_accounts")
@@ -302,6 +302,9 @@ export async function recordInternalTransferDebit(fd:FormData){
   source?.type==="mobile_money"?source.name:dest?.type==="mobile_money"?dest.name:null
  );
  if(mobileMoneyPresent&&!operator)throw new Error("Opérateur Mobile Money non reconnu. Vérifie le compte sélectionné.");
+ const generatedReference=`MAG-TRF-${v.date.replace(/-/g,"")}-${v.request_key.replace(/-/g,"").slice(0,8).toUpperCase()}`;
+ const transferReference=mobileMoneyPresent?v.reference?.trim():generatedReference;
+ if(mobileMoneyPresent&&(!transferReference||transferReference.length<2))throw new Error("Saisis la référence réelle figurant sur le justificatif Mobile Money.");
  let debit:number,credit:number,fee:number;
  if(operator){
   const calculated=calculateMobileMoneyTransfer(operator,sourceAccount,destinationAccount,v.reference_amount,v.fee_mode);
@@ -325,13 +328,13 @@ export async function recordInternalTransferDebit(fd:FormData){
  }
  if(v.source_debit!==debit||v.destination_credit!==credit||v.operator_fee!==fee)
   throw new Error("Les montants ne correspondent pas au calcul ou au justificatif déclaré. Recharge la page.");
- const {error}=await ctx.supabase.rpc("magnisa_record_transfer_debit",{p_org:ctx.organizationId,p_source:v.source,p_destination:v.destination,p_date:v.date,p_source_debit:debit,p_destination_credit:credit,p_fee:fee,p_reference:v.reference,p_request_key:v.request_key});
+ const {error}=await ctx.supabase.rpc("magnisa_record_transfer_debit",{p_org:ctx.organizationId,p_source:v.source,p_destination:v.destination,p_date:v.date,p_source_debit:debit,p_destination_credit:credit,p_fee:fee,p_reference:transferReference,p_request_key:v.request_key});
  if(error)throw new Error(error.message);
  revalidatePath("/tresorerie");revalidatePath("/dashboard");revalidatePath("/tresorerie/comptes/"+v.source);
 }
 export async function confirmInternalTransferCredit(fd:FormData){
  const ctx=await requireOrganization();await assertPermission(ctx,"treasury.transfer");
- const p=z.object({transfer_id:z.string().uuid(),date:z.string().date(),reference:z.string().trim().min(2)}).safeParse(Object.fromEntries(fd));
+ const p=z.object({transfer_id:z.string().uuid(),date:z.iso.date(),reference:z.string().trim().min(2)}).safeParse(Object.fromEntries(fd));
  if(!p.success)throw new Error("Confirmation du crédit invalide.");
  const {error}=await ctx.supabase.rpc("magnisa_confirm_transfer_credit",{p_org:ctx.organizationId,p_transfer:p.data.transfer_id,p_date:p.data.date,p_reference:p.data.reference});
  if(error)throw new Error(error.message);

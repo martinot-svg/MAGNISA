@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
@@ -88,14 +87,23 @@ export async function addProspectContributor(formData: FormData) {
 export async function saveCommissionPolicy(formData: FormData) {
   const ctx = await requireOrganization();
   await assertPermission(ctx, "commissions.policy.manage");
+  const { data: organization, error: organizationError } = await ctx.supabase
+    .from("organizations")
+    .select("currency")
+    .eq("id", ctx.organizationId)
+    .single();
+  if (organizationError || !organization?.currency) {
+    throw new Error("Impossible de déterminer la devise de l'entreprise.");
+  }
   const parsed = z.object({
     name: z.string().trim().min(2).max(120),
     description: z.string().trim().max(1000),
     calculation_basis: z.enum(policyBasis),
+    tax_basis: z.enum(["net", "gross"]),
     commission_rate: z.coerce.number().finite().positive().max(100),
     fixed_basis_amount: z.string(),
-    currency: z.string().regex(/^[A-Z]{3}$/),
-    effective_from: z.string().date(),
+    expense_account_code: z.string().trim().min(3).max(10),
+    effective_from: z.iso.date(),
     effective_until: z.string().optional(),
     is_active: z.boolean(),
     originator: z.coerce.number().min(0).max(100),
@@ -106,9 +114,10 @@ export async function saveCommissionPolicy(formData: FormData) {
     name: String(formData.get("name") ?? ""),
     description: String(formData.get("description") ?? ""),
     calculation_basis: String(formData.get("calculation_basis") ?? ""),
+    tax_basis: String(formData.get("tax_basis") ?? "net"),
     commission_rate: String(formData.get("commission_rate") ?? ""),
     fixed_basis_amount: String(formData.get("fixed_basis_amount") ?? ""),
-    currency: String(formData.get("currency") ?? "MGA"),
+    expense_account_code: String(formData.get("expense_account_code") ?? ""),
     effective_from: String(formData.get("effective_from") ?? ""),
     effective_until: String(formData.get("effective_until") ?? ""),
     is_active: formData.get("is_active") === "on",
@@ -143,9 +152,11 @@ export async function saveCommissionPolicy(formData: FormData) {
     p_effective_from: parsed.data.effective_from,
     p_effective_until: parsed.data.effective_until || null,
     p_basis: parsed.data.calculation_basis,
+    p_tax_basis: parsed.data.tax_basis,
     p_rate: parsed.data.commission_rate,
     p_fixed_basis_amount: parsed.data.calculation_basis === "fixed_amount" ? fixedBasisAmount : null,
-    p_currency: parsed.data.currency,
+    p_currency: organization.currency,
+    p_expense_account_code: parsed.data.expense_account_code,
     p_rules: rules,
   });
   if (error) throw new Error(error.message);
@@ -158,22 +169,46 @@ export async function calculateProspectCommission(formData: FormData) {
   const parsed = z.object({
     prospect_id: z.string().uuid(),
     policy_id: z.string().uuid(),
-    source_document_type: z.enum(["order", "invoice"]).optional(),
-    source_document_id: z.string().uuid().optional(),
+    request_key: z.string().uuid(),
+    source_document: z.string().optional(),
   }).safeParse({
     prospect_id: String(formData.get("prospect_id") ?? ""),
     policy_id: String(formData.get("policy_id") ?? ""),
-    source_document_type: String(formData.get("source_document_type") ?? "") || undefined,
-    source_document_id: String(formData.get("source_document_id") ?? "") || undefined,
+    request_key: String(formData.get("request_key") ?? ""),
+    source_document: String(formData.get("source_document") ?? "") || undefined,
   });
   if (!parsed.success) throw new Error("Sélectionne le prospect, la politique et la pièce source correspondante.");
+  let sourceDocumentType: "order" | "invoice" | null = null;
+  let sourceDocumentId: string | null = null;
+  if (parsed.data.source_document) {
+    const [type, id, extra] = parsed.data.source_document.split(":");
+    const typeResult = z.enum(["order", "invoice"]).safeParse(type);
+    const idResult = z.string().uuid().safeParse(id);
+    if (!typeResult.success || !idResult.success || extra !== undefined) {
+      throw new Error("La pièce source sélectionnée est invalide.");
+    }
+    sourceDocumentType = typeResult.data;
+    sourceDocumentId = idResult.data;
+  }
+  const { data: policy, error: policyError } = await ctx.supabase
+    .from("commission_policies").select("calculation_basis")
+    .eq("id", parsed.data.policy_id).eq("organization_id", ctx.organizationId).single();
+  if (policyError || !policy) throw new Error("Politique de commission introuvable.");
+  const expectedSourceType = policy.calculation_basis === "order_total"
+    ? "order"
+    : policy.calculation_basis === "invoice_paid_amount" ? "invoice" : null;
+  if (expectedSourceType !== sourceDocumentType) {
+    throw new Error(expectedSourceType
+      ? "La politique exige une pièce source du type correspondant."
+      : "Une politique à montant fixe ne doit pas recevoir de pièce source.");
+  }
   const { error } = await ctx.supabase.rpc("calculate_prospect_commission", {
     p_org: ctx.organizationId,
     p_prospect: parsed.data.prospect_id,
     p_policy: parsed.data.policy_id,
-    p_source_document_type: parsed.data.source_document_type ?? null,
-    p_source_document_id: parsed.data.source_document_id ?? null,
-    p_request_key: randomUUID(),
+    p_source_document_type: sourceDocumentType,
+    p_source_document_id: sourceDocumentId,
+    p_request_key: parsed.data.request_key,
   });
   if (error) throw new Error(error.message);
   revalidatePath("/commissions");
@@ -208,13 +243,18 @@ export async function reviewProspectCommission(formData: FormData) {
 export async function recordCommissionPayment(formData: FormData) {
   const ctx = await requireOrganization();
   await assertPermission(ctx, "commissions.pay");
+  await assertPermission(ctx, "expenses.record");
   const parsed = z.object({
     allocation_id: z.string().uuid(),
+    financial_account_id: z.string().uuid(),
+    request_key: z.string().uuid(),
     amount: z.coerce.number().finite().positive(),
-    paid_at: z.string().date(),
+    paid_at: z.iso.date(),
     reference: z.string().trim().min(2).max(160),
   }).safeParse({
     allocation_id: String(formData.get("allocation_id") ?? ""),
+    financial_account_id: String(formData.get("financial_account_id") ?? ""),
+    request_key: String(formData.get("request_key") ?? ""),
     amount: String(formData.get("amount") ?? ""),
     paid_at: String(formData.get("paid_at") ?? ""),
     reference: String(formData.get("reference") ?? ""),
@@ -223,10 +263,11 @@ export async function recordCommissionPayment(formData: FormData) {
   const { error } = await ctx.supabase.rpc("record_commission_payment", {
     p_org: ctx.organizationId,
     p_allocation: parsed.data.allocation_id,
+    p_account: parsed.data.financial_account_id,
     p_amount: parsed.data.amount,
     p_paid_at: parsed.data.paid_at,
     p_reference: parsed.data.reference,
-    p_request_key: randomUUID(),
+    p_request_key: parsed.data.request_key,
   });
   if (error) throw new Error(error.message);
   revalidatePath("/commissions");
