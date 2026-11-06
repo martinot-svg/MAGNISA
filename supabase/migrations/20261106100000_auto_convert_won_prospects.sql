@@ -13,19 +13,19 @@ declare
   v_email text;
   v_phone text;
 begin
-  if new.status <> 'won' then
-    return new;
-  end if;
-
-  if old.converted_customer_id is not null then
-    if new.converted_customer_id is distinct from old.converted_customer_id then
-      raise exception 'Le client associé à un prospect converti ne peut pas être remplacé.';
+  if tg_op = 'UPDATE' and old.converted_customer_id is not null then
+    if new.converted_customer_id is distinct from old.converted_customer_id or new.status <> 'won' then
+      raise exception 'Un prospect converti doit conserver son client et son statut Gagné.';
     end if;
     return new;
   end if;
 
   if new.converted_customer_id is not null then
     raise exception 'Le client est créé automatiquement lors du passage au statut Gagné.';
+  end if;
+
+  if new.status <> 'won' then
+    return new;
   end if;
 
   if auth.uid() is null or not public.has_org_permission(new.organization_id,'prospects.convert') then
@@ -64,7 +64,9 @@ begin
   new.converted_customer_id := v_customer;
   new.updated_at := now();
   perform public.audit_event(new.organization_id,'prospect.converted','prospects',new.id,
-    jsonb_build_object('status',old.status,'converted_customer_id',old.converted_customer_id),
+    case when tg_op = 'UPDATE'
+      then jsonb_build_object('status',old.status,'converted_customer_id',old.converted_customer_id)
+      else null end,
     jsonb_build_object('status','won','converted_customer_id',v_customer,'conversion_mode','automatic_on_won'));
   return new;
 end;
@@ -72,9 +74,8 @@ $$;
 
 drop trigger if exists prospect_auto_convert_won on public.prospects;
 create trigger prospect_auto_convert_won
-before update of status on public.prospects
+before insert or update of status, converted_customer_id on public.prospects
 for each row
-when (new.status = 'won')
 execute function public.auto_convert_won_prospect();
 
 create or replace function public.convert_prospect_to_customer(
