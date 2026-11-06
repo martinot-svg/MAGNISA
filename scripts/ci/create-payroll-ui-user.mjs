@@ -23,4 +23,7 @@ if (error || !data.user) throw error ?? new Error("Supabase did not create the U
 if (process.env.GITHUB_OUTPUT) {
   appendFileSync(process.env.GITHUB_OUTPUT, `user_id=${data.user.id}\n`);
 }
+if (process.env.GITHUB_ENV) {
+  appendFileSync(process.env.GITHUB_ENV, `TEST_USER_ID=${data.user.id}\n`);
+}
 process.stdout.write(`Created isolated local UI test user: ${data.user.id}\n`);
