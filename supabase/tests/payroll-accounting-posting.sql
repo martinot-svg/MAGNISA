@@ -42,6 +42,7 @@ begin
   perform set_config('request.jwt.claims',jsonb_build_object('sub',v_owner,'role','authenticated')::text,true);
   perform set_config('app.payroll_rule_activation','on',true);
 
+  -- Synthetic 3% employee health rate verifies the statutory 2% IRSA deduction cap.
   insert into public.payroll_rule_sets(
     id,organization_id,name,effective_from,effective_to,status,
     cnaps_employee_rate,cnaps_employer_rate,
