@@ -10,6 +10,9 @@ DECLARE
   v_history uuid := gen_random_uuid();
   v_current uuid := gen_random_uuid();
   v_future uuid := gen_random_uuid();
+  v_delete uuid := gen_random_uuid();
+  v_valid uuid := gen_random_uuid();
+  v_invalid uuid := gen_random_uuid();
   v_denied boolean := false;
   v_status text;
   v_effective_to date;
@@ -56,7 +59,16 @@ BEGIN
      '[{"up_to":50000,"rate":0},{"rate":0.1}]'::jsonb, 0, 'floor_100', 'TEST ONLY'),
     (v_future, v_org, 'TEST future', current_date + 10, null, 'draft',
      0, 0.01, 0, 0.05, 0.01, 1000000, 1000000,
-     '[{"up_to":50000,"rate":0},{"rate":0.1}]'::jsonb, 0, 'floor_100', 'TEST ONLY');
+     '[{"up_to":50000,"rate":0},{"rate":0.1}]'::jsonb, 0, 'floor_100', 'TEST ONLY'),
+    (v_delete, v_org, 'TEST draft to delete', current_date + 50, null, 'draft',
+     0, 0.01, 0, 0.05, 0.01, 1000000, 1000000,
+     '[]'::jsonb, 0, 'unverified', null),
+    (v_valid, v_org, 'TEST valid activation', current_date + 30, null, 'draft',
+     0, 0.01, 0, 0.05, 0.01, 1000000, 1000000,
+     '[{"up_to":50000,"rate":0},{"rate":0.1}]'::jsonb, 0, 'floor_100', 'TEST ONLY'),
+    (v_invalid, v_org, 'TEST invalid activation', current_date + 40, null, 'draft',
+     0, 0.01, 0, 0.05, 0.01, 1000000, 1000000,
+     '[{"up_to":50000,"rate":0},{"rate":0.1}]'::jsonb, 0, 'floor_100', null);
 
   UPDATE public.payroll_rule_sets
      SET status = 'validated', reviewed_by = v_owner, reviewed_at = now()
@@ -103,6 +115,66 @@ BEGIN
     FROM public.payroll_rule_sets WHERE id = v_future;
   IF v_status <> 'archived' OR v_effective_to <> current_date + 10 THEN
     RAISE EXCEPTION 'TEST FAILED: future rule archival did not preserve its effective date';
+  END IF;
+
+  -- Deleting a draft is permitted and must leave an audit record.
+  DELETE FROM public.payroll_rule_sets
+   WHERE id = v_delete AND organization_id = v_org AND status IN ('draft', 'pending_review');
+  IF EXISTS (SELECT 1 FROM public.payroll_rule_sets WHERE id = v_delete) THEN
+    RAISE EXCEPTION 'TEST FAILED: draft payroll rule was not deleted';
+  END IF;
+  SELECT count(*) INTO v_audit_count
+    FROM public.payroll_rule_change_log
+   WHERE rule_id = v_delete AND action = 'deleted'
+     AND old_values ->> 'status' = 'draft';
+  IF v_audit_count <> 1 THEN
+    RAISE EXCEPTION 'TEST FAILED: draft deletion audit event was not recorded exactly once';
+  END IF;
+
+  -- A validated rule cannot be deleted even when SQL is called directly.
+  v_denied := false;
+  BEGIN
+    DELETE FROM public.payroll_rule_sets WHERE id = v_current;
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM LIKE '%Suppression interdite%' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'TEST FAILED: validated payroll rule was deleted';
+  END IF;
+
+  -- An incomplete draft cannot be validated or activated.
+  v_denied := false;
+  BEGIN
+    PERFORM public.activate_payroll_rule(v_org, v_invalid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM LIKE '%Référentiel incomplet%' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'TEST FAILED: incomplete payroll rule was validated';
+  END IF;
+  SELECT status INTO v_status FROM public.payroll_rule_sets WHERE id = v_invalid;
+  IF v_status <> 'draft' THEN
+    RAISE EXCEPTION 'TEST FAILED: invalid payroll rule status changed';
+  END IF;
+
+  -- A complete draft can be validated and closes the preceding rule cleanly.
+  PERFORM public.activate_payroll_rule(v_org, v_valid);
+  SELECT status INTO v_status FROM public.payroll_rule_sets WHERE id = v_valid;
+  IF v_status <> 'validated' THEN
+    RAISE EXCEPTION 'TEST FAILED: complete payroll rule was not validated';
+  END IF;
+  SELECT status, effective_to INTO v_status, v_effective_to
+    FROM public.payroll_rule_sets WHERE id = v_current;
+  IF v_status <> 'archived' OR v_effective_to <> current_date + 29 THEN
+    RAISE EXCEPTION 'TEST FAILED: previous validated rule was not closed before its successor';
   END IF;
 
   -- A sales member cannot archive payroll rules.
