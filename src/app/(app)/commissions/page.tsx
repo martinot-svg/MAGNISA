@@ -19,7 +19,7 @@ const roleLabels: Record<string, string> = {
 
 export default async function CommissionsPage() {
   const ctx = await requireOrganization();
-  const [canOwn, canTeam, canManagePolicy, canCalculate, canApprove, canPayRole, canContribute, canRecordExpense] = await Promise.all([
+  const [canOwn, canTeam, canManagePolicy, canCalculate, canApprove, canPayRole, canContribute, canRecordExpense, canViewOrders, canViewInvoices] = await Promise.all([
     hasPermission(ctx, "commissions.view_own"),
     hasPermission(ctx, "commissions.view_team"),
     hasPermission(ctx, "commissions.policy.manage"),
@@ -28,6 +28,8 @@ export default async function CommissionsPage() {
     hasPermission(ctx, "commissions.pay"),
     hasPermission(ctx, "commissions.contribute"),
     hasPermission(ctx, "expenses.record"),
+    hasPermission(ctx, "sales.view"),
+    hasPermission(ctx, "billing.view"),
   ]);
   const canPay = canPayRole && canRecordExpense;
   if (!canOwn && !canTeam && !canManagePolicy) redirect("/dashboard?access=denied");
@@ -72,21 +74,22 @@ export default async function CommissionsPage() {
   );
   let eligibleOrders: any[] = [];
   let eligibleInvoices: any[] = [];
-  if (canCalculate && convertedCustomerIds.length > 0) {
-    const [ordersResult, invoicesResult] = await Promise.all([
-      ctx.supabase.from("orders").select("id,number,customer_id,subtotal,total,order_date")
-        .eq("organization_id", ctx.organizationId).eq("status", "confirmed")
-        .in("customer_id", convertedCustomerIds).order("order_date", { ascending: false }),
-      ctx.supabase.from("invoices").select("id,number,customer_id,subtotal,discount_total,paid_amount,issue_date")
-        .eq("organization_id", ctx.organizationId).eq("status", "paid")
-        .lte("balance_due", 0).gt("paid_amount", 0)
-        .in("customer_id", convertedCustomerIds).order("issue_date", { ascending: false }),
-    ]);
-    if (ordersResult.error || invoicesResult.error) {
-      throw new Error("Impossible de charger les commandes confirmées et les factures soldées.");
-    }
-    eligibleOrders = ordersResult.data ?? [];
-    eligibleInvoices = invoicesResult.data ?? [];
+  if (canCalculate && convertedCustomerIds.length > 0 && canViewOrders) {
+    const { data, error } = await ctx.supabase.from("orders")
+      .select("id,number,customer_id,subtotal,total,order_date")
+      .eq("organization_id", ctx.organizationId).eq("status", "confirmed")
+      .in("customer_id", convertedCustomerIds).order("order_date", { ascending: false });
+    if (error) throw new Error("Impossible de charger les commandes confirmées.");
+    eligibleOrders = data ?? [];
+  }
+  if (canCalculate && convertedCustomerIds.length > 0 && canViewInvoices) {
+    const { data, error } = await ctx.supabase.from("invoices")
+      .select("id,number,customer_id,subtotal,discount_total,paid_amount,issue_date")
+      .eq("organization_id", ctx.organizationId).eq("status", "paid")
+      .lte("balance_due", 0).gt("paid_amount", 0)
+      .in("customer_id", convertedCustomerIds).order("issue_date", { ascending: false });
+    if (error) throw new Error("Impossible de charger les factures entièrement soldées.");
+    eligibleInvoices = data ?? [];
   }
 
   return (
