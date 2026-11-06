@@ -27,7 +27,16 @@ export type Permission =
   | "suppliers.view"
   | "reports.view"
   | "sales.view"
-  | "billing.view";
+  | "billing.view"
+  | "prospects.convert"
+  | "commissions.contribute"
+  | "commissions.view_own"
+  | "commissions.view_team"
+  | "commissions.policy.manage"
+  | "commissions.calculate"
+  | "commissions.approve"
+  | "commissions.pay"
+  | "commissions.audit";
 
 const defaults: Record<string, Set<Permission>> = {
   owner: new Set<Permission>([
@@ -35,44 +44,44 @@ const defaults: Record<string, Set<Permission>> = {
     "invoices.create","invoices.issue","invoices.cancel","payments.record","expenses.record",
     "treasury.transfer","suppliers.manage","payroll.manage","payroll.pay","accounting.manage",
     "reports.export","settings.manage","users.manage","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","sales.view","billing.view"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","sales.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.policy.manage","commissions.calculate","commissions.approve","commissions.pay","commissions.audit","prospects.convert"
   ]),
   admin: new Set<Permission>([
     "customers.create","services.create","quotes.create","quotes.edit","quotes.accept","orders.manage",
     "invoices.create","invoices.issue","invoices.cancel","payments.record","expenses.record",
     "treasury.transfer","suppliers.manage","payroll.manage","payroll.pay","accounting.manage",
     "reports.export","settings.manage","users.manage","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","sales.view","billing.view"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","sales.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.policy.manage","commissions.calculate","commissions.audit","prospects.convert"
   ]),
   director: new Set<Permission>([
     "customers.create","services.create","quotes.create","quotes.edit","quotes.accept","orders.manage",
     "invoices.create","invoices.issue","payments.record","expenses.record","treasury.transfer",
     "suppliers.manage","reports.export","audit.view",
-    "treasury.view","finance.view","accounting.view","suppliers.view","reports.view","sales.view","billing.view"
+    "treasury.view","finance.view","accounting.view","suppliers.view","reports.view","sales.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.calculate","prospects.convert"
   ]),
   finance_manager: new Set<Permission>([
     "invoices.issue","invoices.cancel","payments.record","expenses.record","treasury.transfer",
     "suppliers.manage","payroll.pay","accounting.manage","reports.export","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","billing.view"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.policy.manage","commissions.calculate","commissions.approve","commissions.pay","commissions.audit","prospects.convert"
   ]),
   accountant: new Set<Permission>([
     "invoices.issue","payments.record","expenses.record","suppliers.manage","payroll.manage",
     "accounting.manage","reports.export","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","billing.view"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","billing.view","commissions.contribute","commissions.view_own","commissions.view_team","commissions.calculate","commissions.approve","commissions.pay","commissions.audit","prospects.convert"
   ]),
   sales: new Set<Permission>([
-    "customers.create","services.create","quotes.create","quotes.edit","sales.view","billing.view"
+    "customers.create","services.create","quotes.create","quotes.edit","sales.view","billing.view","commissions.contribute","commissions.view_own","commissions.calculate","prospects.convert"
   ]),
   cashier: new Set<Permission>([
-    "payments.record","expenses.record","treasury.view","billing.view"
+    "payments.record","expenses.record","treasury.view","billing.view","commissions.contribute","commissions.view_own","commissions.calculate","prospects.convert"
   ]),
   hr: new Set<Permission>([
-    "payroll.manage","payroll.view"
+    "payroll.manage","payroll.view","commissions.contribute","commissions.view_own","commissions.calculate","prospects.convert"
   ]),
   auditor: new Set<Permission>([
-    "reports.export","audit.view","accounting.view","reports.view","billing.view"
+    "reports.export","audit.view","accounting.view","reports.view","billing.view","commissions.view_team","commissions.audit"
   ]),
-  employee: new Set<Permission>(),
+  employee: new Set<Permission>(["commissions.contribute","commissions.view_own","commissions.calculate"]),
   viewer: new Set<Permission>()
 };
 
@@ -80,6 +89,10 @@ export async function assertPermission(
   ctx: { supabase: any; organizationId: string; role: string },
   permission: Permission
 ) {
+  if (permission === "commissions.approve" || permission === "commissions.pay") {
+    if (ctx.role === "finance_manager" || ctx.role === "accountant") return;
+    throw new Error("Cette opération est réservée à la fonction finance.");
+  }
   if (ctx.role === "owner") return;
 
   const { data, error } = await ctx.supabase
@@ -99,6 +112,9 @@ export async function hasPermission(
   ctx: { supabase: any; organizationId: string; role: string },
   permission: Permission
 ) {
+  if (permission === "commissions.approve" || permission === "commissions.pay") {
+    return ctx.role === "finance_manager" || ctx.role === "accountant";
+  }
   if (ctx.role === "owner") return true;
   const { data, error } = await ctx.supabase
     .from("role_permissions")

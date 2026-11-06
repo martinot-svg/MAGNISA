@@ -7,7 +7,6 @@ import { BrandMark } from "@/components/brand-mark";
 import { NotificationBell } from "@/components/notification-bell";
 
 const featurePermission: Partial<Record<FeatureKey, Permission>> = {
-  prospects: "sales.view",
   clients: "billing.view",
   services: "sales.view",
   projects: "sales.view",
@@ -57,9 +56,15 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   const enabled = new Map(rows.map((r: any) => [r.feature_key, r.enabled]));
   const visible = FEATURE_CATALOG.filter((feature) => {
     const featureEnabled =
-      feature.required || feature.key === "settings" || enabled.get(feature.key) !== false;
+      feature.required ||
+      feature.key === "settings" ||
+      (feature.key === "prospects" && permissions.has("commissions.contribute")) ||
+      enabled.get(feature.key) !== false;
     if (!featureEnabled) return false;
 
+    if (feature.key === "prospects") {
+      return permissions.has("sales.view") || permissions.has("commissions.contribute");
+    }
     const requiredPermission = featurePermission[feature.key];
     return !requiredPermission || permissions.has(requiredPermission);
   });
@@ -93,6 +98,9 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             );
           })}
+          {(permissions.has("commissions.view_own") || permissions.has("commissions.view_team") || permissions.has("commissions.policy.manage")) && (
+            <div><Link href="/commissions">Primes et commissions</Link></div>
+          )}
           <div>
             <Link href="/notifications">Notifications</Link>
           </div>
