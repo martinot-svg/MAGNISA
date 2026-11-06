@@ -73,6 +73,7 @@ create table public.commission_calculations (
   approved_at timestamptz,
   rejection_reason text,
   request_key uuid not null,
+  request_digest text not null,
   unique(organization_id, request_key),
   unique(id, organization_id),
   foreign key (prospect_id, organization_id) references public.prospects(id, organization_id),
@@ -305,15 +306,24 @@ declare
   v_share_total numeric(9,4);
   v_calculation uuid;
   v_rule_snapshot jsonb;
+  v_digest text;
+  v_existing_digest text;
 begin
   if auth.uid() is null or not public.has_org_permission(p_org,'commissions.calculate') then
     raise exception 'Action non autorisée.';
   end if;
   if p_request_key is null then raise exception 'Clé de demande obligatoire.'; end if;
+  v_digest := md5(jsonb_build_array(p_org,p_prospect,p_policy,p_source_document_type,p_source_document_id)::text);
 
-  select id into v_calculation from public.commission_calculations
+  select id,request_digest into v_calculation,v_existing_digest
+  from public.commission_calculations
   where organization_id=p_org and request_key=p_request_key;
-  if v_calculation is not null then return v_calculation; end if;
+  if found then
+    if v_existing_digest is distinct from v_digest then
+      raise exception 'Clé de demande déjà utilisée pour un autre calcul.';
+    end if;
+    return v_calculation;
+  end if;
 
   select * into v_prospect from public.prospects
   where id=p_prospect and organization_id=p_org for update;
@@ -339,14 +349,21 @@ begin
   elsif v_policy.calculation_basis='order_total' then
     if p_source_document_type <> 'order' or p_source_document_id is null then raise exception 'Commande source obligatoire.'; end if;
     select total into v_basis from public.orders
-      where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id;
+      where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id
+        and status='confirmed';
   elsif v_policy.calculation_basis='invoice_paid_amount' then
     if p_source_document_type <> 'invoice' or p_source_document_id is null then raise exception 'Facture source obligatoire.'; end if;
     select paid_amount into v_basis from public.invoices
       where id=p_source_document_id and organization_id=p_org and customer_id=v_prospect.converted_customer_id
-        and status <> 'cancelled' and balance_due <= 0 and paid_amount > 0;
+        and status='paid' and balance_due <= 0 and paid_amount > 0;
   end if;
   if coalesce(v_basis,0) <= 0 then raise exception 'La base financière vérifiée est nulle ou introuvable.'; end if;
+
+  select id into v_calculation from public.commission_calculations
+  where organization_id=p_org and prospect_id=p_prospect and policy_id=p_policy
+    and source_document_type is not distinct from p_source_document_type
+    and source_document_id is not distinct from p_source_document_id;
+  if found then return v_calculation; end if;
 
   select count(distinct c.contribution_type), count(distinct r.contribution_type), coalesce(sum(r.share_percentage),0)
     into v_roles, v_rules, v_share_total
@@ -367,7 +384,7 @@ begin
 
   insert into public.commission_calculations(
     organization_id,prospect_id,customer_id,policy_id,source_document_type,source_document_id,
-    basis_amount,commission_rate,commission_total,currency,policy_snapshot,calculated_by,request_key
+    basis_amount,commission_rate,commission_total,currency,policy_snapshot,calculated_by,request_key,request_digest
   ) values (
     p_org,p_prospect,v_prospect.converted_customer_id,v_policy.id,p_source_document_type,p_source_document_id,
     v_basis,v_policy.commission_rate,v_total,v_policy.currency,
@@ -375,7 +392,7 @@ begin
       'commission_rate',v_policy.commission_rate,'fixed_basis_amount',v_policy.fixed_basis_amount,
       'expense_account_code',v_policy.expense_account_code,
       'effective_from',v_policy.effective_from,'effective_until',v_policy.effective_until,'rules',v_rule_snapshot),
-    auth.uid(),p_request_key
+    auth.uid(),p_request_key,v_digest
   ) returning id into v_calculation;
 
   with contributors as (
@@ -421,6 +438,9 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_status text;
+  v_rejection_reason text;
 begin
   if auth.uid() is null or not public.has_org_permission(p_org,'commissions.approve') then
     raise exception 'Validation réservée à la fonction finance.';
@@ -429,12 +449,24 @@ begin
   if p_decision='reject' and length(trim(coalesce(p_reason,'')))<3 then
     raise exception 'Un motif de rejet détaillé est obligatoire.';
   end if;
+
+  select status,rejection_reason into v_status,v_rejection_reason
+  from public.commission_calculations
+  where id=p_calculation and organization_id=p_org
+  for update;
+  if not found then raise exception 'Prime introuvable.'; end if;
+  if p_decision='approve' and v_status='approved' then return; end if;
+  if p_decision='reject' and v_status='rejected'
+     and v_rejection_reason=trim(p_reason) then return; end if;
+  if v_status<>'calculated' then
+    raise exception 'Prime déjà traitée avec une décision différente ou déjà payée.';
+  end if;
+
   update public.commission_calculations
   set status=case when p_decision='approve' then 'approved' else 'rejected' end,
       approved_by=auth.uid(),approved_at=now(),
       rejection_reason=case when p_decision='reject' then trim(p_reason) else null end
-  where id=p_calculation and organization_id=p_org and status='calculated';
-  if not found then raise exception 'Prime introuvable ou déjà traitée.'; end if;
+  where id=p_calculation and organization_id=p_org;
   perform public.audit_event(p_org,'commission.reviewed','commission_calculations',p_calculation,null,
     jsonb_build_object('decision',p_decision,'reason',p_reason));
 end;
