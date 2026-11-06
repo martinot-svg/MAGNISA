@@ -269,7 +269,7 @@ revoke all on table
   public.commission_calculations,
   public.commission_allocations,
   public.commission_payments
-from anon, public;
+from anon, authenticated, public;
 
 grant select on public.commission_policies to authenticated;
 grant select on public.commission_policy_rules to authenticated;
