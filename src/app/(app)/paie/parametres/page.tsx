@@ -7,6 +7,7 @@ import {PayrollRulePreview} from "@/components/payroll-rule-preview";
 import {smieDeadlines} from "@/lib/payroll/smie-calendar";
 import {IrsaBracketEditor} from "@/components/irsa-bracket-editor";
 import {SmiePartnerFields} from "@/components/smie-partner-fields";
+import {MADAGASCAR_IRSA_2026} from "@/lib/payroll/irsa";
 
 function smieFields(fd:FormData){
  const limits={smie_partner_name:160,smie_partner_contact:500,smie_affiliation_number:120,smie_contract_reference:200} as const;
@@ -46,10 +47,8 @@ async function saveRuleInternal(fd:FormData){
  if(!String(data.legal_reference||"").trim())throw new Error("Pour appliquer le référentiel, renseigne la référence officielle contrôlée.");
  if(data.cnaps_monthly_ceiling===null||data.health_monthly_ceiling===null)throw new Error("Pour appliquer le référentiel, renseigne les deux plafonds obligatoires.");
  if(rounding!=="floor_100")throw new Error("Choisis la règle d’arrondi vérifiée avant l’application.");
- const {data:created,error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,...smieFields(fd),irsa_brackets:brackets,irsa_minimum:minimum,rounding_policy:rounding,organization_id:ctx.organizationId}).select("id").single();
- if(error||!created)throw new Error(error?.message||"Impossible d'enregistrer le référentiel.");
- const {error:activationError}=await ctx.supabase.rpc("activate_payroll_rule",{p_org:ctx.organizationId,p_rule:created.id});
- if(activationError)throw new Error("Référentiel enregistré mais non activé : "+activationError.message);
+ const {error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,...smieFields(fd),irsa_brackets:brackets,irsa_minimum:minimum,rounding_policy:rounding,organization_id:ctx.organizationId});
+ if(error)throw new Error(error.message);
  revalidatePath("/paie/parametres");
 }
 
@@ -57,18 +56,46 @@ async function saveRuleInternal(fd:FormData){
 async function saveRule(fd:FormData){
  "use server";
  let outcome:"success"|"error"="success";
- let message="Référentiel enregistré et appliqué.";
+ let message="Référentiel enregistré à vérifier. Il n'est pas activé.";
  try {
   await saveRuleInternal(fd);
  } catch(error) {
   outcome="error";
   const raw=error instanceof Error?error.message:"Erreur inattendue pendant l’enregistrement.";
-  const saved=raw.startsWith("Référentiel enregistré mais non activé");
-  message=saved
-   ? raw+" Les données sont conservées dans l’historique : ne relance pas l’enregistrement. Corrige les champs signalés puis utilise « Appliquer cette version »."
-   : raw;
+  message=raw;
  }
  redirect("/paie/parametres?result="+outcome+"&message="+encodeURIComponent(message));
+}
+
+async function prepareIrsa2026Rule(fd:FormData){
+ "use server";
+ const ctx=await requireOrganization();
+ await assertPermission(ctx,"payroll.manage");
+ const effectiveFrom=MADAGASCAR_IRSA_2026.preparationEffectiveFrom;
+ const name="IRSA Madagascar 2026 - version corrigée à vérifier";
+ const {data:candidates,error:readError}=await ctx.supabase
+  .from("payroll_rule_sets").select("*")
+  .eq("organization_id",ctx.organizationId).eq("status","validated")
+  .lte("effective_from",effectiveFrom).order("effective_from",{ascending:false}).limit(20);
+ if(readError)throw new Error(readError.message);
+ const source=(candidates||[]).find((r:any)=>!r.effective_to||r.effective_to>=effectiveFrom);
+ if(!source)throw new Error("Aucun référentiel validé couvrant le 1er novembre 2026. Crée ou vérifie d'abord les paramètres sociaux de l'organisation.");
+ const {data:existing,error:existingError}=await ctx.supabase
+  .from("payroll_rule_sets").select("id").eq("organization_id",ctx.organizationId)
+  .eq("name",name).eq("effective_from",effectiveFrom).limit(1).maybeSingle();
+ if(existingError)throw new Error(existingError.message);
+ if(existing)throw new Error("La version IRSA 2026 à vérifier existe déjà. Ouvre-la dans l'historique au lieu de la recréer.");
+ const copiedFields=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate","cnaps_monthly_ceiling","health_monthly_ceiling","smie_partner_name","smie_partner_contact","smie_affiliation_number","smie_contract_reference"] as const;
+ const draft:Record<string,unknown>={
+  organization_id:ctx.organizationId,name,effective_from:effectiveFrom,effective_to:null,status:"pending_review",
+  irsa_brackets:MADAGASCAR_IRSA_2026.brackets,irsa_minimum:MADAGASCAR_IRSA_2026.minimum,
+  rounding_policy:"floor_100",legal_reference:MADAGASCAR_IRSA_2026.legalReference
+ };
+ for(const key of copiedFields)draft[key]=source[key];
+ const {error:insertError}=await ctx.supabase.from("payroll_rule_sets").insert(draft);
+ if(insertError)throw new Error(insertError.message);
+ revalidatePath("/paie/parametres");
+ redirect("/paie/parametres?result=success&message="+encodeURIComponent("Version IRSA 2026 créée au statut À vérifier, applicable à partir du 1er novembre 2026. Aucun référentiel actif ni bulletin historique n'a été modifié."));
 }
 
 async function executeRuleAction(fd:FormData){
@@ -130,8 +157,6 @@ async function executeRuleAction(fd:FormData){
   patch.rounding_policy=rounding;
   const {error}=await ctx.supabase.from("payroll_rule_sets").update(patch).eq("organization_id",ctx.organizationId).eq("id",id);
   if(error)throw new Error(error.message);
-  const {error:activationError}=await ctx.supabase.rpc("activate_payroll_rule",{p_org:ctx.organizationId,p_rule:id});
-  if(activationError)throw new Error("Modifications enregistrées mais non activées : "+activationError.message);
  }else throw new Error("Opération non reconnue.");
  revalidatePath("/paie/parametres");
 }
@@ -162,7 +187,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  const notice=await searchParams;
  return <><div className="pageHead"><div><p className="eyebrow">Personnel & Paie</p><h1>Paramètres de paie - Madagascar</h1><p>Règles datées par organisation, contrôle de conformité et prévisualisation non comptable.</p></div><Link className="button" href="/paie">Retour aux bulletins</Link></div>
  {notice.result && notice.message && <div role="status" aria-live="polite" className="card section" style={{borderLeft:notice.result==="error"?"4px solid #b45309":"4px solid #15803d"}}><strong>{notice.result==="error"?"Opération non effectuée":"Opération effectuée"}</strong><p>{notice.message.slice(0,450)}</p></div>}
- <div className="card"><details><summary style={{cursor:"pointer",fontWeight:600}}>Créer un référentiel réglementaire</summary><h2>Nouveau jeu de paramètres</h2><p className="muted">À l'enregistrement, MAGNISA sauvegarde puis tente d'activer immédiatement cette version pour sa période d'application. Vérifie les taux et plafonds auprès des sources officielles avant de l'utiliser en paie.</p>
+ <div className="card"><details><summary style={{cursor:"pointer",fontWeight:600}}>Créer un référentiel réglementaire</summary><h2>Nouveau jeu de paramètres</h2><p className="muted">À l'enregistrement, MAGNISA sauvegarde une version au statut À vérifier. L'activation est une action séparée et explicite, après contrôle des taux, plafonds et références.</p>
  <form action={saveRule} className="form"><div className="grid2">
  <div className="field"><label>Nom / version</label><input name="name" placeholder="Ex. Référentiel 2026 à vérifier" required/></div>
  <div className="field"><label>Référence officielle contrôlée</label><input name="legal_reference" placeholder="Texte, article, date de publication et URL officielle" required/></div>
@@ -182,7 +207,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <h3>Barème IRSA pour cette version</h3>
  <div className="grid2"><div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" required placeholder="À vérifier dans le texte officiel"/></div><div className="field"><label>Arrondi de l’assiette IRSA</label><select name="rounding_policy" defaultValue="unverified" required><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d’ariary inférieure - après vérification</option></select></div></div>
  <IrsaBracketEditor />
- <button className="button primary">Enregistrer et appliquer</button></form>
+ <button className="button primary">Enregistrer le brouillon à vérifier</button></form>
  </details></div>
  <section id="bareme-irsa" className="card section" aria-label="Barème IRSA configurable">
  <h2>Barème IRSA configurable</h2>
