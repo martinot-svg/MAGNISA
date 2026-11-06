@@ -10,7 +10,7 @@ La loi n°2025-021 portant loi de finances pour 2026, article 01.03.16, fixe les
 
 Le référentiel proposé reprend également le minimum de perception de 3 000 Ar et la réduction de 2 000 Ar par personne à charge au-delà de 350 000 Ar, conformément aux articles 01.03.16 et 01.03.19 du Code des impôts 2026. La base est arrondie à la centaine d'Ariary inférieure.
 
-La loi de finances rectificative n°2026-004 est adoptée et déclarée conforme par la HCC. Le résumé public consulté ne détaille pas les éventuelles modifications article par article du CGI. La référence IRSA doit donc être relue dans la version intégrale promulguée avant toute activation.
+La loi de finances rectificative n°2026-004 a été adoptée le 22 juin 2026 et déclarée conforme par la HCC le 15 juillet 2026. La décision HCC consultée ne cite ni l'IRSA ni l'article 01.03.16, mais elle ne reproduit pas le texte fiscal intégral. La référence IRSA doit donc être relue dans le corps de la LFR promulguée avant toute activation.
 
 ## Date d'effet préparée
 
