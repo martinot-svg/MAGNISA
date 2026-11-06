@@ -34,7 +34,7 @@ export default async function CommissionsPage() {
     ctx.supabase.from("organization_members").select("role")
       .eq("organization_id", ctx.organizationId).eq("status", "active"),
   ]);
-  const hasFinanceApprover = financeMembers.some((member: { role: string }) =>
+  const hasFinanceApprover = (financeMembers ?? []).some((member: { role: string }) =>
     member.role === "finance_manager" || member.role === "accountant"
   );
 
@@ -77,7 +77,7 @@ export default async function CommissionsPage() {
             <div className="field"><label>Base financière</label><select name="calculation_basis" required defaultValue="order_total"><option value="order_total">Montant total d'une commande</option><option value="invoice_paid_amount">Facture entièrement encaissée</option><option value="fixed_amount">Montant fixe défini par la politique</option></select></div>
             <div className="field"><label>Taux de prime (%)</label><input name="commission_rate" type="number" min="0.0001" max="100" step="0.0001" placeholder="Définir le taux contractuel" required /></div>
             <div className="field"><label>Montant fixe de base</label><input name="fixed_basis_amount" type="number" min="0.01" step="0.01" placeholder="Uniquement pour base fixe" /></div>
-            <div className="field"><label>Devise de l'entreprise</label><input value={organization?.currency ?? "MGA"} readOnly /></div>
+            <div className="field"><label>Devise de l'entreprise</label><input value={organization?.currency ?? "Non disponible"} readOnly /></div>
             <div className="field"><label>Applicable à partir du</label><input name="effective_from" type="date" required /></div>
             <div className="field"><label>Fin de validité</label><input name="effective_until" type="date" /></div>
           </div>
