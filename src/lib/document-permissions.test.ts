@@ -52,7 +52,7 @@ describe("Règles documentaires : refus par défaut", () => {
     const query: any = {
       select: () => query,
       eq: () => query,
-      maybeSingle: async () => ({ data: { allowed: false }, error: null }),
+      maybeSingle: async () => ({ data: { allowed: false } as { allowed: boolean } | null, error: null as Error | null }),
     };
     const ctx = {
       organizationId: "org_A",
@@ -67,7 +67,7 @@ describe("Règles documentaires : refus par défaut", () => {
     const query: any = {
       select: () => query,
       eq: () => query,
-      maybeSingle: async () => ({ data: null, error: new Error("database unavailable") }),
+      maybeSingle: async () => ({ data: null as { allowed: boolean } | null, error: new Error("database unavailable") as Error | null }),
     };
     const ctx = { organizationId: "org_A", role: "owner", supabase: { from: () => query } };
     await expect(canDocumentAction(ctx, "documents.export", "invoice"))

@@ -23,8 +23,8 @@ function createSupabase(roleAllowed: boolean | null = null, userAllowed: boolean
         select: () => query,
         eq: () => query,
         maybeSingle: async () => ({
-          data: allowed === null ? null : { allowed },
-          error: null,
+          data: (allowed === null ? null : { allowed }) as { allowed: boolean } | null,
+          error: null as Error | null,
         }),
       };
       return query;
