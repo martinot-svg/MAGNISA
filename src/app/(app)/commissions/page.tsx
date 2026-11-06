@@ -57,7 +57,7 @@ export default async function CommissionsPage() {
       .select("id,name,is_active,calculation_basis,tax_basis,commission_rate,fixed_basis_amount,currency,expense_account_code,effective_from,effective_until,commission_policy_rules(contribution_type,share_percentage)")
       .eq("organization_id", ctx.organizationId).order("created_at", { ascending: false }),
     ctx.supabase.from("commission_calculations")
-      .select("id,prospect_id,customer_id,basis_amount,commission_total,currency,status,calculated_at,policy_snapshot,commission_allocations(id,user_id,contribution_type,share_percentage,amount,commission_payments(id,amount,paid_at,payment_reference,expense_id))")
+      .select("id,prospect_id,customer_id,basis_amount,commission_total,currency,status,calculated_at,policy_snapshot,commission_allocations(id,user_id,contribution_type,share_percentage,amount,commission_payments(id,amount,paid_at,payment_reference,expense_id,expense_reference))")
       .eq("organization_id", ctx.organizationId).order("calculated_at", { ascending: false }).limit(100),
     ctx.supabase.from("prospects").select("id,name,status,converted_customer_id")
       .eq("organization_id", ctx.organizationId).order("created_at", { ascending: false }),
@@ -194,7 +194,7 @@ export default async function CommissionsPage() {
                 <strong>{roleLabels[allocation.contribution_type]}</strong> · {allocation.user_id.slice(0, 8)} · {allocation.share_percentage} %
                 <div>{money(Number(allocation.amount), item.currency)} · payé {money(paid, item.currency)} · reste {money(balance, item.currency)}</div>
                 {(allocation.commission_payments || []).map((payment: any) => <div className="muted" key={payment.id}>
-                  {payment.paid_at} · {payment.payment_reference} · dépense {String(payment.expense_id ?? "").slice(0, 8)}
+                  {payment.paid_at} · {payment.payment_reference} · pièce MAGNISA {payment.expense_reference}
                 </div>)}
                 {canPay && (item.status === "approved" || item.status === "partially_paid") && balance > 0 && paymentAccounts.length > 0 && <form action={recordCommissionPayment} className="inline">
                   <input type="hidden" name="allocation_id" value={allocation.id} />
