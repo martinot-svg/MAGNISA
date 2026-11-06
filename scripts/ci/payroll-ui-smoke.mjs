@@ -46,6 +46,10 @@ const clickAction = async (page, button) => {
     button.click(),
   ]);
 };
+const resetPage = async (page) => {
+  await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor();
+};
 
 const browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
 try {
@@ -69,18 +73,21 @@ try {
   await waitForNotice(page, "Référentiel archivé.");
   assert((await getRule(ids.history)).status === "archived", "Historical rule was not archived.");
   process.stdout.write("PASS UI: historical archival and audit path\n");
+  await resetPage(page);
 
   row = await openRuleActions(page, "UI TEST current");
   await clickAction(page, row.getByRole("button", { name: "Archiver ce référentiel" }));
   await waitForNotice(page, "date actuelle");
   assert((await getRule(ids.current)).status === "validated", "Current rule changed after rejected archival.");
   process.stdout.write("PASS UI: current rule archival correctly refused\n");
+  await resetPage(page);
 
   row = await openRuleActions(page, "UI TEST future");
   await clickAction(page, row.getByRole("button", { name: "Archiver ce référentiel" }));
   await waitForNotice(page, "Référentiel archivé.");
   assert((await getRule(ids.future)).status === "archived", "Future rule was not archived.");
   process.stdout.write("PASS UI: future archival\n");
+  await resetPage(page);
 
   row = await openRuleActions(page, "UI TEST delete draft");
   await row.locator('input[name="delete_confirmation"]').fill("SUPPRIMER");
@@ -93,12 +100,14 @@ try {
   if (deletionAudit.error) throw deletionAudit.error;
   assert(deletionAudit.data.length === 1, "Draft deletion audit event is missing.");
   process.stdout.write("PASS UI: confirmed draft deletion with audit trail\n");
+  await resetPage(page);
 
   row = await openRuleActions(page, "UI TEST invalid draft");
   await clickAction(page, row.getByRole("button", { name: "Valider et activer ce référentiel" }));
   await waitForNotice(page, "Référentiel incomplet");
   assert((await getRule(ids.invalid)).status === "draft", "Incomplete rule changed status.");
   process.stdout.write("PASS UI: incomplete validation correctly refused\n");
+  await resetPage(page);
 
   row = await openRuleActions(page, "UI TEST valid draft");
   await clickAction(page, row.getByRole("button", { name: "Valider et activer ce référentiel" }));
