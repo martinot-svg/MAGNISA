@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
@@ -18,7 +19,7 @@ const roleLabels: Record<string, string> = {
 
 export default async function CommissionsPage() {
   const ctx = await requireOrganization();
-  const [canOwn, canTeam, canManagePolicy, canCalculate, canApprove, canPay, canContribute] = await Promise.all([
+  const [canOwn, canTeam, canManagePolicy, canCalculate, canApprove, canPayRole, canContribute, canRecordExpense] = await Promise.all([
     hasPermission(ctx, "commissions.view_own"),
     hasPermission(ctx, "commissions.view_team"),
     hasPermission(ctx, "commissions.policy.manage"),
@@ -26,24 +27,35 @@ export default async function CommissionsPage() {
     hasPermission(ctx, "commissions.approve"),
     hasPermission(ctx, "commissions.pay"),
     hasPermission(ctx, "commissions.contribute"),
+    hasPermission(ctx, "expenses.record"),
   ]);
+  const canPay = canPayRole && canRecordExpense;
   if (!canOwn && !canTeam && !canManagePolicy) redirect("/dashboard?access=denied");
 
-  const [{ data: organization }, { data: financeMembers = [] }] = await Promise.all([
+  const [{ data: organization }, { data: financeMembers = [] }, { data: expenseAccounts = [] }] = await Promise.all([
     ctx.supabase.from("organizations").select("currency").eq("id", ctx.organizationId).single(),
     ctx.supabase.from("organization_members").select("role")
       .eq("organization_id", ctx.organizationId).eq("status", "active"),
+    ctx.supabase.from("pcg2005_accounts").select("code,label").eq("kind", "expense").order("code"),
   ]);
   const hasFinanceApprover = (financeMembers ?? []).some((member: { role: string }) =>
     member.role === "finance_manager" || member.role === "accountant"
   );
+  let paymentAccounts: Array<{ id: string; name: string; type: string }> = [];
+  if (canPay) {
+    const { data, error } = await ctx.supabase.from("financial_accounts")
+      .select("id,name,type").eq("organization_id", ctx.organizationId)
+      .eq("is_active", true).order("name");
+    if (error) throw new Error("Impossible de charger les comptes de trésorerie.");
+    paymentAccounts = data ?? [];
+  }
 
   const [{ data: policies = [] }, { data: calculations = [] }, { data: prospects = [] }] = await Promise.all([
     ctx.supabase.from("commission_policies")
-      .select("id,name,is_active,calculation_basis,commission_rate,fixed_basis_amount,currency,effective_from,effective_until,commission_policy_rules(contribution_type,share_percentage)")
+      .select("id,name,is_active,calculation_basis,commission_rate,fixed_basis_amount,currency,expense_account_code,effective_from,effective_until,commission_policy_rules(contribution_type,share_percentage)")
       .eq("organization_id", ctx.organizationId).order("created_at", { ascending: false }),
     ctx.supabase.from("commission_calculations")
-      .select("id,prospect_id,customer_id,basis_amount,commission_total,currency,status,calculated_at,policy_snapshot,commission_allocations(id,user_id,contribution_type,share_percentage,amount,commission_payments(id,amount,paid_at,payment_reference))")
+      .select("id,prospect_id,customer_id,basis_amount,commission_total,currency,status,calculated_at,policy_snapshot,commission_allocations(id,user_id,contribution_type,share_percentage,amount,commission_payments(id,amount,paid_at,payment_reference,financial_account_id,expense_id,financial_accounts(name)))")
       .eq("organization_id", ctx.organizationId).order("calculated_at", { ascending: false }).limit(100),
     ctx.supabase.from("prospects").select("id,name,status,converted_customer_id")
       .eq("organization_id", ctx.organizationId).order("created_at", { ascending: false }),
@@ -67,9 +79,10 @@ export default async function CommissionsPage() {
         </div>
       </div>
 
+      {canPay && <p className="muted">N'enregistre ici qu'un décaissement déjà réellement effectué. MAGNISA créera la dépense, le mouvement de trésorerie et l'écriture comptable à partir du compte sélectionné.</p>}
       {canManagePolicy && <div className="section">
         <h2>Politiques de primes</h2>
-        <p className="muted">La politique détermine la base financière, le taux de prime et les parts des contributeurs. Chaque calcul conserve une copie figée de la politique. Les parts des rôles absents sont redistribuées proportionnellement entre les rôles représentés. Une prime fondée sur une facture exige que cette facture soit entièrement soldée. La devise est celle de l'entreprise.</p>
+        <p className="muted">La politique détermine la base financière, le taux, les parts des contributeurs et le compte PCG de charge. Chaque calcul conserve une copie figée de ces paramètres. Les parts des rôles absents sont redistribuées proportionnellement entre les rôles représentés. Une prime fondée sur une facture exige que cette facture soit entièrement soldée. La devise est celle de l'entreprise. Le compte PCG choisi servira à comptabiliser chaque décaissement.</p>
         <form action={saveCommissionPolicy} className="form card">
           <div className="field"><label>Nom de la politique</label><input name="name" required minLength={2} /></div>
           <div className="field"><label>Description</label><input name="description" /></div>
@@ -78,6 +91,7 @@ export default async function CommissionsPage() {
             <div className="field"><label>Taux de prime (%)</label><input name="commission_rate" type="number" min="0.0001" max="100" step="0.0001" placeholder="Définir le taux contractuel" required /></div>
             <div className="field"><label>Montant fixe de base</label><input name="fixed_basis_amount" type="number" min="0.01" step="0.01" placeholder="Uniquement pour base fixe" /></div>
             <div className="field"><label>Devise de l'entreprise</label><input value={organization?.currency ?? "Non disponible"} readOnly /></div>
+            <div className="field"><label>Compte PCG de charge</label><select name="expense_account_code" required defaultValue=""><option value="" disabled>Choisir un compte de charge</option>{(expenseAccounts ?? []).map((account: any) => <option key={account.code} value={account.code}>{account.code} · {account.label}</option>)}</select></div>
             <div className="field"><label>Applicable à partir du</label><input name="effective_from" type="date" required /></div>
             <div className="field"><label>Fin de validité</label><input name="effective_until" type="date" /></div>
           </div>
@@ -88,11 +102,12 @@ export default async function CommissionsPage() {
           <label className="inline"><input type="checkbox" name="is_active" /> Activer cette politique dès sa date de début</label>
           <button className="button primary">Enregistrer la politique</button>
         </form>
-        <div className="tableWrap"><table><thead><tr><th>Politique</th><th>Base</th><th>Taux</th><th>Répartition</th><th>État</th></tr></thead><tbody>
+        <div className="tableWrap"><table><thead><tr><th>Politique</th><th>Base</th><th>Taux</th><th>Compte de charge</th><th>Répartition</th><th>État</th></tr></thead><tbody>
           {policies.map((policy: any) => <tr key={policy.id}>
             <td><strong>{policy.name}</strong><div className="muted">{policy.id}</div></td>
             <td>{policy.calculation_basis === "order_total" ? "Commande" : policy.calculation_basis === "invoice_paid_amount" ? "Encaissement facture" : "Montant fixe"}</td>
             <td>{policy.commission_rate}%</td>
+            <td>{policy.expense_account_code} · {(expenseAccounts ?? []).find((account: any) => account.code === policy.expense_account_code)?.label ?? "Compte PCG"}</td>
             <td>{(policy.commission_policy_rules || []).map((rule: any) => roleLabels[rule.contribution_type] + " " + rule.share_percentage + "%").join(" · ")}</td>
             <td><span className="badge">{policy.is_active ? "Active" : "Inactive"}</span></td>
           </tr>)}
@@ -114,6 +129,7 @@ export default async function CommissionsPage() {
         <h2>Calculer une prime</h2>
         <p className="muted">Le calcul est autorisé uniquement après conversion du prospect. La base est lue dans la commande, la facture ou la politique fixe, jamais acceptée comme un montant libre saisi.</p>
         <form action={calculateProspectCommission} className="form card">
+          <input type="hidden" name="request_key" value={randomUUID()} />
           <div className="field"><label>Prospect converti</label><select name="prospect_id" required defaultValue=""><option value="" disabled>Choisir un prospect converti</option>{prospects.filter((prospect: any) => prospect.converted_customer_id).map((prospect: any) => <option key={prospect.id} value={prospect.id}>{prospect.name}</option>)}</select></div>
           <div className="field"><label>Politique</label><select name="policy_id" required defaultValue=""><option value="" disabled>Choisir une politique</option>{policies.filter((p: any) => p.is_active).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
           <div className="field"><label>Type de pièce source (selon la politique)</label><select name="source_document_type" defaultValue=""><option value="">Aucune, base fixe</option><option value="order">Commande</option><option value="invoice">Facture</option></select></div>
@@ -137,13 +153,22 @@ export default async function CommissionsPage() {
               return <div key={allocation.id} style={{ marginBottom: 10 }}>
                 <strong>{roleLabels[allocation.contribution_type]}</strong> · {allocation.user_id.slice(0, 8)} · {allocation.share_percentage} %
                 <div>{money(Number(allocation.amount), item.currency)} · payé {money(paid, item.currency)} · reste {money(balance, item.currency)}</div>
-                {canPay && (item.status === "approved" || item.status === "partially_paid") && balance > 0 && <form action={recordCommissionPayment} className="inline">
+                {(allocation.commission_payments || []).map((payment: any) => <div className="muted" key={payment.id}>
+                  {payment.paid_at} · {payment.payment_reference} · {payment.financial_accounts?.name ?? "Compte financier"} · dépense {String(payment.expense_id ?? "").slice(0, 8)}
+                </div>)}
+                {canPay && (item.status === "approved" || item.status === "partially_paid") && balance > 0 && paymentAccounts.length > 0 && <form action={recordCommissionPayment} className="inline">
                   <input type="hidden" name="allocation_id" value={allocation.id} />
+                  <input type="hidden" name="request_key" value={randomUUID()} />
+                  <select name="financial_account_id" required defaultValue="" aria-label="Compte de trésorerie à débiter">
+                    <option value="" disabled>Compte à débiter</option>
+                    {paymentAccounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.type === "bank" ? "Banque" : account.type === "cash" ? "Caisse" : account.type === "mobile_money" ? "Mobile money" : account.type}</option>)}
+                  </select>
                   <input name="amount" type="number" min="0.01" max={balance} step="0.01" defaultValue={balance} required aria-label="Montant payé" />
                   <input name="paid_at" type="date" required aria-label="Date de paiement" />
-                  <input name="reference" placeholder="Référence du paiement" required aria-label="Référence" />
-                  <button className="button small">Enregistrer paiement</button>
+                  <input name="reference" placeholder="Référence du virement ou reçu" required aria-label="Référence du paiement réel" />
+                  <button className="button small">Enregistrer le décaissement</button>
                 </form>}
+                {canPay && (item.status === "approved" || item.status === "partially_paid") && balance > 0 && paymentAccounts.length === 0 && <p className="muted">Aucun compte de trésorerie actif n'est disponible pour enregistrer ce décaissement.</p>}
               </div>;
             })}</td>
             <td>{canApprove && item.status === "calculated" ? <div style={{ display: "grid", gap: 8 }}>
