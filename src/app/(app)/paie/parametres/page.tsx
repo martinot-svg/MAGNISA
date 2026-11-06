@@ -7,7 +7,6 @@ import {PayrollRulePreview} from "@/components/payroll-rule-preview";
 import {smieDeadlines} from "@/lib/payroll/smie-calendar";
 import {IrsaBracketEditor} from "@/components/irsa-bracket-editor";
 import {SmiePartnerFields} from "@/components/smie-partner-fields";
-import {MADAGASCAR_IRSA_2026} from "@/lib/payroll/irsa";
 
 function smieFields(fd:FormData){
  const limits={smie_partner_name:160,smie_partner_contact:500,smie_affiliation_number:120,smie_contract_reference:200} as const;
@@ -65,41 +64,6 @@ async function saveRule(fd:FormData){
   message=raw;
  }
  redirect("/paie/parametres?result="+outcome+"&message="+encodeURIComponent(message));
-}
-
-async function prepareIrsa2026Rule(fd:FormData){
- "use server";
- const ctx=await requireOrganization();
- await assertPermission(ctx,"payroll.manage");
- const effectiveFrom=MADAGASCAR_IRSA_2026.preparationEffectiveFrom;
- const name="IRSA Madagascar 2026 - version corrigée à vérifier";
- const {data:candidates,error:readError}=await ctx.supabase
-  .from("payroll_rule_sets").select("*")
-  .eq("organization_id",ctx.organizationId).eq("status","validated")
-  .lte("effective_from",effectiveFrom).order("effective_from",{ascending:false}).limit(20);
- if(readError)throw new Error(readError.message);
- const source=(candidates||[]).find((r:any)=>!r.effective_to||r.effective_to>=effectiveFrom);
- if(!source)throw new Error("Aucun référentiel validé couvrant le 1er novembre 2026. Crée ou vérifie d'abord les paramètres sociaux de l'organisation.");
- const {data:existing,error:existingError}=await ctx.supabase
-  .from("payroll_rule_sets").select("id").eq("organization_id",ctx.organizationId)
-  .eq("name",name).eq("effective_from",effectiveFrom).limit(1).maybeSingle();
- if(existingError)throw new Error(existingError.message);
- if(existing)throw new Error("La version IRSA 2026 à vérifier existe déjà. Ouvre-la dans l'historique au lieu de la recréer.");
- const copiedFields=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate","cnaps_monthly_ceiling","health_monthly_ceiling","smie_partner_name","smie_partner_contact","smie_affiliation_number","smie_contract_reference"] as const;
- const draft:Record<string,unknown>={
-  organization_id:ctx.organizationId,name,effective_from:effectiveFrom,effective_to:null,status:"pending_review",
-  irsa_brackets:MADAGASCAR_IRSA_2026.brackets,irsa_minimum:MADAGASCAR_IRSA_2026.minimum,
-  rounding_policy:"floor_100",legal_reference:MADAGASCAR_IRSA_2026.legalReference
- };
- for(const key of copiedFields)draft[key]=source[key];
- // Le régime général non agricole M1-1A est passé à 315 000 Ar au 01/10/2026.
- // Le plafond CNaPS/SMIE/FMFP est de 8 x SME = 2 520 000 Ar.
- draft.cnaps_monthly_ceiling=2_520_000;
- draft.health_monthly_ceiling=2_520_000;
- const {error:insertError}=await ctx.supabase.from("payroll_rule_sets").insert(draft);
- if(insertError)throw new Error(insertError.message);
- revalidatePath("/paie/parametres");
- redirect("/paie/parametres?result=success&message="+encodeURIComponent("Version IRSA 2026 créée au statut À vérifier, applicable à partir du 1er novembre 2026. Aucun référentiel actif ni bulletin historique n'a été modifié."));
 }
 
 async function executeRuleAction(fd:FormData){
