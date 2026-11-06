@@ -1,7 +1,7 @@
 -- Align the database-side payroll trigger with the IRSA deduction limit.
--- CGI Madagascar, article 01.03.09, 2°: employee contributions to a
--- workplace medical service / health insurance are deductible up to 1%
--- of gross salary. The actual SMIE withholding remains unchanged.
+-- Law n°2024-025 (2025 Finance Act), article 01.03.09, 2°: employee
+-- workplace health contributions are deductible up to 2% of gross salary.
+-- The actual SMIE withholding remains unchanged.
 -- Existing payslips are not recalculated by this migration.
 
 begin;
@@ -66,7 +66,7 @@ begin
 
   v_social := round(least(new.gross_pay, v_rule.cnaps_monthly_ceiling) * v_rule.cnaps_employee_rate, 2);
   v_health := round(least(new.gross_pay, v_rule.health_monthly_ceiling) * v_rule.health_employee_rate, 2);
-  v_deductible_health := least(v_health, round(new.gross_pay * 0.01, 2));
+  v_deductible_health := least(v_health, round(new.gross_pay * 0.02, 2));
   v_emp_social := round(least(new.gross_pay, v_rule.cnaps_monthly_ceiling) * v_rule.cnaps_employer_rate, 2);
   v_emp_health := round(least(new.gross_pay, v_rule.health_monthly_ceiling) * v_rule.health_employer_rate, 2);
 
