@@ -79,11 +79,10 @@ export function calculatePayrollAmounts(input: {
   );
   const employeeSocial = roundMoney(cnapsBase * rule.cnaps_employee_rate);
 
-  // CGI Madagascar, article 01.03.09, 2° : la cotisation ouvrière
-  // à un organisme sanitaire/assurance santé est déductible dans la
-  // limite de 1 % du salaire brut. Une retenue SMIE contractuelle
-  // supérieure reste due, mais son excédent n'abaisse pas l'assiette IRSA.
-  const deductibleHealth = Math.min(health.employee, roundMoney(gross * 0.01));
+  // Loi n°2024-025 portant LF 2025, article 01.03.09, 2° : la cotisation ouvrière
+  // à un organisme sanitaire/assurance santé est déductible dans la limite de
+  // 2 % du salaire brut. La retenue SMIE réelle reste due intégralement.
+  const deductibleHealth = Math.min(health.employee, roundMoney(gross * 0.02));
 
   const irsa = calculateIrsa({
     taxableIncome: Math.max(0, gross + taxableSupplementaryPension - employeeSocial - deductibleHealth),
