@@ -79,7 +79,7 @@ export function calculatePayrollAmounts(input: {
     minimum: rule.irsa_minimum,
   });
   const employerSocial = roundMoney(cnapsBase * rule.cnaps_employer_rate);
-  const employerFmfp = roundMoney(cnapsBase * rule.fmfp_employer_rate);
+  const employerFmfp = roundMoney(gross * rule.fmfp_employer_rate);
   const netBeforeOtherDeductions = roundMoney(
     gross - employeeSocial - health.employee - irsa.tax,
   );
