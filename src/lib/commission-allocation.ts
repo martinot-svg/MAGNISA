@@ -31,10 +31,8 @@ export function calculateCommissionAllocations(
   if (!policyShares.length || !contributors.length) {
     throw new Error("Une politique et au moins un contributeur sont obligatoires.");
   }
-  const policyTotal = policyShares.reduce((sum, rule) => sum + rule.share_percentage, 0);
-  if (policyShares.some((rule) => !Number.isFinite(rule.share_percentage) || rule.share_percentage <= 0 || rule.share_percentage > 100)
-      || Math.round(policyTotal * 100) !== 10000) {
-    throw new Error("Les règles de la politique doivent totaliser exactement 100 %.");
+  if (policyShares.some((rule) => !Number.isFinite(rule.share_percentage) || rule.share_percentage <= 0 || rule.share_percentage > 100)) {
+    throw new Error("Chaque règle de la politique doit avoir un pourcentage compris entre 0 et 100.");
   }
   const seen = new Set<string>();
   for (const contributor of contributors) {
@@ -50,13 +48,15 @@ export function calculateCommissionAllocations(
     }
     roleCounts.set(contributor.contribution_type, (roleCounts.get(contributor.contribution_type) ?? 0) + 1);
   }
+  const policyTotal = policyShares.reduce((sum, rule) => sum + rule.share_percentage, 0);
+  if (Math.round(policyTotal * 100) !== 10000) {
+    throw new Error("Les règles de la politique doivent totaliser exactement 100 %.");
+  }
   const representedShare = [...roleCounts.keys()].reduce((sum, role) => sum + (rules.get(role) ?? 0), 0);
   if (representedShare <= 0) throw new Error("Aucun pourcentage applicable.");
 
-  const ordered = [...contributors].sort((a, b) =>
-    a.contribution_type.localeCompare(b.contribution_type) || a.user_id.localeCompare(b.user_id),
-  );
-  const base = ordered.map((contributor) => {
+  // Preserve the caller's contributor order in the returned allocations.
+  const base = contributors.map((contributor) => {
     const roleCount = roleCounts.get(contributor.contribution_type)!;
     const roleShare = rules.get(contributor.contribution_type)!;
     const rawAmount = (commissionTotal * roleShare) / representedShare / roleCount;
