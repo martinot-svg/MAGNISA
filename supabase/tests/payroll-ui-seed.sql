@@ -59,4 +59,17 @@ UPDATE public.payroll_rule_sets
    SET status = 'validated', reviewed_by = :'user_id'::uuid, reviewed_at = now()
  WHERE id IN (:'history_id'::uuid, :'current_id'::uuid, :'future_id'::uuid);
 
+
+-- Verify that the authenticated role can read its own membership before the browser smoke test.
+SELECT policyname, permissive, roles, cmd, qual
+  FROM pg_policies
+ WHERE schemaname = 'public' AND tablename = 'organization_members'
+ ORDER BY policyname;
+SET LOCAL ROLE authenticated;
+SELECT auth.uid() AS rls_probe_uid;
+SELECT count(*) AS rls_visible_memberships
+  FROM public.organization_members
+ WHERE user_id = auth.uid() AND status = 'active';
+RESET ROLE;
+
 COMMIT;
