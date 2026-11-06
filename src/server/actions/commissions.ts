@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
@@ -102,6 +101,7 @@ export async function saveCommissionPolicy(formData: FormData) {
     calculation_basis: z.enum(policyBasis),
     commission_rate: z.coerce.number().finite().positive().max(100),
     fixed_basis_amount: z.string(),
+    expense_account_code: z.string().trim().min(3).max(10),
     effective_from: z.iso.date(),
     effective_until: z.string().optional(),
     is_active: z.boolean(),
@@ -115,6 +115,7 @@ export async function saveCommissionPolicy(formData: FormData) {
     calculation_basis: String(formData.get("calculation_basis") ?? ""),
     commission_rate: String(formData.get("commission_rate") ?? ""),
     fixed_basis_amount: String(formData.get("fixed_basis_amount") ?? ""),
+    expense_account_code: String(formData.get("expense_account_code") ?? ""),
     effective_from: String(formData.get("effective_from") ?? ""),
     effective_until: String(formData.get("effective_until") ?? ""),
     is_active: formData.get("is_active") === "on",
@@ -152,6 +153,7 @@ export async function saveCommissionPolicy(formData: FormData) {
     p_rate: parsed.data.commission_rate,
     p_fixed_basis_amount: parsed.data.calculation_basis === "fixed_amount" ? fixedBasisAmount : null,
     p_currency: organization.currency,
+    p_expense_account_code: parsed.data.expense_account_code,
     p_rules: rules,
   });
   if (error) throw new Error(error.message);
@@ -164,11 +166,13 @@ export async function calculateProspectCommission(formData: FormData) {
   const parsed = z.object({
     prospect_id: z.string().uuid(),
     policy_id: z.string().uuid(),
+    request_key: z.string().uuid(),
     source_document_type: z.enum(["order", "invoice"]).optional(),
     source_document_id: z.string().uuid().optional(),
   }).safeParse({
     prospect_id: String(formData.get("prospect_id") ?? ""),
     policy_id: String(formData.get("policy_id") ?? ""),
+    request_key: String(formData.get("request_key") ?? ""),
     source_document_type: String(formData.get("source_document_type") ?? "") || undefined,
     source_document_id: String(formData.get("source_document_id") ?? "") || undefined,
   });
@@ -179,7 +183,7 @@ export async function calculateProspectCommission(formData: FormData) {
     p_policy: parsed.data.policy_id,
     p_source_document_type: parsed.data.source_document_type ?? null,
     p_source_document_id: parsed.data.source_document_id ?? null,
-    p_request_key: randomUUID(),
+    p_request_key: parsed.data.request_key,
   });
   if (error) throw new Error(error.message);
   revalidatePath("/commissions");
@@ -214,13 +218,18 @@ export async function reviewProspectCommission(formData: FormData) {
 export async function recordCommissionPayment(formData: FormData) {
   const ctx = await requireOrganization();
   await assertPermission(ctx, "commissions.pay");
+  await assertPermission(ctx, "expenses.record");
   const parsed = z.object({
     allocation_id: z.string().uuid(),
+    financial_account_id: z.string().uuid(),
+    request_key: z.string().uuid(),
     amount: z.coerce.number().finite().positive(),
     paid_at: z.iso.date(),
     reference: z.string().trim().min(2).max(160),
   }).safeParse({
     allocation_id: String(formData.get("allocation_id") ?? ""),
+    financial_account_id: String(formData.get("financial_account_id") ?? ""),
+    request_key: String(formData.get("request_key") ?? ""),
     amount: String(formData.get("amount") ?? ""),
     paid_at: String(formData.get("paid_at") ?? ""),
     reference: String(formData.get("reference") ?? ""),
@@ -229,10 +238,11 @@ export async function recordCommissionPayment(formData: FormData) {
   const { error } = await ctx.supabase.rpc("record_commission_payment", {
     p_org: ctx.organizationId,
     p_allocation: parsed.data.allocation_id,
+    p_account: parsed.data.financial_account_id,
     p_amount: parsed.data.amount,
     p_paid_at: parsed.data.paid_at,
     p_reference: parsed.data.reference,
-    p_request_key: randomUUID(),
+    p_request_key: parsed.data.request_key,
   });
   if (error) throw new Error(error.message);
   revalidatePath("/commissions");
