@@ -50,7 +50,7 @@ const defaults: Record<string, Set<Permission>> = {
     "invoices.create","invoices.issue","invoices.cancel","payments.record","expenses.record",
     "treasury.transfer","suppliers.manage","payroll.manage","payroll.pay","accounting.manage",
     "reports.export","settings.manage","users.manage","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","sales.view","billing.view"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","sales.view","billing.view",
     ...contributorPermissions, ...teamCommissionPermissions, "commissions.policy.manage"
   ]),
   admin: new Set<Permission>([
@@ -58,42 +58,42 @@ const defaults: Record<string, Set<Permission>> = {
     "invoices.create","invoices.issue","invoices.cancel","payments.record","expenses.record",
     "treasury.transfer","suppliers.manage","payroll.manage","payroll.pay","accounting.manage",
     "reports.export","settings.manage","users.manage","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","sales.view","billing.view"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","sales.view","billing.view",
     ...contributorPermissions, ...teamCommissionPermissions, "commissions.policy.manage"
   ]),
   director: new Set<Permission>([
     "customers.create","services.create","quotes.create","quotes.edit","quotes.accept","orders.manage",
     "invoices.create","invoices.issue","payments.record","expenses.record","treasury.transfer",
     "suppliers.manage","reports.export","audit.view",
-    "treasury.view","finance.view","accounting.view","suppliers.view","reports.view","sales.view","billing.view"
+    "treasury.view","finance.view","accounting.view","suppliers.view","reports.view","sales.view","billing.view",
     ...contributorPermissions, ...teamCommissionPermissions
   ]),
   finance_manager: new Set<Permission>([
     "invoices.issue","invoices.cancel","payments.record","expenses.record","treasury.transfer",
     "suppliers.manage","payroll.pay","accounting.manage","reports.export","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","billing.view"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","billing.view",
     ...contributorPermissions, ...teamCommissionPermissions, ...financeCommissionPermissions, "commissions.policy.manage"
   ]),
   accountant: new Set<Permission>([
     "invoices.issue","payments.record","expenses.record","suppliers.manage","payroll.manage",
     "accounting.manage","reports.export","audit.view",
-    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","billing.view"
+    "treasury.view","finance.view","accounting.view","payroll.view","suppliers.view","reports.view","billing.view",
     ...contributorPermissions, ...teamCommissionPermissions, ...financeCommissionPermissions
   ]),
   sales: new Set<Permission>([
-    "customers.create","services.create","quotes.create","quotes.edit","sales.view","billing.view"
+    "customers.create","services.create","quotes.create","quotes.edit","sales.view","billing.view",
     ...contributorPermissions
   ]),
   cashier: new Set<Permission>([
-    "payments.record","expenses.record","treasury.view","billing.view"
+    "payments.record","expenses.record","treasury.view","billing.view",
     ...contributorPermissions
   ]),
   hr: new Set<Permission>([
-    "payroll.manage","payroll.view"
+    "payroll.manage","payroll.view",
     ...contributorPermissions
   ]),
   auditor: new Set<Permission>([
-    "reports.export","audit.view","accounting.view","reports.view","billing.view"
+    "reports.export","audit.view","accounting.view","reports.view","billing.view",
     ...teamCommissionPermissions
   ]),
   employee: new Set<Permission>([...contributorPermissions]),
