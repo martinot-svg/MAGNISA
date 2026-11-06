@@ -19,8 +19,8 @@ vi.mock("@/lib/current-org", () => ({
           eq: () => query,
           order: () => query,
           limit: () => query,
-          maybeSingle: async () => ({ data: null, error: null }),
-          single: async () => ({ data: { name: "QA", currency: "MGA" }, error: null }),
+          maybeSingle: async () => ({ data: null as unknown, error: null as Error | null }),
+          single: async () => ({ data: { name: "QA", currency: "MGA" } as unknown, error: null as Error | null }),
         };
         return query;
       },
@@ -30,7 +30,7 @@ vi.mock("@/lib/current-org", () => ({
 
 vi.mock("@/lib/permissions", () => ({
   hasPermission: async () => true,
-  requirePermission: async () => undefined,
+  requirePermission: async (): Promise<void> => undefined,
 }));
 
 vi.mock("@/lib/payroll/payslip-document", () => ({
@@ -39,7 +39,7 @@ vi.mock("@/lib/payroll/payslip-document", () => ({
       organizationId: fixture.organizationId,
       role: fixture.role,
       user: { id: "member-a" },
-      supabase: { from: () => { throw new Error("query not expected for viewer"); } },
+      supabase: { from: (): never => { throw new Error("query not expected for viewer"); } },
     },
     slip: { status: "validated" },
     data: { number: "QA-BPA" },
