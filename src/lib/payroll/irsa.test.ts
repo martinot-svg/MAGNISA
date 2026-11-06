@@ -18,7 +18,7 @@ describe("Barème IRSA Madagascar 2026", () => {
     [350000, 3000],
     [350100, 3000],
     [400000, 3000],
-    [400100, 3005],
+    [400100, 3000],
     [500000, 12500],
     [600000, 27500],
     [4000000, 707500],
@@ -31,7 +31,7 @@ describe("Barème IRSA Madagascar 2026", () => {
   it("arrondit l'assiette à la centaine inférieure avant calcul", () => {
     const result = calculateIrsa({ taxableIncome: 400199 });
     expect(result.taxableBase).toBe(400100);
-    expect(result.tax).toBe(3005);
+    expect(result.tax).toBe(3000);
   });
 
   it("applique 2 000 Ar par personne à charge au-delà de 350 000 Ar", () => {
