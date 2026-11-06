@@ -52,7 +52,7 @@ export default async function CommissionsPage() {
 
   const [{ data: policies = [] }, { data: calculations = [] }, { data: prospects = [] }] = await Promise.all([
     ctx.supabase.from("commission_policies")
-      .select("id,name,is_active,calculation_basis,commission_rate,fixed_basis_amount,currency,expense_account_code,effective_from,effective_until,commission_policy_rules(contribution_type,share_percentage)")
+      .select("id,name,is_active,calculation_basis,tax_basis,commission_rate,fixed_basis_amount,currency,expense_account_code,effective_from,effective_until,commission_policy_rules(contribution_type,share_percentage)")
       .eq("organization_id", ctx.organizationId).order("created_at", { ascending: false }),
     ctx.supabase.from("commission_calculations")
       .select("id,prospect_id,customer_id,basis_amount,commission_total,currency,status,calculated_at,policy_snapshot,commission_allocations(id,user_id,contribution_type,share_percentage,amount,commission_payments(id,amount,paid_at,payment_reference,expense_id))")
@@ -63,6 +63,31 @@ export default async function CommissionsPage() {
   const pending = calculations.filter((item: any) => item.status === "calculated");
   const awaitingPayment = calculations.filter((item: any) => item.status === "approved" || item.status === "partially_paid");
   const paid = calculations.filter((item: any) => item.status === "paid");
+  const convertedCustomerIds = Array.from(new Set(
+    (prospects ?? []).map((prospect: any) => prospect.converted_customer_id).filter(Boolean)
+  )) as string[];
+  const prospectNameByCustomer = new Map<string, string>(
+    (prospects ?? []).filter((prospect: any) => prospect.converted_customer_id)
+      .map((prospect: any) => [prospect.converted_customer_id, prospect.name] as [string, string])
+  );
+  let eligibleOrders: any[] = [];
+  let eligibleInvoices: any[] = [];
+  if (canCalculate && convertedCustomerIds.length > 0) {
+    const [ordersResult, invoicesResult] = await Promise.all([
+      ctx.supabase.from("orders").select("id,number,customer_id,subtotal,total,order_date")
+        .eq("organization_id", ctx.organizationId).eq("status", "confirmed")
+        .in("customer_id", convertedCustomerIds).order("order_date", { ascending: false }),
+      ctx.supabase.from("invoices").select("id,number,customer_id,subtotal,discount_total,paid_amount,issue_date")
+        .eq("organization_id", ctx.organizationId).eq("status", "paid")
+        .lte("balance_due", 0).gt("paid_amount", 0)
+        .in("customer_id", convertedCustomerIds).order("issue_date", { ascending: false }),
+    ]);
+    if (ordersResult.error || invoicesResult.error) {
+      throw new Error("Impossible de charger les commandes confirmées et les factures soldées.");
+    }
+    eligibleOrders = ordersResult.data ?? [];
+    eligibleInvoices = invoicesResult.data ?? [];
+  }
 
   return (
     <>
@@ -82,12 +107,13 @@ export default async function CommissionsPage() {
       {canPay && <p className="muted">N'enregistre ici qu'un décaissement déjà réellement effectué. MAGNISA créera la dépense, le mouvement de trésorerie et l'écriture comptable à partir du compte sélectionné.</p>}
       {canManagePolicy && <div className="section">
         <h2>Politiques de primes</h2>
-        <p className="muted">La politique détermine la base financière, le taux, les parts des contributeurs et le compte PCG de charge. Chaque calcul conserve une copie figée de ces paramètres. Les parts des rôles absents sont redistribuées proportionnellement entre les rôles représentés. Une prime fondée sur une facture exige que cette facture soit entièrement soldée. La devise est celle de l'entreprise. Le compte PCG choisi servira à comptabiliser chaque décaissement.</p>
+        <p className="muted">La politique détermine la base financière, l'assiette HT ou TTC, le taux, les parts des contributeurs et le compte PCG de charge. HT est proposé par défaut ; choisis TTC si le contrat de commission le prévoit. Chaque calcul conserve une copie figée de ces paramètres. Une prime fondée sur une facture exige que cette facture soit entièrement soldée. Le compte PCG choisi servira à comptabiliser chaque décaissement.</p>
         <form action={saveCommissionPolicy} className="form card">
           <div className="field"><label>Nom de la politique</label><input name="name" required minLength={2} /></div>
           <div className="field"><label>Description</label><input name="description" /></div>
           <div className="grid grid-3">
-            <div className="field"><label>Base financière</label><select name="calculation_basis" required defaultValue="order_total"><option value="order_total">Montant total d'une commande</option><option value="invoice_paid_amount">Facture entièrement encaissée</option><option value="fixed_amount">Montant fixe défini par la politique</option></select></div>
+            <div className="field"><label>Base financière</label><select name="calculation_basis" required defaultValue="order_total"><option value="order_total">Commande confirmée</option><option value="invoice_paid_amount">Facture entièrement encaissée</option><option value="fixed_amount">Montant fixe défini par la politique</option></select></div>
+            <div className="field"><label>Assiette</label><select name="tax_basis" required defaultValue="net"><option value="net">Hors taxes (HT)</option><option value="gross">Toutes taxes comprises (TTC)</option></select></div>
             <div className="field"><label>Taux de prime (%)</label><input name="commission_rate" type="number" min="0.0001" max="100" step="0.0001" placeholder="Définir le taux contractuel" required /></div>
             <div className="field"><label>Montant fixe de base</label><input name="fixed_basis_amount" type="number" min="0.01" step="0.01" placeholder="Uniquement pour base fixe" /></div>
             <div className="field"><label>Devise de l'entreprise</label><input value={organization?.currency ?? "Non disponible"} readOnly /></div>
@@ -105,7 +131,7 @@ export default async function CommissionsPage() {
         <div className="tableWrap"><table><thead><tr><th>Politique</th><th>Base</th><th>Taux</th><th>Compte de charge</th><th>Répartition</th><th>État</th></tr></thead><tbody>
           {policies.map((policy: any) => <tr key={policy.id}>
             <td><strong>{policy.name}</strong><div className="muted">{policy.id}</div></td>
-            <td>{policy.calculation_basis === "order_total" ? "Commande" : policy.calculation_basis === "invoice_paid_amount" ? "Encaissement facture" : "Montant fixe"}</td>
+            <td>{policy.calculation_basis === "order_total" ? "Commande" : policy.calculation_basis === "invoice_paid_amount" ? "Facture soldée" : "Montant fixe"} · {policy.tax_basis === "gross" ? "TTC" : "HT"}</td>
             <td>{policy.commission_rate}%</td>
             <td>{policy.expense_account_code} · {(expenseAccounts ?? []).find((account: any) => account.code === policy.expense_account_code)?.label ?? "Compte PCG"}</td>
             <td>{(policy.commission_policy_rules || []).map((rule: any) => roleLabels[rule.contribution_type] + " " + rule.share_percentage + "%").join(" · ")}</td>
@@ -131,9 +157,20 @@ export default async function CommissionsPage() {
         <form action={calculateProspectCommission} className="form card">
           <input type="hidden" name="request_key" value={randomUUID()} />
           <div className="field"><label>Prospect converti</label><select name="prospect_id" required defaultValue=""><option value="" disabled>Choisir un prospect converti</option>{prospects.filter((prospect: any) => prospect.converted_customer_id).map((prospect: any) => <option key={prospect.id} value={prospect.id}>{prospect.name}</option>)}</select></div>
-          <div className="field"><label>Politique</label><select name="policy_id" required defaultValue=""><option value="" disabled>Choisir une politique</option>{policies.filter((p: any) => p.is_active).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-          <div className="field"><label>Type de pièce source (selon la politique)</label><select name="source_document_type" defaultValue=""><option value="">Aucune, base fixe</option><option value="order">Commande</option><option value="invoice">Facture</option></select></div>
-          <div className="field"><label>Identifiant de la pièce source</label><input name="source_document_id" placeholder="UUID commande ou facture" /></div>
+          <div className="field"><label>Politique</label><select name="policy_id" required defaultValue=""><option value="" disabled>Choisir une politique</option>{policies.filter((p: any) => p.is_active).map((p: any) => <option key={p.id} value={p.id}>{p.name} · {p.calculation_basis === "order_total" ? "Commande" : p.calculation_basis === "invoice_paid_amount" ? "Facture" : "Fixe"} · {p.tax_basis === "gross" ? "TTC" : "HT"}</option>)}</select></div>
+          <div className="field"><label>Pièce source (selon la politique)</label><select name="source_document" defaultValue="">
+            <option value="">Aucune pièce · base fixe</option>
+            <optgroup label="Commandes confirmées">
+              {eligibleOrders.map((order: any) => <option key={order.id} value={`order:${order.id}`}>
+                Commande {order.number} · {prospectNameByCustomer.get(order.customer_id) ?? "Client"} · HT {money(Number(order.subtotal), organization?.currency ?? "MGA")} · TTC {money(Number(order.total), organization?.currency ?? "MGA")}
+              </option>)}
+            </optgroup>
+            <optgroup label="Factures entièrement soldées">
+              {eligibleInvoices.map((invoice: any) => <option key={invoice.id} value={`invoice:${invoice.id}`}>
+                Facture {invoice.number} · {prospectNameByCustomer.get(invoice.customer_id) ?? "Client"} · HT {money(Math.max(Number(invoice.subtotal) - Number(invoice.discount_total), 0), organization?.currency ?? "MGA")} · TTC {money(Number(invoice.paid_amount), organization?.currency ?? "MGA")}
+              </option>)}
+            </optgroup>
+          </select><small className="muted">La pièce doit appartenir au client du prospect sélectionné. Les commandes annulées et factures non soldées sont exclues.</small></div>
           <button className="button primary">Calculer et soumettre à la finance</button>
         </form>
       </div>}
