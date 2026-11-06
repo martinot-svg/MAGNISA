@@ -105,6 +105,7 @@ create table public.commission_payments (
   organization_id uuid not null references public.organizations(id) on delete cascade,
   allocation_id uuid not null,
   expense_id uuid not null unique references public.expenses(id) on delete restrict,
+  expense_reference text not null,
   amount numeric(18,2) not null check (amount > 0),
   paid_at date not null,
   payment_reference text not null,
@@ -494,6 +495,7 @@ declare
   v_existing public.commission_payments%rowtype;
   v_payment uuid;
   v_expense uuid;
+  v_expense_reference text;
   v_expense_account_code text;
   v_prospect_name text;
   v_digest text;
@@ -559,12 +561,15 @@ begin
     p_amount,p_paid_at,p_account,v_expense_account_code,p_request_key,
     'expense',null,trim(p_reference),null,0,0,0,'none'
   );
+  select magnisa_reference into v_expense_reference
+  from public.expenses where id=v_expense and organization_id=p_org;
+  if v_expense_reference is null then raise exception 'Référence de dépense comptable introuvable.'; end if;
 
   insert into public.commission_payments(
-    organization_id,allocation_id,expense_id,amount,paid_at,
+    organization_id,allocation_id,expense_id,expense_reference,amount,paid_at,
     payment_reference,recorded_by,request_key,request_digest
   ) values (
-    p_org,p_allocation,v_expense,p_amount,p_paid_at,
+    p_org,p_allocation,v_expense,v_expense_reference,p_amount,p_paid_at,
     trim(p_reference),auth.uid(),p_request_key,v_digest
   ) returning id into v_payment;
 
