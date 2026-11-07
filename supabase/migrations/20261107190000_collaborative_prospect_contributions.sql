@@ -102,7 +102,7 @@ create or replace function public.record_prospect_intervention(
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $$
+as $crm$
 declare
   v_id uuid;
   v_department text;
@@ -177,7 +177,7 @@ create or replace function public.review_prospect_intervention(
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $$
+as $crm$
 declare
   v_row public.prospect_interventions%rowtype;
   v_commission_role text;
@@ -238,7 +238,7 @@ begin
     end if;
   end if;
 end;
-$$;
+$crm$;
 
 create or replace function public.create_prospect_with_originator(
   p_org uuid,p_name text,p_email text default null,p_phone text default null,
@@ -247,7 +247,7 @@ create or replace function public.create_prospect_with_originator(
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $$
+as $crm$
 declare
   v_prospect uuid;
   v_department text;
@@ -284,7 +284,7 @@ begin
     jsonb_build_object('name',trim(p_name),'source',p_source,'initiator',auth.uid(),'department',v_department));
   return v_prospect;
 end;
-$$;
+$crm$;
 
 revoke all on function public.record_prospect_intervention(uuid,uuid,uuid,uuid,text,text,text,text,text,text,uuid,timestamptz) from public,anon;
 revoke all on function public.review_prospect_intervention(uuid,uuid,text,text) from public,anon;
@@ -344,7 +344,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $$
+as $crm$
 begin
   if not exists (
     select 1 from public.prospect_contributors c
@@ -386,7 +386,7 @@ begin
   end if;
   return new;
 end;
-$$;
+$crm$;
 drop trigger if exists commission_contributors_validation_guard on public.commission_calculations;
 create trigger commission_contributors_validation_guard
 before insert on public.commission_calculations
@@ -398,7 +398,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $$
+as $crm$
 begin
   if new.status='confirmed' and old.status is distinct from new.status
      and new.created_by is not null
@@ -416,7 +416,7 @@ begin
   end if;
   return new;
 end;
-$$;
+$crm$;
 drop trigger if exists crm_capture_confirmed_order on public.orders;
 create trigger crm_capture_confirmed_order
 after update of status on public.orders
@@ -427,7 +427,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $$
+as $crm$
 begin
   if new.status='paid' and old.status is distinct from new.status
      and new.created_by is not null
@@ -445,7 +445,7 @@ begin
   end if;
   return new;
 end;
-$$;
+$crm$;
 drop trigger if exists crm_capture_paid_invoice on public.invoices;
 create trigger crm_capture_paid_invoice
 after update of status on public.invoices
@@ -457,7 +457,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $$
+as $crm$
 begin
   if new.created_by is not null
      and exists (select 1 from public.organization_members
@@ -474,7 +474,7 @@ begin
   end if;
   return new;
 end;
-$$;
+$crm$;
 drop trigger if exists crm_capture_created_service_contract on public.recurring_service_contracts;
 create trigger crm_capture_created_service_contract
 after insert on public.recurring_service_contracts
