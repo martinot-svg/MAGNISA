@@ -100,6 +100,8 @@ jobs:
           exit 1
       - name: Test authenticated payroll UI actions
         run: node scripts/ci/payroll-ui-smoke.mjs
+      - name: Test authenticated CRM UI actions
+        run: node scripts/ci/crm-ui-smoke.mjs
       - name: Stop MAGNISA local server
         if: always()
         run: |
