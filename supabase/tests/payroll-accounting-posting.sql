@@ -171,6 +171,8 @@ begin
     raise exception 'TEST FAILED: IRSA or employer social contribution PCG mapping is incorrect';
   end if;
 
+  -- Use a fresh UUID: v_employee_pension was assigned to the dependant-threshold fixture above.
+  v_employee_pension := gen_random_uuid();
   insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants)
   values(v_employee_pension,v_org,'Test','Employee pension',1000000,'active',0);
 
