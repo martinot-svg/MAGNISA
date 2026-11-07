@@ -43,7 +43,9 @@ begin
      or not has_function_privilege('authenticated','public.list_prospect_intervention_types(uuid)','EXECUTE')
      or has_function_privilege('anon','public.list_prospect_intervention_types(uuid)','EXECUTE')
      or not has_function_privilege('authenticated','public.save_prospect_intervention_types(uuid,jsonb)','EXECUTE')
-     or has_function_privilege('anon','public.save_prospect_intervention_types(uuid,jsonb)','EXECUTE') then
+     or has_function_privilege('anon','public.save_prospect_intervention_types(uuid,jsonb)','EXECUTE')
+     or not has_function_privilege('authenticated','public.change_prospect_intervention_status(uuid,uuid,text,text)','EXECUTE')
+     or has_function_privilege('anon','public.change_prospect_intervention_status(uuid,uuid,text,text)','EXECUTE') then
     raise exception 'Collaborative CRM RPC grants are incorrect';
   end if;
 
@@ -63,6 +65,16 @@ begin
     into v_definition;
   if position('v_row.created_by=auth.uid()' in v_definition)=0 then
     raise exception 'Independent review guard is missing';
+  end if;
+  select pg_get_functiondef('public.change_prospect_intervention_status(uuid,uuid,text,text)'::regprocedure)
+    into v_definition;
+  if position('status_changed' in v_definition)=0 or position('validation_status' in v_definition)=0 then
+    raise exception 'Audited stage transition RPC is missing';
+  end if;
+  select pg_get_functiondef('public.assert_commission_contributors_validated()'::regprocedure)
+    into v_definition;
+  if position('stage_status=''completed''' in v_definition)=0 then
+    raise exception 'Commission guard must require a completed contribution';
   end if;
 
   if not exists (select 1 from pg_indexes where schemaname='public' and indexname='prospect_interventions_automatic_evidence_unique') then
