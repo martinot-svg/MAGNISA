@@ -1,0 +1,132 @@
+"use client";
+
+import { useEffect, useId, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+
+export function ModalFrame({
+  title,
+  children,
+  onClose,
+  width = "min(820px, 100%)",
+}: {
+  title: string;
+  children: ReactNode;
+  onClose: () => void;
+  width?: string;
+}) {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const nodes = dialogRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (!nodes.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 2000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "clamp(10px, 3vw, 28px)",
+        background: "rgba(15, 23, 42, .48)",
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
+      }}
+    >
+      <section
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="card"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          width,
+          maxWidth: "100%",
+          maxHeight: "min(92vh, 960px)",
+          minHeight: 0,
+          overflow: "hidden",
+          padding: 0,
+          background: "var(--card, #fff)",
+          color: "var(--ink, #172033)",
+          borderRadius: 18,
+          boxShadow: "0 24px 80px rgba(0, 0, 0, .28)",
+        }}
+      >
+        <header
+          style={{
+            flex: "0 0 auto",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+            padding: "16px 20px",
+            borderBottom: "1px solid var(--line, #e5e7eb)",
+            background: "var(--card, #fff)",
+          }}
+        >
+          <h2 id={titleId} style={{ margin: 0, fontSize: 18, lineHeight: 1.35 }}>{title}</h2>
+          <button
+            ref={closeRef}
+            type="button"
+            className="button"
+            onClick={onClose}
+            aria-label="Fermer la fenêtre"
+            title="Fermer"
+            style={{ width: 40, height: 40, minWidth: 40, padding: 0, flex: "0 0 40px" }}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </header>
+        <div style={{ minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", padding: "clamp(14px, 2.5vw, 24px)" }}>
+          {children}
+        </div>
+      </section>
+    </div>,
+    document.body
+  );
+}
