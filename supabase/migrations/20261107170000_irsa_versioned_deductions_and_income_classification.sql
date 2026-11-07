@@ -293,7 +293,7 @@ begin
          updated_at = now()
    where id = p_rule and organization_id = p_org;
 end
-$function$
+$function$;
 
 create or replace function public.payroll_compute_fmfp_on_insert()
  RETURNS trigger
@@ -438,7 +438,7 @@ begin
   new.employer_fmfp := round(least(new.gross_pay, v_rule.cnaps_monthly_ceiling) * v_rule.fmfp_employer_rate, 2);
   return new;
 end
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.create_payslip_v2(p_org uuid, p_run uuid, p_employee uuid, p_bonuses numeric DEFAULT 0, p_overtime numeric DEFAULT 0, p_other_earnings numeric DEFAULT 0, p_employee_social numeric DEFAULT 0, p_employee_health numeric DEFAULT 0, p_income_tax numeric DEFAULT 0, p_advances_recovered numeric DEFAULT 0, p_other_deductions numeric DEFAULT 0, p_employer_social numeric DEFAULT 0, p_employer_health numeric DEFAULT 0, p_taxable_supplementary_pension numeric DEFAULT 0,
@@ -556,7 +556,7 @@ begin
 
   return v_id;
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.validate_payslip(p_org uuid, p_payslip uuid)
  RETURNS void
