@@ -163,6 +163,8 @@ begin
     else
       update public.customers set current_owner_id=p_responsible,updated_at=now()
       where id=p_customer and organization_id=p_org;
+      update public.prospects set current_owner_id=p_responsible,updated_at=now()
+      where converted_customer_id=p_customer and organization_id=p_org;
     end if;
   end if;
   return v_id;
@@ -257,8 +259,8 @@ begin
   if length(trim(coalesce(p_name,'')))<2 then raise exception 'Le nom du prospect est obligatoire.'; end if;
   select department into v_department from public.organization_members
     where organization_id=p_org and user_id=auth.uid() and status='active';
-  insert into public.prospects(organization_id,name,email,phone,source,status,notes)
-  values(p_org,trim(p_name),nullif(trim(coalesce(p_email,'')),''),nullif(trim(coalesce(p_phone,'')),''),nullif(trim(coalesce(p_source,'')),''),'new',nullif(trim(coalesce(p_notes,'')),'')) returning id into v_prospect;
+  insert into public.prospects(organization_id,name,email,phone,source,status,notes,current_owner_id)
+  values(p_org,trim(p_name),nullif(trim(coalesce(p_email,'')),''),nullif(trim(coalesce(p_phone,'')),''),nullif(trim(coalesce(p_source,'')),''),'new',nullif(trim(coalesce(p_notes,'')),''),auth.uid()) returning id into v_prospect;
   insert into public.prospect_contributors(organization_id,prospect_id,user_id,contribution_type,created_by)
   values(p_org,v_prospect,auth.uid(),'originator',auth.uid());
   insert into public.prospect_interventions(
@@ -293,6 +295,50 @@ grant execute on function public.create_prospect_with_originator(uuid,text,text,
 
 
 -- Guard commission creation: every contributor must have a matching validated intervention.
+create or replace function public.convert_prospect_to_customer(
+  p_org uuid,p_prospect uuid
+) returns uuid
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $
+declare
+  v_prospect public.prospects%rowtype;
+  v_existing_customer uuid;
+  v_customer uuid;
+begin
+  if auth.uid() is null or not public.has_org_permission(p_org,'prospects.convert') then
+    raise exception 'Tu n''as pas l''autorisation de convertir ce prospect.';
+  end if;
+  select * into v_prospect from public.prospects
+  where id=p_prospect and organization_id=p_org for update;
+  if not found then raise exception 'Prospect introuvable.'; end if;
+  if v_prospect.converted_customer_id is not null then return v_prospect.converted_customer_id; end if;
+  if v_prospect.status='lost' then raise exception 'Un prospect perdu ne peut pas être converti.'; end if;
+  if coalesce(trim(v_prospect.email),'')<>'' or coalesce(trim(v_prospect.phone),'')<>'' then
+    select id into v_existing_customer from public.customers
+    where organization_id=p_org and is_active and (
+      (coalesce(trim(v_prospect.email),'')<>'' and lower(trim(coalesce(email,'')))=lower(trim(v_prospect.email)))
+      or (coalesce(trim(v_prospect.phone),'')<>'' and regexp_replace(coalesce(phone,''),'[^0-9]','','g')=nullif(regexp_replace(v_prospect.phone,'[^0-9]','','g'),''))
+    ) limit 1;
+    if v_existing_customer is not null then
+      raise exception 'Un client actif possède déjà cet e-mail ou ce numéro. Vérifie le doublon avant conversion.';
+    end if;
+  end if;
+  insert into public.customers(organization_id,name,email,phone,notes,current_owner_id)
+  values(p_org,trim(v_prospect.name),v_prospect.email,v_prospect.phone,v_prospect.notes,
+    coalesce(v_prospect.current_owner_id,auth.uid()))
+  returning id into v_customer;
+  update public.prospects set status='won',converted_customer_id=v_customer,
+    current_owner_id=coalesce(current_owner_id,auth.uid()),updated_at=now()
+  where id=p_prospect and organization_id=p_org;
+  perform public.audit_event(p_org,'prospect.converted','prospects',p_prospect,
+    jsonb_build_object('status',v_prospect.status,'converted_customer_id',v_prospect.converted_customer_id),
+    jsonb_build_object('status','won','converted_customer_id',v_customer,'current_owner_id',coalesce(v_prospect.current_owner_id,auth.uid())));
+  return v_customer;
+end;
+$;
+
 create or replace function public.assert_commission_contributors_validated()
 returns trigger
 language plpgsql
