@@ -83,7 +83,7 @@ async function saveVariableDraft(fd: FormData) {
   await assertPermission(ctx,"payroll.manage");
   const runId=String(fd.get("payroll_run_id")||"");
   const employeeId=String(fd.get("employee_id")||"");
-  const keys=["bonuses","overtime","other_earnings","taxable_supplementary_pension","advances_recovered","other_deductions"] as const;
+  const keys=["bonuses","overtime","other_earnings","taxable_supplementary_pension","employee_pension_contribution","irsa_exempt_earnings","advances_recovered","other_deductions"] as const;
   const amounts=Object.fromEntries(keys.map(key=>[key,Number(fd.get(key)??0)]));
   if(Object.values(amounts).some(v=>!Number.isFinite(v)||v<0||v>1000000000000))throw new Error("Montants du brouillon invalides.");
   const [{data:run},{data:employee}]=await Promise.all([
@@ -94,7 +94,7 @@ async function saveVariableDraft(fd: FormData) {
     throw new Error("Sélectionnez un salarié actif et une période de paie modifiable.");
   const {error}=await ctx.supabase.from("payroll_variable_drafts").upsert({
     organization_id:ctx.organizationId,payroll_run_id:runId,employee_id:employeeId,
-    ...amounts,created_by:ctx.user.id,updated_at:new Date().toISOString()
+    ...amounts,irsa_exemption_reference:String(fd.get("irsa_exemption_reference")||"").trim()||null,created_by:ctx.user.id,updated_at:new Date().toISOString()
   },{onConflict:"organization_id,payroll_run_id,employee_id"});
   if(error)throw new Error("Brouillon non enregistré : "+error.message);
   revalidatePath("/paie");
@@ -111,6 +111,8 @@ async function createPayslip(fd: FormData) {
     "overtime",
     "other_earnings",
     "taxable_supplementary_pension",
+    "employee_pension_contribution",
+    "irsa_exempt_earnings",
     "employee_social",
     "employee_health",
     "income_tax",
@@ -128,6 +130,8 @@ async function createPayslip(fd: FormData) {
     throw new Error("Les éléments de paie doivent être des montants positifs ou nuls.");
   }
 
+  const irsaExemptionReference=String(fd.get("irsa_exemption_reference")||"").trim();
+  if(amounts.irsa_exempt_earnings>0&&!irsaExemptionReference)throw new Error("Une référence juridique est obligatoire pour toute rémunération exclue de l’assiette IRSA.");
   const runId=String(fd.get("payroll_run_id")||"");
   const employeeId=String(fd.get("employee_id")||"");
   const [{data:run,error:runError},{data:employee,error:employeeError}]=await Promise.all([
@@ -152,6 +156,8 @@ async function createPayslip(fd: FormData) {
   const calculation = calculatePayrollAmounts({
     gross,
     taxableSupplementaryPension: amounts.taxable_supplementary_pension,
+    employeePensionContribution: amounts.employee_pension_contribution,
+    irsaExemptEarnings: amounts.irsa_exempt_earnings,
     dependants: Number(employee.irsa_dependants),
     rule: {
       cnaps_employee_rate: Number(rule.cnaps_employee_rate),
@@ -162,6 +168,10 @@ async function createPayslip(fd: FormData) {
       cnaps_monthly_ceiling: Number(rule.cnaps_monthly_ceiling),
       health_monthly_ceiling: Number(rule.health_monthly_ceiling),
       irsa_health_deduction_rate: Number(rule.irsa_health_deduction_rate),
+      irsa_dependant_reduction: Number(rule.irsa_dependant_reduction),
+      irsa_dependant_threshold: Number(rule.irsa_dependant_threshold),
+      irsa_pension_deduction_rate: Number(rule.irsa_pension_deduction_rate),
+      irsa_rounding_unit: Number(rule.irsa_rounding_unit),
       irsa_brackets: rule.irsa_brackets as { up_to: number | null; rate: number }[],
       irsa_minimum: Number(rule.irsa_minimum),
     },
@@ -173,7 +183,7 @@ async function createPayslip(fd: FormData) {
   amounts.employer_health=calculation.employerHealth;
   if(calculation.netBeforeOtherDeductions-amounts.advances_recovered-amounts.other_deductions<0)throw new Error("Le net calculé serait négatif.");
   // Le FMFP est calculé côté Supabase à partir du référentiel validé et comptabilisé séparément.
-  const { error } = await ctx.supabase.rpc("create_payslip", {
+  const { error } = await ctx.supabase.rpc("create_payslip_v2", {
     p_org: ctx.organizationId,
     p_run: String(fd.get("payroll_run_id") || ""),
     p_employee: String(fd.get("employee_id") || ""),
@@ -181,6 +191,9 @@ async function createPayslip(fd: FormData) {
     p_overtime: amounts.overtime,
     p_other_earnings: amounts.other_earnings,
     p_taxable_supplementary_pension: amounts.taxable_supplementary_pension,
+    p_employee_pension_contribution: amounts.employee_pension_contribution,
+    p_irsa_exempt_earnings: amounts.irsa_exempt_earnings,
+    p_irsa_exemption_reference: irsaExemptionReference || null,
     p_employee_social: amounts.employee_social,
     p_employee_health: amounts.employee_health,
     p_income_tax: amounts.income_tax,
@@ -406,7 +419,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
         <form action={saveVariableDraft} className="form">
           <div className="grid2"><div className="field"><label>Salarié actif</label><select name="employee_id" required>{employees.filter((e:any)=>e.status==="active").map((e:any)=><option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}</select></div>
           <div className="field"><label>Période modifiable</label><select name="payroll_run_id" required>{editableRuns.map((r:any)=><option key={r.id} value={r.id}>{r.period_start} au {r.period_end}</option>)}</select></div></div>
-          <div className="grid2"><MoneyInput name="bonuses" label="Primes"/><MoneyInput name="overtime" label="Heures supplémentaires"/><MoneyInput name="other_earnings" label="Autres gains"/><MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable"/><MoneyInput name="advances_recovered" label="Avances récupérées"/><MoneyInput name="other_deductions" label="Autres retenues"/></div>
+          <div className="grid2"><MoneyInput name="bonuses" label="Primes"/><MoneyInput name="overtime" label="Heures supplémentaires"/><MoneyInput name="other_earnings" label="Autres gains"/><MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable"/><MoneyInput name="employee_pension_contribution" label="Cotisation retraite salariale"/><MoneyInput name="irsa_exempt_earnings" label="Part du brut exonérée d’IRSA"/><div className="field"><label>Référence juridique de l’exonération</label><input name="irsa_exemption_reference" placeholder="Article du CGI et texte"/></div><MoneyInput name="advances_recovered" label="Avances récupérées"/><MoneyInput name="other_deductions" label="Autres retenues"/></div>
           <button className="button primary">Enregistrer le brouillon</button>
         </form></FormDialog> : <p className="muted">Un salarié actif et une période modifiable sont nécessaires pour enregistrer un brouillon.</p>}
         {variableDrafts.length>0 && <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Période</th><th>Primes</th><th>Heures</th><th>Autres gains</th><th>Retraite complémentaire patronale</th><th>Retenues et avances</th><th>Action</th></tr></thead><tbody>{variableDrafts.map((d:any)=>{
@@ -449,9 +462,12 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
                 <MoneyInput name="overtime" label="Heures supplémentaires" defaultAmount={selectedDraft?.overtime} />
                 <MoneyInput name="other_earnings" label="Autres gains" defaultAmount={selectedDraft?.other_earnings} />
                 <MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable" defaultAmount={selectedDraft?.taxable_supplementary_pension} />
+                <MoneyInput name="employee_pension_contribution" label="Cotisation retraite salariale (déductible sous plafond)" defaultAmount={selectedDraft?.employee_pension_contribution} />
+                <MoneyInput name="irsa_exempt_earnings" label="Part du brut exonérée d’IRSA (à justifier)" defaultAmount={selectedDraft?.irsa_exempt_earnings} />
                 <MoneyInput name="advances_recovered" label="Avances récupérées" defaultAmount={selectedDraft?.advances_recovered} />
                 <MoneyInput name="other_deductions" label="Autres retenues" defaultAmount={selectedDraft?.other_deductions} />
               </div>
+              <div className="field"><label>Référence juridique de l’exonération IRSA (obligatoire si montant exonéré positif)</label><input name="irsa_exemption_reference" defaultValue={selectedDraft?.irsa_exemption_reference||""} placeholder="Article du CGI et référence du texte applicable"/></div>
               <p className="muted">CNaPS, santé et IRSA sont calculés automatiquement selon le référentiel validé. Le calcul est refusé si les règles réglementaires sont incomplètes. Les primes et heures restent variables.</p><button className="button primary">Calculer le bulletin</button>
             </form>
           )}
