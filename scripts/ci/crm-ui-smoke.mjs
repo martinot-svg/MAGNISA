@@ -98,8 +98,11 @@ try {
   assert(intervention.validation_status === "pending", "A newly declared contribution must remain pending.");
   assert(await page.getByRole("button", { name: "Valider" }).count() === 1,
     "An independent owner must be offered validation for another contributor.");
-  await page.getByRole("button", { name: "Valider" }).click();
-  await page.locator("tr").filter({ hasText: contributionDescription }).getByText("Validée").waitFor();
+  const pendingRow = page.locator("tr").filter({ hasText: contributionDescription });
+  const validationForm = pendingRow.locator("form").filter({ has: page.getByRole("button", { name: "Valider" }) });
+  await validationForm.locator('input[name="reason"]').fill("Justificatif et identité du contributeur contrôlés indépendamment.");
+  await validationForm.getByRole("button", { name: "Valider" }).click();
+  await pendingRow.getByText("Validée").waitFor();
   const validatedContributor = await admin.from("prospect_contributors").select("id")
     .eq("organization_id", membership.organization_id).eq("prospect_id", prospect.id)
     .eq("user_id", collaboratorId).eq("contribution_type", "qualifier");
