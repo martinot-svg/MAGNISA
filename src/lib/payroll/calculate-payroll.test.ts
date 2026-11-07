@@ -104,7 +104,7 @@ describe("Calcul centralisé des bulletins", () => {
       gross: 500_000,
       dependants: 0,
       rule: { ...rule, health_employee_rate: 1.2 },
-    })).toThrow(/Taux/);
+    })).toThrow(/Taux/);\n    expect(() => calculatePayrollAmounts({ gross: 500_000, dependants: 0, rule: { ...rule, irsa_health_deduction_rate: 1.2 } })).toThrow(/Taux/);
     expect(() => calculatePayrollAmounts({
       gross: 500_000,
       dependants: 0,
