@@ -51,14 +51,14 @@ begin
     cnaps_employee_rate,cnaps_employer_rate,
     health_employee_rate,health_employer_rate,fmfp_employer_rate,
     cnaps_monthly_ceiling,health_monthly_ceiling,
-    irsa_brackets,irsa_minimum,rounding_policy,legal_reference,
+    irsa_brackets,irsa_minimum,irsa_dependant_reduction,irsa_dependant_threshold,irsa_pension_deduction_rate,rounding_policy,legal_reference,
     reviewed_by,reviewed_at
   ) values (
     v_rule,v_org,'TEST payroll 2026',current_date-1,null,'validated',
     0.01,0.13,0.03,0.08,0.01,
     2400000,1600000,
     '[{"up_to":350000,"rate":0},{"up_to":400000,"rate":0.05},{"up_to":500000,"rate":0.10},{"up_to":600000,"rate":0.15},{"up_to":4000000,"rate":0.20},{"up_to":null,"rate":0.25}]'::jsonb,
-    3000,'floor_100','TEST ONLY',v_owner,now()
+    3000,3500,900000,0.10,'floor_100','TEST ONLY',v_owner,now()
   );
 
   insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants)
@@ -99,6 +99,35 @@ begin
   if v_employer_total <> 320000 then
     raise exception 'TEST FAILED: employer contribution total should include social, health, FMFP and supplementary pension';
   end if;
+
+  -- Versioned dependant reduction: two dependants, custom Ar 3,500 reduction above Ar 900,000.
+  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants)
+  values(gen_random_uuid(),v_org,'Test','Dependants above threshold',1000000,'active',2);
+  -- Reuse the generated employee ID without touching any existing production employee.
+  select id into v_employee_pension from public.employees
+   where organization_id=v_org and first_name='Test' and last_name='Dependants above threshold';
+  perform public.create_payslip(
+    p_org=>v_org,p_run=>v_run,p_employee=>v_employee_pension,
+    p_bonuses=>0,p_overtime=>0,p_other_earnings=>0,
+    p_employee_social=>10000,p_employee_health=>30000,p_income_tax=>94500,
+    p_advances_recovered=>0,p_other_deductions=>0,
+    p_employer_social=>130000,p_employer_health=>80000,
+    p_taxable_supplementary_pension=>0,p_employee_supplementary_pension=>0
+  );
+
+  -- Below the configured threshold, no dependant reduction is allowed.
+  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants)
+  values(gen_random_uuid(),v_org,'Test','Dependants below threshold',800000,'active',2);
+  select id into v_employee_pension from public.employees
+   where organization_id=v_org and first_name='Test' and last_name='Dependants below threshold';
+  perform public.create_payslip(
+    p_org=>v_org,p_run=>v_run,p_employee=>v_employee_pension,
+    p_bonuses=>0,p_overtime=>0,p_other_earnings=>0,
+    p_employee_social=>8000,p_employee_health=>24000,p_income_tax=>62700,
+    p_advances_recovered=>0,p_other_deductions=>0,
+    p_employer_social=>104000,p_employer_health=>64000,
+    p_taxable_supplementary_pension=>0,p_employee_supplementary_pension=>0
+  );
 
   perform public.validate_payslip(v_org,v_payslip);
 
