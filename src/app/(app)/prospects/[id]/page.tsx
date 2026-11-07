@@ -29,7 +29,7 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
   const [canView, canContribute, canReview] = await Promise.all([
     hasPermission(ctx,"sales.view"),
     hasPermission(ctx,"commissions.contribute"),
-    hasPermission(ctx,"commissions.policy.manage"),
+    Promise.all([hasPermission(ctx,"commissions.policy.manage"),hasPermission(ctx,"commissions.audit")]).then(([manage,audit])=>manage||audit),
   ]);
   if (!canView && !canContribute) redirect("/dashboard?access=denied");
 
@@ -72,9 +72,9 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
       <form action={recordProspectIntervention} className="form card">
         <input type="hidden" name="prospect_id" value={id}/>
         <div className="grid grid-3">
-          <div className="field"><label>Collaborateur ayant contribué</label><select name="contributor_user_id" required defaultValue=""><option value="" disabled>Choisir</option>{(members as any[]).map((m:any)=><option key={m.user_id} value={m.user_id}>{emailById.get(m.user_id) || m.user_id} · {m.role}</option>)}</select></div>
+          <div className="field"><label>Collaborateur ayant contribué</label><select name="contributor_user_id" required defaultValue=""><option value="" disabled>Choisir</option>{(members as any[]).filter((m:any)=>m.status==="active").map((m:any)=><option key={m.user_id} value={m.user_id}>{emailById.get(m.user_id) || m.user_id} · {m.role}</option>)}</select></div>
           <div className="field"><label>Département</label><input name="department" maxLength={120} placeholder="Département (facultatif)"/></div>
-          <div className="field"><label>Type d'intervention</label><select name="intervention_type" defaultValue="contact">{Object.entries(typeLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
+          <div className="field"><label>Type d'intervention</label><select name="intervention_type" defaultValue="contact">{(interventionTypes as any[]).filter((item:any)=>item.is_active).map((item:any)=><option key={item.intervention_type} value={item.intervention_type}>{item.label}</option>)}</select></div>
           <div className="field"><label>Rôle dans l'opportunité</label><select name="contribution_role" defaultValue="qualifier">{Object.entries(roleLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
           <div className="field"><label>État de l'étape</label><select name="stage_status" defaultValue="in_progress">{Object.entries(statusLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
           <div className="field"><label>Date et heure de l'intervention</label><input name="occurred_at" type="datetime-local"/></div>
@@ -93,7 +93,7 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
         {(interventions as any[]).map((item:any)=><tr key={item.id}>
           <td>{new Date(item.occurred_at).toLocaleString("fr-FR")}</td>
           <td><strong>{emailById.get(item.contributor_user_id) || item.contributor_user_id}</strong><div className="muted">{roleLabels[item.contribution_role]} · {item.department_snapshot || "Département non renseigné"}</div></td>
-          <td><strong>{typeLabels[item.intervention_type]}</strong><div>{item.description}</div></td>
+          <td><strong>{typeLabelByKey.get(item.intervention_type) || typeLabels[item.intervention_type] || item.intervention_type}</strong><div>{item.description}</div></td>
           <td>{statusLabels[item.stage_status]}</td>
           <td><span className="badge">{validationLabels[item.validation_status]}</span>{item.review_reason && <div className="muted">{item.review_reason}</div>}</td>
           <td>{item.evidence_reference ? <span>{item.evidence_reference}</span> : "—"}<div className="muted">Saisi par {emailById.get(item.created_by) || item.created_by}</div></td>
