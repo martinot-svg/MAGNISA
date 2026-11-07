@@ -25,6 +25,7 @@ async function saveRuleInternal(fd:FormData){
  const data:Record<string,string|number|null>={name,effective_from:from,effective_to:until,status:"pending_review",legal_reference:String(fd.get("legal_reference")||"").trim()||null,rounding_policy:"unverified"};
  for(const key of rates){const raw=Number(fd.get(key));if(!Number.isFinite(raw)||raw<0||raw>100)throw new Error("Taux invalide : "+key);data[key]=raw/100;}
  const irsaHealthRate=Number(fd.get("irsa_health_deduction_rate")??2);if(!Number.isFinite(irsaHealthRate)||irsaHealthRate<0||irsaHealthRate>100)throw new Error("Plafond de déduction santé IRSA invalide.");data.irsa_health_deduction_rate=irsaHealthRate/100;
+ const irsaPensionRate=Number(fd.get("irsa_pension_deduction_rate")??10);if(!Number.isFinite(irsaPensionRate)||irsaPensionRate<0||irsaPensionRate>100)throw new Error("Plafond de déduction retraite IRSA invalide.");data.irsa_pension_deduction_rate=irsaPensionRate/100;
  for(const key of ["cnaps_monthly_ceiling","health_monthly_ceiling"]){const raw=String(fd.get(key)||"").trim();const n=Number(raw);if(raw!==""&&(!Number.isFinite(n)||n<0))throw new Error("Plafond invalide.");data[key]=raw===""?null:n;}
  const bracketCount=Number(fd.get("irsa_bracket_count")??0);
  if(!Number.isInteger(bracketCount)||bracketCount<1||bracketCount>20)throw new Error("Le barème IRSA doit comporter entre 1 et 20 tranches.");
@@ -88,7 +89,7 @@ async function executeRuleAction(fd:FormData){
   const newFrom=String(fd.get("new_effective_from")||"");
   const newName=String(fd.get("new_name")||"").trim();
   if(!/^\d{4}-\d{2}-\d{2}$/.test(newFrom)||!newName||newFrom<=current.effective_from)throw new Error("Nouvelle date ou nom de version invalide.");
-  const copiedFields=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate","irsa_health_deduction_rate","cnaps_monthly_ceiling","health_monthly_ceiling","irsa_brackets","irsa_minimum","irsa_dependant_reduction","irsa_dependant_threshold","rounding_policy","legal_reference","smie_partner_name","smie_partner_contact","smie_affiliation_number","smie_contract_reference"] as const;
+  const copiedFields=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate","irsa_health_deduction_rate","irsa_pension_deduction_rate","cnaps_monthly_ceiling","health_monthly_ceiling","irsa_brackets","irsa_minimum","irsa_dependant_reduction","irsa_dependant_threshold","rounding_policy","legal_reference","smie_partner_name","smie_partner_contact","smie_affiliation_number","smie_contract_reference"] as const;
   const copy:Record<string,unknown>={organization_id:ctx.organizationId,name:newName,effective_from:newFrom,effective_to:null,status:"pending_review"};
   for(const key of copiedFields)copy[key]=current[key];
   copy.legal_reference="À vérifier pour la nouvelle période. Référence précédente : "+String(current.legal_reference||"Non renseignée");
@@ -116,6 +117,7 @@ async function executeRuleAction(fd:FormData){
   const rateKeys=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate"];
   for(const key of rateKeys){const raw=String(fd.get(key)??"").trim();if(raw==="")throw new Error("Taux obligatoire pour la validation : "+key);const val=Number(raw);if(!Number.isFinite(val)||val<0||val>100)throw new Error("Taux invalide : "+key);patch[key]=val/100;}
   const irsaHealthRate=Number(fd.get("irsa_health_deduction_rate")??2);if(!Number.isFinite(irsaHealthRate)||irsaHealthRate<0||irsaHealthRate>100)throw new Error("Plafond de déduction santé IRSA invalide.");patch.irsa_health_deduction_rate=irsaHealthRate/100;
+  const irsaPensionRate=Number(fd.get("irsa_pension_deduction_rate")??10);if(!Number.isFinite(irsaPensionRate)||irsaPensionRate<0||irsaPensionRate>100)throw new Error("Plafond de déduction retraite IRSA invalide.");patch.irsa_pension_deduction_rate=irsaPensionRate/100;
   for(const key of ["cnaps_monthly_ceiling","health_monthly_ceiling"]){const raw=String(fd.get(key)??"").trim();const val=Number(raw);if(raw!==""&&(!Number.isFinite(val)||val<=0))throw new Error("Plafond invalide : "+key);patch[key]=raw===""?null:val;}
   const minimumRaw=String(fd.get("irsa_minimum")??"").trim();
   if(minimumRaw!==""){const min=Number(minimumRaw);if(!Number.isFinite(min)||min<0)throw new Error("Minimum IRSA invalide.");patch.irsa_minimum=min;}
@@ -168,7 +170,7 @@ async function ruleAction(fd:FormData){
 export default async function PayrollSettings({searchParams}:{searchParams:Promise<{result?:string;message?:string}>}){
  const ctx=await requireOrganization();await requirePermission(ctx,"payroll.view");
  const [{data:rules,error},{data:org}]=await Promise.all([
- ctx.supabase.from("payroll_rule_sets").select("id,name,effective_from,effective_to,status,cnaps_employee_rate,cnaps_employer_rate,health_employee_rate,health_employer_rate,fmfp_employer_rate,cnaps_monthly_ceiling,health_monthly_ceiling,irsa_health_deduction_rate,irsa_brackets,irsa_minimum,irsa_dependant_reduction,irsa_dependant_threshold,rounding_policy,legal_reference,smie_partner_name,smie_partner_contact,smie_affiliation_number,smie_contract_reference").eq("organization_id",ctx.organizationId).order("effective_from",{ascending:false}),
+ ctx.supabase.from("payroll_rule_sets").select("id,name,effective_from,effective_to,status,cnaps_employee_rate,cnaps_employer_rate,health_employee_rate,health_employer_rate,fmfp_employer_rate,cnaps_monthly_ceiling,health_monthly_ceiling,irsa_health_deduction_rate,irsa_pension_deduction_rate,irsa_brackets,irsa_minimum,irsa_dependant_reduction,irsa_dependant_threshold,rounding_policy,legal_reference,smie_partner_name,smie_partner_contact,smie_affiliation_number,smie_contract_reference").eq("organization_id",ctx.organizationId).order("effective_from",{ascending:false}),
  ctx.supabase.from("organizations").select("currency,name,smie_partner_name").eq("id",ctx.organizationId).single()
  ]);
  if(error)throw new Error(error.message);
@@ -189,7 +191,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <div className="field"><label>Santé salarié (%)</label><input name="health_employee_rate" type="number" min="0" max="100" step="0.0001" required/></div>
  <div className="field"><label>Santé employeur (%)</label><input name="health_employer_rate" type="number" min="0" max="100" step="0.0001" required/></div>
  <div className="field"><label>FMFP employeur (%)</label><input name="fmfp_employer_rate" type="number" min="0" max="100" step="0.0001" required/></div>
- <div className="field"><label>Plafond de déduction santé IRSA (%)</label><input name="irsa_health_deduction_rate" type="number" min="0" max="100" step="0.01" defaultValue="2" required/></div>
+ <div className="field"><label>Plafond de déduction santé IRSA (%)</label><input name="irsa_health_deduction_rate" type="number" min="0" max="100" step="0.01" defaultValue="2" required/></div><div className="field"><label>Plafond de déduction retraite IRSA (%)</label><input name="irsa_pension_deduction_rate" type="number" min="0" max="100" step="0.01" defaultValue="10" required/></div>
  <div className="field"><label>Plafond CNaPS mensuel (Ar)</label><input name="cnaps_monthly_ceiling" type="number" min="0" step="0.01" placeholder="À confirmer" required/></div>
  <div className="field"><label>Plafond organisme santé (Ar)</label><input name="health_monthly_ceiling" type="number" min="0" step="0.01" placeholder="À confirmer" required/></div>
  </div>
@@ -219,7 +221,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
 <div className="field"><label>Numéro d'affiliation (facultatif)</label><input name="smie_affiliation_number" maxLength={120} defaultValue={r.smie_affiliation_number||""}/></div>
 <div className="field"><label>Référence contractuelle (facultatif)</label><input name="smie_contract_reference" maxLength={200} defaultValue={r.smie_contract_reference||""}/></div><div className="grid2">
 {(["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate"] as const).map(key=><div className="field" key={key}><label>{key.replaceAll("_"," ")} (%)</label><input type="number" min="0" max="100" step="0.0001" name={key} defaultValue={Number(r[key])*100} required/></div>)}
-<div className="field"><label>Plafond déduction santé IRSA (%)</label><input name="irsa_health_deduction_rate" type="number" min="0" max="100" step="0.01" defaultValue={Number(r.irsa_health_deduction_rate??0.02)*100} required/></div>
+<div className="field"><label>Plafond déduction santé IRSA (%)</label><input name="irsa_health_deduction_rate" type="number" min="0" max="100" step="0.01" defaultValue={Number(r.irsa_health_deduction_rate??0.02)*100} required/></div><div className="field"><label>Plafond déduction retraite IRSA (%)</label><input name="irsa_pension_deduction_rate" type="number" min="0" max="100" step="0.01" defaultValue={Number(r.irsa_pension_deduction_rate??0.10)*100} required/></div>
 <div className="field"><label>Plafond CNaPS (Ar)</label><input name="cnaps_monthly_ceiling" type="number" step="0.01" min="0.01" defaultValue={r.cnaps_monthly_ceiling??""}/></div>
 <div className="field"><label>Plafond organisme sanitaire (Ar)</label><input name="health_monthly_ceiling" type="number" step="0.01" min="0.01" defaultValue={r.health_monthly_ceiling??""}/></div>
 <div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" defaultValue={r.irsa_minimum??0}/></div><div className="field"><label>Réduction IRSA par personne à charge (Ar/mois)</label><input name="irsa_dependant_reduction" type="number" min="0" step="1" defaultValue={r.irsa_dependant_reduction??2000}/></div><div className="field"><label>Seuil de revenu imposable ouvrant droit à réduction (Ar)</label><input name="irsa_dependant_threshold" type="number" min="0" step="1" defaultValue={r.irsa_dependant_threshold??350000}/></div>
