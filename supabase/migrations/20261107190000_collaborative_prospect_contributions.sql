@@ -481,3 +481,8 @@ after insert on public.recurring_service_contracts
 for each row execute function public.capture_created_service_contract_contribution();
 
 -- End of collaborative CRM contribution migration.
+
+revoke all on function public.assert_commission_contributors_validated() from public,anon,authenticated;
+revoke all on function public.capture_confirmed_order_contribution() from public,anon,authenticated;
+revoke all on function public.capture_paid_invoice_contribution() from public,anon,authenticated;
+revoke all on function public.capture_created_service_contract_contribution() from public,anon,authenticated;
