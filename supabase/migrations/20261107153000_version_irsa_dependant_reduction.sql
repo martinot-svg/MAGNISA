@@ -5,6 +5,53 @@ alter table public.payroll_rule_sets
   add column if not exists irsa_dependant_threshold numeric(18,2) not null default 350000,
   add column if not exists irsa_pension_deduction_rate numeric(9,6) not null default 0.10;
 
+-- PCG 2005 payroll imputation: distinguish payroll tax and social/pension liabilities.
+insert into public.pcg2005_accounts(code,label,kind)
+values ('442','État, impôts et taxes recouvrables sur des tiers','liability')
+on conflict (code) do update set label=excluded.label,kind=excluded.kind;
+
+create or replace view public.pcg2005_journal_lines
+with (security_invoker=true) as
+select
+  jl.organization_id, je.id as journal_entry_id, je.entry_date,
+  je.reference, je.status, je.source_type, jl.id as line_id, jl.account_key, jl.account_label,
+  jl.debit, jl.credit, jl.customer_id, jl.financial_account_id,
+  coalesce(m.pcg_code,
+    case
+      when jl.account_key='AR' then '411'
+      when jl.account_key='AP' then '401'
+      when jl.account_key='SALES_REVENUE' then '706'
+      when jl.account_key='TAX_PAYABLE:PAYROLL' then '442'
+      when jl.account_key like 'TAX_PAYABLE%' then '445'
+      when jl.account_key='PAYROLL_PAYABLE' then '421'
+      when jl.account_key='EMPLOYEE_ADVANCE_RECEIVABLE' then '425'
+      when jl.account_key in ('SOCIAL_PAYABLE','HEALTH_PAYABLE','FMFP_PAYABLE','SUPPLEMENTARY_PENSION_PAYABLE','EMPLOYEE_SUPPLEMENTARY_PENSION_PAYABLE') then '431'
+      when jl.account_key='OTHER_PAYROLL_PAYABLE' then '421'
+      when jl.account_key in ('PAYROLL_EXPENSE:EMPLOYER_CONTRIBUTIONS','PAYROLL_EXPENSE:FMFP','PAYROLL_EXPENSE:SUPPLEMENTARY_PENSION') then '645'
+      when jl.account_key='PAYROLL_EXPENSE:GROSS' then '641'
+      when jl.account_key like 'PAYROLL_EXPENSE:%' then '641'
+      when jl.account_key like 'TREASURY:%' and fa.type='bank' then '512'
+      when jl.account_key like 'TREASURY:%' and fa.type='cash' then '53'
+      when jl.account_key like 'TREASURY:%' and fa.type='mobile_money' then '517'
+      when jl.account_key like 'TREASURY:%' and fa.type='cheque_clearing' then '511'
+      else null
+    end
+  ) as pcg_code,
+  case when m.pcg_code is not null then 'manuel'
+       when jl.account_key in ('AR','AP','SALES_REVENUE','PAYROLL_PAYABLE','EMPLOYEE_ADVANCE_RECEIVABLE','SOCIAL_PAYABLE','HEALTH_PAYABLE','FMFP_PAYABLE','SUPPLEMENTARY_PENSION_PAYABLE','EMPLOYEE_SUPPLEMENTARY_PENSION_PAYABLE','OTHER_PAYROLL_PAYABLE','PAYROLL_EXPENSE:GROSS','PAYROLL_EXPENSE:EMPLOYER_CONTRIBUTIONS','PAYROLL_EXPENSE:FMFP','PAYROLL_EXPENSE:SUPPLEMENTARY_PENSION')
+        or jl.account_key like 'TAX_PAYABLE%' or jl.account_key like 'PAYROLL_EXPENSE:%'
+        or (jl.account_key like 'TREASURY:%' and fa.type is not null)
+        then 'automatique'
+       else 'a_mapper'
+  end as mapping_status
+from public.journal_entry_lines jl
+join public.journal_entries je on je.id=jl.journal_entry_id and je.organization_id=jl.organization_id
+left join public.financial_accounts fa on fa.id=jl.financial_account_id and fa.organization_id=jl.organization_id
+left join public.pcg2005_account_mappings m
+ on m.organization_id=jl.organization_id and m.legacy_account_key=jl.account_key;
+revoke all on public.pcg2005_journal_lines from anon;
+grant select on public.pcg2005_journal_lines to authenticated;
+
 alter table public.payslips
   add column if not exists employee_supplementary_pension numeric(18,2) not null default 0;
 alter table public.payroll_variable_drafts
