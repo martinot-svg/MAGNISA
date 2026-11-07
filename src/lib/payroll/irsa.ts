@@ -32,6 +32,7 @@ type CalculateIrsaInput = {
   minimum?: number;
   dependantReduction?: number;
   dependantThreshold?: number;
+  roundingUnit?: number;
 };
 
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -43,6 +44,7 @@ export function calculateIrsa({
   minimum = MADAGASCAR_IRSA_2026.minimum,
   dependantReduction = MADAGASCAR_IRSA_2026.dependantReduction,
   dependantThreshold = MADAGASCAR_IRSA_2026.dependantThreshold,
+  roundingUnit = MADAGASCAR_IRSA_2026.roundingUnit,
 }: CalculateIrsaInput): IrsaCalculation {
   if (!Number.isFinite(taxableIncome) || taxableIncome < 0) {
     throw new Error("Base imposable IRSA invalide.");
@@ -52,7 +54,8 @@ export function calculateIrsa({
   }
   if (!Number.isFinite(minimum) || minimum < 0 ||
       !Number.isFinite(dependantReduction) || dependantReduction < 0 ||
-      !Number.isFinite(dependantThreshold) || dependantThreshold < 0) {
+      !Number.isFinite(dependantThreshold) || dependantThreshold < 0 ||
+      !Number.isFinite(roundingUnit) || roundingUnit <= 0) {
     throw new Error("Paramètre de minimum ou de réduction IRSA invalide.");
   }
   if (!Array.isArray(brackets) || brackets.length === 0 ||
@@ -70,8 +73,7 @@ export function calculateIrsa({
     previous = cap;
   }
 
-  const taxableBase = Math.floor(taxableIncome / MADAGASCAR_IRSA_2026.roundingUnit) *
-    MADAGASCAR_IRSA_2026.roundingUnit;
+  const taxableBase = Math.floor(taxableIncome / roundingUnit) * roundingUnit;
   if (taxableIncome === 0) {
     return { taxableBase, progressiveTax: 0, dependantReduction: 0, tax: 0 };
   }
