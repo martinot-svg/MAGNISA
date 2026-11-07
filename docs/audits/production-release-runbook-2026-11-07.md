@@ -35,6 +35,8 @@ Les éléments suivants manquent encore dans le schéma actuellement utilisé pa
 
 Ne pas appliquer les fichiers par simple différence de noms ou de timestamps : l'historique Supabase contient des migrations enregistrées sous des versions et noms historiques différents. Utiliser le script `docs/audits/production-release-preflight-2026-11-07.sql` et réconcilier chaque migration avec les objets réellement présents.
 
+Les fonctions `SECURITY DEFINER` de facturation récurrente et d'activation des règles de paie utilisent désormais un `search_path` explicitement épinglé (`pg_catalog` avant les schémas applicatifs). Des assertions SQL dédiées vérifient ce réglage au rejeu des migrations.
+
 Après cette réconciliation, l'ordre fonctionnel candidat est :
 
 1. `20261022230000_recurring_billing_timing.sql` - mode de facturation en avance / à terme échu.
