@@ -41,6 +41,13 @@ describe("Barème IRSA Madagascar 2026", () => {
     expect(result.tax).toBe(8500);
   });
 
+  it("utilise les paramètres versionnés de réduction et d'arrondi", () => {
+    const result = calculateIrsa({ taxableIncome: 500099, dependants: 2, dependantReduction: 1500, dependantThreshold: 400000, roundingUnit: 1000 });
+    expect(result.taxableBase).toBe(500000);
+    expect(result.dependantReduction).toBe(3000);
+    expect(result.tax).toBe(9500);
+  });
+
   it("ne réduit jamais l'impôt sous le minimum légal de 3 000 Ar", () => {
     expect(calculateIrsa({ taxableIncome: 400100, dependants: 30 }).tax).toBe(3000);
   });

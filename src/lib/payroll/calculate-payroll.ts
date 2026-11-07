@@ -12,6 +12,10 @@ export type PayrollCalculationRule = {
   irsa_health_deduction_rate: number;
   irsa_brackets: readonly IrsaBracket[];
   irsa_minimum: number;
+  irsa_dependant_reduction: number;
+  irsa_dependant_threshold: number;
+  irsa_pension_deduction_rate: number;
+  irsa_rounding_unit: number;
 };
 
 export type PayrollCalculation = {
@@ -26,6 +30,10 @@ export type PayrollCalculation = {
   taxableBase: number;
   incomeTax: number;
   taxableSupplementaryPension: number;
+  employeePensionContribution: number;
+  deductibleEmployeePension: number;
+  irsaExemptEarnings: number;
+  irsaDeductionAuthorized: boolean;
   netBeforeOtherDeductions: number;
   employerCost: number;
 };
@@ -43,11 +51,23 @@ export function calculatePayrollAmounts(input: {
   dependants: number;
   rule: PayrollCalculationRule;
   taxableSupplementaryPension?: number;
+  employeePensionContribution?: number;
+  irsaExemptEarnings?: number;
+  irsaDeductionAuthorized?: boolean;
 }): PayrollCalculation {
   const { gross, dependants, rule } = input;
   const taxableSupplementaryPension = input.taxableSupplementaryPension ?? 0;
+  const employeePensionContribution = input.employeePensionContribution ?? 0;
+  const irsaExemptEarnings = input.irsaExemptEarnings ?? 0;
+  const irsaDeductionAuthorized = input.irsaDeductionAuthorized ?? false;
   if (!Number.isFinite(taxableSupplementaryPension) || taxableSupplementaryPension < 0) {
     throw new Error("Versement patronal de retraite complémentaire invalide.");
+  }
+  if (!Number.isFinite(employeePensionContribution) || employeePensionContribution < 0 || employeePensionContribution > gross) {
+    throw new Error("Cotisation retraite salariale invalide.");
+  }
+  if (!Number.isFinite(irsaExemptEarnings) || irsaExemptEarnings < 0 || irsaExemptEarnings > gross) {
+    throw new Error("Rémunération exonérée IRSA invalide : elle doit être comprise dans le brut.");
   }
   if (!Number.isFinite(gross) || gross < 0) {
     throw new Error("Salaire brut invalide.");
@@ -62,6 +82,10 @@ export function calculatePayrollAmounts(input: {
   assertRate("SMIE employeur", rule.health_employer_rate);
   assertRate("FMFP employeur", rule.fmfp_employer_rate);
   assertRate("Plafond de déduction santé IRSA", rule.irsa_health_deduction_rate);
+  assertRate("Plafond de déduction retraite IRSA", rule.irsa_pension_deduction_rate);
+  for (const [name, value] of [["réduction par personne à charge", rule.irsa_dependant_reduction], ["seuil de réduction personnes à charge", rule.irsa_dependant_threshold], ["unité d'arrondi IRSA", rule.irsa_rounding_unit]] as const) {
+    if (!Number.isFinite(value) || value < 0 || (name === "unité d'arrondi IRSA" && value <= 0)) throw new Error(`Paramètre réglementaire IRSA invalide : ${name}.`);
+  }
 
   for (const [name, value] of [
     ["plafond CNaPS", rule.cnaps_monthly_ceiling],
@@ -85,16 +109,20 @@ export function calculatePayrollAmounts(input: {
   // La retenue santé réelle reste intégralement due, même si elle dépasse ce plafond.
   const deductibleHealth = Math.min(health.employee, roundMoney(gross * rule.irsa_health_deduction_rate));
 
+  const deductibleEmployeePension = Math.min(employeePensionContribution, roundMoney(gross * rule.irsa_pension_deduction_rate));
   const irsa = calculateIrsa({
-    taxableIncome: Math.max(0, gross + taxableSupplementaryPension - employeeSocial - deductibleHealth),
+    taxableIncome: Math.max(0, gross - irsaExemptEarnings + taxableSupplementaryPension - deductibleHealth - deductibleEmployeePension),
     dependants,
     brackets: rule.irsa_brackets,
     minimum: rule.irsa_minimum,
+    dependantReduction: rule.irsa_dependant_reduction,
+    dependantThreshold: rule.irsa_dependant_threshold,
+    roundingUnit: rule.irsa_rounding_unit,
   });
   const employerSocial = roundMoney(cnapsBase * rule.cnaps_employer_rate);
   const employerFmfp = roundMoney(cnapsBase * rule.fmfp_employer_rate);
   const netBeforeOtherDeductions = roundMoney(
-    gross - employeeSocial - health.employee - irsa.tax,
+    gross - employeeSocial - health.employee - employeePensionContribution - irsa.tax,
   );
   const employerCost = roundMoney(
     gross + employerSocial + health.employer + employerFmfp + taxableSupplementaryPension,
@@ -112,6 +140,10 @@ export function calculatePayrollAmounts(input: {
     taxableBase: irsa.taxableBase,
     incomeTax: irsa.tax,
     taxableSupplementaryPension,
+    employeePensionContribution,
+    deductibleEmployeePension,
+    irsaExemptEarnings,
+    irsaDeductionAuthorized,
     netBeforeOtherDeductions,
     employerCost,
   };

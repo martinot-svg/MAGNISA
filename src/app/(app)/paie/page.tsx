@@ -24,6 +24,12 @@ async function createEmployee(fd: FormData) {
 
   const dependants=Number(fd.get("irsa_dependants") || 0);
   if (!Number.isInteger(dependants) || dependants<0 || dependants>30) throw new Error("Nombre de personnes à charge invalide.");
+  const irsaDeductionAuthorized=fd.get("irsa_deduction_authorized")==="on";
+  const irsaAuthorizationReference=String(fd.get("irsa_deduction_authorization_reference")||"").trim();
+  const irsaAuthorizedFrom=String(fd.get("irsa_deduction_authorized_from")||"")||null;
+  const irsaAuthorizedTo=String(fd.get("irsa_deduction_authorized_to")||"")||null;
+  if(irsaDeductionAuthorized&&!irsaAuthorizationReference)throw new Error("La référence de la notification écrite du service fiscal est obligatoire.");
+  if(irsaAuthorizedFrom&&irsaAuthorizedTo&&irsaAuthorizedTo<irsaAuthorizedFrom)throw new Error("Période d’autorisation IRSA invalide.");
 
   const { error } = await ctx.supabase.from("employees").insert({
     organization_id: ctx.organizationId,
@@ -37,6 +43,10 @@ async function createEmployee(fd: FormData) {
     hire_date: String(fd.get("hire_date") || "") || null,
     base_salary: base,
     irsa_dependants: dependants,
+    irsa_deduction_authorized:irsaDeductionAuthorized,
+    irsa_deduction_authorization_reference:irsaDeductionAuthorized?irsaAuthorizationReference:null,
+    irsa_deduction_authorized_from:irsaAuthorizedFrom,
+    irsa_deduction_authorized_to:irsaAuthorizedTo,
     payment_method: String(fd.get("payment_method") || "bank_transfer"),
   });
 
@@ -50,8 +60,20 @@ async function updateEmployeeDependants(fd: FormData) {
   await assertPermission(ctx,"payroll.manage");
   const id=String(fd.get("employee_id")||"");
   const count=Number(fd.get("irsa_dependants"));
+  const irsaDeductionAuthorized=fd.get("irsa_deduction_authorized")==="on";
+  const irsaAuthorizationReference=String(fd.get("irsa_deduction_authorization_reference")||"").trim();
+  const irsaAuthorizedFrom=String(fd.get("irsa_deduction_authorized_from")||"")||null;
+  const irsaAuthorizedTo=String(fd.get("irsa_deduction_authorized_to")||"")||null;
   if (!id || !Number.isInteger(count) || count<0 || count>30) throw new Error("Nombre de personnes à charge invalide.");
-  const {error}=await ctx.supabase.from("employees").update({irsa_dependants:count}).eq("organization_id",ctx.organizationId).eq("id",id);
+  if(irsaDeductionAuthorized&&!irsaAuthorizationReference)throw new Error("La référence de la notification écrite du service fiscal est obligatoire.");
+  if(irsaAuthorizedFrom&&irsaAuthorizedTo&&irsaAuthorizedTo<irsaAuthorizedFrom)throw new Error("Période d’autorisation IRSA invalide.");
+  const {error}=await ctx.supabase.from("employees").update({
+    irsa_dependants:count,
+    irsa_deduction_authorized:irsaDeductionAuthorized,
+    irsa_deduction_authorization_reference:irsaDeductionAuthorized?irsaAuthorizationReference:null,
+    irsa_deduction_authorized_from:irsaAuthorizedFrom,
+    irsa_deduction_authorized_to:irsaAuthorizedTo,
+  }).eq("organization_id",ctx.organizationId).eq("id",id);
   if(error) throw new Error(error.message);
   revalidatePath("/paie");
 }
@@ -83,18 +105,18 @@ async function saveVariableDraft(fd: FormData) {
   await assertPermission(ctx,"payroll.manage");
   const runId=String(fd.get("payroll_run_id")||"");
   const employeeId=String(fd.get("employee_id")||"");
-  const keys=["bonuses","overtime","other_earnings","taxable_supplementary_pension","advances_recovered","other_deductions"] as const;
+  const keys=["bonuses","overtime","other_earnings","taxable_supplementary_pension","employee_pension_contribution","irsa_exempt_earnings","advances_recovered","other_deductions"] as const;
   const amounts=Object.fromEntries(keys.map(key=>[key,Number(fd.get(key)??0)]));
   if(Object.values(amounts).some(v=>!Number.isFinite(v)||v<0||v>1000000000000))throw new Error("Montants du brouillon invalides.");
   const [{data:run},{data:employee}]=await Promise.all([
-    ctx.supabase.from("payroll_runs").select("id,status").eq("id",runId).eq("organization_id",ctx.organizationId).maybeSingle(),
-    ctx.supabase.from("employees").select("id,status").eq("id",employeeId).eq("organization_id",ctx.organizationId).maybeSingle(),
+    ctx.supabase.from("payroll_runs").select("id,status,period_start,period_end").eq("id",runId).eq("organization_id",ctx.organizationId).maybeSingle(),
+    ctx.supabase.from("employees").select("id,status,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from,irsa_deduction_authorized_to").eq("id",employeeId).eq("organization_id",ctx.organizationId).maybeSingle(),
   ]);
   if(!run||!["draft","calculated","review"].includes(run.status)||!employee||employee.status!=="active")
     throw new Error("Sélectionnez un salarié actif et une période de paie modifiable.");
   const {error}=await ctx.supabase.from("payroll_variable_drafts").upsert({
     organization_id:ctx.organizationId,payroll_run_id:runId,employee_id:employeeId,
-    ...amounts,created_by:ctx.user.id,updated_at:new Date().toISOString()
+    ...amounts,employee_pension_reference:String(fd.get("employee_pension_reference")||"").trim()||null,irsa_exemption_reference:String(fd.get("irsa_exemption_reference")||"").trim()||null,created_by:ctx.user.id,updated_at:new Date().toISOString()
   },{onConflict:"organization_id,payroll_run_id,employee_id"});
   if(error)throw new Error("Brouillon non enregistré : "+error.message);
   revalidatePath("/paie");
@@ -111,6 +133,8 @@ async function createPayslip(fd: FormData) {
     "overtime",
     "other_earnings",
     "taxable_supplementary_pension",
+    "employee_pension_contribution",
+    "irsa_exempt_earnings",
     "employee_social",
     "employee_health",
     "income_tax",
@@ -128,6 +152,10 @@ async function createPayslip(fd: FormData) {
     throw new Error("Les éléments de paie doivent être des montants positifs ou nuls.");
   }
 
+  const irsaExemptionReference=String(fd.get("irsa_exemption_reference")||"").trim();
+  const employeePensionReference=String(fd.get("employee_pension_reference")||"").trim();
+  if(amounts.employee_pension_contribution>0&&!employeePensionReference)throw new Error("La référence du régime de retraite ouvrant droit à déduction est obligatoire.");
+  if(amounts.irsa_exempt_earnings>0&&!irsaExemptionReference)throw new Error("Une référence juridique est obligatoire pour toute rémunération exclue de l’assiette IRSA.");
   const runId=String(fd.get("payroll_run_id")||"");
   const employeeId=String(fd.get("employee_id")||"");
   const [{data:run,error:runError},{data:employee,error:employeeError}]=await Promise.all([
@@ -149,9 +177,13 @@ async function createPayslip(fd: FormData) {
     const value=Number(rule[key]);
     if (!Number.isFinite(value) || value < 0 || (key.endsWith("_rate") && value > 1)) throw new Error("Paramètre réglementaire invalide : "+key);
   }
+  const irsaDeductionAuthorized=Boolean(employee.irsa_deduction_authorized&&employee.irsa_deduction_authorization_reference&&(!employee.irsa_deduction_authorized_from||employee.irsa_deduction_authorized_from<=run.period_start)&&(!employee.irsa_deduction_authorized_to||employee.irsa_deduction_authorized_to>=run.period_end));
   const calculation = calculatePayrollAmounts({
     gross,
     taxableSupplementaryPension: amounts.taxable_supplementary_pension,
+    employeePensionContribution: amounts.employee_pension_contribution,
+    irsaExemptEarnings: amounts.irsa_exempt_earnings,
+    irsaDeductionAuthorized,
     dependants: Number(employee.irsa_dependants),
     rule: {
       cnaps_employee_rate: Number(rule.cnaps_employee_rate),
@@ -162,6 +194,10 @@ async function createPayslip(fd: FormData) {
       cnaps_monthly_ceiling: Number(rule.cnaps_monthly_ceiling),
       health_monthly_ceiling: Number(rule.health_monthly_ceiling),
       irsa_health_deduction_rate: Number(rule.irsa_health_deduction_rate),
+      irsa_dependant_reduction: Number(rule.irsa_dependant_reduction),
+      irsa_dependant_threshold: Number(rule.irsa_dependant_threshold),
+      irsa_pension_deduction_rate: Number(rule.irsa_pension_deduction_rate),
+      irsa_rounding_unit: Number(rule.irsa_rounding_unit),
       irsa_brackets: rule.irsa_brackets as { up_to: number | null; rate: number }[],
       irsa_minimum: Number(rule.irsa_minimum),
     },
@@ -173,7 +209,7 @@ async function createPayslip(fd: FormData) {
   amounts.employer_health=calculation.employerHealth;
   if(calculation.netBeforeOtherDeductions-amounts.advances_recovered-amounts.other_deductions<0)throw new Error("Le net calculé serait négatif.");
   // Le FMFP est calculé côté Supabase à partir du référentiel validé et comptabilisé séparément.
-  const { error } = await ctx.supabase.rpc("create_payslip", {
+  const { error } = await ctx.supabase.rpc("create_payslip_v2", {
     p_org: ctx.organizationId,
     p_run: String(fd.get("payroll_run_id") || ""),
     p_employee: String(fd.get("employee_id") || ""),
@@ -181,6 +217,10 @@ async function createPayslip(fd: FormData) {
     p_overtime: amounts.overtime,
     p_other_earnings: amounts.other_earnings,
     p_taxable_supplementary_pension: amounts.taxable_supplementary_pension,
+    p_employee_pension_contribution: amounts.employee_pension_contribution,
+    p_irsa_exempt_earnings: amounts.irsa_exempt_earnings,
+    p_irsa_exemption_reference: irsaExemptionReference || null,
+    p_employee_pension_reference: employeePensionReference || null,
     p_employee_social: amounts.employee_social,
     p_employee_health: amounts.employee_health,
     p_income_tax: amounts.income_tax,
@@ -328,7 +368,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
         <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Réf. MAGNISA</th><th>Matricule saisi</th><th>Poste</th><th>Statut</th><th>Gestion</th></tr></thead><tbody>
           {employees.map((e:any)=><tr key={e.id}><td><strong>{e.first_name} {e.last_name}</strong></td><td><code>{e.magnisa_reference||"-"}</code></td><td>{e.employee_number||"Non renseigné"}</td><td>{e.job_title||"Non renseigné"}</td><td>{e.status==="active"?"Actif":e.status}</td><td>
             <FormDialog title={`IRSA - ${e.first_name} ${e.last_name}`} buttonLabel="Modifier IRSA"><div className="field"><p className="muted">Salaire de base : {money(e.base_salary,c)}. Personnes à charge : {e.irsa_dependants??0}.</p>
-              <form action={updateEmployeeDependants} className="form"><input type="hidden" name="employee_id" value={e.id}/><label>Personnes à charge IRSA éligibles</label><input aria-label={`Personnes à charge de ${e.first_name} ${e.last_name}`} type="number" name="irsa_dependants" min="0" max="30" step="1" defaultValue={e.irsa_dependants??0} required/><button className="button">Enregistrer</button></form>
+              <form action={updateEmployeeDependants} className="form"><input type="hidden" name="employee_id" value={e.id}/><label>Personnes à charge IRSA éligibles</label><input aria-label="Personnes à charge" type="number" name="irsa_dependants" min="0" max="30" step="1" defaultValue={e.irsa_dependants??0} required/><label><input type="checkbox" name="irsa_deduction_authorized" defaultChecked={e.irsa_deduction_authorized??false}/> Notification écrite DGI vérifiée (art. 01.03.11)</label><label>Référence de la notification écrite</label><input name="irsa_deduction_authorization_reference" defaultValue={e.irsa_deduction_authorization_reference||""} placeholder="Référence / date"/><label>Valable du</label><input type="date" name="irsa_deduction_authorized_from" defaultValue={e.irsa_deduction_authorized_from||""}/><label>Valable au</label><input type="date" name="irsa_deduction_authorized_to" defaultValue={e.irsa_deduction_authorized_to||""}/><button className="button">Enregistrer</button></form>
             </div></FormDialog>
           </td></tr>)}
         </tbody></table></div>}
@@ -360,7 +400,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
                 <input name="base_salary" type="number" min="0" step="0.01" required />
               </div>
               <div className="field">
-                <label>Personnes à charge IRSA éligibles</label><input name="irsa_dependants" type="number" min="0" max="30" step="1" defaultValue="0" required /><small>Vérifier les justificatifs et l’attribution des allocations familiales.</small></div><div className="field"><label>Date d'embauche</label>
+                <label>Personnes à charge IRSA éligibles</label><input name="irsa_dependants" type="number" min="0" max="30" step="1" defaultValue="0" required /><small>Vérifier les justificatifs et l’attribution des allocations familiales.</small></div><div className="field"><label><input type="checkbox" name="irsa_deduction_authorized"/> Notification écrite du service fiscal autorisant les déductions IRSA</label><small>Article 01.03.11 du Code des impôts : aucune déduction de l’article 01.03.09 sans notification écrite.</small></div><div className="field"><label>Référence de la notification écrite</label><input name="irsa_deduction_authorization_reference" placeholder="Référence / date de la notification"/></div><div className="field"><label>Autorisation valable du</label><input type="date" name="irsa_deduction_authorized_from"/></div><div className="field"><label>Autorisation valable au</label><input type="date" name="irsa_deduction_authorized_to"/></div><div className="field"><label>Date d'embauche</label>
                 <input name="hire_date" type="date" />
               </div>
               <div className="field">
@@ -406,7 +446,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
         <form action={saveVariableDraft} className="form">
           <div className="grid2"><div className="field"><label>Salarié actif</label><select name="employee_id" required>{employees.filter((e:any)=>e.status==="active").map((e:any)=><option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}</select></div>
           <div className="field"><label>Période modifiable</label><select name="payroll_run_id" required>{editableRuns.map((r:any)=><option key={r.id} value={r.id}>{r.period_start} au {r.period_end}</option>)}</select></div></div>
-          <div className="grid2"><MoneyInput name="bonuses" label="Primes"/><MoneyInput name="overtime" label="Heures supplémentaires"/><MoneyInput name="other_earnings" label="Autres gains"/><MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable"/><MoneyInput name="advances_recovered" label="Avances récupérées"/><MoneyInput name="other_deductions" label="Autres retenues"/></div>
+          <div className="grid2"><MoneyInput name="bonuses" label="Primes"/><MoneyInput name="overtime" label="Heures supplémentaires"/><MoneyInput name="other_earnings" label="Autres gains"/><MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable"/><MoneyInput name="employee_pension_contribution" label="Cotisation retraite salariale"/><div className="field"><label>Référence du régime de retraite</label><input name="employee_pension_reference" placeholder="Organisme, contrat collectif et référence"/></div><MoneyInput name="irsa_exempt_earnings" label="Part du brut exonérée d’IRSA"/><div className="field"><label>Référence juridique de l’exonération</label><input name="irsa_exemption_reference" placeholder="Article du CGI et texte"/></div><MoneyInput name="advances_recovered" label="Avances récupérées"/><MoneyInput name="other_deductions" label="Autres retenues"/></div>
           <button className="button primary">Enregistrer le brouillon</button>
         </form></FormDialog> : <p className="muted">Un salarié actif et une période modifiable sont nécessaires pour enregistrer un brouillon.</p>}
         {variableDrafts.length>0 && <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Période</th><th>Primes</th><th>Heures</th><th>Autres gains</th><th>Retraite complémentaire patronale</th><th>Retenues et avances</th><th>Action</th></tr></thead><tbody>{variableDrafts.map((d:any)=>{
@@ -449,9 +489,13 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
                 <MoneyInput name="overtime" label="Heures supplémentaires" defaultAmount={selectedDraft?.overtime} />
                 <MoneyInput name="other_earnings" label="Autres gains" defaultAmount={selectedDraft?.other_earnings} />
                 <MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable" defaultAmount={selectedDraft?.taxable_supplementary_pension} />
+                <MoneyInput name="employee_pension_contribution" label="Cotisation retraite salariale (déductible sous plafond)" defaultAmount={selectedDraft?.employee_pension_contribution} />
+                <MoneyInput name="irsa_exempt_earnings" label="Part du brut exonérée d’IRSA (à justifier)" defaultAmount={selectedDraft?.irsa_exempt_earnings} />
                 <MoneyInput name="advances_recovered" label="Avances récupérées" defaultAmount={selectedDraft?.advances_recovered} />
                 <MoneyInput name="other_deductions" label="Autres retenues" defaultAmount={selectedDraft?.other_deductions} />
               </div>
+              <div className="field"><label>Référence du régime de retraite ouvrant droit à déduction</label><input name="employee_pension_reference" defaultValue={selectedDraft?.employee_pension_reference||""} placeholder="Organisme, contrat collectif et référence juridique"/></div>
+              <div className="field"><label>Référence juridique de l’exonération IRSA (obligatoire si montant exonéré positif)</label><input name="irsa_exemption_reference" defaultValue={selectedDraft?.irsa_exemption_reference||""} placeholder="Article du CGI et référence du texte applicable"/></div>
               <p className="muted">CNaPS, santé et IRSA sont calculés automatiquement selon le référentiel validé. Le calcul est refusé si les règles réglementaires sont incomplètes. Les primes et heures restent variables.</p><button className="button primary">Calculer le bulletin</button>
             </form>
           )}
