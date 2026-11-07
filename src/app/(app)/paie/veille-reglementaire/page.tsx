@@ -21,11 +21,16 @@ async function createHealthCeilingDraft(fd: FormData) {
   "use server";
   const ctx = await requireOrganization();
   await assertPermission(ctx, "payroll.manage");
-  const ratePercent = Number(fd.get("rate_percent"));
+  const rateRaw = String(fd.get("rate_percent") ?? "").trim();
+  const ratePercent = Number(rateRaw);
   const effectiveFrom = String(fd.get("effective_from") || "");
   const legalReference = String(fd.get("legal_reference") || "").trim();
-  if (!Number.isFinite(ratePercent) || ratePercent < 0 || ratePercent > 100) throw new Error("Le taux doit être compris entre 0 et 100 %.");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom) || !legalReference.startsWith("https://")) throw new Error("Date d'effet ou URL officielle invalide.");
+  if (!rateRaw || !Number.isFinite(ratePercent) || ratePercent < 0 || ratePercent > 100) throw new Error("Le taux doit être compris entre 0 et 100 %.");
+  let sourceUrl: URL;
+  try { sourceUrl = new URL(legalReference); } catch { throw new Error("URL officielle invalide."); }
+  const host = sourceUrl.hostname.toLowerCase();
+  const officialHost = host === "gov.mg" || host.endsWith(".gov.mg") || host === "impots.mg" || host.endsWith(".impots.mg") || host === "cnaps.mg" || host.endsWith(".cnaps.mg") || host === "fmfp.mg" || host.endsWith(".fmfp.mg");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom) || sourceUrl.protocol !== "https:" || !officialHost) throw new Error("La date ou le domaine de la source officielle est invalide.");
 
   const { data: rules, error } = await ctx.supabase.from("payroll_rule_sets").select("*")
     .eq("organization_id", ctx.organizationId).eq("status", "validated")
