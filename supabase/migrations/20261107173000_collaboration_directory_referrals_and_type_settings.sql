@@ -426,7 +426,7 @@ begin
     select id into v_prospect_id from public.prospects
     where organization_id=p_org and converted_customer_id=v_row.customer_id limit 1;
   end if;
-  if p_decision='validate' and v_prospect_id is not null then
+  if p_decision='validate' and v_prospect_id is not null and v_row.stage_status='completed' then
     v_commission_role := case v_row.contribution_role
       when 'initiator' then 'originator'
       when 'recommender' then 'originator'
@@ -448,6 +448,141 @@ begin
   end if;
 end;
 $review$;
+
+
+
+-- Stage transitions are explicit, justified and append-only in the history journal.
+create or replace function public.change_prospect_intervention_status(
+  p_org uuid,p_intervention uuid,p_stage_status text,p_reason text
+) returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $status_change$
+declare
+  v_row public.prospect_interventions%rowtype;
+  v_prospect_id uuid;
+  v_commission_role text;
+begin
+  if auth.uid() is null or not (
+    public.has_org_permission(p_org,'commissions.contribute')
+    or public.has_org_permission(p_org,'commissions.policy.manage')
+  ) then
+    raise exception 'Tu n''as pas le droit de modifier cette étape.';
+  end if;
+  if p_stage_status not in ('not_started','in_progress','completed','cancelled','blocked')
+     or length(trim(coalesce(p_reason,'')))<3 then
+    raise exception 'Un statut valide et une justification sont obligatoires.';
+  end if;
+  select * into v_row from public.prospect_interventions
+  where id=p_intervention and organization_id=p_org for update;
+  if not found then raise exception 'Intervention introuvable.'; end if;
+  if v_row.intervention_type='transfer' or v_row.stage_status='transferred' then
+    raise exception 'Un transfert est un événement distinct et ne peut pas être réécrit.';
+  end if;
+  if auth.uid() not in (v_row.contributor_user_id,v_row.created_by)
+     and not public.has_org_permission(p_org,'commissions.policy.manage') then
+    raise exception 'Tu ne peux modifier que tes propres interventions.';
+  end if;
+  if v_row.stage_status=p_stage_status then
+    raise exception 'Cette intervention possède déjà ce statut.';
+  end if;
+  update public.prospect_interventions
+  set stage_status=p_stage_status
+  where id=p_intervention and organization_id=p_org;
+  insert into public.prospect_intervention_history(
+    organization_id,intervention_id,action,actor_user_id,previous_value,new_value,justification
+  ) values (
+    p_org,p_intervention,'status_changed',auth.uid(),
+    jsonb_build_object('stage_status',v_row.stage_status),
+    jsonb_build_object('stage_status',p_stage_status),
+    trim(p_reason)
+  );
+  if p_stage_status='completed' and v_row.validation_status='validated' then
+    if v_row.prospect_id is not null then
+      v_prospect_id := v_row.prospect_id;
+    else
+      select id into v_prospect_id from public.prospects
+      where organization_id=p_org and converted_customer_id=v_row.customer_id limit 1;
+    end if;
+    v_commission_role := case v_row.contribution_role
+      when 'initiator' then 'originator'
+      when 'recommender' then 'originator'
+      when 'prospector' then 'qualifier'
+      when 'qualifier' then 'qualifier'
+      when 'negotiator' then 'negotiator'
+      when 'closer' then 'closer'
+      else null end;
+    if v_prospect_id is not null and v_commission_role is not null then
+      insert into public.prospect_contributors(
+        organization_id,prospect_id,user_id,contribution_type,notes,created_by
+      ) values (
+        p_org,v_prospect_id,v_row.contributor_user_id,v_commission_role,
+        'Contribution validée et terminée · intervention '||p_intervention::text,auth.uid()
+      ) on conflict (organization_id,prospect_id,user_id,contribution_type)
+      do update set notes=concat_ws(E'\\n',public.prospect_contributors.notes,
+        'Contribution validée et terminée · intervention '||p_intervention::text);
+    end if;
+  end if;
+end;
+$status_change$;
+
+-- Commission eligibility requires an independently validated, completed contribution.
+create or replace function public.assert_commission_contributors_validated()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $crm$
+begin
+  if not exists (
+    select 1 from public.prospect_contributors c
+    join public.prospects p on p.id=c.prospect_id and p.organization_id=c.organization_id
+    join public.prospect_interventions i
+      on i.organization_id=c.organization_id
+      and (i.prospect_id=c.prospect_id or i.customer_id=p.converted_customer_id)
+      and i.contributor_user_id=c.user_id
+      and i.validation_status='validated'
+      and i.stage_status='completed'
+      and case i.contribution_role
+        when 'initiator' then 'originator'
+        when 'recommender' then 'originator'
+        when 'prospector' then 'qualifier'
+        when 'qualifier' then 'qualifier'
+        when 'negotiator' then 'negotiator'
+        when 'closer' then 'closer'
+        else null end = c.contribution_type
+    where c.organization_id=new.organization_id and c.prospect_id=new.prospect_id
+  ) or exists (
+    select 1 from public.prospect_contributors c
+    where c.organization_id=new.organization_id and c.prospect_id=new.prospect_id
+      and not exists (
+        select 1 from public.prospects p
+        join public.prospect_interventions i on i.organization_id=p.organization_id
+          and (i.prospect_id=p.id or i.customer_id=p.converted_customer_id)
+        where p.id=c.prospect_id and p.organization_id=c.organization_id
+          and i.contributor_user_id=c.user_id
+          and i.validation_status='validated'
+          and i.stage_status='completed'
+          and case i.contribution_role
+            when 'initiator' then 'originator'
+            when 'recommender' then 'originator'
+            when 'prospector' then 'qualifier'
+            when 'qualifier' then 'qualifier'
+            when 'negotiator' then 'negotiator'
+            when 'closer' then 'closer'
+            else null end = c.contribution_type
+      )
+  ) then
+    raise exception 'Commission bloquée : chaque contributeur doit posséder une intervention terminée et validée.';
+  end if;
+  return new;
+end;
+$crm$;
+
+revoke all on function public.change_prospect_intervention_status(uuid,uuid,text,text) from public,anon;
+grant execute on function public.change_prospect_intervention_status(uuid,uuid,text,text) to authenticated;
+revoke all on function public.assert_commission_contributors_validated() from public,anon,authenticated;
 
 revoke all on function public.review_prospect_intervention(uuid,uuid,text,text) from public,anon;
 grant execute on function public.review_prospect_intervention(uuid,uuid,text,text) to authenticated;
