@@ -3,34 +3,103 @@ import { notFound, redirect } from "next/navigation";
 import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
 import { recordProspectIntervention, reviewProspectIntervention } from "@/server/actions/commissions";
-const types = [["recommendation","Recommandation"],["prospecting","Prospection"],["contact","Prise de contact"],["presentation","Présentation"],["qualification","Qualification"],["negotiation","Négociation"],["transfer","Transfert"],["closing","Conclusion"],["signature","Signature"],["follow_up","Suivi"],["retention","Fidélisation"]];
-const roles = [["recommender","Recommandeur"],["qualifier","Qualificateur"],["negotiator","Négociateur"],["closer","Concluant"],["account_manager","Responsable client"],["support","Contributeur"]];
+
+const roles = [
+  ["initiator","Initiateur"],["recommender","Recommandeur"],["prospector","Prospecteur"],
+  ["qualifier","Qualificateur"],["negotiator","Négociateur"],["closer","Concluant"],
+  ["account_manager","Responsable client"],["support","Contributeur"],
+];
+const statuses = [
+  ["not_started","Non commencée"],["in_progress","En cours"],["completed","Terminée"],
+  ["transferred","Transférée"],["cancelled","Annulée"],["blocked","Bloquée"],
+];
+
 export default async function ClientContributions({ params }: { params: Promise<{ id: string }> }) {
- const { id } = await params; const ctx = await requireOrganization();
- const [canView,canContribute,canReview] = await Promise.all([hasPermission(ctx,"billing.view"),hasPermission(ctx,"commissions.contribute"),Promise.all([hasPermission(ctx,"commissions.policy.manage"),hasPermission(ctx,"commissions.audit")]).then(([manage,audit])=>manage||audit)]);
- if (!canView && !canContribute) redirect("/dashboard?access=denied");
- const [{data:customer},{data:events=[],error},{data:members=[]}] = await Promise.all([
-  ctx.supabase.from("customers").select("id,name").eq("organization_id",ctx.organizationId).eq("id",id).maybeSingle(),
-  ctx.supabase.from("prospect_interventions").select("*").eq("organization_id",ctx.organizationId).eq("customer_id",id).order("occurred_at",{ascending:false}),
-  ctx.supabase.from("organization_members").select("user_id,role,department").eq("organization_id",ctx.organizationId).eq("status","active")
- ]);
- if (!customer) notFound(); if (error || membersError || typesError) throw new Error("Impossible de charger les contributions client.");
- const emailById = new Map((members as any[]).map((m:any)=>[m.user_id,m.email]));
- const typeLabelByKey = new Map((interventionTypes as any[]).map((item:any)=>[item.intervention_type,item.label]));
- const eventIds=(events as any[]).map((x:any)=>x.id);
- const {data:history=[]}=eventIds.length ? await ctx.supabase.from("prospect_intervention_history").select("*").eq("organization_id",ctx.organizationId).in("intervention_id",eventIds).order("created_at",{ascending:false}) : {data:[] as any[]};
- const ids=Array.from(new Set([...(members as any[]).map((x:any)=>x.user_id),...(events as any[]).flatMap((x:any)=>[x.contributor_user_id,x.created_by,x.reviewed_by].filter(Boolean)),...(history as any[]).map((x:any)=>x.actor_user_id)]));
- const {data:profiles=[]}=ids.length ? await ctx.supabase.from("profiles").select("id,email").in("id",ids) : {data:[] as any[]};
- const emails=new Map((profiles as any[]).map((x:any)=>[x.id,x.email])); const path="/clients/"+id+"/contributions";
- return <><div className="pageHead"><div><p className="eyebrow">Client · Journal collaboratif</p><h1>{customer.name}</h1><p>Interventions, transferts, validations et preuves associées au suivi client.</p></div><Link className="button" href={"/clients/"+id}>Retour à la fiche client</Link></div>
- {canContribute && <section className="section"><h2>Nouvelle intervention client</h2><form action={recordProspectIntervention} className="form card"><input type="hidden" name="customer_id" value={id}/>
- <div className="grid grid-3"><div className="field"><label>Collaborateur concerné</label><select name="contributor_user_id" required defaultValue=""><option value="" disabled>Choisir</option>{(members as any[]).filter((m:any)=>m.status==="active").map((m:any)=><option key={m.user_id} value={m.user_id}>{emailById.get(m.user_id)||m.user_id} · {m.role}</option>)}</select></div>
- <div className="field"><label>Département</label><input name="department" maxLength={120}/></div><div className="field"><label>Type</label><select name="intervention_type">{(interventionTypes as any[]).filter((item:any)=>item.is_active).map((item:any)=><option key={item.intervention_type} value={item.intervention_type}>{item.label}</option>)}</select></div>
- <div className="field"><label>Rôle</label><select name="contribution_role">{roles.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
- <div className="field"><label>Étape</label><select name="stage_status" defaultValue="in_progress"><option value="not_started">Non commencée</option><option value="in_progress">En cours</option><option value="completed">Terminée</option><option value="transferred">Transférée</option><option value="cancelled">Annulée</option><option value="blocked">Bloquée</option></select></div>
- <div className="field"><label>Nouveau responsable</label><select name="responsible_user_id" defaultValue=""><option value="">Aucun</option>{(members as any[]).map((m:any)=><option key={m.user_id} value={m.user_id}>{emails.get(m.user_id)||m.user_id}</option>)}</select></div>
- <div className="field"><label>Date et heure</label><input name="occurred_at" type="datetime-local"/></div><div className="field"><label>Justificatif</label><input name="evidence_reference" maxLength={1000}/></div></div>
- <div className="field"><label>Description</label><textarea name="description" required minLength={3} maxLength={4000}/></div><button className="button primary">Enregistrer</button></form></section>}
- <section className="section"><h2>Chronologie client</h2>{!(events as any[]).length ? <p className="muted">Aucune intervention.</p> : <div className="tableWrap"><table><thead><tr><th>Date</th><th>Collaborateur</th><th>Intervention</th><th>Étape</th><th>Validation</th><th>Décision</th></tr></thead><tbody>
- {(events as any[]).map((e:any)=><tr key={e.id}><td>{new Date(e.occurred_at).toLocaleString("fr-FR")}</td><td>{emails.get(e.contributor_user_id)||e.contributor_user_id}<div className="muted">Saisi par {emails.get(e.created_by)||e.created_by}</div></td><td><strong>{typeLabelByKey.get(e.intervention_type) || e.intervention_type}</strong><div>{e.description}</div>{e.evidence_reference && <div className="muted">{e.evidence_reference}</div>}</td><td>{e.stage_status}</td><td>{e.validation_status}</td><td>{canReview && e.validation_status==="pending" ? <div className="actions"><form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={e.id}/><input type="hidden" name="decision" value="validate"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Justification"/><button className="button small">Valider</button></form><form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={e.id}/><input type="hidden" name="decision" value="reject"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Motif"/><button className="button small">Rejeter</button></form></div> : (e.review_reason||"—")}</td></tr>)}</tbody></table></div>}<h3>Historique des modifications</h3>{!(history as any[]).length ? <p className="muted">Aucun changement historisé.</p> : <div className="tableWrap"><table><thead><tr><th>Date</th><th>Action</th><th>Auteur</th><th>Justification</th><th>Données</th></tr></thead><tbody>{(history as any[]).map((h:any)=><tr key={h.id}><td>{new Date(h.created_at).toLocaleString("fr-FR")}</td><td>{h.action}</td><td>{emails.get(h.actor_user_id)||h.actor_user_id}</td><td>{h.justification||"—"}</td><td><code>{JSON.stringify(h.new_value)}</code></td></tr>)}</tbody></table></div>}</section></>;
+  const { id } = await params;
+  const ctx = await requireOrganization();
+  const [canView,canContribute,canReview] = await Promise.all([
+    hasPermission(ctx,"billing.view"),
+    hasPermission(ctx,"commissions.contribute"),
+    Promise.all([hasPermission(ctx,"commissions.policy.manage"),hasPermission(ctx,"commissions.audit")])
+      .then(([manage,audit])=>manage||audit),
+  ]);
+  if (!canView && !canContribute) redirect("/dashboard?access=denied");
+
+  const [{data:customer},{data:events=[],error},{data:members=[],error:membersError},{data:interventionTypes=[],error:typesError}] = await Promise.all([
+    ctx.supabase.from("customers").select("id,name").eq("organization_id",ctx.organizationId).eq("id",id).maybeSingle(),
+    ctx.supabase.from("prospect_interventions").select("*").eq("organization_id",ctx.organizationId).eq("customer_id",id).order("occurred_at",{ascending:false}),
+    ctx.supabase.rpc("list_collaboration_members",{p_org:ctx.organizationId}),
+    ctx.supabase.rpc("list_prospect_intervention_types",{p_org:ctx.organizationId}),
+  ]);
+  if (!customer) notFound();
+  if (error || membersError || typesError) throw new Error("Impossible de charger les contributions client.");
+  const emailById = new Map((members as any[]).map((member:any)=>[member.user_id,member.email]));
+  const typeLabelByKey = new Map((interventionTypes as any[]).map((item:any)=>[item.intervention_type,item.label]));
+  const eventIds=(events as any[]).map((item:any)=>item.id);
+  const {data:history=[],error:historyError}=eventIds.length
+    ? await ctx.supabase.from("prospect_intervention_history").select("*")
+      .eq("organization_id",ctx.organizationId).in("intervention_id",eventIds)
+      .order("created_at",{ascending:false})
+    : {data:[] as any[],error:null};
+  if (historyError) throw new Error("Impossible de charger l'historique des interventions.");
+  const path="/clients/"+id+"/contributions";
+
+  return <>
+    <div className="pageHead">
+      <div><p className="eyebrow">Client · Journal collaboratif</p><h1>{customer.name}</h1>
+        <p>Interventions, transferts, validations et preuves associées au suivi client.</p></div>
+      <Link className="button" href={"/clients/"+id}>Retour à la fiche client</Link>
+    </div>
+    {canContribute && <section className="section">
+      <h2>Nouvelle intervention client</h2>
+      <p className="muted">Les interventions sont historisées. Les déclarations restent en attente jusqu'à leur validation indépendante.</p>
+      <form action={recordProspectIntervention} className="form card">
+        <input type="hidden" name="customer_id" value={id}/>
+        <div className="grid grid-3">
+          <div className="field"><label>Collaborateur concerné</label><select name="contributor_user_id" required defaultValue="">
+            <option value="" disabled>Choisir</option>
+            {(members as any[]).filter((member:any)=>member.status==="active").map((member:any)=><option key={member.user_id} value={member.user_id}>{member.email||member.user_id} · {member.department||member.role}</option>)}
+          </select></div>
+          <div className="field"><label>Type</label><select name="intervention_type" defaultValue={(interventionTypes as any[]).find((item:any)=>item.is_active)?.intervention_type||""}>
+            {(interventionTypes as any[]).filter((item:any)=>item.is_active).map((item:any)=><option key={item.intervention_type} value={item.intervention_type}>{item.label}{item.requires_evidence?" · preuve requise":""}</option>)}
+          </select></div>
+          <div className="field"><label>Rôle</label><select name="contribution_role" defaultValue="account_manager">
+            {roles.map(([value,label])=><option key={value} value={value}>{label}</option>)}
+          </select></div>
+          <div className="field"><label>Étape</label><select name="stage_status" defaultValue="in_progress">
+            {statuses.map(([value,label])=><option key={value} value={value}>{label}</option>)}
+          </select></div>
+          <div className="field"><label>Nouveau responsable (transfert)</label><select name="responsible_user_id" defaultValue="">
+            <option value="">Aucun transfert</option>
+            {(members as any[]).filter((member:any)=>member.status==="active").map((member:any)=><option key={member.user_id} value={member.user_id}>{member.email||member.user_id} · {member.role}</option>)}
+          </select></div>
+          <div className="field"><label>Date et heure</label><input name="occurred_at" type="datetime-local"/></div>
+          <div className="field"><label>Justificatif</label><input name="evidence_reference" maxLength={1000} placeholder="Lien ou référence de pièce"/></div>
+        </div>
+        <div className="field"><label>Description</label><textarea name="description" required minLength={3} maxLength={4000}/></div>
+        <button className="button primary">Enregistrer l'intervention</button>
+      </form>
+    </section>}
+    <section className="section">
+      <h2>Chronologie client</h2>
+      {!(events as any[]).length ? <p className="muted">Aucune intervention.</p> :
+      <div className="tableWrap"><table><thead><tr><th>Date</th><th>Collaborateur</th><th>Intervention</th><th>Étape</th><th>Validation</th><th>Décision</th></tr></thead><tbody>
+        {(events as any[]).map((item:any)=><tr key={item.id}>
+          <td>{new Date(item.occurred_at).toLocaleString("fr-FR")}</td>
+          <td>{emailById.get(item.contributor_user_id)||item.contributor_user_id}<div className="muted">Saisi par {emailById.get(item.created_by)||item.created_by}</div></td>
+          <td><strong>{typeLabelByKey.get(item.intervention_type)||item.intervention_type}</strong><div>{item.description}</div>{item.evidence_reference&&<div className="muted">{item.evidence_reference}</div>}</td>
+          <td>{item.stage_status}</td><td>{item.validation_status}</td>
+          <td>{canReview && item.validation_status==="pending" ? <div className="actions">
+            <form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={item.id}/><input type="hidden" name="decision" value="validate"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Justification"/><button className="button small">Valider</button></form>
+            <form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={item.id}/><input type="hidden" name="decision" value="reject"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Motif du rejet"/><button className="button small">Rejeter</button></form>
+          </div> : (item.review_reason||"—")}</td>
+        </tr>)}
+      </tbody></table></div>}
+      <h3>Historique des modifications</h3>
+      {!(history as any[]).length ? <p className="muted">Aucun changement historisé.</p> :
+      <div className="tableWrap"><table><thead><tr><th>Date</th><th>Action</th><th>Auteur</th><th>Justification</th><th>Données</th></tr></thead><tbody>
+        {(history as any[]).map((item:any)=><tr key={item.id}><td>{new Date(item.created_at).toLocaleString("fr-FR")}</td><td>{item.action}</td><td>{emailById.get(item.actor_user_id)||item.actor_user_id}</td><td>{item.justification||"—"}</td><td><code>{JSON.stringify(item.new_value)}</code></td></tr>)}
+      </tbody></table></div>}
+    </section>
+  </>;
 }
