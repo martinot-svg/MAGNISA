@@ -18,6 +18,7 @@ select
   jl.debit, jl.credit, jl.customer_id, jl.financial_account_id,
   coalesce(m.pcg_code,
     case
+      when jl.account_key like 'PCG:%' then substring(jl.account_key from 5)
       when jl.account_key='AR' then '411'
       when jl.account_key='AP' then '401'
       when jl.account_key='SALES_REVENUE' then '706'
@@ -38,7 +39,8 @@ select
     end
   ) as pcg_code,
   case when m.pcg_code is not null then 'manuel'
-       when jl.account_key in ('AR','AP','SALES_REVENUE','PAYROLL_PAYABLE','EMPLOYEE_ADVANCE_RECEIVABLE','SOCIAL_PAYABLE','HEALTH_PAYABLE','FMFP_PAYABLE','SUPPLEMENTARY_PENSION_PAYABLE','EMPLOYEE_SUPPLEMENTARY_PENSION_PAYABLE','OTHER_PAYROLL_PAYABLE','PAYROLL_EXPENSE:GROSS','PAYROLL_EXPENSE:EMPLOYER_CONTRIBUTIONS','PAYROLL_EXPENSE:FMFP','PAYROLL_EXPENSE:SUPPLEMENTARY_PENSION')
+       when jl.account_key like 'PCG:%'
+        or jl.account_key in ('AR','AP','SALES_REVENUE','PAYROLL_PAYABLE','EMPLOYEE_ADVANCE_RECEIVABLE','SOCIAL_PAYABLE','HEALTH_PAYABLE','FMFP_PAYABLE','SUPPLEMENTARY_PENSION_PAYABLE','EMPLOYEE_SUPPLEMENTARY_PENSION_PAYABLE','OTHER_PAYROLL_PAYABLE','PAYROLL_EXPENSE:GROSS','PAYROLL_EXPENSE:EMPLOYER_CONTRIBUTIONS','PAYROLL_EXPENSE:FMFP','PAYROLL_EXPENSE:SUPPLEMENTARY_PENSION')
         or jl.account_key like 'TAX_PAYABLE%' or jl.account_key like 'PAYROLL_EXPENSE:%'
         or (jl.account_key like 'TREASURY:%' and fa.type is not null)
         then 'automatique'
