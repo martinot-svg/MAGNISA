@@ -19,6 +19,19 @@ const { data: membership, error: membershipError } = await admin.from("organizat
   .select("organization_id,role,status").eq("user_id", userId).eq("status", "active").single();
 if (membershipError || !membership) throw membershipError ?? new Error("CRM smoke user has no active organization.");
 if (membership.role !== "owner") throw new Error("CRM smoke user must be the isolated organization owner.");
+const collaboratorEmail = "crm-ui-contributor@" + Date.now() + ".magnisa.test";
+const collaboratorPassword = "CRM-UI-Test-2026!Aa9";
+const { data: collaboratorCreated, error: collaboratorError } = await admin.auth.admin.createUser({
+  email: collaboratorEmail, password: collaboratorPassword, email_confirm: true,
+  user_metadata: { full_name: "MAGNISA CRM UI Contributor" },
+});
+if (collaboratorError || !collaboratorCreated.user) throw collaboratorError ?? new Error("Could not create CRM UI contributor.");
+const collaboratorId = collaboratorCreated.user.id;
+const collaboratorMembership = await admin.from("organization_members").insert({
+  organization_id: membership.organization_id, user_id: collaboratorId,
+  role: "owner", status: "active", department: "Commercial",
+});
+if (collaboratorMembership.error) throw collaboratorMembership.error;
 
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 const waitForRow = async (query, attempts = 20) => {
@@ -72,7 +85,7 @@ try {
   await page.goto(`${baseUrl}/prospects/${prospect.id}`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: prospectName }).waitFor();
   const contributionDescription = "Qualification CRM UI " + Date.now();
-  await page.locator('select[name="contributor_user_id"]').first().selectOption(userId);
+  await page.locator('select[name="contributor_user_id"]').first().selectOption(collaboratorId);
   await page.locator('select[name="intervention_type"]').first().selectOption("qualification");
   await page.locator('select[name="contribution_role"]').first().selectOption("qualifier");
   await page.locator('select[name="stage_status"]').first().selectOption("completed");
@@ -83,8 +96,15 @@ try {
     .select("id,stage_status,validation_status").eq("organization_id", membership.organization_id)
     .eq("prospect_id", prospect.id).eq("description", contributionDescription).maybeSingle());
   assert(intervention.validation_status === "pending", "A newly declared contribution must remain pending.");
-  assert(await page.getByRole("button", { name: "Valider" }).count() === 0,
-    "The beneficiary must not be offered a self-validation control.");
+  assert(await page.getByRole("button", { name: "Valider" }).count() === 1,
+    "An independent owner must be offered validation for another contributor.");
+  await page.getByRole("button", { name: "Valider" }).click();
+  await page.locator("tr").filter({ hasText: contributionDescription }).getByText("Validée").waitFor();
+  const validatedContributor = await admin.from("prospect_contributors").select("id")
+    .eq("organization_id", membership.organization_id).eq("prospect_id", prospect.id)
+    .eq("user_id", collaboratorId).eq("contribution_type", "qualifier");
+  if (validatedContributor.error) throw validatedContributor.error;
+  assert(validatedContributor.data.length === 1, "Independent validation must register the eligible commission contributor.");
 
   const contributionRow = page.locator("tr").filter({ hasText: contributionDescription });
   await contributionRow.locator('select[name="stage_status"]').selectOption("in_progress");
@@ -116,7 +136,7 @@ try {
   await page.getByText(contributionDescription).waitFor();
 
   const followUpDescription = "Suivi client CRM UI " + Date.now();
-  await page.locator('select[name="contributor_user_id"]').first().selectOption(userId);
+  await page.locator('select[name="contributor_user_id"]').first().selectOption(collaboratorId);
   await page.locator('select[name="intervention_type"]').first().selectOption("follow_up");
   await page.locator('select[name="contribution_role"]').first().selectOption("account_manager");
   await page.locator('select[name="stage_status"]').first().selectOption("completed");
