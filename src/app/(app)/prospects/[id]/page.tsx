@@ -33,12 +33,14 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
   ]);
   if (!canView && !canContribute) redirect("/dashboard?access=denied");
 
-  const [{data:prospect},{data:members=[]},{data:interventions=[],error}] = await Promise.all([
+  const [{data:prospect},{data:members=[]}] = await Promise.all([
     ctx.supabase.from("prospects").select("*").eq("organization_id",ctx.organizationId).eq("id",id).maybeSingle(),
     ctx.supabase.from("organization_members").select("user_id,role,department").eq("organization_id",ctx.organizationId).eq("status","active"),
-    ctx.supabase.from("prospect_interventions").select("*").eq("organization_id",ctx.organizationId).or("prospect_id.eq."+id+(prospect?.converted_customer_id ? ",customer_id.eq."+prospect.converted_customer_id : "")).order("occurred_at",{ascending:false}),
   ]);
   if (!prospect) notFound();
+  let eventQuery = ctx.supabase.from("prospect_interventions").select("*").eq("organization_id",ctx.organizationId).eq("prospect_id",id);
+  if (prospect.converted_customer_id) eventQuery = ctx.supabase.from("prospect_interventions").select("*").eq("organization_id",ctx.organizationId).or("prospect_id.eq."+id+",customer_id.eq."+prospect.converted_customer_id);
+  const {data:interventions=[],error} = await eventQuery.order("occurred_at",{ascending:false});
   if (error) throw new Error("Impossible de charger l'historique collaboratif.");
   const ids = Array.from(new Set([...(members as any[]).map((m:any)=>m.user_id), ...(interventions as any[]).flatMap((x:any)=>[x.contributor_user_id,x.created_by,x.responsible_user_id,x.reviewed_by].filter(Boolean))]));
   const {data:profiles=[]} = ids.length
