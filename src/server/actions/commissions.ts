@@ -386,8 +386,9 @@ export async function recordProspectIntervention(formData: FormData) {
   if (!parsed.success || (!!parsed.data.prospect_id === !!parsed.data.customer_id)) {
     throw new Error("Vérifie la fiche concernée et les informations de l'intervention.");
   }
-  if (parsed.data.contributor_user_id !== ctx.user.id &&
-      !(await hasPermission(ctx, "commissions.policy.manage"))) {
+  const canAttributeForOthers = await hasPermission(ctx, "commissions.policy.manage")
+    || await hasPermission(ctx, "commissions.audit");
+  if (parsed.data.contributor_user_id !== ctx.user.id && !canAttributeForOthers) {
     throw new Error("Tu ne peux enregistrer une contribution qu'en ton propre nom.");
   }
   if (parsed.data.intervention_type !== "transfer" && parsed.data.responsible_user_id) {
