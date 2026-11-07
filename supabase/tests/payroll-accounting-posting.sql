@@ -135,6 +135,11 @@ begin
     raise exception 'TEST FAILED: FMFP or supplementary pension expense/payable posting is missing or duplicated';
   end if;
 
+  if not exists(select 1 from public.pcg2005_journal_lines where journal_entry_id=v_entry and account_key='TAX_PAYABLE:PAYROLL' and pcg_code='442' and mapping_status='automatique')
+     or not exists(select 1 from public.pcg2005_journal_lines where journal_entry_id=v_entry and account_key='PAYROLL_EXPENSE:EMPLOYER_CONTRIBUTIONS' and pcg_code='645' and mapping_status='automatique') then
+    raise exception 'TEST FAILED: IRSA or employer social contribution PCG mapping is incorrect';
+  end if;
+
   insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants)
   values(v_employee_pension,v_org,'Test','Employee pension',1000000,'active',0);
 
@@ -178,6 +183,9 @@ begin
      and debit=0 and credit=50000;
   if v_employee_pension_payable_count <> 1 then
     raise exception 'TEST FAILED: employee supplementary pension payable line is missing or duplicated';
+  end if;
+  if not exists(select 1 from public.pcg2005_journal_lines where journal_entry_id=v_entry and account_key='EMPLOYEE_SUPPLEMENTARY_PENSION_PAYABLE' and pcg_code='431' and mapping_status='automatique') then
+    raise exception 'TEST FAILED: employee supplementary pension payable is not mapped to PCG 431';
   end if;
 
   select status into v_status from public.payslips where id=v_payslip;
