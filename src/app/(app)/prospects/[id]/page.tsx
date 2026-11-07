@@ -42,7 +42,9 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
   if (prospect.converted_customer_id) eventQuery = ctx.supabase.from("prospect_interventions").select("*").eq("organization_id",ctx.organizationId).or("prospect_id.eq."+id+",customer_id.eq."+prospect.converted_customer_id);
   const {data:interventions=[],error} = await eventQuery.order("occurred_at",{ascending:false});
   if (error) throw new Error("Impossible de charger l'historique collaboratif.");
-  const ids = Array.from(new Set([...(members as any[]).map((m:any)=>m.user_id), prospect.current_owner_id, ...(interventions as any[]).flatMap((x:any)=>[x.contributor_user_id,x.created_by,x.responsible_user_id,x.reviewed_by].filter(Boolean))]));
+  const interventionIds = (interventions as any[]).map((x:any)=>x.id);
+  const {data:history=[]} = interventionIds.length ? await ctx.supabase.from("prospect_intervention_history").select("*").eq("organization_id",ctx.organizationId).in("intervention_id",interventionIds).order("created_at",{ascending:false}) : {data:[] as any[]};
+  const ids = Array.from(new Set([...(members as any[]).map((m:any)=>m.user_id), prospect.current_owner_id, ...(interventions as any[]).flatMap((x:any)=>[x.contributor_user_id,x.created_by,x.responsible_user_id,x.reviewed_by].filter(Boolean)), ...(history as any[]).map((x:any)=>x.actor_user_id)]));
   const {data:profiles=[]} = ids.length
     ? await ctx.supabase.from("profiles").select("id,email").in("id",ids)
     : {data:[] as any[]};
@@ -99,6 +101,6 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
         </tr>)}
       </tbody></table></div>}
     </section>
-    <section className="section"><h2>Historique des modifications</h2><p className="muted">Les décisions de validation et transferts sont conservés dans le journal append-only en base. Les commissions sont alimentées uniquement par les contributions validées et éligibles à un rôle de commission.</p></section>
+    <section className="section"><h2>Historique des modifications</h2>{!(history as any[]).length ? <p className="muted">Aucun changement historisé.</p> : <div className="tableWrap"><table><thead><tr><th>Date</th><th>Action</th><th>Auteur</th><th>Justification</th><th>Données</th></tr></thead><tbody>{(history as any[]).map((h:any)=><tr key={h.id}><td>{new Date(h.created_at).toLocaleString("fr-FR")}</td><td>{h.action}</td><td>{emailById.get(h.actor_user_id)||h.actor_user_id}</td><td>{h.justification||"—"}</td><td><code>{JSON.stringify(h.new_value)}</code></td></tr>)}</tbody></table></div>}<p className="muted">Les commissions sont alimentées uniquement par les contributions validées et éligibles à un rôle de commission.</p></section>
   </>;
 }
