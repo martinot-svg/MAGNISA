@@ -33,7 +33,7 @@ CREATE POLICY accounting_fiscal_years_read ON public.accounting_fiscal_years
 CREATE OR REPLACE FUNCTION public.magnisa_create_fiscal_year(
   p_org uuid, p_start date, p_end date, p_label text, p_opening_lines jsonb DEFAULT NULL
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $
 DECLARE
   v_year uuid;
   v_previous public.accounting_fiscal_years%rowtype;
@@ -46,6 +46,8 @@ DECLARE
 BEGIN
   PERFORM public.assert_org_access(p_org);
   PERFORM public.assert_org_permission(p_org,'accounting.manage');
+  -- Serialize fiscal-year creation per organization to prevent concurrent overlaps.
+  PERFORM pg_advisory_xact_lock(hashtext(p_org::text),1743);
   IF p_start IS NULL OR p_end IS NULL OR p_end < p_start OR length(trim(coalesce(p_label,''))) < 2 THEN
     RAISE EXCEPTION 'Exercice comptable invalide';
   END IF;
@@ -129,6 +131,9 @@ BEGIN
   SELECT * INTO v_year FROM public.accounting_fiscal_years
   WHERE id=p_year AND organization_id=p_org FOR UPDATE;
   IF NOT FOUND OR v_year.status <> 'open' THEN RAISE EXCEPTION 'Exercice introuvable ou déjà clôturé'; END IF;
+  IF v_year.period_end > current_date THEN
+    RAISE EXCEPTION 'Clôture impossible avant la fin de l’exercice';
+  END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.pcg2005_journal_integrity j
@@ -236,6 +241,9 @@ BEGIN
   SELECT * INTO v_year FROM public.accounting_fiscal_years
   WHERE id=p_year AND organization_id=p_org FOR UPDATE;
   IF NOT FOUND OR v_year.status <> 'open' THEN RAISE EXCEPTION 'Exercice introuvable ou déjà clôturé'; END IF;
+  IF v_year.period_end > current_date THEN
+    RAISE EXCEPTION 'Clôture impossible avant la fin de l’exercice';
+  END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.pcg2005_journal_integrity j
