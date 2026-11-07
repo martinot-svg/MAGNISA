@@ -33,6 +33,10 @@ begin
   if not exists (select 1 from pg_trigger where tgname='commission_contributors_validation_guard' and not tgisinternal)
      or not exists (select 1 from pg_trigger where tgname='crm_capture_confirmed_order' and not tgisinternal)
      or not exists (select 1 from pg_trigger where tgname='crm_capture_paid_invoice' and not tgisinternal)
+     or not exists (select 1 from pg_trigger where tgname='crm_capture_confirmed_payment_insert' and not tgisinternal)
+     or not exists (select 1 from pg_trigger where tgname='crm_capture_confirmed_payment_update' and not tgisinternal)
+     or not exists (select 1 from pg_trigger where tgname='crm_capture_confirmed_order_insert' and not tgisinternal)
+     or not exists (select 1 from pg_trigger where tgname='crm_capture_paid_invoice_insert' and not tgisinternal)
      or not exists (select 1 from pg_trigger where tgname='crm_capture_created_service_contract' and not tgisinternal) then
     raise exception 'Expected CRM automation / commission guard triggers are missing';
   end if;
