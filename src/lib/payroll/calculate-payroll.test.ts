@@ -140,6 +140,8 @@ describe("Calcul centralisé des bulletins", () => {
       rule: { ...rule, health_employee_rate: 1.2 },
     })).toThrow(/Taux/);
     expect(() => calculatePayrollAmounts({ gross: 500_000, dependants: 0, rule: { ...rule, irsa_health_deduction_rate: 1.2 } })).toThrow(/Taux/);
+    expect(() => calculatePayrollAmounts({ gross: 500_000, dependants: 0, rule: { ...rule, irsa_health_deduction_rate: 0.03 } })).toThrow(/2 %/);
+    expect(() => calculatePayrollAmounts({ gross: 500_000, dependants: 0, rule: { ...rule, irsa_pension_deduction_rate: 0.11 } })).toThrow(/10 %/);
     expect(() => calculatePayrollAmounts({
       gross: 500_000,
       dependants: 0,
