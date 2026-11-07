@@ -13,6 +13,10 @@ const rule: PayrollCalculationRule = {
   irsa_health_deduction_rate: 0.02,
   irsa_brackets: MADAGASCAR_IRSA_2026.brackets,
   irsa_minimum: 3_000,
+  irsa_dependant_reduction: 2_000,
+  irsa_dependant_threshold: 350_000,
+  irsa_pension_deduction_rate: 0.10,
+  irsa_rounding_unit: 100,
 };
 
 describe("Calcul centralisé des bulletins", () => {
@@ -49,6 +53,21 @@ describe("Calcul centralisé des bulletins", () => {
     const result = calculatePayrollAmounts({ gross: 1_000_000, dependants: 0, rule: { ...rule, health_employee_rate: 0.03, irsa_health_deduction_rate: rate } });
     const deductible = Math.min(30_000, Math.round(1_000_000 * rate * 100) / 100);
     expect(result.taxableBase).toBe(Math.floor((1_000_000 - 10_000 - deductible) / 100) * 100);
+  });
+
+  it("déduit la cotisation retraite salariale de l'assiette IRSA dans la limite de 10 % du brut", () => {
+    const result = calculatePayrollAmounts({ gross: 1_000_000, employeePensionContribution: 150_000, dependants: 0, rule });
+    expect(result.deductibleEmployeePension).toBe(100_000);
+    expect(result.employeePensionContribution).toBe(150_000);
+    expect(result.taxableBase).toBe(880_000);
+    expect(result.netBeforeOtherDeductions).toBe(726_500);
+  });
+
+  it("exclut de l'assiette IRSA une rémunération explicitement qualifiée d'exonérée", () => {
+    const result = calculatePayrollAmounts({ gross: 1_000_000, irsaExemptEarnings: 100_000, dependants: 0, rule });
+    expect(result.irsaExemptEarnings).toBe(100_000);
+    expect(result.taxableBase).toBe(880_000);
+    expect(result.netBeforeOtherDeductions).toBe(876_500);
   });
 
   it("intègre la retraite complémentaire patronale à l'assiette IRSA sans la payer en net", () => {
