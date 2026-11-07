@@ -56,6 +56,18 @@ describe("Classification fiscale IRSA versionnée", () => {
     expect(result.taxableAmount).toBe(13_000);
   });
 
+  it("rejects overtime totals that do not reconcile to hours and premium", () => {
+    expect(() => calculateOvertimeIrsa({
+      totalHours: 10,
+      hourlyRate: 2_000,
+      premiumRate: 0.3,
+      overtimePay: 25_000,
+      additionalPremiums: 0,
+      isCadre: false,
+      timeRecordReconciled: true,
+    })).toThrow(/ne correspond pas aux heures/);
+  });
+
   it("n'applique pas l'exonération aux cadres ni sans relevé rapproché", () => {
     const input = {
       totalHours: 10, hourlyRate: 2_000, premiumRate: 0.3, overtimePay: 26_000,
