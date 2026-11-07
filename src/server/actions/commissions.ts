@@ -23,14 +23,16 @@ export async function createProspect(formData: FormData) {
     phone: z.string().trim().max(40),
     source: z.string().trim().max(120),
     notes: z.string().trim().max(2000),
+    referrer_user_id: z.string().uuid().or(z.literal("")),
   }).safeParse({
     name: formData.get("name"),
     email: String(formData.get("email") ?? ""),
     phone: String(formData.get("phone") ?? ""),
     source: String(formData.get("source") ?? ""),
     notes: String(formData.get("notes") ?? ""),
+    referrer_user_id: String(formData.get("referrer_user_id") ?? ""),
   });
-  if (!parsed.success) throw new Error("Vérifie les informations du prospect.");
+  if (!parsed.success) throw new Error("Vérifie les informations du prospect et du recommandeur.");
   const { error } = await ctx.supabase.rpc("create_prospect_with_referrer", {
     p_org: ctx.organizationId,
     p_name: parsed.data.name,
@@ -38,6 +40,7 @@ export async function createProspect(formData: FormData) {
     p_phone: parsed.data.phone || null,
     p_source: parsed.data.source || null,
     p_notes: parsed.data.notes || null,
+    p_referrer_user_id: parsed.data.referrer_user_id || null,
   });
   if (error) throw new Error(error.message);
   revalidatePath("/prospects");
@@ -348,6 +351,13 @@ export async function recordProspectIntervention(formData: FormData) {
   if (!parsed.success || (!!parsed.data.prospect_id === !!parsed.data.customer_id)) {
     throw new Error("Vérifie la fiche concernée et les informations de l'intervention.");
   }
+  if (parsed.data.contributor_user_id !== ctx.user.id &&
+      !(await hasPermission(ctx, "commissions.policy.manage"))) {
+    throw new Error("Tu ne peux enregistrer une contribution qu'en ton propre nom.");
+  }
+  if (parsed.data.intervention_type !== "transfer" && parsed.data.responsible_user_id) {
+    throw new Error("Un nouveau responsable ne peut être défini que lors d'un transfert.");
+  }
   if (parsed.data.intervention_type === "transfer" &&
       (!parsed.data.responsible_user_id || parsed.data.stage_status !== "transferred")) {
     throw new Error("Un transfert exige un nouveau responsable et le statut Transféré.");
@@ -374,7 +384,10 @@ export async function recordProspectIntervention(formData: FormData) {
 
 export async function reviewProspectIntervention(formData: FormData) {
   const ctx = await requireOrganization();
-  await assertPermission(ctx, "commissions.policy.manage");
+  if (!(await hasPermission(ctx, "commissions.policy.manage")) &&
+      !(await hasPermission(ctx, "commissions.audit"))) {
+    throw new Error("La validation est réservée aux responsables autorisés.");
+  }
   const parsed = z.object({
     intervention_id: z.string().uuid(),
     decision: z.enum(["validate","reject"]),
@@ -397,3 +410,4 @@ export async function reviewProspectIntervention(formData: FormData) {
   revalidatePath(parsed.data.subject_path);
   revalidatePath("/commissions");
 }
+
