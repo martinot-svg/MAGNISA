@@ -136,7 +136,9 @@ begin
   end if;
 
   if not exists(select 1 from public.pcg2005_journal_lines where journal_entry_id=v_entry and account_key='TAX_PAYABLE:PAYROLL' and pcg_code='442' and mapping_status='automatique')
-     or not exists(select 1 from public.pcg2005_journal_lines where journal_entry_id=v_entry and account_key='PAYROLL_EXPENSE:EMPLOYER_CONTRIBUTIONS' and pcg_code='645' and mapping_status='automatique') then
+     or not exists(select 1 from public.pcg2005_journal_lines where journal_entry_id=v_entry and account_key='PAYROLL_EXPENSE:EMPLOYER_CONTRIBUTIONS' and pcg_code='645' and mapping_status='automatique')
+     or not exists(select 1 from public.pcg2005_journal_lines where journal_entry_id=v_entry and account_key='PAYROLL_EXPENSE:SUPPLEMENTARY_PENSION' and pcg_code='645' and mapping_status='automatique')
+     or not exists(select 1 from public.pcg2005_journal_lines where journal_entry_id=v_entry and account_key='SUPPLEMENTARY_PENSION_PAYABLE' and pcg_code='431' and mapping_status='automatique') then
     raise exception 'TEST FAILED: IRSA or employer social contribution PCG mapping is incorrect';
   end if;
 
