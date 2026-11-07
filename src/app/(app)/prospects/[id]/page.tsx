@@ -40,7 +40,7 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
   ]);
   if (!prospect) notFound();
   if (error) throw new Error("Impossible de charger l'historique collaboratif.");
-  const ids = Array.from(new Set((interventions as any[]).flatMap((x:any)=>[x.contributor_user_id,x.created_by,x.responsible_user_id,x.reviewed_by].filter(Boolean))));
+  const ids = Array.from(new Set([...(members as any[]).map((m:any)=>m.user_id), ...(interventions as any[]).flatMap((x:any)=>[x.contributor_user_id,x.created_by,x.responsible_user_id,x.reviewed_by].filter(Boolean))]));
   const {data:profiles=[]} = ids.length
     ? await ctx.supabase.from("profiles").select("id,email").in("id",ids)
     : {data:[] as any[]};
