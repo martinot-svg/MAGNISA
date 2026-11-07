@@ -17,8 +17,11 @@ do $$ begin
   if not exists (select 1 from pg_constraint where conname='payroll_rule_irsa_dependant_threshold_check' and conrelid='public.payroll_rule_sets'::regclass) then
     alter table public.payroll_rule_sets add constraint payroll_rule_irsa_dependant_threshold_check check (irsa_dependant_threshold >= 0);
   end if;
+  if not exists (select 1 from pg_constraint where conname='payroll_rule_irsa_health_deduction_rate_check' and conrelid='public.payroll_rule_sets'::regclass) then
+    alter table public.payroll_rule_sets add constraint payroll_rule_irsa_health_deduction_rate_check check (irsa_health_deduction_rate >= 0 and irsa_health_deduction_rate <= 0.02);
+  end if;
   if not exists (select 1 from pg_constraint where conname='payroll_rule_irsa_pension_deduction_rate_check' and conrelid='public.payroll_rule_sets'::regclass) then
-    alter table public.payroll_rule_sets add constraint payroll_rule_irsa_pension_deduction_rate_check check (irsa_pension_deduction_rate >= 0 and irsa_pension_deduction_rate <= 1);
+    alter table public.payroll_rule_sets add constraint payroll_rule_irsa_pension_deduction_rate_check check (irsa_pension_deduction_rate >= 0 and irsa_pension_deduction_rate <= 0.10);
   end if;
 end $;
 
@@ -77,10 +80,10 @@ begin
     or v_rule.irsa_dependant_threshold is null or v_rule.irsa_dependant_threshold < 0
     or v_rule.irsa_health_deduction_rate is null
     or v_rule.irsa_health_deduction_rate < 0
-    or v_rule.irsa_health_deduction_rate > 1
+    or v_rule.irsa_health_deduction_rate > 0.02
     or v_rule.irsa_pension_deduction_rate is null
     or v_rule.irsa_pension_deduction_rate < 0
-    or v_rule.irsa_pension_deduction_rate > 1
+    or v_rule.irsa_pension_deduction_rate > 0.10
     or v_rule.cnaps_monthly_ceiling is null
     or v_rule.health_monthly_ceiling is null
     or v_rule.rounding_policy <> 'floor_100'
