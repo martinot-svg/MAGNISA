@@ -27,7 +27,7 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
     Promise.all([hasPermission(ctx,"commissions.policy.manage"),hasPermission(ctx,"commissions.audit")])
       .then(([manage,audit])=>manage||audit),
   ]);
-  if (!canView && !canContribute) redirect("/dashboard?access=denied");
+  if (!canView && !canContribute && !canReview) redirect("/dashboard?access=denied");
 
   const [{data:prospect},{data:members=[],error:membersError},{data:interventionTypes=[],error:typesError}] = await Promise.all([
     ctx.supabase.from("prospects").select("*").eq("organization_id",ctx.organizationId).eq("id",id).maybeSingle(),
