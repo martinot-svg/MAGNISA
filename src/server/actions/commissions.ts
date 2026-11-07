@@ -72,13 +72,29 @@ export async function addProspectContributor(formData: FormData) {
     contribution_type: String(formData.get("contribution_type") ?? ""),
     notes: String(formData.get("notes") ?? ""),
   });
-  if (!parsed.success) throw new Error("Affectation de contribution invalide.");
-  const { error } = await ctx.supabase.rpc("add_prospect_contributor", {
+  if (!parsed.success || parsed.data.notes.length < 3) {
+    throw new Error("Une description justifiant la contribution est obligatoire.");
+  }
+  const roleMap = {
+    originator: { type: "recommendation", role: "recommender" },
+    qualifier: { type: "qualification", role: "qualifier" },
+    negotiator: { type: "negotiation", role: "negotiator" },
+    closer: { type: "closing", role: "closer" },
+  } as const;
+  const mapped = roleMap[parsed.data.contribution_type];
+  const { error } = await ctx.supabase.rpc("record_prospect_intervention", {
     p_org: ctx.organizationId,
     p_prospect: parsed.data.prospect_id,
-    p_user: parsed.data.user_id,
-    p_contribution_type: parsed.data.contribution_type,
-    p_notes: parsed.data.notes || null,
+    p_customer: null,
+    p_contributor: parsed.data.user_id,
+    p_department: null,
+    p_type: mapped.type,
+    p_role: mapped.role,
+    p_stage_status: "completed",
+    p_description: parsed.data.notes,
+    p_evidence: null,
+    p_responsible: null,
+    p_occurred_at: null,
   });
   if (error) throw new Error(error.message);
   revalidatePath("/commissions");
