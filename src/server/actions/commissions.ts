@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
-import { assertPermission } from "@/lib/permissions";
+import { assertPermission, hasPermission } from "@/lib/permissions";
 
 const contributionTypes = ["originator", "qualifier", "negotiator", "closer"] as const;
 const policyBasis = ["order_total", "invoice_paid_amount", "fixed_amount"] as const;
