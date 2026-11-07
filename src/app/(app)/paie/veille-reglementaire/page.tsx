@@ -25,7 +25,7 @@ async function createHealthCeilingDraft(fd: FormData) {
   const effectiveFrom = String(fd.get("effective_from") || "");
   const legalReference = String(fd.get("legal_reference") || "").trim();
   if (!Number.isFinite(ratePercent) || ratePercent < 0 || ratePercent > 100) throw new Error("Le taux doit être compris entre 0 et 100 %.");
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(effectiveFrom) || !legalReference.startsWith("https://")) throw new Error("Date d'effet ou URL officielle invalide.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom) || !legalReference.startsWith("https://")) throw new Error("Date d'effet ou URL officielle invalide.");
 
   const { data: rules, error } = await ctx.supabase.from("payroll_rule_sets").select("*")
     .eq("organization_id", ctx.organizationId).eq("status", "validated")
