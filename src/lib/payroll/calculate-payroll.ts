@@ -27,6 +27,7 @@ export type PayrollCalculation = {
   employerHealth: number;
   employerFmfp: number;
   taxableBase: number;
+  taxableCompensation: number;
   deductiblePension: number;
   incomeTax: number;
   taxableSupplementaryPension: number;
@@ -44,12 +45,17 @@ function assertRate(name: string, value: number) {
 
 export function calculatePayrollAmounts(input: {
   gross: number;
+  taxableCompensation?: number;
   dependants: number;
   rule: PayrollCalculationRule;
   taxableSupplementaryPension?: number;
   additionalEmployeePensionContribution?: number;
 }): PayrollCalculation {
   const { gross, dependants, rule } = input;
+  const taxableCompensation = input.taxableCompensation ?? gross;
+  if (!Number.isFinite(taxableCompensation) || taxableCompensation < 0 || taxableCompensation > gross) {
+    throw new Error("Assiette de rémunération imposable invalide.");
+  }
   const taxableSupplementaryPension = input.taxableSupplementaryPension ?? 0;
   const additionalEmployeePensionContribution = input.additionalEmployeePensionContribution ?? 0;
   if (!Number.isFinite(taxableSupplementaryPension) || taxableSupplementaryPension < 0) {
@@ -100,7 +106,7 @@ export function calculatePayrollAmounts(input: {
   const deductiblePension = Math.min(employeeSocial + additionalEmployeePensionContribution, roundMoney(gross * rule.irsa_pension_deduction_rate));
 
   const irsa = calculateIrsa({
-    taxableIncome: Math.max(0, gross + taxableSupplementaryPension - deductiblePension - deductibleHealth),
+    taxableIncome: Math.max(0, taxableCompensation + taxableSupplementaryPension - deductiblePension - deductibleHealth),
     dependants,
     brackets: rule.irsa_brackets,
     minimum: rule.irsa_minimum,
@@ -126,6 +132,7 @@ export function calculatePayrollAmounts(input: {
     employerHealth: health.employer,
     employerFmfp,
     taxableBase: irsa.taxableBase,
+    taxableCompensation,
     deductiblePension,
     incomeTax: irsa.tax,
     taxableSupplementaryPension,
