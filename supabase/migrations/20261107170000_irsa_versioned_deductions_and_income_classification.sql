@@ -371,6 +371,9 @@ begin
   if coalesce(new.irsa_exempt_earnings,0) > 0 and nullif(btrim(coalesce(new.irsa_exemption_reference,'')), '') is null then
     raise exception 'La référence juridique de l’exonération IRSA est obligatoire';
   end if;
+  if coalesce(new.employee_pension_contribution,0) > 0 and nullif(btrim(coalesce(new.employee_pension_reference,'')), '') is null then
+    raise exception 'La référence du régime de retraite déductible est obligatoire';
+  end if;
   v_deductible_pension := least(coalesce(new.employee_pension_contribution,0), round(new.gross_pay * v_rule.irsa_pension_deduction_rate, 2));
   -- Le versement patronal de retraite complémentaire est imposable; la cotisation retraite salariale n'est déductible que dans la limite légale.
   v_taxable := floor(greatest(0, new.gross_pay + coalesce(new.taxable_supplementary_pension, 0) - coalesce(new.irsa_exempt_earnings,0) - v_social - v_deductible_health - v_deductible_pension) / v_rule.irsa_rounding_unit) * v_rule.irsa_rounding_unit;
@@ -670,8 +673,8 @@ $function$
 
 
 revoke all on function public.create_payslip(uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric) from public, anon, authenticated;
-revoke all on function public.create_payslip_v2(uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,text) from public, anon, authenticated;
-grant execute on function public.create_payslip_v2(uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,text) to authenticated, service_role;
+revoke all on function public.create_payslip_v2(uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,text,text) from public, anon, authenticated;
+grant execute on function public.create_payslip_v2(uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,text,text) to authenticated, service_role;
 revoke all on function public.validate_payslip(uuid,uuid) from public, anon;
 grant execute on function public.validate_payslip(uuid,uuid) to authenticated, service_role;
 revoke all on function public.payroll_compute_fmfp_on_insert() from public, anon, authenticated;
