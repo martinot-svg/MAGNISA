@@ -6,10 +6,10 @@ import { assertPermission, requirePermission } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const SOURCES = [
-  { key: "dgi-legislation", title: "DGI - Codes et manuels", url: "https://www.impots.mg/explorer?path=%2Flegislation%2FCodes+et+Manuels" },
-  { key: "cnlegis", title: "CNLegis - Textes législatifs", url: "https://cnlegis.gov.mg/" },
-  { key: "cnaps-sme", title: "CNaPS - Historique SME", url: "https://www.cnaps.mg/historique-sme" },
-  { key: "fmfp-legal", title: "FMFP - Fondement légal", url: "https://www.fmfp.mg/fondement-legal/" },
+  { key: "dgi-legislation", title: "DGI - Textes et législation", url: "https://portal.impots.mg/textes/", additionalUrls: ["https://www.impots.mg/explorer?langue=2&path=%2Flegislation"] },
+  { key: "cnlegis", title: "CNLegis - Textes législatifs", url: "https://cnlegis.gov.mg/", additionalUrls: [] },
+  { key: "cnaps-sme", title: "CNaPS - SME, actualités et documentation", url: "https://www.cnaps.mg/historique-sme", additionalUrls: ["https://www.cnaps.mg/actualites", "https://www.cnaps.mg/documents/documentation"] },
+  { key: "fmfp-legal", title: "FMFP - Fondement légal", url: "https://www.fmfp.mg/fondement-legal/", additionalUrls: [] },
 ] as const;
 
 async function updateWatchSetting(fd: FormData) {
@@ -154,7 +154,7 @@ export default async function RegulatoryWatchPage({ searchParams }: { searchPara
           const row: any = sourceMap.get(source.key);
           const sourceEnabled = row?.enabled ?? true;
           return <tr key={source.key}>
-            <td><a href={source.url} target="_blank" rel="noreferrer">{source.title}</a></td>
+            <td>{[source.url, ...source.additionalUrls].map((url, index) => <span key={url}>{index > 0 ? " · " : ""}<a href={url} target="_blank" rel="noreferrer">{index === 0 ? source.title : "Autre page officielle"}</a></span>)}</td>
             <td>{sourceEnabled ? "Activée" : "Désactivée"}</td>
             <td>{dateTime(row?.last_attempt_at)}</td>
             <td>{dateTime(row?.last_success_at)}</td>
