@@ -2,18 +2,49 @@
 
 import { useState, type ReactNode } from "react";
 
-export function PayrollSettingsDisclosure({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false);
+type Section = "simulator" | "create" | "history";
+
+export function PayrollSettingsDisclosure({
+  simulator,
+  createRule,
+  history,
+}: {
+  simulator: ReactNode;
+  createRule: ReactNode;
+  history: ReactNode;
+}) {
+  const [active, setActive] = useState<Section | null>(null);
+  const items: { id: Section; label: string }[] = [
+    { id: "simulator", label: "Simulateur de paie" },
+    { id: "create", label: "Créer un référentiel réglementaire" },
+    { id: "history", label: "Historique des règles" },
+  ];
+  const content = active === "simulator" ? simulator : active === "create" ? createRule : history;
+
   return (
-    <div style={{ position: "relative" }}>
-      <button type="button" className="button primary" aria-expanded={open} aria-controls="payroll-settings-details" onClick={() => setOpen((value) => !value)}>
-        {open ? "Masquer prévisualisation et historique" : "Prévisualisation et historique"}
-      </button>
-      {open && (
-        <div id="payroll-settings-details" className="card section" style={{ position: "absolute", zIndex: 60, top: "calc(100% + 10px)", right: 0, width: "min(1100px, calc(100vw - 32px))", maxHeight: "80vh", overflowY: "auto", padding: 16, boxShadow: "0 12px 32px rgba(0,0,0,.18)" }}>
-          {children}
+    <section aria-label="Outils des paramètres de paie" style={{ width: "100%" }}>
+      <div className="actions" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))", gap: 12, width: "100%" }}>
+        {items.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={active === item.id ? "button primary" : "button"}
+            aria-pressed={active === item.id}
+            onClick={() => setActive((current) => current === item.id ? null : item.id)}
+            style={{ minHeight: 46, width: "100%", whiteSpace: "normal", justifyContent: "center" }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      {active && (
+        <div style={{ marginTop: 18 }}>
+          <div className="actions" style={{ justifyContent: "flex-end", marginBottom: 10 }}>
+            <button type="button" className="button" onClick={() => setActive(null)}>Retour aux paramètres</button>
+          </div>
+          {content}
         </div>
       )}
-    </div>
+    </section>
   );
 }
