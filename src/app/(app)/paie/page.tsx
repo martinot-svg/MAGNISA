@@ -94,7 +94,7 @@ async function saveVariableDraft(fd: FormData) {
     throw new Error("Sélectionnez un salarié actif et une période de paie modifiable.");
   const {error}=await ctx.supabase.from("payroll_variable_drafts").upsert({
     organization_id:ctx.organizationId,payroll_run_id:runId,employee_id:employeeId,
-    ...amounts,irsa_exemption_reference:String(fd.get("irsa_exemption_reference")||"").trim()||null,created_by:ctx.user.id,updated_at:new Date().toISOString()
+    ...amounts,employee_pension_reference:String(fd.get("employee_pension_reference")||"").trim()||null,irsa_exemption_reference:String(fd.get("irsa_exemption_reference")||"").trim()||null,created_by:ctx.user.id,updated_at:new Date().toISOString()
   },{onConflict:"organization_id,payroll_run_id,employee_id"});
   if(error)throw new Error("Brouillon non enregistré : "+error.message);
   revalidatePath("/paie");
@@ -131,6 +131,8 @@ async function createPayslip(fd: FormData) {
   }
 
   const irsaExemptionReference=String(fd.get("irsa_exemption_reference")||"").trim();
+  const employeePensionReference=String(fd.get("employee_pension_reference")||"").trim();
+  if(amounts.employee_pension_contribution>0&&!employeePensionReference)throw new Error("La référence du régime de retraite ouvrant droit à déduction est obligatoire.");
   if(amounts.irsa_exempt_earnings>0&&!irsaExemptionReference)throw new Error("Une référence juridique est obligatoire pour toute rémunération exclue de l’assiette IRSA.");
   const runId=String(fd.get("payroll_run_id")||"");
   const employeeId=String(fd.get("employee_id")||"");
@@ -194,6 +196,7 @@ async function createPayslip(fd: FormData) {
     p_employee_pension_contribution: amounts.employee_pension_contribution,
     p_irsa_exempt_earnings: amounts.irsa_exempt_earnings,
     p_irsa_exemption_reference: irsaExemptionReference || null,
+    p_employee_pension_reference: employeePensionReference || null,
     p_employee_social: amounts.employee_social,
     p_employee_health: amounts.employee_health,
     p_income_tax: amounts.income_tax,
@@ -419,7 +422,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
         <form action={saveVariableDraft} className="form">
           <div className="grid2"><div className="field"><label>Salarié actif</label><select name="employee_id" required>{employees.filter((e:any)=>e.status==="active").map((e:any)=><option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}</select></div>
           <div className="field"><label>Période modifiable</label><select name="payroll_run_id" required>{editableRuns.map((r:any)=><option key={r.id} value={r.id}>{r.period_start} au {r.period_end}</option>)}</select></div></div>
-          <div className="grid2"><MoneyInput name="bonuses" label="Primes"/><MoneyInput name="overtime" label="Heures supplémentaires"/><MoneyInput name="other_earnings" label="Autres gains"/><MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable"/><MoneyInput name="employee_pension_contribution" label="Cotisation retraite salariale"/><MoneyInput name="irsa_exempt_earnings" label="Part du brut exonérée d’IRSA"/><div className="field"><label>Référence juridique de l’exonération</label><input name="irsa_exemption_reference" placeholder="Article du CGI et texte"/></div><MoneyInput name="advances_recovered" label="Avances récupérées"/><MoneyInput name="other_deductions" label="Autres retenues"/></div>
+          <div className="grid2"><MoneyInput name="bonuses" label="Primes"/><MoneyInput name="overtime" label="Heures supplémentaires"/><MoneyInput name="other_earnings" label="Autres gains"/><MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable"/><MoneyInput name="employee_pension_contribution" label="Cotisation retraite salariale"/><div className="field"><label>Référence du régime de retraite</label><input name="employee_pension_reference" placeholder="Organisme, contrat collectif et référence"/></div><MoneyInput name="irsa_exempt_earnings" label="Part du brut exonérée d’IRSA"/><div className="field"><label>Référence juridique de l’exonération</label><input name="irsa_exemption_reference" placeholder="Article du CGI et texte"/></div><MoneyInput name="advances_recovered" label="Avances récupérées"/><MoneyInput name="other_deductions" label="Autres retenues"/></div>
           <button className="button primary">Enregistrer le brouillon</button>
         </form></FormDialog> : <p className="muted">Un salarié actif et une période modifiable sont nécessaires pour enregistrer un brouillon.</p>}
         {variableDrafts.length>0 && <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Période</th><th>Primes</th><th>Heures</th><th>Autres gains</th><th>Retraite complémentaire patronale</th><th>Retenues et avances</th><th>Action</th></tr></thead><tbody>{variableDrafts.map((d:any)=>{
@@ -467,6 +470,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
                 <MoneyInput name="advances_recovered" label="Avances récupérées" defaultAmount={selectedDraft?.advances_recovered} />
                 <MoneyInput name="other_deductions" label="Autres retenues" defaultAmount={selectedDraft?.other_deductions} />
               </div>
+              <div className="field"><label>Référence du régime de retraite ouvrant droit à déduction</label><input name="employee_pension_reference" defaultValue={selectedDraft?.employee_pension_reference||""} placeholder="Organisme, contrat collectif et référence juridique"/></div>
               <div className="field"><label>Référence juridique de l’exonération IRSA (obligatoire si montant exonéré positif)</label><input name="irsa_exemption_reference" defaultValue={selectedDraft?.irsa_exemption_reference||""} placeholder="Article du CGI et référence du texte applicable"/></div>
               <p className="muted">CNaPS, santé et IRSA sont calculés automatiquement selon le référentiel validé. Le calcul est refusé si les règles réglementaires sont incomplètes. Les primes et heures restent variables.</p><button className="button primary">Calculer le bulletin</button>
             </form>
