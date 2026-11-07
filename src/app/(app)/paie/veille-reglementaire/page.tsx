@@ -1,4 +1,3 @@
-"use server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -6,6 +5,7 @@ import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, requirePermission } from "@/lib/permissions";
 
 async function updateWatchSetting(fd: FormData) {
+  "use server";
   const ctx = await requireOrganization();
   if (!["owner", "admin", "director"].includes(ctx.role)) throw new Error("Seuls le propriétaire, l'administrateur ou le directeur peuvent configurer la veille.");
   const enabled = String(fd.get("enabled") || "") === "true";
@@ -18,6 +18,7 @@ async function updateWatchSetting(fd: FormData) {
 }
 
 async function createHealthCeilingDraft(fd: FormData) {
+  "use server";
   const ctx = await requireOrganization();
   await assertPermission(ctx, "payroll.manage");
   const ratePercent = Number(fd.get("rate_percent"));
