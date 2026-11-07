@@ -106,7 +106,7 @@ export async function GET(request: Request) {
         const run = runByOrg.get(org.id)!;
         const attemptedAt = new Date().toISOString();
 
-        if (!result.ok) {
+        if (result.ok === false) {
           run.failures++;
           run.errors.push(`${result.source.key}: ${result.error}`);
           await supabase.from("regulatory_watch_source_settings").update({
