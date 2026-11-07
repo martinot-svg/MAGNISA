@@ -47,6 +47,7 @@ begin
      old.cnaps_monthly_ceiling is distinct from new.cnaps_monthly_ceiling or
      old.health_monthly_ceiling is distinct from new.health_monthly_ceiling or
      old.irsa_brackets is distinct from new.irsa_brackets or
+     old.irsa_health_deduction_rate is distinct from new.irsa_health_deduction_rate or
      old.irsa_minimum is distinct from new.irsa_minimum or
      old.irsa_dependant_reduction is distinct from new.irsa_dependant_reduction or
      old.irsa_dependant_threshold is distinct from new.irsa_dependant_threshold or
@@ -99,6 +100,7 @@ begin
       and new.cnaps_monthly_ceiling is not distinct from old.cnaps_monthly_ceiling
       and new.health_monthly_ceiling is not distinct from old.health_monthly_ceiling
       and new.irsa_brackets is not distinct from old.irsa_brackets
+      and new.irsa_health_deduction_rate is not distinct from old.irsa_health_deduction_rate
       and new.irsa_minimum is not distinct from old.irsa_minimum
       and new.irsa_dependant_reduction is not distinct from old.irsa_dependant_reduction
       and new.irsa_dependant_threshold is not distinct from old.irsa_dependant_threshold
@@ -126,10 +128,11 @@ begin
        or coalesce(new.cnaps_monthly_ceiling, 0) <= 0
        or coalesce(new.health_monthly_ceiling, 0) <= 0
        or new.irsa_minimum is null or new.irsa_minimum < 0
+       or new.irsa_health_deduction_rate is null or new.irsa_health_deduction_rate < 0 or new.irsa_health_deduction_rate > 1
        or new.irsa_dependant_reduction is null or new.irsa_dependant_reduction < 0
        or new.irsa_dependant_threshold is null or new.irsa_dependant_threshold < 0
        or new.irsa_pension_deduction_rate is null or new.irsa_pension_deduction_rate < 0 or new.irsa_pension_deduction_rate > 1
-       or new.irsa_rounding_unit is null or new.irsa_rounding_unit <= 0 then
+       or new.irsa_rounding_unit is null or new.irsa_rounding_unit <> 100 then
       raise exception 'Référentiel réglementaire incomplet : sources, plafonds, minimum et arrondi requis';
     end if;
     if new.cnaps_employee_rate not between 0 and 1
