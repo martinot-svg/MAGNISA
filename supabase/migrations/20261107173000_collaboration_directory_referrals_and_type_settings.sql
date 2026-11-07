@@ -114,6 +114,8 @@ begin
   if auth.uid() is null or not (
     public.has_org_permission(p_org,'sales.view')
     or public.has_org_permission(p_org,'commissions.contribute')
+    or public.has_org_permission(p_org,'commissions.policy.manage')
+    or public.has_org_permission(p_org,'commissions.audit')
   ) then
     raise exception 'Accès au répertoire commercial refusé.';
   end if;
