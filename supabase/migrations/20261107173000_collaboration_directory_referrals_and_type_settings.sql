@@ -316,6 +316,9 @@ begin
   if p_type<>'transfer' and (p_responsible is not null or p_stage_status='transferred') then
     raise exception 'Seule une intervention de transfert peut changer le responsable.';
   end if;
+  if p_type='transfer' and p_role not in ('support','account_manager') then
+    raise exception 'Un transfert ne constitue pas à lui seul une contribution commissionnable.';
+  end if;
   if p_type not in (
     'recommendation','prospecting','contact','presentation','qualification','negotiation',
     'transfer','closing','signature','follow_up','retention'
