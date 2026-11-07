@@ -479,3 +479,5 @@ drop trigger if exists crm_capture_created_service_contract on public.recurring_
 create trigger crm_capture_created_service_contract
 after insert on public.recurring_service_contracts
 for each row execute function public.capture_created_service_contract_contribution();
+
+-- End of collaborative CRM contribution migration.
