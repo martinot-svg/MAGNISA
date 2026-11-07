@@ -113,7 +113,7 @@ try {
   await contributionRow.locator('select[name="stage_status"]').selectOption("in_progress");
   await contributionRow.locator('input[name="reason"]').fill("Progression enregistrée par le collaborateur.");
   await contributionRow.getByRole("button", { name: "Mettre à jour" }).click();
-  await contributionRow.getByText("En cours").waitFor();
+  await contributionRow.locator("td span.badge").filter({ hasText: "En cours" }).waitFor({ state: "visible" });
   const statusHistory = await admin.from("prospect_intervention_history").select("id")
     .eq("organization_id", membership.organization_id).eq("intervention_id", intervention.id)
     .eq("action", "status_changed");
