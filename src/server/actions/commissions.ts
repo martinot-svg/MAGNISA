@@ -306,8 +306,9 @@ export async function recordProspectIntervention(formData: FormData) {
     .select("department").eq("organization_id", ctx.organizationId)
     .eq("user_id", auth.user.id).eq("status", "active").single();
   const isTransfer = parsed.data.intervention_type === "transfer";
-  if (isTransfer && (!parsed.data.responsible_user_id || parsed.data.stage_status !== "transferred")) {
-    throw new Error("Un transfert exige un nouveau responsable.");
+  if (isTransfer && (!parsed.data.responsible_user_id || parsed.data.stage_status !== "transferred"
+      || !["support","account_manager"].includes(parsed.data.contribution_role))) {
+    throw new Error("Un transfert exige un nouveau responsable et un rôle de support ou de gestionnaire client.");
   }
   if (!isTransfer && parsed.data.responsible_user_id) {
     throw new Error("Le responsable ne peut être modifié que par un transfert.");
