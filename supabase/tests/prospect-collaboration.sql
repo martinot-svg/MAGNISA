@@ -63,9 +63,8 @@ begin
   end if;
   select pg_get_functiondef('public.review_prospect_intervention(uuid,uuid,text,text)'::regprocedure)
     into v_definition;
-  if position('v_row.created_by=auth.uid()' in v_definition)=0
-     or position('v_row.contributor_user_id=auth.uid()' in v_definition)=0 then
-    raise exception 'Independent review guard is missing';
+  if position('v_row.contributor_user_id=auth.uid()' in v_definition)=0 then
+    raise exception 'Beneficiary self-review guard is missing';
   end if;
   select pg_get_functiondef('public.change_prospect_intervention_status(uuid,uuid,text,text)'::regprocedure)
     into v_definition;
