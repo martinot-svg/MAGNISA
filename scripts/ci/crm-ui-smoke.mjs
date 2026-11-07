@@ -51,11 +51,13 @@ try {
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
 
   const prospectName = "CRM UI " + Date.now();
-  await page.getByRole("button", { name: /Nouveau prospect/ }).click();
-  await page.locator('input[name="name"]').fill(prospectName);
-  await page.locator('input[name="source"]').fill("CI browser smoke");
-  await page.locator('textarea[name="notes"]').fill("Prospect créé par le test d'interface isolé.");
-  await page.getByRole("button", { name: "Créer le prospect" }).click();
+  await page.getByRole("button", { name: "+ Nouveau prospect" }).click();
+  const prospectDialog = page.getByRole("dialog", { name: "Nouveau prospect" });
+  await prospectDialog.waitFor({ state: "visible" });
+  await prospectDialog.locator('input[name="name"]').fill(prospectName);
+  await prospectDialog.locator('input[name="source"]').fill("CI browser smoke");
+  await prospectDialog.locator('textarea[name="notes"]').fill("Prospect créé par le test d'interface isolé.");
+  await prospectDialog.getByRole("button", { name: "Créer le prospect" }).click();
 
   const prospect = await waitForRow(async () => admin.from("prospects")
     .select("id,converted_customer_id").eq("organization_id", membership.organization_id)
