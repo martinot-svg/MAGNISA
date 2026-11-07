@@ -2,6 +2,8 @@
 
 ## Sources officielles contrôlées
 
+5. Plan Comptable Général 2005 publié par le Ministère chargé des Finances : https://www.mef.gov.mg/csc/ckfinder/userfiles/files/plan-comptable-general-2005.pdf
+
 1. Loi n° 2025-021 portant loi de finances pour 2026 : https://cnlegis.gov.mg/uploads/L2025-021_VF.pdf
 2. Loi n° 2026-004 portant loi de finances rectificative pour 2026 : https://cnlegis.gov.mg/uploads/L2026-004-VF.pdf
 3. Code des impôts publié par la DGI en 2025 : https://portal.impots.mg/textes/textes/2025-02-06--N-2025-MEF.SG.DGI-Ref-HIH9EC-3OPLT3.pdf
