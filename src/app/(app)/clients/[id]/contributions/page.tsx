@@ -99,7 +99,7 @@ export default async function ClientContributions({ params }: { params: Promise<
           <td>{emailById.get(item.contributor_user_id)||item.contributor_user_id}<div className="muted">Saisi par {emailById.get(item.created_by)||item.created_by}</div></td>
           <td><strong>{typeLabelByKey.get(item.intervention_type)||item.intervention_type}</strong><div>{item.description}</div>{item.evidence_reference&&<div className="muted">{item.evidence_reference}</div>}</td>
           <td>{item.stage_status}
-            {canContribute && item.intervention_type!=="transfer" && item.stage_status!=="transferred" &&
+            {(canContribute || canManage) && item.intervention_type!=="transfer" && item.stage_status!=="transferred" &&
               (canManage || item.contributor_user_id===ctx.user.id || item.created_by===ctx.user.id) &&
               <form action={changeProspectInterventionStatus} className="form">
                 <input type="hidden" name="intervention_id" value={item.id}/>
