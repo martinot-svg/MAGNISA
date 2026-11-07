@@ -179,6 +179,7 @@ as $$
 declare
   v_row public.prospect_interventions%rowtype;
   v_commission_role text;
+  v_prospect_id uuid;
 begin
   if auth.uid() is null or not (
     public.has_org_permission(p_org,'commissions.policy.manage')
@@ -208,7 +209,13 @@ begin
     trim(p_reason)
   );
 
-  if p_decision='validate' and v_row.prospect_id is not null then
+  if v_row.prospect_id is not null then
+    v_prospect_id := v_row.prospect_id;
+  else
+    select id into v_prospect_id from public.prospects
+    where organization_id=p_org and converted_customer_id=v_row.customer_id limit 1;
+  end if;
+  if p_decision='validate' and v_prospect_id is not null then
     v_commission_role := case v_row.contribution_role
       when 'initiator' then 'originator'
       when 'recommender' then 'originator'
@@ -221,7 +228,7 @@ begin
       insert into public.prospect_contributors(
         organization_id,prospect_id,user_id,contribution_type,notes,created_by
       ) values (
-        p_org,v_row.prospect_id,v_row.contributor_user_id,v_commission_role,
+        p_org,v_prospect_id,v_row.contributor_user_id,v_commission_role,
         'Contribution validée · intervention '||p_intervention::text,auth.uid()
       ) on conflict (organization_id,prospect_id,user_id,contribution_type)
       do update set notes=concat_ws(E'\n',public.prospect_contributors.notes,
@@ -295,9 +302,10 @@ as $$
 begin
   if not exists (
     select 1 from public.prospect_contributors c
+    join public.prospects p on p.id=c.prospect_id and p.organization_id=c.organization_id
     join public.prospect_interventions i
       on i.organization_id=c.organization_id
-      and i.prospect_id=c.prospect_id
+      and (i.prospect_id=c.prospect_id or i.customer_id=p.converted_customer_id)
       and i.contributor_user_id=c.user_id
       and i.validation_status='validated'
       and case i.contribution_role
@@ -313,8 +321,10 @@ begin
     select 1 from public.prospect_contributors c
     where c.organization_id=new.organization_id and c.prospect_id=new.prospect_id
       and not exists (
-        select 1 from public.prospect_interventions i
-        where i.organization_id=c.organization_id and i.prospect_id=c.prospect_id
+        select 1 from public.prospects p
+        join public.prospect_interventions i on i.organization_id=p.organization_id
+          and (i.prospect_id=p.id or i.customer_id=p.converted_customer_id)
+        where p.id=c.prospect_id and p.organization_id=c.organization_id
           and i.contributor_user_id=c.user_id and i.validation_status='validated'
           and case i.contribution_role
             when 'initiator' then 'originator'
