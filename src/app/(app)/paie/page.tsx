@@ -164,6 +164,8 @@ async function createPayslip(fd: FormData) {
       irsa_health_deduction_rate: Number(rule.irsa_health_deduction_rate),
       irsa_brackets: rule.irsa_brackets as { up_to: number | null; rate: number }[],
       irsa_minimum: Number(rule.irsa_minimum),
+      irsa_dependant_reduction: Number(rule.irsa_dependant_reduction),
+      irsa_dependant_threshold: Number(rule.irsa_dependant_threshold),
     },
   });
   amounts.employee_social=calculation.employeeSocial;
