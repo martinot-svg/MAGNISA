@@ -17,7 +17,7 @@ function parseCompensationRules(raw:string):Array<Record<string,unknown>> {
   if(!item || typeof item!=="object" || typeof item.code!=="string" || !item.code.trim() ||
      !allowed.includes(String(item.treatment)) || typeof item.legalReference!=="string" || !item.legalReference.trim() ||
      typeof item.ruleVersion!=="string" || !item.ruleVersion.trim() ||
-     !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(item.effectiveFrom||""))){
+     !/^\d{4}-\d{2}-\d{2}$/.test(String(item.effectiveFrom||""))){
    throw new Error("Chaque règle IRSA doit préciser code, treatment, legalReference, ruleVersion et effectiveFrom (AAAA-MM-JJ).");
   }
  }
