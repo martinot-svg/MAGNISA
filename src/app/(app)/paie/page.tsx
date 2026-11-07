@@ -133,7 +133,7 @@ async function createPayslip(fd: FormData) {
   const runId=String(fd.get("payroll_run_id")||"");
   const employeeId=String(fd.get("employee_id")||"");
   const [{data:run,error:runError},{data:employee,error:employeeError}]=await Promise.all([
-    ctx.supabase.from("payroll_runs").select("period_end").eq("organization_id",ctx.organizationId).eq("id",runId).single(),
+    ctx.supabase.from("payroll_runs").select("period_start,period_end").eq("organization_id",ctx.organizationId).eq("id",runId).single(),
     ctx.supabase.from("employees").select("base_salary,irsa_dependants").eq("organization_id",ctx.organizationId).eq("id",employeeId).single(),
   ]);
   if(runError||employeeError||!run||!employee)throw new Error("Salarié ou période introuvable.");
@@ -155,6 +155,9 @@ async function createPayslip(fd: FormData) {
   const overtimeIsCadre=fd.get("overtime_is_cadre")==="on";
   const overtimeRecordReconciled=fd.get("overtime_record_reconciled")==="on";
   const overtimeRecordReference=String(fd.get("overtime_record_reference")||"").trim();
+  const overtimeCategory=String(fd.get("overtime_category")||"regular");
+  if(!["regular","night","sunday","holiday","night_holiday"].includes(overtimeCategory))throw new Error("Catégorie d’heures supplémentaires inconnue.");
+  if(amounts.overtime>0 && String(run.period_start).slice(0,7)!==String(run.period_end).slice(0,7))throw new Error("Le calcul de l’exonération des 20 premières heures exige une période de paie contenue dans un seul mois civil.");
   if(amounts.overtime>0 && (!overtimeRecordReference || overtimeHours<=0 || overtimeHourlyRate<=0 || !overtimeRecordReconciled))
     throw new Error("Les heures supplémentaires exigent les heures, le taux horaire, la majoration et un relevé mensuel rapproché avec référence justificative.");
   if(amounts.overtime===0 && (overtimeHours>0 || overtimeAdditionalPremiums>0))
@@ -241,7 +244,7 @@ async function createPayslip(fd: FormData) {
     payrollRuleSet:{id:rule.id,name:rule.name,effectiveFrom:rule.effective_from,effectiveTo:rule.effective_to,legalReference:rule.legal_reference,roundingPolicy:rule.rounding_policy,irsaBrackets:rule.irsa_brackets,irsaMinimum:rule.irsa_minimum,dependantReduction:rule.irsa_dependant_reduction,dependantThreshold:rule.irsa_dependant_threshold,healthDeductionRate:rule.irsa_health_deduction_rate,pensionDeductionRate:rule.irsa_pension_deduction_rate,compensationRules:[...legalRules,...configuredCompensationRules]},
     employee:{id:employeeId,baseSalary,dependants:Number(employee.irsa_dependants)},
     compensation:classified,
-    overtime:{totalHours:overtimeHours,hourlyRate:overtimeHourlyRate,premiumRate:overtimePremiumPercent/100,additionalPremiums:overtimeAdditionalPremiums,isCadre:overtimeIsCadre,timeRecordReconciled:overtimeRecordReconciled,recordReference:overtimeRecordReference,priorMonthHours, ...overtimeTax},
+    overtime:{totalHours:overtimeHours,hourlyRate:overtimeHourlyRate,premiumRate:overtimePremiumPercent/100,additionalPremiums:overtimeAdditionalPremiums,isCadre:overtimeIsCadre,timeRecordReconciled:overtimeRecordReconciled,recordReference:overtimeRecordReference,category:overtimeCategory,priorMonthHours, ...overtimeTax},
     calculation:{gross:calculation.gross,taxableBase:calculation.taxableBase,taxableCompensation:calculation.taxableCompensation,employeeSocial:calculation.employeeSocial,employeeHealth:calculation.employeeHealth,deductiblePension:calculation.deductiblePension,incomeTax:calculation.incomeTax,employerSocial:calculation.employerSocial,employerHealth:calculation.employerHealth,employerFmfp:calculation.employerFmfp,netBeforeOtherDeductions:calculation.netBeforeOtherDeductions,employerCost:calculation.employerCost},
   };
   const { data:payslipId,error } = await ctx.supabase.rpc("create_payslip", {
@@ -524,7 +527,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
               <div className="grid2">
                 <MoneyInput name="bonuses" label="Primes" defaultAmount={selectedDraft?.bonuses} />
                 <MoneyInput name="overtime" label="Heures supplémentaires" defaultAmount={selectedDraft?.overtime} />
-                <MoneyInput name="overtime_hours" label="Nombre d'heures supplémentaires" />
+                <div className="field"><label>Catégorie d’heures supplémentaires</label><select name="overtime_category"><option value="regular">Jour normal</option><option value="night">Nuit</option><option value="sunday">Dimanche</option><option value="holiday">Jour férié</option><option value="night_holiday">Nuit, dimanche ou jour férié</option></select></div><MoneyInput name="overtime_hours" label="Nombre d'heures supplémentaires" />
                 <MoneyInput name="overtime_hourly_rate" label="Taux horaire normal (Ar)" />
                 <MoneyInput name="overtime_premium_percent" label="Majoration (%)" />
                 <MoneyInput name="overtime_additional_premiums" label="Primes additionnelles exclues de l'exonération (Ar)" />
