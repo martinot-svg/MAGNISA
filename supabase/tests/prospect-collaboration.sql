@@ -55,8 +55,9 @@ begin
   select pg_get_functiondef('public.record_prospect_intervention(uuid,uuid,uuid,uuid,text,text,text,text,text,text,uuid,timestamptz)'::regprocedure)
     into v_definition;
   if position('p_contributor is distinct from auth.uid()' in v_definition)=0
-     or position('v_requires_evidence' in v_definition)=0 then
-    raise exception 'Contribution identity and evidence guards are missing';
+     or position('v_requires_evidence' in v_definition)=0
+     or position('p_stage_status=''transferred''' in v_definition)=0 then
+    raise exception 'Contribution identity, evidence and transfer guards are missing';
   end if;
   select pg_get_functiondef('public.review_prospect_intervention(uuid,uuid,text,text)'::regprocedure)
     into v_definition;
