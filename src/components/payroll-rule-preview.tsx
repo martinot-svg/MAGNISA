@@ -90,8 +90,10 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  <p>Réduction par personne à charge : <strong>{configured?fmt(applicable.irsa_dependant_reduction):"Non calculée"}</strong></p>
  <p>Base imposable IRSA arrondie : <strong>{configured?fmt(taxable):"Non calculée"}</strong></p>
  <p>IRSA estimé : <strong>{tax!==null?fmt(tax):"Non calculé"}</strong></p>
- <p>Déduction retraite salariale appliquée (plafonnée) : <strong>{configured?fmt(Math.min(pensionAmount,brut*Number(applicable.irsa_pension_deduction_rate))):"Non calculée"}</strong></p>
+ <p>Déduction retraite salariale appliquée (plafonnée) : <strong>{configured?fmt(deductionAuthorized?Math.min(social+pensionAmount,brut*Number(applicable.irsa_pension_deduction_rate)):0):"Non calculée"}</strong></p>
+ <p>Déduction santé IRSA appliquée : <strong>{configured?fmt(deductionAuthorized?Math.min(health,brut*Number(applicable.irsa_health_deduction_rate)):0):"Non calculée"}</strong></p>
  <p>Plafond déduction santé IRSA : <strong>{configured?fmt(brut*Number(applicable?.irsa_health_deduction_rate)):"Non calculé"}</strong></p>
+ <p>Notification écrite art. 01.03.11 : <strong>{deductionAuthorized?"déclarée pour la simulation":"absente, déductions non appliquées"}</strong></p>
  <p>Seuil de réduction personnes à charge : <strong>{configured?fmt(Number(applicable.irsa_dependant_threshold)):"Non calculé"}</strong></p>
  {error&&<p className="error">{error}</p>}
  <p><strong>Salaire net estimé : {net!==null?fmt(net):"Indisponible"}</strong></p>
