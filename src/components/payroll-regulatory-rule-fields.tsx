@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
 
 type Treatment =
   | "fully_taxable"
@@ -54,7 +55,7 @@ const overtimeCategories: Array<{ value: OvertimeCategory; label: string }> = [
   { value: "night_holiday", label: "Nuit d'un jour férié" },
 ];
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div className="field"><label>{label}</label>{children}</div>;
 }
 
