@@ -67,6 +67,7 @@ begin
  end if;
  return null;
 end $function$
+;
 
 -- Keep future payroll rule activation consistent for both draft and pending-review versions.
 -- All activation still passes through activate_payroll_rule and its permission/date/legal checks.
@@ -673,6 +674,7 @@ begin
   );
 end;
 $function$
+;
 
 
 revoke all on function public.create_payslip(uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric) from public, anon, authenticated;
