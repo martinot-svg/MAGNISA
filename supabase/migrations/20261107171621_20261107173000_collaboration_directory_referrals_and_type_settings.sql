@@ -415,8 +415,8 @@ begin
   select * into v_row from public.prospect_interventions
   where id=p_intervention and organization_id=p_org for update;
   if not found then raise exception 'Intervention introuvable.'; end if;
-  if v_row.created_by=auth.uid() or v_row.contributor_user_id=auth.uid() then
-    raise exception 'Tu ne peux pas valider ou rejeter une intervention que tu as saisie ou dont tu es le bénéficiaire.';
+  if v_row.contributor_user_id=auth.uid() then
+    raise exception 'Tu ne peux pas valider ou rejeter une intervention dont tu es le bénéficiaire.';
   end if;
   if v_row.validation_status<>'pending' then
     raise exception 'Cette intervention a déjà été examinée.';
