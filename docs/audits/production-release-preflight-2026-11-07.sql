@@ -22,7 +22,24 @@ select
     select 1 from pg_policies
     where schemaname='public' and tablename='organization_members'
       and policyname='member_select'
-  ) as organization_member_self_read_policy_ready;
+  ) as organization_member_self_read_policy_ready,
+  exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='recurring_service_contracts'
+      and column_name='billing_timing'
+  ) as recurring_billing_timing_column_ready,
+  to_regprocedure('public.create_recurring_service_contract(uuid,uuid,uuid,text,date,date,integer,text)') is not null
+    as recurring_billing_timing_rpc_ready,
+  to_regclass('public.accounting_fiscal_years') is not null as accounting_fiscal_years_table_ready,
+  to_regprocedure('public.magnisa_create_fiscal_year(uuid,date,date,text,jsonb)') is not null
+    as fiscal_year_create_rpc_ready,
+  to_regprocedure('public.magnisa_close_fiscal_year(uuid,uuid)') is not null
+    as fiscal_year_close_rpc_ready,
+  exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='lot1_financial_idempotency'
+      and column_name='updated_at'
+  ) as financial_idempotency_updated_at_ready;
 
 -- 2) Payroll-rule date integrity. Both counts should be zero.
 with duplicate_starts as (
