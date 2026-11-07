@@ -80,6 +80,14 @@ begin
   if not exists (select 1 from pg_indexes where schemaname='public' and indexname='prospect_interventions_automatic_evidence_unique') then
     raise exception 'Automatic CRM event idempotency index is missing';
   end if;
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid='public.prospect_intervention_history'::regclass
+      and conname='prospect_intervention_history_action_check'
+      and pg_get_constraintdef(oid) like '%status_changed%'
+  ) then
+    raise exception 'Stage transition history action is not permitted';
+  end if;
   if not exists (select 1 from pg_trigger where tgname='commission_contributors_validation_guard' and not tgisinternal)
      or not exists (select 1 from pg_trigger where tgname='crm_capture_confirmed_order' and not tgisinternal)
      or not exists (select 1 from pg_trigger where tgname='crm_capture_paid_invoice' and not tgisinternal)
