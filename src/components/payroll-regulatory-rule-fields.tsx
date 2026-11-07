@@ -91,7 +91,7 @@ export function PayrollRegulatoryRuleFields({
 
       <section className="card section">
         <h3>Classification fiscale des rémunérations</h3>
-        <p className="muted">Sélectionne la rémunération concernée, puis indique son traitement fiscal. Les informations réglementaires sont reprises du référentiel de paie.</p>
+        <p className="muted">Sélectionne la rémunération, définis son traitement fiscal et renseigne la référence officielle ainsi que sa période de validité.</p>
         {compensation.length === 0 && <p className="notice">Aucune classification personnalisée. Ajoute une règle uniquement si ton entreprise utilise un élément de rémunération qui nécessite un traitement fiscal spécifique.</p>}
         {compensation.map((rule, index) => {
           const isCustom = rule.code === "other_custom" || rule.code.startsWith("custom_");
@@ -149,13 +149,25 @@ export function PayrollRegulatoryRuleFields({
                 {rule.treatment === "special" && (
                   <p className="muted">Le montant imposable de ce traitement particulier doit être déterminé lors de la saisie du bulletin.</p>
                 )}
+                <Field label="Référence officielle (texte, article, URL)">
+                  <input value={rule.legalReference || ""} onChange={(e) => updateCompensation(index, { legalReference: e.target.value })} placeholder="Ex. CGI, article ..." required />
+                </Field>
+                <Field label="Version de la règle">
+                  <input value={rule.ruleVersion || ""} onChange={(e) => updateCompensation(index, { ruleVersion: e.target.value })} placeholder="Ex. Loi de finances 2026" required />
+                </Field>
+                <Field label="Date d'effet">
+                  <input type="date" value={rule.effectiveFrom || ""} onChange={(e) => updateCompensation(index, { effectiveFrom: e.target.value })} required />
+                </Field>
+                <Field label="Date de fin (facultative)">
+                  <input type="date" value={rule.effectiveTo || ""} onChange={(e) => updateCompensation(index, { effectiveTo: e.target.value || undefined })} />
+                </Field>
               </div>
             </div>
           );
         })}
         <button type="button" className="button" onClick={() => setCompensation((current) => [...current, {
-          code: "", treatment: "fully_taxable", legalReference: "Référence à vérifier avant activation",
-          ruleVersion: "Version du référentiel", effectiveFrom: new Date().toISOString().slice(0, 10),
+          code: "", treatment: "fully_taxable", legalReference: "",
+          ruleVersion: "", effectiveFrom: "",
         }])}>Ajouter une rémunération</button>
       </section>
 
