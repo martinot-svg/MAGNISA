@@ -57,12 +57,13 @@ begin
     irsa_brackets,irsa_minimum,irsa_dependant_reduction,irsa_dependant_threshold,irsa_pension_deduction_rate,rounding_policy,legal_reference,
     reviewed_by,reviewed_at
   ) values (
-    v_rule,v_org,'TEST payroll 2026',current_date-1,null,'validated',
+    v_rule,v_org,'TEST payroll 2026',current_date-1,null,'pending_review',
     0.01,0.13,0.03,0.08,0.01,
     2400000,1600000,
     '[{"up_to":350000,"rate":0},{"up_to":400000,"rate":0.05},{"up_to":500000,"rate":0.10},{"up_to":600000,"rate":0.15},{"up_to":4000000,"rate":0.20},{"up_to":null,"rate":0.25}]'::jsonb,
     3000,3500,900000,0.10,'floor_100','TEST ONLY',v_owner,now()
   );
+  update public.payroll_rule_sets set status='validated' where id=v_rule;
 
   insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants)
   values(v_employee,v_org,'Test','Payroll',1000000,'active',0);
