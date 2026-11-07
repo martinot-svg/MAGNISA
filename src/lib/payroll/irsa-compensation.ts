@@ -164,7 +164,7 @@ export function calculateOvertimeIrsa(input: OvertimeTaxInput): OvertimeTaxResul
   })) {
     if (!Number.isFinite(value) || value < 0) throw new Error(`Paramètre heures supplémentaires invalide : ${name}.`);
   }
-  if (premiumRate > 10 || monthlyExemptHoursLimit > 1000 || totalHours > 1000) {
+  if (premiumRate > 10 || monthlyExemptHoursLimit > 20 || totalHours > 1000) {
     throw new Error("Paramètre heures supplémentaires hors limites.");
   }
   if (additionalPremiums > overtimePay) {
