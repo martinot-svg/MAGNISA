@@ -33,7 +33,7 @@ CREATE POLICY accounting_fiscal_years_read ON public.accounting_fiscal_years
 CREATE OR REPLACE FUNCTION public.magnisa_create_fiscal_year(
   p_org uuid, p_start date, p_end date, p_label text, p_opening_lines jsonb DEFAULT NULL
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE
   v_year uuid;
   v_previous public.accounting_fiscal_years%rowtype;
@@ -120,7 +120,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.magnisa_close_fiscal_year(p_org uuid,p_year uuid)
 RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE
   v_year public.accounting_fiscal_years%rowtype;
   v_bad bigint;
@@ -227,7 +227,7 @@ GRANT SELECT ON public.pcg2005_journal_lines TO authenticated;
 -- avant verrouillage de la période. Le résultat est ainsi repris aux a-nouveaux.
 CREATE OR REPLACE FUNCTION public.magnisa_close_fiscal_year(p_org uuid,p_year uuid)
 RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE
   v_year public.accounting_fiscal_years%rowtype;
   v_bad bigint;
@@ -324,7 +324,7 @@ ALTER TABLE public.accounting_fiscal_years
 CREATE OR REPLACE FUNCTION public.magnisa_update_fiscal_year_notes(
   p_org uuid,p_year uuid,p_notes jsonb
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE v_year public.accounting_fiscal_years%rowtype;
 BEGIN
   PERFORM public.assert_org_access(p_org);
