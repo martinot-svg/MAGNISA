@@ -11,6 +11,7 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  const [dependants,setDependants]=useState("0");
  const [pension,setPension]=useState("0");
  const [exempt,setExempt]=useState("0");
+ const [deductionAuthorized,setDeductionAuthorized]=useState(false);
  const [confirm,setConfirm]=useState(false);
  const applicable=rules.filter(r=>r.effective_from<=date&&(!r.effective_to||r.effective_to>=date)).sort((a,b)=>b.effective_from.localeCompare(a.effective_from))[0];
  const money=(v:number)=>formatDocumentAmount(v,{currency});
@@ -31,6 +32,7 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
        dependants:people,
        employeePensionContribution:pensionAmount,
        irsaExemptEarnings:exemptAmount,
+       irsaDeductionAuthorized:deductionAuthorized,
        rule:{
          cnaps_employee_rate:Number(applicable.cnaps_employee_rate),
          cnaps_employer_rate:Number(applicable.cnaps_employer_rate),
@@ -72,6 +74,7 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  <div className="field"><label>Personnes à charge IRSA (simulation)</label><input type="number" min="0" max="30" step="1" value={dependants} onChange={e=>setDependants(e.target.value)}/></div>
  <div className="field"><label>Cotisation retraite salariale (Ar)</label><input type="number" min="0" value={pension} onChange={e=>setPension(e.target.value)}/></div>
  <div className="field"><label>Part du brut exonérée IRSA (Ar)</label><input type="number" min="0" value={exempt} onChange={e=>setExempt(e.target.value)}/></div>
+ <label className="check"><input type="checkbox" checked={deductionAuthorized} onChange={e=>setDeductionAuthorized(e.target.checked)}/>Notification écrite du service fiscal vérifiée (article 01.03.11)</label>
  </div>
  {!valid&&<p className="error">Saisissez un montant brut positif ou nul.</p>}
  {!validDependants&&<p className="error">Nombre de personnes à charge invalide.</p>}{!validDeductions&&<p className="error">Les déductions retraite et exonérations doivent être comprises dans le brut.</p>}
@@ -88,6 +91,7 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  <p>Base imposable IRSA arrondie : <strong>{configured?fmt(taxable):"Non calculée"}</strong></p>
  <p>IRSA estimé : <strong>{tax!==null?fmt(tax):"Non calculé"}</strong></p>
  <p>Déduction retraite salariale appliquée (plafonnée) : <strong>{configured?fmt(Math.min(pensionAmount,brut*Number(applicable.irsa_pension_deduction_rate))):"Non calculée"}</strong></p>
+ <p>Plafond déduction santé IRSA : <strong>{configured?fmt(brut*Number(applicable?.irsa_health_deduction_rate)):"Non calculé"}</strong></p>
  <p>Seuil de réduction personnes à charge : <strong>{configured?fmt(Number(applicable.irsa_dependant_threshold)):"Non calculé"}</strong></p>
  {error&&<p className="error">{error}</p>}
  <p><strong>Salaire net estimé : {net!==null?fmt(net):"Indisponible"}</strong></p>
