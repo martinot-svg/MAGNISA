@@ -254,7 +254,7 @@ async function createPayslip(fd: FormData) {
     schemaVersion:1,
     calculatedAt:new Date().toISOString(),
     periodEnd:String(run.period_end),
-    payrollRuleSet:{id:rule.id,name:rule.name,effectiveFrom:rule.effective_from,effectiveTo:rule.effective_to,legalReference:rule.legal_reference,roundingPolicy:rule.rounding_policy,irsaBrackets:rule.irsa_brackets,irsaMinimum:rule.irsa_minimum,dependantReduction:rule.irsa_dependant_reduction,dependantThreshold:rule.irsa_dependant_threshold,healthDeductionRate:rule.irsa_health_deduction_rate,pensionDeductionRate:rule.irsa_pension_deduction_rate,compensationRules:[...legalRules,...configuredCompensationRules]},
+    payrollRuleSet:{id:rule.id,name:rule.name,effectiveFrom:rule.effective_from,effectiveTo:rule.effective_to,legalReference:rule.legal_reference,roundingPolicy:rule.rounding_policy,irsaBrackets:rule.irsa_brackets,irsaMinimum:rule.irsa_minimum,dependantReduction:rule.irsa_dependant_reduction,dependantThreshold:rule.irsa_dependant_threshold,healthDeductionRate:rule.irsa_health_deduction_rate,pensionDeductionRate:rule.irsa_pension_deduction_rate,compensationRules:[...legalRules,...configuredCompensationRules],overtimePremiumRules:rule.overtime_premium_rules||[]},
     employee:{id:employeeId,baseSalary,dependants:Number(employee.irsa_dependants)},
     compensation:classified,
     overtime:{totalHours:overtimeHours,hourlyRate:overtimeHourlyRate,premiumRate:overtimePremiumPercent/100,additionalPremiums:overtimeAdditionalPremiums,isCadre:overtimeIsCadre,timeRecordReconciled:overtimeRecordReconciled,recordReference:overtimeRecordReference,category:overtimeCategory,priorMonthHours, ...overtimeTax},
