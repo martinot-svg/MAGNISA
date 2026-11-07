@@ -69,7 +69,7 @@ begin
     when 'quarterly' then interval '3 months'
     when 'semiannual' then interval '6 months'
     when 'annual' then interval '1 year'
-    when 'custom' then make_interval(days => coalesce((select custom_interval_days from public.services where id=p_order_line), 30))
+    when 'custom' then interval '30 days'
   end;
   if p_frequency='custom' then
     v_interval := make_interval(days => (select custom_interval_days from public.services where id=(select service_id from public.order_lines where id=p_order_line)));
@@ -89,6 +89,9 @@ begin
   end if;
   if p_frequency = 'custom' and (v_service.custom_interval_days is null or v_service.custom_interval_days < 1 or v_service.custom_interval_days > 365) then
     raise exception 'L''intervalle personnalisé doit être compris entre 1 et 365 jours';
+  end if;
+  if p_frequency='custom' then
+    v_interval := make_interval(days => v_service.custom_interval_days);
   end if;
   if exists(select 1 from public.recurring_service_contracts
     where organization_id=p_org and order_line_id=l.id and status in ('active','suspended')) then
