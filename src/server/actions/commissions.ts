@@ -112,7 +112,10 @@ export async function addProspectContributor(formData: FormData) {
 
 export async function changeProspectInterventionStatus(formData: FormData) {
   const ctx = await requireOrganization();
-  await assertPermission(ctx, "commissions.contribute");
+  if (!(await hasPermission(ctx, "commissions.contribute")) &&
+      !(await hasPermission(ctx, "commissions.policy.manage"))) {
+    throw new Error("Tu n'as pas le droit de modifier cette étape.");
+  }
   const parsed = z.object({
     intervention_id: z.string().uuid(),
     stage_status: z.enum(["not_started","in_progress","completed","cancelled","blocked"]),
