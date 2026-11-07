@@ -206,7 +206,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: failures === 0, organizations: activeOrganizations.length,
       sources_checked: checked, changes_detected: changes, failures,
-      source_errors: results.flatMap(item => !item.ok
+      source_errors: results.flatMap(item => item.ok === false
         ? [{ source: item.source.key, error: item.error, http_status: item.httpStatus }]
         : item.warnings.map(error => ({ source: item.source.key, error, http_status: item.httpStatus }))),
       note: "Une modification de contenu crée une alerte à examiner ; aucun taux de paie n'est modifié automatiquement.",
