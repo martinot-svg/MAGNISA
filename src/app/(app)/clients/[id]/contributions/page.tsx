@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
-import { recordProspectIntervention, reviewProspectIntervention } from "@/server/actions/commissions";
+import { changeProspectInterventionStatus, recordProspectIntervention, reviewProspectIntervention } from "@/server/actions/commissions";
 
 const roles = [
   ["initiator","Initiateur"],["recommender","Recommandeur"],["prospector","Prospecteur"],
@@ -17,11 +17,12 @@ const statuses = [
 export default async function ClientContributions({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ctx = await requireOrganization();
-  const [canView,canContribute,canReview] = await Promise.all([
+  const [canView,canContribute,canReview,canManage] = await Promise.all([
     hasPermission(ctx,"billing.view"),
     hasPermission(ctx,"commissions.contribute"),
     Promise.all([hasPermission(ctx,"commissions.policy.manage"),hasPermission(ctx,"commissions.audit")])
       .then(([manage,audit])=>manage||audit),
+    hasPermission(ctx,"commissions.policy.manage"),
   ]);
   if (!canView && !canContribute && !canReview) redirect("/dashboard?access=denied");
 
@@ -92,12 +93,24 @@ export default async function ClientContributions({ params }: { params: Promise<
     <section className="section">
       <h2>Chronologie client</h2>
       {!(events as any[]).length ? <p className="muted">Aucune intervention.</p> :
-      <div className="tableWrap"><table><thead><tr><th>Date</th><th>Collaborateur</th><th>Intervention</th><th>Étape</th><th>Validation</th><th>Décision</th></tr></thead><tbody>
+      <div className="tableWrap"><table><thead><tr><th>Date</th><th>Collaborateur</th><th>Intervention</th><th>Étape et suivi</th><th>Validation</th><th>Décision</th></tr></thead><tbody>
         {(events as any[]).map((item:any)=><tr key={item.id}>
           <td>{new Date(item.occurred_at).toLocaleString("fr-FR")}</td>
           <td>{emailById.get(item.contributor_user_id)||item.contributor_user_id}<div className="muted">Saisi par {emailById.get(item.created_by)||item.created_by}</div></td>
           <td><strong>{typeLabelByKey.get(item.intervention_type)||item.intervention_type}</strong><div>{item.description}</div>{item.evidence_reference&&<div className="muted">{item.evidence_reference}</div>}</td>
-          <td>{item.stage_status}</td><td>{item.validation_status}</td>
+          <td>{item.stage_status}
+            {canContribute && item.intervention_type!=="transfer" && item.stage_status!=="transferred" &&
+              (canManage || item.contributor_user_id===ctx.user.id || item.created_by===ctx.user.id) &&
+              <form action={changeProspectInterventionStatus} className="form">
+                <input type="hidden" name="intervention_id" value={item.id}/>
+                <input type="hidden" name="subject_path" value={path}/>
+                <select name="stage_status" defaultValue={item.stage_status}>
+                  {statuses.filter(([key])=>key!=="transferred").map(([value,label])=><option key={value} value={value}>{label}</option>)}
+                </select>
+                <input name="reason" required minLength={3} maxLength={1000} placeholder="Justification du changement"/>
+                <button className="button small">Mettre à jour</button>
+              </form>}
+          </td><td>{item.validation_status}</td>
           <td>{canReview && item.validation_status==="pending" ? <div className="actions">
             <form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={item.id}/><input type="hidden" name="decision" value="validate"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Justification"/><button className="button small">Valider</button></form>
             <form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={item.id}/><input type="hidden" name="decision" value="reject"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Motif du rejet"/><button className="button small">Rejeter</button></form>
