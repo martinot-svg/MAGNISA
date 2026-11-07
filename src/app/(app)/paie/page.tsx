@@ -162,6 +162,7 @@ async function createPayslip(fd: FormData) {
       cnaps_monthly_ceiling: Number(rule.cnaps_monthly_ceiling),
       health_monthly_ceiling: Number(rule.health_monthly_ceiling),
       irsa_health_deduction_rate: Number(rule.irsa_health_deduction_rate),
+      irsa_pension_deduction_rate: Number(rule.irsa_pension_deduction_rate),
       irsa_brackets: rule.irsa_brackets as { up_to: number | null; rate: number }[],
       irsa_minimum: Number(rule.irsa_minimum),
       irsa_dependant_reduction: Number(rule.irsa_dependant_reduction),
