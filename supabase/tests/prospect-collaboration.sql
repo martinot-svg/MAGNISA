@@ -13,7 +13,11 @@ begin
   if not v_rls then raise exception 'RLS must be enabled on prospect_intervention_history'; end if;
   if has_table_privilege('anon','public.prospect_interventions','SELECT')
      or has_table_privilege('anon','public.prospect_interventions','INSERT')
-     or has_table_privilege('anon','public.prospect_intervention_history','SELECT') then
+     or has_table_privilege('anon','public.prospect_intervention_history','SELECT')
+     or has_table_privilege('authenticated','public.prospect_interventions','INSERT')
+     or has_table_privilege('authenticated','public.prospect_interventions','UPDATE')
+     or has_table_privilege('authenticated','public.prospect_intervention_history','INSERT')
+     or has_table_privilege('authenticated','public.prospect_intervention_history','UPDATE') then
     raise exception 'Anonymous access must be denied for CRM contribution data';
   end if;
   if not has_function_privilege('authenticated',
@@ -21,6 +25,10 @@ begin
      or has_function_privilege('anon',
     'public.record_prospect_intervention(uuid,uuid,uuid,uuid,text,text,text,text,text,text,uuid,timestamptz)','EXECUTE') then
     raise exception 'Contribution RPC grants are incorrect';
+  end if;
+  if has_function_privilege('authenticated','public.assert_commission_contributors_validated()','EXECUTE')
+     or has_function_privilege('anon','public.assert_commission_contributors_validated()','EXECUTE') then
+    raise exception 'Trigger function execution must not be exposed';
   end if;
   if not exists (select 1 from pg_trigger where tgname='commission_contributors_validation_guard' and not tgisinternal)
      or not exists (select 1 from pg_trigger where tgname='crm_capture_confirmed_order' and not tgisinternal)
