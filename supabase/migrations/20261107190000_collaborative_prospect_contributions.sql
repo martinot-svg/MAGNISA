@@ -169,7 +169,7 @@ begin
   end if;
   return v_id;
 end;
-$;
+$crm$;
 
 create or replace function public.review_prospect_intervention(
   p_org uuid,p_intervention uuid,p_decision text,p_reason text
