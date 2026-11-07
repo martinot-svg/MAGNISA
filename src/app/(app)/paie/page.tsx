@@ -83,7 +83,7 @@ async function saveVariableDraft(fd: FormData) {
   await assertPermission(ctx,"payroll.manage");
   const runId=String(fd.get("payroll_run_id")||"");
   const employeeId=String(fd.get("employee_id")||"");
-  const keys=["bonuses","overtime","other_earnings","taxable_supplementary_pension","advances_recovered","other_deductions"] as const;
+  const keys=["bonuses","overtime","other_earnings","taxable_supplementary_pension","employee_supplementary_pension","advances_recovered","other_deductions"] as const;
   const amounts=Object.fromEntries(keys.map(key=>[key,Number(fd.get(key)??0)]));
   if(Object.values(amounts).some(v=>!Number.isFinite(v)||v<0||v>1000000000000))throw new Error("Montants du brouillon invalides.");
   const [{data:run},{data:employee}]=await Promise.all([
@@ -111,6 +111,7 @@ async function createPayslip(fd: FormData) {
     "overtime",
     "other_earnings",
     "taxable_supplementary_pension",
+    "employee_supplementary_pension",
     "employee_social",
     "employee_health",
     "income_tax",
@@ -152,6 +153,7 @@ async function createPayslip(fd: FormData) {
   const calculation = calculatePayrollAmounts({
     gross,
     taxableSupplementaryPension: amounts.taxable_supplementary_pension,
+    additionalEmployeePensionContribution: amounts.employee_supplementary_pension,
     dependants: Number(employee.irsa_dependants),
     rule: {
       cnaps_employee_rate: Number(rule.cnaps_employee_rate),
@@ -184,6 +186,7 @@ async function createPayslip(fd: FormData) {
     p_overtime: amounts.overtime,
     p_other_earnings: amounts.other_earnings,
     p_taxable_supplementary_pension: amounts.taxable_supplementary_pension,
+    p_employee_supplementary_pension: amounts.employee_supplementary_pension,
     p_employee_social: amounts.employee_social,
     p_employee_health: amounts.employee_health,
     p_income_tax: amounts.income_tax,
@@ -409,7 +412,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
         <form action={saveVariableDraft} className="form">
           <div className="grid2"><div className="field"><label>Salarié actif</label><select name="employee_id" required>{employees.filter((e:any)=>e.status==="active").map((e:any)=><option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}</select></div>
           <div className="field"><label>Période modifiable</label><select name="payroll_run_id" required>{editableRuns.map((r:any)=><option key={r.id} value={r.id}>{r.period_start} au {r.period_end}</option>)}</select></div></div>
-          <div className="grid2"><MoneyInput name="bonuses" label="Primes"/><MoneyInput name="overtime" label="Heures supplémentaires"/><MoneyInput name="other_earnings" label="Autres gains"/><MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable"/><MoneyInput name="advances_recovered" label="Avances récupérées"/><MoneyInput name="other_deductions" label="Autres retenues"/></div>
+          <div className="grid2"><MoneyInput name="bonuses" label="Primes"/><MoneyInput name="overtime" label="Heures supplémentaires"/><MoneyInput name="other_earnings" label="Autres gains"/><MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable"/><MoneyInput name="employee_supplementary_pension" label="Cotisation retraite complémentaire salariale"/><MoneyInput name="advances_recovered" label="Avances récupérées"/><MoneyInput name="other_deductions" label="Autres retenues"/></div>
           <button className="button primary">Enregistrer le brouillon</button>
         </form></FormDialog> : <p className="muted">Un salarié actif et une période modifiable sont nécessaires pour enregistrer un brouillon.</p>}
         {variableDrafts.length>0 && <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Période</th><th>Primes</th><th>Heures</th><th>Autres gains</th><th>Retraite complémentaire patronale</th><th>Retenues et avances</th><th>Action</th></tr></thead><tbody>{variableDrafts.map((d:any)=>{
@@ -451,7 +454,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
                 <MoneyInput name="bonuses" label="Primes" defaultAmount={selectedDraft?.bonuses} />
                 <MoneyInput name="overtime" label="Heures supplémentaires" defaultAmount={selectedDraft?.overtime} />
                 <MoneyInput name="other_earnings" label="Autres gains" defaultAmount={selectedDraft?.other_earnings} />
-                <MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable" defaultAmount={selectedDraft?.taxable_supplementary_pension} />
+                <MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable" defaultAmount={selectedDraft?.taxable_supplementary_pension} /><MoneyInput name="employee_supplementary_pension" label="Cotisation retraite complémentaire salariale" defaultAmount={selectedDraft?.employee_supplementary_pension} />
                 <MoneyInput name="advances_recovered" label="Avances récupérées" defaultAmount={selectedDraft?.advances_recovered} />
                 <MoneyInput name="other_deductions" label="Autres retenues" defaultAmount={selectedDraft?.other_deductions} />
               </div>
