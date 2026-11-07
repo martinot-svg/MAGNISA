@@ -67,7 +67,8 @@ describe("Calcul centralisé des bulletins", () => {
     const result = calculatePayrollAmounts({ gross: 1_000_000, irsaExemptEarnings: 100_000, dependants: 0, rule });
     expect(result.irsaExemptEarnings).toBe(100_000);
     expect(result.taxableBase).toBe(880_000);
-    expect(result.netBeforeOtherDeductions).toBe(876_500);
+    expect(result.incomeTax).toBe(83_500);
+    expect(result.netBeforeOtherDeductions).toBe(896_500);
   });
 
   it("intègre la retraite complémentaire patronale à l'assiette IRSA sans la payer en net", () => {
