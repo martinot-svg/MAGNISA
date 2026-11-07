@@ -7,7 +7,8 @@ alter table public.payslips
   add column if not exists overtime_details jsonb;
 
 alter table public.payroll_rule_sets
-  add column if not exists irsa_compensation_rules jsonb not null default '[]'::jsonb;
+  add column if not exists irsa_compensation_rules jsonb not null default '[]'::jsonb,
+  add column if not exists overtime_premium_rules jsonb not null default '[]'::jsonb;
 
 do $$
 begin
@@ -19,6 +20,15 @@ begin
     alter table public.payroll_rule_sets
       add constraint payroll_rule_compensation_rules_array
       check (jsonb_typeof(irsa_compensation_rules)='array');
+  end if;
+  if not exists (
+    select 1 from pg_constraint
+    where conname='payroll_rule_overtime_premium_rules_array'
+      and conrelid='public.payroll_rule_sets'::regclass
+  ) then
+    alter table public.payroll_rule_sets
+      add constraint payroll_rule_overtime_premium_rules_array
+      check (jsonb_typeof(overtime_premium_rules)='array');
   end if;
 end $$;
 
