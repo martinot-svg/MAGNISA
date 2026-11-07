@@ -301,7 +301,7 @@ create or replace function public.convert_prospect_to_customer(
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $
+as $crm$
 declare
   v_prospect public.prospects%rowtype;
   v_existing_customer uuid;
@@ -337,7 +337,7 @@ begin
     jsonb_build_object('status','won','converted_customer_id',v_customer,'current_owner_id',coalesce(v_prospect.current_owner_id,auth.uid())));
   return v_customer;
 end;
-$;
+$crm$;
 
 create or replace function public.assert_commission_contributors_validated()
 returns trigger
