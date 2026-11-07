@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
-import { assertPermission } from "@/lib/permissions";
+import { assertPermission, hasPermission } from "@/lib/permissions";
 
 const contributionTypes = ["originator", "qualifier", "negotiator", "closer"] as const;
 const policyBasis = ["order_total", "invoice_paid_amount", "fixed_amount"] as const;
@@ -31,7 +31,7 @@ export async function createProspect(formData: FormData) {
     notes: String(formData.get("notes") ?? ""),
   });
   if (!parsed.success) throw new Error("Vérifie les informations du prospect.");
-  const { error } = await ctx.supabase.rpc("create_prospect_with_originator", {
+  const { error } = await ctx.supabase.rpc("create_prospect_with_referrer", {
     p_org: ctx.organizationId,
     p_name: parsed.data.name,
     p_email: parsed.data.email || null,
@@ -99,6 +99,33 @@ export async function addProspectContributor(formData: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath("/commissions");
   revalidatePath("/prospects");
+}
+
+const configurableInterventionTypes = [
+  "recommendation","prospecting","contact","presentation","qualification","negotiation",
+  "transfer","closing","signature","follow_up","retention",
+] as const;
+
+export async function saveProspectInterventionTypes(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "commissions.policy.manage");
+  const types = configurableInterventionTypes.map((intervention_type, index) => ({
+    intervention_type,
+    label: String(formData.get("label_" + intervention_type) ?? "").trim(),
+    is_active: formData.get("active_" + intervention_type) === "on",
+    requires_evidence: formData.get("evidence_" + intervention_type) === "on",
+    sort_order: (index + 1) * 10,
+  }));
+  if (types.some((item) => item.label.length < 2 || item.label.length > 80)) {
+    throw new Error("Chaque libellé doit contenir entre 2 et 80 caractères.");
+  }
+  const { error } = await ctx.supabase.rpc("save_prospect_intervention_types", {
+    p_org: ctx.organizationId,
+    p_types: types,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/prospects");
+  revalidatePath("/prospects/settings");
 }
 
 export async function saveCommissionPolicy(formData: FormData) {
