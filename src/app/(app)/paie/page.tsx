@@ -202,7 +202,7 @@ async function createPayslip(fd: FormData) {
   }) : {exemptHours:0,taxableHours:0,exemptAmount:0,taxableAmount:0,exemptionApplied:false};
 
   const configuredCompensationRules=Array.isArray(rule.irsa_compensation_rules)?rule.irsa_compensation_rules:[];
-  const protectedCodes=["base_salary","overtime","taxable_supplementary_pension"];
+  const protectedCodes=["base_salary","bonuses","overtime","taxable_supplementary_pension"];
   if(configuredCompensationRules.some((r:any)=>protectedCodes.includes(String(r.code))))
     throw new Error("Les classifications du salaire de base, des heures supplémentaires et de la retraite complémentaire sont gérées par les règles légales intégrées.");
   const legalRules=[
