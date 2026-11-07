@@ -9,6 +9,8 @@ import { EmptyState } from "@/components/empty-state";
 import { PayrollGrossPreview } from "@/components/payroll-gross-preview";
 import { calculatePayrollAmounts } from "@/lib/payroll/calculate-payroll";
 import { classifyIrsaCompensation, calculateOvertimeIrsa } from "@/lib/payroll/irsa-compensation";
+import { compensationOptions, customCompensationCode } from "@/lib/payroll/compensation-options";
+import { OtherEarningsTypeField } from "@/components/other-earnings-type-field";
 import { FormDialog } from "@/components/form-dialog";
 
 async function createEmployee(fd: FormData) {
@@ -130,6 +132,19 @@ async function createPayslip(fd: FormData) {
     throw new Error("Les éléments de paie doivent être des montants positifs ou nuls.");
   }
 
+  const otherEarningsSelection = String(fd.get("other_earnings_code") || "");
+  const otherEarningsCustomLabel = String(fd.get("other_earnings_custom_label") || "").trim();
+  let otherEarningsCode = otherEarningsSelection;
+  if (amounts.other_earnings > 0) {
+    if (!otherEarningsSelection) throw new Error("Sélectionne le type des autres gains renseignés.");
+    if (otherEarningsSelection === "other_custom") {
+      if (!otherEarningsCustomLabel) throw new Error("Précise l'autre rémunération.");
+      otherEarningsCode = customCompensationCode(otherEarningsCustomLabel);
+    } else if (!compensationOptions.some(([value]) => value === otherEarningsSelection && value !== "other_custom")) {
+      throw new Error("Type de rémunération invalide.");
+    }
+  }
+
   const runId=String(fd.get("payroll_run_id")||"");
   const employeeId=String(fd.get("employee_id")||"");
   const [{data:run,error:runError},{data:employee,error:employeeError}]=await Promise.all([
@@ -214,7 +229,7 @@ async function createPayslip(fd: FormData) {
   const compensationItems:any[]=[{code:"base_salary",amount:baseSalary}];
   if(amounts.bonuses>0)compensationItems.push({code:"bonuses",amount:amounts.bonuses});
   if(amounts.overtime>0)compensationItems.push({code:"overtime",amount:amounts.overtime,specialTaxableAmount:overtimeTax.taxableAmount});
-  if(amounts.other_earnings>0)compensationItems.push({code:"other_earnings",amount:amounts.other_earnings});
+  if(amounts.other_earnings>0)compensationItems.push({code:otherEarningsCode,amount:amounts.other_earnings});
   if(amounts.taxable_supplementary_pension>0)compensationItems.push({code:"taxable_supplementary_pension",amount:amounts.taxable_supplementary_pension});
   const classified=classifyIrsaCompensation(compensationItems,[...legalRules,...configuredCompensationRules],String(run.period_end));
   const taxableCashCompensation=classified.details.filter(d=>d.code!=="taxable_supplementary_pension").reduce((sum,d)=>sum+d.taxableAmount,0);
@@ -546,7 +561,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
                 <div className="field"><label><input type="checkbox" name="overtime_is_cadre"/> Salarié cadre</label></div>
                 <div className="field"><label><input type="checkbox" name="overtime_record_reconciled"/> Relevé mensuel rapproché et vérifié</label></div>
                 <div className="field"><label>Référence du relevé / justificatif</label><input name="overtime_record_reference" maxLength={200}/></div>
-                <MoneyInput name="other_earnings" label="Autres gains" defaultAmount={selectedDraft?.other_earnings} />
+                <MoneyInput name="other_earnings" label="Autres gains" defaultAmount={selectedDraft?.other_earnings} /><OtherEarningsTypeField />
                 <MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable" defaultAmount={selectedDraft?.taxable_supplementary_pension} /><MoneyInput name="employee_supplementary_pension" label="Cotisation retraite complémentaire salariale" defaultAmount={selectedDraft?.employee_supplementary_pension} />
                 <MoneyInput name="advances_recovered" label="Avances récupérées" defaultAmount={selectedDraft?.advances_recovered} />
                 <MoneyInput name="other_deductions" label="Autres retenues" defaultAmount={selectedDraft?.other_deductions} />
