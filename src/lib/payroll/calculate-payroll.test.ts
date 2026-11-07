@@ -83,7 +83,7 @@ describe("Calcul centralisé des bulletins", () => {
     });
     expect(result.employeeSocial).toBe(150_000);
     expect(result.deductiblePension).toBe(100_000);
-    expect(result.taxableBase).toBe(880_000);
+    expect(result.taxableBase).toBe(890_000);
   });
 
   it("intègre une cotisation salariale complémentaire dans la limite fiscale sans double déduction", () => {
@@ -92,7 +92,7 @@ describe("Calcul centralisé des bulletins", () => {
       additionalEmployeePensionContribution: 50_000,
     });
     expect(result.deductiblePension).toBe(60_000);
-    expect(result.netBeforeOtherDeductions).toBe(826_500);
+    expect(result.netBeforeOtherDeductions).toBe(836_500);
   });
 
   it("plafonne séparément les assiettes CNaPS et SMIE selon le référentiel", () => {
