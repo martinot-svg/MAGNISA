@@ -368,6 +368,10 @@ export async function recordProspectIntervention(formData: FormData) {
       (!parsed.data.responsible_user_id || parsed.data.stage_status !== "transferred")) {
     throw new Error("Un transfert exige un nouveau responsable et le statut Transféré.");
   }
+  if (parsed.data.intervention_type === "transfer" &&
+      !["support","account_manager"].includes(parsed.data.contribution_role)) {
+    throw new Error("Un transfert ne constitue pas à lui seul une contribution ouvrant droit à commission.");
+  }
   const { error } = await ctx.supabase.rpc("record_prospect_intervention", {
     p_org: ctx.organizationId,
     p_prospect: parsed.data.prospect_id || null,
