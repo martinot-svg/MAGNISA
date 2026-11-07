@@ -77,6 +77,7 @@ const resetPage = async (page) => {
   const response = await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
   try {
     await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor({ timeout: 15000 });
+    await page.getByRole("button", { name: "Historique des règles" }).click();
   } catch (error) {
     process.stdout.write("RESET PAGE URL " + page.url() + " STATUS " + response?.status() + "\\n");
     process.stdout.write("RESET PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\\n");
@@ -105,6 +106,7 @@ try {
   const payrollResponse = await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
   try {
     await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor({ timeout: 15000 });
+    await page.getByRole("button", { name: "Historique des règles" }).click();
   } catch (error) {
     process.stdout.write("PAYROLL PAGE URL " + page.url() + " STATUS " + payrollResponse?.status() + "\\n");
     process.stdout.write("PAYROLL PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\\n");
