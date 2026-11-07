@@ -1,74 +1,7 @@
--- Regulatory source monitoring and effective-dated IRSA health deduction ceiling.
 begin;
-alter table public.payroll_rule_sets
-  add column if not exists irsa_health_deduction_rate numeric(8,6) not null default 0.02;
-do $$ begin
-  if not exists (select 1 from pg_constraint where conname='payroll_rule_irsa_health_deduction_rate_check' and conrelid='public.payroll_rule_sets'::regclass) then
-    alter table public.payroll_rule_sets add constraint payroll_rule_irsa_health_deduction_rate_check
-      check (irsa_health_deduction_rate >= 0 and irsa_health_deduction_rate <= 1);
-  end if;
-end $$;
 
-create table if not exists public.regulatory_watch_settings (
-  organization_id uuid primary key references public.organizations(id) on delete cascade,
-  enabled boolean not null default true,
-  updated_by uuid references auth.users(id) on delete set null,
-  updated_at timestamptz not null default now()
-);
-create table if not exists public.regulatory_source_snapshots (
-  id uuid primary key default gen_random_uuid(),
-  organization_id uuid not null references public.organizations(id) on delete cascade,
-  source_key text not null,
-  source_title text not null,
-  source_url text not null,
-  content_hash text not null,
-  last_checked_at timestamptz not null default now(),
-  last_changed_at timestamptz,
-  unique (organization_id, source_key)
-);
-create table if not exists public.regulatory_watch_events (
-  id uuid primary key default gen_random_uuid(),
-  organization_id uuid not null references public.organizations(id) on delete cascade,
-  source_key text not null,
-  source_title text not null,
-  source_url text not null,
-  previous_hash text,
-  current_hash text not null,
-  detected_at timestamptz not null default now(),
-  review_status text not null default 'unreviewed' check (review_status in ('unreviewed','reviewed','not_relevant')),
-  reviewed_by uuid references auth.users(id) on delete set null,
-  reviewed_at timestamptz,
-  unique (organization_id, source_key, current_hash)
-);
-create index if not exists regulatory_watch_events_org_detected_idx
-  on public.regulatory_watch_events (organization_id, detected_at desc);
-alter table public.regulatory_watch_settings enable row level security;
-alter table public.regulatory_source_snapshots enable row level security;
-alter table public.regulatory_watch_events enable row level security;
-drop policy if exists regulatory_watch_settings_member_read on public.regulatory_watch_settings;
-create policy regulatory_watch_settings_member_read on public.regulatory_watch_settings
-  for select to authenticated using (public.is_org_member(organization_id));
-drop policy if exists regulatory_watch_settings_admin_manage on public.regulatory_watch_settings;
-create policy regulatory_watch_settings_admin_manage on public.regulatory_watch_settings
-  for all to authenticated
-  using (public.has_org_role(organization_id, array['owner','admin','director']))
-  with check (public.has_org_role(organization_id, array['owner','admin','director']));
-drop policy if exists regulatory_watch_events_member_read on public.regulatory_watch_events;
-create policy regulatory_watch_events_member_read on public.regulatory_watch_events
-  for select to authenticated using (public.is_org_member(organization_id));
-revoke all on public.regulatory_source_snapshots from public, anon, authenticated;
-grant all on public.regulatory_source_snapshots to service_role;
-grant all on public.regulatory_watch_events to service_role;
-grant all on public.regulatory_watch_settings to service_role;
-revoke all on public.regulatory_watch_events from anon;
-revoke insert, update, delete on public.regulatory_watch_events from authenticated;
-grant select on public.regulatory_watch_events to authenticated;
-revoke all on public.regulatory_watch_settings from anon;
-grant select, insert, update on public.regulatory_watch_settings to authenticated;
-insert into public.regulatory_watch_settings(organization_id)
-select id from public.organizations
-on conflict (organization_id) do nothing;
-
+-- Forward correction for databases where the original regulatory-watch migration
+-- (20261107081525) is already recorded as applied.
 create or replace function public.payroll_compute_fmfp_on_insert()
 returns trigger
 language plpgsql
@@ -136,7 +69,8 @@ begin
   v_emp_social := round(least(new.gross_pay, v_rule.cnaps_monthly_ceiling) * v_rule.cnaps_employer_rate, 2);
   v_emp_health := round(least(new.gross_pay, v_rule.health_monthly_ceiling) * v_rule.health_employer_rate, 2);
 
-  v_taxable := floor(greatest(0, new.gross_pay - v_social - v_deductible_health) / 100) * 100;
+  -- Employer-funded supplementary pension is taxable for IRSA but is not part of gross cash pay.
+  v_taxable := floor(greatest(0, new.gross_pay + coalesce(new.taxable_supplementary_pension, 0) - v_social - v_deductible_health) / 100) * 100;
 
   for v_b in select value from jsonb_array_elements(v_rule.irsa_brackets) loop
     v_rate := (v_b->>'rate')::numeric;
@@ -196,6 +130,6 @@ begin
 end
 $function$;
 
-
 revoke all on function public.payroll_compute_fmfp_on_insert() from public, anon, authenticated;
+
 commit;
