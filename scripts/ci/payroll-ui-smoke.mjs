@@ -71,13 +71,26 @@ const clickAction = async (page, button) => {
     button.click(),
   ]);
 };
+const openHistory = async (page) => {
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+  const button = page.getByRole("button", { name: "Historique des règles" });
+  await button.waitFor({ state: "visible" });
+  await page.waitForTimeout(1200);
+  await button.click();
+  await page.waitForFunction(() =>
+    document.querySelector('button[aria-haspopup="dialog"][aria-expanded="true"]') !== null,
+    null,
+    { timeout: 10000 },
+  );
+  await page.getByRole("dialog").waitFor({ state: "visible", timeout: 10000 });
+  await page.getByRole("heading", { name: "Historique des règles" }).waitFor({ state: "visible", timeout: 10000 });
+};
+
 const resetPage = async (page) => {
   const response = await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
   try {
     await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor({ timeout: 15000 });
-    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
-    await page.getByRole("button", { name: "Historique des règles" }).click();
-    await page.getByRole("heading", { name: "Historique des règles" }).waitFor({ state: "visible", timeout: 10000 });
+    await openHistory(page);
   } catch (error) {
     process.stdout.write("RESET PAGE URL " + page.url() + " STATUS " + response?.status() + "\\n");
     process.stdout.write("RESET PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\\n");
@@ -106,8 +119,7 @@ try {
   const payrollResponse = await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
   try {
     await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor({ timeout: 15000 });
-    await page.getByRole("button", { name: "Historique des règles" }).click();
-    await page.getByRole("heading", { name: "Historique des règles" }).waitFor({ state: "visible", timeout: 10000 });
+    await openHistory(page);
   } catch (error) {
     process.stdout.write("PAYROLL PAGE URL " + page.url() + " STATUS " + payrollResponse?.status() + "\\n");
     process.stdout.write("PAYROLL PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\\n");
