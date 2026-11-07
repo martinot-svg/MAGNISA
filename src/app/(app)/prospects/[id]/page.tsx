@@ -74,7 +74,7 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
             {Object.entries(roleLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}
           </select></div>
           <div className="field"><label>État de l'étape</label><select name="stage_status" defaultValue="in_progress">
-            <option value="not_started">Non commencée</option><option value="in_progress">En cours</option><option value="completed">Terminée</option><option value="blocked">Bloquée</option><option value="cancelled">Annulée</option>
+            <option value="not_started">Non commencée</option><option value="in_progress">En cours</option><option value="completed">Terminée</option><option value="blocked">Bloquée</option><option value="cancelled">Annulée</option><option value="transferred">Transférée</option>
           </select></div>
           <div className="field"><label>Preuve / référence justificative</label><input name="evidence_reference" maxLength={500} placeholder="Lien, référence de document, compte rendu…"/></div>
           {canReview || canAttributeForOthers ? <div className="field"><label>Collaborateur concerné (recommandation pour un tiers)</label><select name="contributor_user_id" defaultValue=""><option value="">Moi-même</option>
