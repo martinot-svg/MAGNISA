@@ -10,7 +10,7 @@ alter table public.payslips
 alter table public.payroll_variable_drafts
   add column if not exists employee_supplementary_pension numeric(18,2) not null default 0;
 
-do $$ begin
+do $do$ begin
   if not exists (select 1 from pg_constraint where conname='payroll_rule_irsa_dependant_reduction_check' and conrelid='public.payroll_rule_sets'::regclass) then
     alter table public.payroll_rule_sets add constraint payroll_rule_irsa_dependant_reduction_check check (irsa_dependant_reduction >= 0);
   end if;
@@ -23,7 +23,7 @@ do $$ begin
   if not exists (select 1 from pg_constraint where conname='payroll_rule_irsa_pension_deduction_rate_check' and conrelid='public.payroll_rule_sets'::regclass) then
     alter table public.payroll_rule_sets add constraint payroll_rule_irsa_pension_deduction_rate_check check (irsa_pension_deduction_rate >= 0 and irsa_pension_deduction_rate <= 0.10);
   end if;
-end $;
+end $do$;
 
 create or replace function public.payroll_compute_fmfp_on_insert()
 returns trigger
