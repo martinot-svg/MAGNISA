@@ -72,13 +72,29 @@ export async function addProspectContributor(formData: FormData) {
     contribution_type: String(formData.get("contribution_type") ?? ""),
     notes: String(formData.get("notes") ?? ""),
   });
-  if (!parsed.success) throw new Error("Affectation de contribution invalide.");
-  const { error } = await ctx.supabase.rpc("add_prospect_contributor", {
+  if (!parsed.success || parsed.data.notes.length < 3) {
+    throw new Error("Une description justifiant la contribution est obligatoire.");
+  }
+  const roleMap = {
+    originator: { type: "recommendation", role: "recommender" },
+    qualifier: { type: "qualification", role: "qualifier" },
+    negotiator: { type: "negotiation", role: "negotiator" },
+    closer: { type: "closing", role: "closer" },
+  } as const;
+  const mapped = roleMap[parsed.data.contribution_type];
+  const { error } = await ctx.supabase.rpc("record_prospect_intervention", {
     p_org: ctx.organizationId,
     p_prospect: parsed.data.prospect_id,
-    p_user: parsed.data.user_id,
-    p_contribution_type: parsed.data.contribution_type,
-    p_notes: parsed.data.notes || null,
+    p_customer: null,
+    p_contributor: parsed.data.user_id,
+    p_department: null,
+    p_type: mapped.type,
+    p_role: mapped.role,
+    p_stage_status: "completed",
+    p_description: parsed.data.notes,
+    p_evidence: null,
+    p_responsible: null,
+    p_occurred_at: null,
   });
   if (error) throw new Error(error.message);
   revalidatePath("/commissions");
@@ -271,5 +287,86 @@ export async function recordCommissionPayment(formData: FormData) {
     p_request_key: parsed.data.request_key,
   });
   if (error) throw new Error(error.message);
+  revalidatePath("/commissions");
+}
+
+export async function recordProspectIntervention(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "commissions.contribute");
+  const parsed = z.object({
+    prospect_id: z.string().uuid().optional().or(z.literal("")),
+    customer_id: z.string().uuid().optional().or(z.literal("")),
+    contributor_user_id: z.string().uuid(),
+    department: z.string().trim().max(120),
+    intervention_type: z.enum(["recommendation","prospecting","contact","presentation","qualification","negotiation","transfer","closing","signature","follow_up","retention"]),
+    contribution_role: z.enum(["initiator","recommender","prospector","qualifier","negotiator","closer","account_manager","support"]),
+    stage_status: z.enum(["not_started","in_progress","completed","transferred","cancelled","blocked"]),
+    description: z.string().trim().min(3).max(4000),
+    evidence_reference: z.string().trim().max(1000),
+    responsible_user_id: z.string().uuid().or(z.literal("")),
+    occurred_at: z.string().optional(),
+  }).safeParse({
+    prospect_id: String(formData.get("prospect_id") ?? ""),
+    customer_id: String(formData.get("customer_id") ?? ""),
+    contributor_user_id: String(formData.get("contributor_user_id") ?? ""),
+    department: String(formData.get("department") ?? ""),
+    intervention_type: String(formData.get("intervention_type") ?? ""),
+    contribution_role: String(formData.get("contribution_role") ?? ""),
+    stage_status: String(formData.get("stage_status") ?? ""),
+    description: String(formData.get("description") ?? ""),
+    evidence_reference: String(formData.get("evidence_reference") ?? ""),
+    responsible_user_id: String(formData.get("responsible_user_id") ?? ""),
+    occurred_at: String(formData.get("occurred_at") ?? "") || undefined,
+  });
+  if (!parsed.success || (!!parsed.data.prospect_id === !!parsed.data.customer_id)) {
+    throw new Error("Vérifie la fiche concernée et les informations de l'intervention.");
+  }
+  if (parsed.data.intervention_type === "transfer" &&
+      (!parsed.data.responsible_user_id || parsed.data.stage_status !== "transferred")) {
+    throw new Error("Un transfert exige un nouveau responsable et le statut Transféré.");
+  }
+  const { error } = await ctx.supabase.rpc("record_prospect_intervention", {
+    p_org: ctx.organizationId,
+    p_prospect: parsed.data.prospect_id || null,
+    p_customer: parsed.data.customer_id || null,
+    p_contributor: parsed.data.contributor_user_id,
+    p_department: parsed.data.department || null,
+    p_type: parsed.data.intervention_type,
+    p_role: parsed.data.contribution_role,
+    p_stage_status: parsed.data.stage_status,
+    p_description: parsed.data.description,
+    p_evidence: parsed.data.evidence_reference || null,
+    p_responsible: parsed.data.responsible_user_id || null,
+    p_occurred_at: parsed.data.occurred_at ? new Date(parsed.data.occurred_at).toISOString() : null,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/prospects");
+  revalidatePath("/clients");
+  revalidatePath("/commissions");
+}
+
+export async function reviewProspectIntervention(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "commissions.policy.manage");
+  const parsed = z.object({
+    intervention_id: z.string().uuid(),
+    decision: z.enum(["validate","reject"]),
+    reason: z.string().trim().min(3).max(1000),
+    subject_path: z.string().startsWith("/").max(300),
+  }).safeParse({
+    intervention_id: String(formData.get("intervention_id") ?? ""),
+    decision: String(formData.get("decision") ?? ""),
+    reason: String(formData.get("reason") ?? ""),
+    subject_path: String(formData.get("subject_path") ?? "/prospects"),
+  });
+  if (!parsed.success) throw new Error("Décision de validation invalide.");
+  const { error } = await ctx.supabase.rpc("review_prospect_intervention", {
+    p_org: ctx.organizationId,
+    p_intervention: parsed.data.intervention_id,
+    p_decision: parsed.data.decision,
+    p_reason: parsed.data.reason,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(parsed.data.subject_path);
   revalidatePath("/commissions");
 }
