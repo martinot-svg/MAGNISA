@@ -148,7 +148,7 @@ begin
     p_other_earnings => 0,
     p_employee_social => 10000,
     p_employee_health => 30000,
-    p_income_tax => 93500,
+    p_income_tax => 91500,
     p_advances_recovered => 0,
     p_other_deductions => 0,
     p_employer_social => 130000,
@@ -160,7 +160,7 @@ begin
   select income_tax,net_pay,employee_supplementary_pension,status
     into v_tax,v_net,v_pension,v_status
     from public.payslips where id=v_payslip_employee_pension;
-  if v_status <> 'calculated' or v_tax <> 93500 or v_net <> 816500 or v_pension <> 50000 then
+  if v_status <> 'calculated' or v_tax <> 91500 or v_net <> 818500 or v_pension <> 50000 then
     raise exception 'TEST FAILED: employee supplementary pension was not deducted and taxed correctly';
   end if;
 
