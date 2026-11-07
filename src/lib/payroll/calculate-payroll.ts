@@ -33,6 +33,7 @@ export type PayrollCalculation = {
   employeePensionContribution: number;
   deductibleEmployeePension: number;
   irsaExemptEarnings: number;
+  irsaDeductionAuthorized: boolean;
   netBeforeOtherDeductions: number;
   employerCost: number;
 };
