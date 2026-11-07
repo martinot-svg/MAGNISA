@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
 import { EmptyState } from "@/components/empty-state";
@@ -53,7 +54,7 @@ export default async function ProspectsPage() {
               <tbody>
                 {prospects.map((prospect: any) => (
                   <tr key={prospect.id}>
-                    <td><strong>{prospect.name}</strong><div className="muted">{new Date(prospect.created_at).toLocaleDateString("fr-FR")}</div></td>
+                    <td><strong><Link href={"/prospects/" + prospect.id}>{prospect.name}</Link></strong><div className="muted">{new Date(prospect.created_at).toLocaleDateString("fr-FR")}</div></td>
                     <td><span className="badge">{prospect.status}</span></td>
                     <td>{prospect.email || "—"}<div className="muted">{prospect.phone || ""}</div></td>
                     <td>{prospect.source || "—"}</td>
