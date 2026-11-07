@@ -95,10 +95,15 @@ try {
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
   const prospectRow = page.locator("tr").filter({ hasText: prospectName });
   await prospectRow.getByRole("button", { name: "Clôturer comme gagné" }).click();
-  const converted = await waitForRow(async () => admin.from("prospects")
-    .select("converted_customer_id").eq("organization_id", membership.organization_id)
-    .eq("id", prospect.id).maybeSingle());
-  assert(converted.converted_customer_id, "Prospect conversion did not create a customer.");
+  let converted = null;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const result = await admin.from("prospects").select("converted_customer_id")
+      .eq("organization_id", membership.organization_id).eq("id", prospect.id).maybeSingle();
+    if (result.error) throw result.error;
+    if (result.data?.converted_customer_id) { converted = result.data; break; }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  assert(converted?.converted_customer_id, "Prospect conversion did not create a customer.");
 
   await page.goto(`${baseUrl}/clients/${converted.converted_customer_id}/contributions`, { waitUntil: "domcontentloaded" });
   await page.getByText("Client · Journal collaboratif").waitFor();
