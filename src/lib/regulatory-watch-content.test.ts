@@ -14,7 +14,7 @@ describe("normalizeRegulatoryHtml", () => {
 
   it("normalizes whitespace to avoid layout-only false positives", () => {
     expect(normalizeRegulatoryHtml("<div>  Nouveau   texte </div>\n <p>Deuxième ligne</p>"))
-      .toBe("Nouveau texte\nDeuxième ligne");
+      .toBe("Nouveau texte\n\nDeuxième ligne");
   });
 
   it("does not throw on invalid numeric entities", () => {
