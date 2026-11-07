@@ -7,9 +7,11 @@ declare
   v_org uuid := gen_random_uuid();
   v_owner uuid := gen_random_uuid();
   v_employee uuid := gen_random_uuid();
+  v_employee_pension uuid := gen_random_uuid();
   v_run uuid := gen_random_uuid();
   v_rule uuid := gen_random_uuid();
   v_payslip uuid;
+  v_payslip_employee_pension uuid;
   v_entry uuid;
   v_status text;
   v_tax numeric;
@@ -22,6 +24,7 @@ declare
   v_fmfp_expense_count integer;
   v_pension_expense_count integer;
   v_pension_payable_count integer;
+  v_employee_pension_payable_count integer;
 begin
   insert into auth.users (
     id,aud,role,email,encrypted_password,email_confirmed_at,
@@ -130,6 +133,51 @@ begin
 
   if v_fmfp_expense_count <> 1 or v_pension_expense_count <> 1 or v_pension_payable_count <> 1 then
     raise exception 'TEST FAILED: FMFP or supplementary pension expense/payable posting is missing or duplicated';
+  end if;
+
+  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants)
+  values(v_employee_pension,v_org,'Test','Employee pension',1000000,'active',0);
+
+  -- Employee-funded supplementary pension is deducted from net and from IRSA base within the 10% cap.
+  v_payslip_employee_pension := public.create_payslip(
+    p_org => v_org,
+    p_run => v_run,
+    p_employee => v_employee_pension,
+    p_bonuses => 0,
+    p_overtime => 0,
+    p_other_earnings => 0,
+    p_employee_social => 10000,
+    p_employee_health => 10000,
+    p_income_tax => 93500,
+    p_advances_recovered => 0,
+    p_other_deductions => 0,
+    p_employer_social => 130000,
+    p_employer_health => 50000,
+    p_taxable_supplementary_pension => 0,
+    p_employee_supplementary_pension => 50000
+  );
+
+  select income_tax,net_pay,employee_supplementary_pension,status
+    into v_tax,v_net,v_pension,v_status
+    from public.payslips where id=v_payslip_employee_pension;
+  if v_status <> 'calculated' or v_tax <> 93500 or v_net <> 836500 or v_pension <> 50000 then
+    raise exception 'TEST FAILED: employee supplementary pension was not deducted and taxed correctly';
+  end if;
+
+  perform public.validate_payslip(v_org,v_payslip_employee_pension);
+  select id into v_entry from public.journal_entries
+   where organization_id=v_org and source_type='payslip' and source_id=v_payslip_employee_pension;
+  select coalesce(sum(debit),0),coalesce(sum(credit),0)
+    into v_debit,v_credit from public.journal_entry_lines where journal_entry_id=v_entry;
+  if v_debit <> v_credit or v_debit <> 1190000 then
+    raise exception 'TEST FAILED: employee supplementary pension journal entry is not balanced';
+  end if;
+  select count(*) into v_employee_pension_payable_count
+    from public.journal_entry_lines
+   where journal_entry_id=v_entry and account_key='EMPLOYEE_SUPPLEMENTARY_PENSION_PAYABLE'
+     and debit=0 and credit=50000;
+  if v_employee_pension_payable_count <> 1 then
+    raise exception 'TEST FAILED: employee supplementary pension payable line is missing or duplicated';
   end if;
 
   select status into v_status from public.payslips where id=v_payslip;
