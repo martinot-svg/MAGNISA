@@ -42,6 +42,9 @@ async function saveRuleInternal(fd:FormData){
  const minimumRaw=String(fd.get("irsa_minimum")??"").trim();
  const minimum=Number(minimumRaw);
  if(minimumRaw===""||!Number.isFinite(minimum)||minimum<0)throw new Error("Le minimum IRSA doit être renseigné et vérifié.");
+ const dependantReduction=Number(fd.get("irsa_dependant_reduction")??2000);
+ const dependantThreshold=Number(fd.get("irsa_dependant_threshold")??350000);
+ if(!Number.isFinite(dependantReduction)||dependantReduction<0||!Number.isFinite(dependantThreshold)||dependantThreshold<0)throw new Error("Réduction ou seuil personnes à charge invalide.");
  const rounding=String(fd.get("rounding_policy")??"unverified");
  if(!["floor_100","unverified"].includes(rounding))throw new Error("Règle d’arrondi inconnue.");
  if(!String(data.legal_reference||"").trim())throw new Error("Pour appliquer le référentiel, renseigne la référence officielle contrôlée.");
