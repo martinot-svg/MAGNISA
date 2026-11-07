@@ -24,6 +24,7 @@ export async function createProspect(formData: FormData) {
     source: z.string().trim().max(120),
     notes: z.string().trim().max(2000),
     referrer_user_id: z.string().uuid().or(z.literal("")),
+    referrer_evidence_reference: z.string().trim().max(1000),
   }).safeParse({
     name: formData.get("name"),
     email: String(formData.get("email") ?? ""),
@@ -31,8 +32,12 @@ export async function createProspect(formData: FormData) {
     source: String(formData.get("source") ?? ""),
     notes: String(formData.get("notes") ?? ""),
     referrer_user_id: String(formData.get("referrer_user_id") ?? ""),
+    referrer_evidence_reference: String(formData.get("referrer_evidence_reference") ?? ""),
   });
   if (!parsed.success) throw new Error("Vérifie les informations du prospect et du recommandeur.");
+  if (!parsed.data.referrer_user_id && parsed.data.referrer_evidence_reference) {
+    throw new Error("Sélectionne un recommandeur pour rattacher ce justificatif.");
+  }
   const { error } = await ctx.supabase.rpc("create_prospect_with_referrer", {
     p_org: ctx.organizationId,
     p_name: parsed.data.name,
@@ -41,6 +46,7 @@ export async function createProspect(formData: FormData) {
     p_source: parsed.data.source || null,
     p_notes: parsed.data.notes || null,
     p_referrer_user_id: parsed.data.referrer_user_id || null,
+    p_referrer_evidence_reference: parsed.data.referrer_evidence_reference || null,
   });
   if (error) throw new Error(error.message);
   revalidatePath("/prospects");
