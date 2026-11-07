@@ -11,6 +11,7 @@ const rule: PayrollCalculationRule = {
   cnaps_monthly_ceiling: 2_400_000,
   health_monthly_ceiling: 1_600_000,
   irsa_health_deduction_rate: 0.02,
+  irsa_pension_deduction_rate: 0.10,
   irsa_brackets: MADAGASCAR_IRSA_2026.brackets,
   irsa_minimum: 3_000,
   irsa_dependant_reduction: 2_000,
@@ -74,6 +75,24 @@ describe("Calcul centralisé des bulletins", () => {
       dependants: 0,
       rule,
     })).toThrow(/retraite complémentaire/);
+  });
+
+  it("plafonne la déduction des cotisations de retraite à 10 % du brut", () => {
+    const result = calculatePayrollAmounts({
+      gross: 1_000_000, dependants: 0, rule: { ...rule, cnaps_employee_rate: 0.15 },
+    });
+    expect(result.employeeSocial).toBe(150_000);
+    expect(result.deductiblePension).toBe(100_000);
+    expect(result.taxableBase).toBe(880_000);
+  });
+
+  it("intègre une cotisation salariale complémentaire dans la limite fiscale sans double déduction", () => {
+    const result = calculatePayrollAmounts({
+      gross: 1_000_000, dependants: 0, rule,
+      additionalEmployeePensionContribution: 50_000,
+    });
+    expect(result.deductiblePension).toBe(60_000);
+    expect(result.netBeforeOtherDeductions).toBe(826_500);
   });
 
   it("plafonne séparément les assiettes CNaPS et SMIE selon le référentiel", () => {
