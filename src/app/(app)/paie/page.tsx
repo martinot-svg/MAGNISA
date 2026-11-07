@@ -161,7 +161,7 @@ async function createPayslip(fd: FormData) {
     throw new Error("Les heures et primes supplémentaires ne peuvent être renseignées sans montant d'heures supplémentaires.");
 
   const {data:priorSlips,error:priorSlipsError}=await ctx.supabase.from("payslips")
-    .select("fiscal_snapshot,payroll_runs(period_end)")
+    .select("overtime,fiscal_snapshot,payroll_runs(period_end)")
     .eq("organization_id",ctx.organizationId).eq("employee_id",employeeId);
   if(priorSlipsError)throw new Error(priorSlipsError.message);
   const currentMonth=String(run.period_end).slice(0,7);
