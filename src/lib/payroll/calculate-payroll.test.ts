@@ -10,6 +10,7 @@ const rule: PayrollCalculationRule = {
   fmfp_employer_rate: 0.01,
   cnaps_monthly_ceiling: 2_400_000,
   health_monthly_ceiling: 1_600_000,
+  irsa_health_deduction_rate: 0.02,
   irsa_brackets: MADAGASCAR_IRSA_2026.brackets,
   irsa_minimum: 3_000,
 };
@@ -42,6 +43,12 @@ describe("Calcul centralisé des bulletins", () => {
     expect(result.taxableBase).toBe(970_000);
     expect(result.incomeTax).toBe(101_500);
     expect(result.netBeforeOtherDeductions).toBe(858_500);
+  });
+
+  it.each([0.03, 0.005])("utilise le plafond santé IRSA versionné à %s", (rate) => {
+    const result = calculatePayrollAmounts({ gross: 1_000_000, dependants: 0, rule: { ...rule, health_employee_rate: 0.03, irsa_health_deduction_rate: rate } });
+    const deductible = Math.min(30_000, Math.round(1_000_000 * rate * 100) / 100);
+    expect(result.taxableBase).toBe(Math.floor((1_000_000 - 10_000 - deductible) / 100) * 100);
   });
 
   it("intègre la retraite complémentaire patronale à l'assiette IRSA sans la payer en net", () => {
@@ -98,6 +105,7 @@ describe("Calcul centralisé des bulletins", () => {
       dependants: 0,
       rule: { ...rule, health_employee_rate: 1.2 },
     })).toThrow(/Taux/);
+    expect(() => calculatePayrollAmounts({ gross: 500_000, dependants: 0, rule: { ...rule, irsa_health_deduction_rate: 1.2 } })).toThrow(/Taux/);
     expect(() => calculatePayrollAmounts({
       gross: 500_000,
       dependants: 0,

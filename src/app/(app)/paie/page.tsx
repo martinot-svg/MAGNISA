@@ -161,6 +161,7 @@ async function createPayslip(fd: FormData) {
       fmfp_employer_rate: Number(rule.fmfp_employer_rate),
       cnaps_monthly_ceiling: Number(rule.cnaps_monthly_ceiling),
       health_monthly_ceiling: Number(rule.health_monthly_ceiling),
+      irsa_health_deduction_rate: Number(rule.irsa_health_deduction_rate),
       irsa_brackets: rule.irsa_brackets as { up_to: number | null; rate: number }[],
       irsa_minimum: Number(rule.irsa_minimum),
     },
@@ -306,7 +307,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
             n'est codé en dur.
           </p>
         </div>
-        <Link className="button" href="/paie/parametres">Paramètres de paie - Madagascar</Link>
+        <div className="actions"><Link className="button" href="/paie/parametres">Paramètres de paie - Madagascar</Link><Link className="button" href="/paie/veille-reglementaire">Veille réglementaire</Link></div>
       </div>
 
       {params.draft_saved==="1" && <div role="status" aria-live="polite" className="card section"><strong>Brouillon enregistré dans MAGNISA.</strong><p className="muted">Les montants sont conservés pour la période et le salarié sélectionnés. Aucun bulletin ni règlement n'a été créé.</p></div>}
