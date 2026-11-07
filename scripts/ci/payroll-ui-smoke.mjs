@@ -83,7 +83,7 @@ const openHistory = async (page) => {
     { timeout: 10000 },
   );
   await page.getByRole("dialog").waitFor({ state: "visible", timeout: 10000 });
-  await page.getByRole("heading", { name: "Historique des règles" }).waitFor({ state: "visible", timeout: 10000 });
+  await page.getByRole("heading", { name: "Historique des règles" }).first().waitFor({ state: "visible", timeout: 10000 });
 };
 
 const resetPage = async (page) => {
