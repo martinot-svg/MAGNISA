@@ -256,6 +256,8 @@ async function createPayslip(fd: FormData) {
     p_other_earnings: amounts.other_earnings,
     p_taxable_supplementary_pension: amounts.taxable_supplementary_pension,
     p_employee_supplementary_pension: amounts.employee_supplementary_pension,
+    p_taxable_compensation: calculation.taxableCompensation,
+    p_fiscal_snapshot: fiscalSnapshot,
     p_employee_social: amounts.employee_social,
     p_employee_health: amounts.employee_health,
     p_income_tax: amounts.income_tax,
@@ -266,11 +268,7 @@ async function createPayslip(fd: FormData) {
   });
 
   if (error) throw new Error(error.message);
-  if(!payslipId)throw new Error("Le bulletin a été créé sans identifiant retourné : snapshot fiscal non attaché.");
-  const {error:snapshotError}=await ctx.supabase.rpc("write_payslip_fiscal_snapshot",{
-    p_org:ctx.organizationId,p_payslip:payslipId,p_snapshot:fiscalSnapshot,
-  });
-  if(snapshotError)throw new Error("Bulletin calculé mais snapshot fiscal non enregistré : "+snapshotError.message+". Ne valide pas ce bulletin.");
+  if(!payslipId)throw new Error("Le bulletin a été créé sans identifiant retourné.");
   revalidatePath("/paie");
 }
 
