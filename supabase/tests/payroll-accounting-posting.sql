@@ -12,6 +12,9 @@ declare
   v_rule uuid := gen_random_uuid();
   v_payslip uuid;
   v_payslip_employee_pension uuid;
+  v_classified_employee uuid;
+  v_classified_payslip uuid;
+  v_snapshot jsonb;
   v_entry uuid;
   v_status text;
   v_tax numeric;
@@ -221,6 +224,39 @@ begin
   if not exists(select 1 from public.pcg2005_journal_lines where journal_entry_id=v_entry and account_key='EMPLOYEE_SUPPLEMENTARY_PENSION_PAYABLE' and pcg_code='431' and mapping_status='automatique') then
     raise exception 'TEST FAILED: employee supplementary pension payable is not mapped to PCG 431';
   end if;
+
+  -- Classified taxable base and immutable fiscal evidence are stored atomically with the payslip.
+  v_classified_employee := gen_random_uuid();
+  v_snapshot := jsonb_build_object(
+    'schemaVersion',1,
+    'payrollRuleSet',jsonb_build_object('id',v_rule,'name','TEST payroll 2026'),
+    'compensation',jsonb_build_object('taxableCompensation',700000),
+    'overtime',jsonb_build_object('totalHours',0,'exemptHours',0),
+    'calculation',jsonb_build_object('taxableBase',670000,'incomeTax',41500)
+  );
+  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants)
+  values(v_classified_employee,v_org,'Test','Classified base',1000000,'active',0);
+  v_classified_payslip := public.create_payslip(
+    p_org=>v_org,p_run=>v_run,p_employee=>v_classified_employee,
+    p_bonuses=>0,p_overtime=>0,p_other_earnings=>0,
+    p_employee_social=>10000,p_employee_health=>30000,p_income_tax=>41500,
+    p_advances_recovered=>0,p_other_deductions=>0,
+    p_employer_social=>130000,p_employer_health=>80000,
+    p_taxable_supplementary_pension=>0,p_employee_supplementary_pension=>0,
+    p_taxable_compensation=>700000,p_fiscal_snapshot=>v_snapshot
+  );
+  if not exists(select 1 from public.payslips
+    where id=v_classified_payslip and taxable_compensation=700000
+      and income_tax=41500 and fiscal_snapshot=v_snapshot
+      and overtime_details=v_snapshot->'overtime') then
+    raise exception 'TEST FAILED: classified IRSA base and fiscal snapshot were not stored atomically';
+  end if;
+  begin
+    update public.payslips set fiscal_snapshot='{}'::jsonb where id=v_classified_payslip;
+    raise exception 'TEST FAILED: fiscal snapshot mutation was unexpectedly accepted';
+  exception when others then
+    if sqlerrm not like '%snapshot fiscal%immuable%' then raise; end if;
+  end;
 
   select status into v_status from public.payslips where id=v_payslip;
   if v_status <> 'validated' then
