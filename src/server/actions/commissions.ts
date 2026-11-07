@@ -110,6 +110,32 @@ export async function addProspectContributor(formData: FormData) {
   revalidatePath("/prospects");
 }
 
+export async function changeProspectInterventionStatus(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "commissions.contribute");
+  const parsed = z.object({
+    intervention_id: z.string().uuid(),
+    stage_status: z.enum(["not_started","in_progress","completed","cancelled","blocked"]),
+    reason: z.string().trim().min(3).max(1000),
+    subject_path: z.string().startsWith("/").max(300),
+  }).safeParse({
+    intervention_id: String(formData.get("intervention_id") ?? ""),
+    stage_status: String(formData.get("stage_status") ?? ""),
+    reason: String(formData.get("reason") ?? ""),
+    subject_path: String(formData.get("subject_path") ?? "/prospects"),
+  });
+  if (!parsed.success) throw new Error("Statut ou justification invalide.");
+  const { error } = await ctx.supabase.rpc("change_prospect_intervention_status", {
+    p_org: ctx.organizationId,
+    p_intervention: parsed.data.intervention_id,
+    p_stage_status: parsed.data.stage_status,
+    p_reason: parsed.data.reason,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(parsed.data.subject_path);
+  revalidatePath("/commissions");
+}
+
 const configurableInterventionTypes = [
   "recommendation","prospecting","contact","presentation","qualification","negotiation",
   "transfer","closing","signature","follow_up","retention",
