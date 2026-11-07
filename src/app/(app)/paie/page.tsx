@@ -207,6 +207,7 @@ async function createPayslip(fd: FormData) {
     throw new Error("Les classifications du salaire de base, des heures supplémentaires et de la retraite complémentaire sont gérées par les règles légales intégrées.");
   const legalRules=[
     {code:"base_salary",treatment:"fully_taxable",legalReference:"CGI Madagascar, article 01.03.02 ; https://www.impots.mg/explorer?path=%2Flegislation%2FCodes+et+Manuels",ruleVersion:String(rule.id),effectiveFrom:String(rule.effective_from)},
+    {code:"bonuses",treatment:"fully_taxable",legalReference:"CGI Madagascar, article 01.03.02 (primes et gratifications) ; https://www.impots.mg/explorer?path=%2Flegislation%2FCodes+et+Manuels",ruleVersion:String(rule.id),effectiveFrom:String(rule.effective_from)},
     {code:"overtime",treatment:"special",legalReference:"Décision DGI n°02-MEF/SG/DGI/DLFC du 11 octobre 2019, articles 3 à 5 ; https://portal.impots.mg/textes/textes/2019-10-11--N-02-MEF.SG.DGI.DLFC-Ref-K49HU4-FFPKVG.pdf",ruleVersion:String(rule.id),effectiveFrom:String(rule.effective_from)},
     {code:"taxable_supplementary_pension",treatment:"fully_taxable",legalReference:"Loi n°2025-021, CGI article 01.03.02 ; https://cnlegis.gov.mg/uploads/L2025-021_VF.pdf",ruleVersion:String(rule.id),effectiveFrom:String(rule.effective_from)},
   ];
