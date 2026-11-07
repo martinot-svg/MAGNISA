@@ -30,6 +30,12 @@ alter table public.regulatory_source_snapshots
   add column if not exists last_http_status integer;
 
 alter table public.regulatory_watch_events
+  drop constraint if exists regulatory_watch_events_review_status_check;
+alter table public.regulatory_watch_events
+  add constraint regulatory_watch_events_review_status_check
+  check (review_status in ('unreviewed','reviewed','validated','not_relevant'));
+
+alter table public.regulatory_watch_events
   add column if not exists previous_excerpt text,
   add column if not exists current_excerpt text,
   add column if not exists source_final_url text,
