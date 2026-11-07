@@ -65,9 +65,15 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 export function PayrollRegulatoryRuleFields({
   compensationRules = [],
   overtimeRules = [],
+  defaultLegalReference = "",
+  defaultRuleVersion = "",
+  defaultEffectiveFrom = "",
 }: {
   compensationRules?: unknown;
   overtimeRules?: unknown;
+  defaultLegalReference?: string;
+  defaultRuleVersion?: string;
+  defaultEffectiveFrom?: string;
 }) {
   const [compensation, setCompensation] = useState<CompensationRule[]>(() =>
     asArray<CompensationRule>(compensationRules).map((rule) => ({ ...rule })),
@@ -210,7 +216,7 @@ export function PayrollRegulatoryRuleFields({
           </div>
         ))}
         <button type="button" className="button" onClick={() => setOvertime((current) => [...current, {
-          category: "regular", premiumPercent: "", legalReference: "", ruleVersion: "", effectiveFrom: "",
+          category: "regular", premiumPercent: "", legalReference: defaultLegalReference, ruleVersion: defaultRuleVersion, effectiveFrom: defaultEffectiveFrom,
         }])}>Ajouter une catégorie de majoration</button>
       </section>
     </div>
