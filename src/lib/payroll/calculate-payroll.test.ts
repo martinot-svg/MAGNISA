@@ -54,6 +54,20 @@ describe("Calcul centralisé des bulletins", () => {
     expect(result.taxableBase).toBe(Math.floor((1_000_000 - 10_000 - deductible) / 100) * 100);
   });
 
+  it("calcule l'IRSA sur la rémunération classifiée et non sur le brut global", () => {
+    const result = calculatePayrollAmounts({
+      gross: 1_000_000,
+      taxableCompensation: 700_000,
+      dependants: 0,
+      rule,
+    });
+    expect(result.gross).toBe(1_000_000);
+    expect(result.taxableCompensation).toBe(700_000);
+    expect(result.taxableBase).toBe(670_000);
+    expect(result.incomeTax).toBe(41_500);
+    expect(result.netBeforeOtherDeductions).toBe(838_500);
+  });
+
   it("intègre la retraite complémentaire patronale à l'assiette IRSA sans la payer en net", () => {
     const result = calculatePayrollAmounts({
       gross: 1_000_000,
