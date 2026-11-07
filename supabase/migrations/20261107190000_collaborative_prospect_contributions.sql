@@ -380,3 +380,32 @@ drop trigger if exists crm_capture_paid_invoice on public.invoices;
 create trigger crm_capture_paid_invoice
 after update of status on public.invoices
 for each row execute function public.capture_paid_invoice_contribution();
+
+
+create or replace function public.capture_created_service_contract_contribution()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+  if new.created_by is not null
+     and exists (select 1 from public.organization_members
+       where organization_id=new.organization_id and user_id=new.created_by and status='active') then
+    insert into public.prospect_interventions(
+      organization_id,customer_id,contributor_user_id,created_by,intervention_type,
+      contribution_role,stage_status,validation_status,description,evidence_reference,occurred_at
+    ) values (
+      new.organization_id,new.customer_id,new.created_by,new.created_by,'signature',
+      'support','completed','pending',
+      'Événement CRM automatique : contrat de service créé.',
+      'service_contract:'||new.id::text,now()
+    );
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists crm_capture_created_service_contract on public.recurring_service_contracts;
+create trigger crm_capture_created_service_contract
+after insert on public.recurring_service_contracts
+for each row execute function public.capture_created_service_contract_contribution();
