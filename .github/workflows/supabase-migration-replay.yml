@@ -53,6 +53,10 @@ jobs:
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/payroll-rule-archival.sql
+      - name: Verify fiscal-year opening, carry-forward and close guards
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/accounting-fiscal-year-opening-closing.sql
       - name: Node 22
         uses: actions/setup-node@v4
         with:
