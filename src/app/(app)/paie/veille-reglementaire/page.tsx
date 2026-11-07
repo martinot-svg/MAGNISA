@@ -89,7 +89,7 @@ async function createHealthCeilingDraft(fd: FormData) {
   const fields = [
     "cnaps_employee_rate", "cnaps_employer_rate", "health_employee_rate", "health_employer_rate",
     "fmfp_employer_rate", "cnaps_monthly_ceiling", "health_monthly_ceiling", "irsa_brackets",
-    "irsa_minimum", "rounding_policy", "smie_partner_name", "smie_partner_contact",
+    "irsa_minimum", "irsa_dependant_reduction", "irsa_dependant_threshold", "rounding_policy", "smie_partner_name", "smie_partner_contact",
     "smie_affiliation_number", "smie_contract_reference",
   ];
   const draft: Record<string, unknown> = {
