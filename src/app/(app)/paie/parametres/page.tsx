@@ -24,8 +24,8 @@ async function saveRuleInternal(fd:FormData){
  const rates=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate"] as const;
  const data:Record<string,string|number|null>={name,effective_from:from,effective_to:until,status:"pending_review",legal_reference:String(fd.get("legal_reference")||"").trim()||null,rounding_policy:"unverified"};
  for(const key of rates){const raw=Number(fd.get(key));if(!Number.isFinite(raw)||raw<0||raw>100)throw new Error("Taux invalide : "+key);data[key]=raw/100;}
- const irsaHealthRate=Number(fd.get("irsa_health_deduction_rate")??2);if(!Number.isFinite(irsaHealthRate)||irsaHealthRate<0||irsaHealthRate>100)throw new Error("Plafond de déduction santé IRSA invalide.");data.irsa_health_deduction_rate=irsaHealthRate/100;
- const irsaPensionRate=Number(fd.get("irsa_pension_deduction_rate")??10);if(!Number.isFinite(irsaPensionRate)||irsaPensionRate<0||irsaPensionRate>100)throw new Error("Plafond de déduction retraite IRSA invalide.");data.irsa_pension_deduction_rate=irsaPensionRate/100;
+ const irsaHealthRate=Number(fd.get("irsa_health_deduction_rate")??2);if(!Number.isFinite(irsaHealthRate)||irsaHealthRate<0||irsaHealthRate>2)throw new Error("Plafond de déduction santé IRSA invalide.");data.irsa_health_deduction_rate=irsaHealthRate/100;
+ const irsaPensionRate=Number(fd.get("irsa_pension_deduction_rate")??10);if(!Number.isFinite(irsaPensionRate)||irsaPensionRate<0||irsaPensionRate>10)throw new Error("Plafond de déduction retraite IRSA invalide.");data.irsa_pension_deduction_rate=irsaPensionRate/100;
  for(const key of ["cnaps_monthly_ceiling","health_monthly_ceiling"]){const raw=String(fd.get(key)||"").trim();const n=Number(raw);if(raw!==""&&(!Number.isFinite(n)||n<0))throw new Error("Plafond invalide.");data[key]=raw===""?null:n;}
  const bracketCount=Number(fd.get("irsa_bracket_count")??0);
  if(!Number.isInteger(bracketCount)||bracketCount<1||bracketCount>20)throw new Error("Le barème IRSA doit comporter entre 1 et 20 tranches.");
@@ -191,7 +191,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <div className="field"><label>Santé salarié (%)</label><input name="health_employee_rate" type="number" min="0" max="100" step="0.0001" required/></div>
  <div className="field"><label>Santé employeur (%)</label><input name="health_employer_rate" type="number" min="0" max="100" step="0.0001" required/></div>
  <div className="field"><label>FMFP employeur (%)</label><input name="fmfp_employer_rate" type="number" min="0" max="100" step="0.0001" required/></div>
- <div className="field"><label>Plafond de déduction santé IRSA (%)</label><input name="irsa_health_deduction_rate" type="number" min="0" max="100" step="0.01" defaultValue="2" required/></div><div className="field"><label>Plafond de déduction retraite IRSA (%)</label><input name="irsa_pension_deduction_rate" type="number" min="0" max="100" step="0.01" defaultValue="10" required/></div>
+ <div className="field"><label>Plafond de déduction santé IRSA (%)</label><input name="irsa_health_deduction_rate" type="number" min="0" max="2" step="0.01" defaultValue="2" required/></div><div className="field"><label>Plafond de déduction retraite IRSA (%)</label><input name="irsa_pension_deduction_rate" type="number" min="0" max="10" step="0.01" defaultValue="10" required/></div>
  <div className="field"><label>Plafond CNaPS mensuel (Ar)</label><input name="cnaps_monthly_ceiling" type="number" min="0" step="0.01" placeholder="À confirmer" required/></div>
  <div className="field"><label>Plafond organisme santé (Ar)</label><input name="health_monthly_ceiling" type="number" min="0" step="0.01" placeholder="À confirmer" required/></div>
  </div>
