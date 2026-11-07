@@ -42,3 +42,5 @@ begin
   end if;
 end $$;
 rollback;
+
+-- This assertion suite is run after every clean migration replay.
