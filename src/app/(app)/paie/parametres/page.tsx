@@ -47,7 +47,7 @@ async function saveRuleInternal(fd:FormData){
  if(!String(data.legal_reference||"").trim())throw new Error("Pour appliquer le référentiel, renseigne la référence officielle contrôlée.");
  if(data.cnaps_monthly_ceiling===null||data.health_monthly_ceiling===null)throw new Error("Pour appliquer le référentiel, renseigne les deux plafonds obligatoires.");
  if(rounding!=="floor_100")throw new Error("Choisis la règle d’arrondi vérifiée avant l’application.");
- const {data:created,error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,...smieFields(fd),irsa_brackets:brackets,irsa_minimum:minimum,rounding_policy:rounding,organization_id:ctx.organizationId}).select("id").single();
+ const {data:created,error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,...smieFields(fd),irsa_brackets:brackets,irsa_minimum:minimum,irsa_dependant_reduction:dependantReduction,irsa_dependant_threshold:dependantThreshold,rounding_policy:rounding,organization_id:ctx.organizationId}).select("id").single();
  if(error||!created)throw new Error(error?.message||"Impossible d'enregistrer le référentiel.");
  const {error:activationError}=await ctx.supabase.rpc("activate_payroll_rule",{p_org:ctx.organizationId,p_rule:created.id});
  if(activationError)throw new Error("Référentiel enregistré mais non activé : "+activationError.message);
@@ -85,7 +85,7 @@ async function executeRuleAction(fd:FormData){
   const newFrom=String(fd.get("new_effective_from")||"");
   const newName=String(fd.get("new_name")||"").trim();
   if(!/^\d{4}-\d{2}-\d{2}$/.test(newFrom)||!newName||newFrom<=current.effective_from)throw new Error("Nouvelle date ou nom de version invalide.");
-  const copiedFields=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate","irsa_health_deduction_rate","cnaps_monthly_ceiling","health_monthly_ceiling","irsa_brackets","irsa_minimum","rounding_policy","legal_reference","smie_partner_name","smie_partner_contact","smie_affiliation_number","smie_contract_reference"] as const;
+  const copiedFields=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate","irsa_health_deduction_rate","cnaps_monthly_ceiling","health_monthly_ceiling","irsa_brackets","irsa_minimum","irsa_dependant_reduction","irsa_dependant_threshold","rounding_policy","legal_reference","smie_partner_name","smie_partner_contact","smie_affiliation_number","smie_contract_reference"] as const;
   const copy:Record<string,unknown>={organization_id:ctx.organizationId,name:newName,effective_from:newFrom,effective_to:null,status:"pending_review"};
   for(const key of copiedFields)copy[key]=current[key];
   copy.legal_reference="À vérifier pour la nouvelle période. Référence précédente : "+String(current.legal_reference||"Non renseignée");
@@ -116,6 +116,9 @@ async function executeRuleAction(fd:FormData){
   for(const key of ["cnaps_monthly_ceiling","health_monthly_ceiling"]){const raw=String(fd.get(key)??"").trim();const val=Number(raw);if(raw!==""&&(!Number.isFinite(val)||val<=0))throw new Error("Plafond invalide : "+key);patch[key]=raw===""?null:val;}
   const minimumRaw=String(fd.get("irsa_minimum")??"").trim();
   if(minimumRaw!==""){const min=Number(minimumRaw);if(!Number.isFinite(min)||min<0)throw new Error("Minimum IRSA invalide.");patch.irsa_minimum=min;}
+  const dependantReduction=Number(fd.get("irsa_dependant_reduction")??2000),dependantThreshold=Number(fd.get("irsa_dependant_threshold")??350000);
+  if(!Number.isFinite(dependantReduction)||dependantReduction<0||!Number.isFinite(dependantThreshold)||dependantThreshold<0)throw new Error("Réduction ou seuil personnes à charge invalide.");
+  patch.irsa_dependant_reduction=dependantReduction;patch.irsa_dependant_threshold=dependantThreshold;
   // Le barème n’est jamais remplacé automatiquement par une valeur codée en dur.
   const bracketCount=Number(fd.get("irsa_bracket_count")??0);
   if(Number.isInteger(bracketCount)&&bracketCount>0&&bracketCount<=20){
@@ -162,7 +165,7 @@ async function ruleAction(fd:FormData){
 export default async function PayrollSettings({searchParams}:{searchParams:Promise<{result?:string;message?:string}>}){
  const ctx=await requireOrganization();await requirePermission(ctx,"payroll.view");
  const [{data:rules,error},{data:org}]=await Promise.all([
- ctx.supabase.from("payroll_rule_sets").select("id,name,effective_from,effective_to,status,cnaps_employee_rate,cnaps_employer_rate,health_employee_rate,health_employer_rate,fmfp_employer_rate,cnaps_monthly_ceiling,health_monthly_ceiling,irsa_health_deduction_rate,irsa_brackets,irsa_minimum,rounding_policy,legal_reference,smie_partner_name,smie_partner_contact,smie_affiliation_number,smie_contract_reference").eq("organization_id",ctx.organizationId).order("effective_from",{ascending:false}),
+ ctx.supabase.from("payroll_rule_sets").select("id,name,effective_from,effective_to,status,cnaps_employee_rate,cnaps_employer_rate,health_employee_rate,health_employer_rate,fmfp_employer_rate,cnaps_monthly_ceiling,health_monthly_ceiling,irsa_health_deduction_rate,irsa_brackets,irsa_minimum,irsa_dependant_reduction,irsa_dependant_threshold,rounding_policy,legal_reference,smie_partner_name,smie_partner_contact,smie_affiliation_number,smie_contract_reference").eq("organization_id",ctx.organizationId).order("effective_from",{ascending:false}),
  ctx.supabase.from("organizations").select("currency,name,smie_partner_name").eq("id",ctx.organizationId).single()
  ]);
  if(error)throw new Error(error.message);
@@ -188,7 +191,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <div className="field"><label>Plafond organisme santé (Ar)</label><input name="health_monthly_ceiling" type="number" min="0" step="0.01" placeholder="À confirmer" required/></div>
  </div>
  <h3>Barème IRSA pour cette version</h3>
- <div className="grid2"><div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" required placeholder="À vérifier dans le texte officiel"/></div><div className="field"><label>Arrondi de l’assiette IRSA</label><select name="rounding_policy" defaultValue="unverified" required><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d’ariary inférieure - après vérification</option></select></div></div>
+ <div className="grid2"><div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" required placeholder="À vérifier dans le texte officiel"/></div><div className="field"><label>Réduction IRSA par personne à charge (Ar/mois)</label><input name="irsa_dependant_reduction" type="number" min="0" step="1" defaultValue="2000" required/></div><div className="field"><label>Seuil de revenu imposable ouvrant droit à réduction (Ar)</label><input name="irsa_dependant_threshold" type="number" min="0" step="1" defaultValue="350000" required/></div><div className="field"><label>Arrondi de l’assiette IRSA</label><select name="rounding_policy" defaultValue="unverified" required><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d’ariary inférieure - après vérification</option></select></div></div>
  <IrsaBracketEditor />
  <button className="button primary">Enregistrer et appliquer</button></form>
  </details></div>
@@ -216,7 +219,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
 <div className="field"><label>Plafond déduction santé IRSA (%)</label><input name="irsa_health_deduction_rate" type="number" min="0" max="100" step="0.01" defaultValue={Number(r.irsa_health_deduction_rate??0.02)*100} required/></div>
 <div className="field"><label>Plafond CNaPS (Ar)</label><input name="cnaps_monthly_ceiling" type="number" step="0.01" min="0.01" defaultValue={r.cnaps_monthly_ceiling??""}/></div>
 <div className="field"><label>Plafond organisme sanitaire (Ar)</label><input name="health_monthly_ceiling" type="number" step="0.01" min="0.01" defaultValue={r.health_monthly_ceiling??""}/></div>
-<div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" defaultValue={r.irsa_minimum??0}/></div>
+<div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" defaultValue={r.irsa_minimum??0}/></div><div className="field"><label>Réduction IRSA par personne à charge (Ar/mois)</label><input name="irsa_dependant_reduction" type="number" min="0" step="1" defaultValue={r.irsa_dependant_reduction??2000}/></div><div className="field"><label>Seuil de revenu imposable ouvrant droit à réduction (Ar)</label><input name="irsa_dependant_threshold" type="number" min="0" step="1" defaultValue={r.irsa_dependant_threshold??350000}/></div>
 <div className="field"><label>Arrondi de l'assiette IRSA</label><select name="rounding_policy" defaultValue={r.rounding_policy||"unverified"}><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d'ariary inférieure - vérifié</option></select></div>
 </div>
 <div className="field"><strong>Barème IRSA appliqué au référentiel</strong><p className="muted">Modifie les plafonds, les taux et le nombre de tranches pour cette version non validée. Aucune valeur réglementaire n’est injectée automatiquement.</p>
