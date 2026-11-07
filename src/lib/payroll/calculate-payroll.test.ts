@@ -60,7 +60,7 @@ describe("Calcul centralisé des bulletins", () => {
     expect(result.deductibleEmployeePension).toBe(100_000);
     expect(result.employeePensionContribution).toBe(150_000);
     expect(result.taxableBase).toBe(880_000);
-    expect(result.netBeforeOtherDeductions).toBe(726_500);
+    expect(result.netBeforeOtherDeductions).toBe(746_500);
   });
 
   it("exclut de l'assiette IRSA une rémunération explicitement qualifiée d'exonérée", () => {
@@ -131,6 +131,11 @@ describe("Calcul centralisé des bulletins", () => {
       dependants: 0,
       rule: { ...rule, cnaps_monthly_ceiling: 0 },
     })).toThrow(/plafond CNaPS/);
+  });
+
+  it("rejette une cotisation retraite ou une exonération supérieure au brut", () => {
+    expect(() => calculatePayrollAmounts({ gross: 100_000, employeePensionContribution: 100_001, dependants: 0, rule })).toThrow(/retraite salariale/);
+    expect(() => calculatePayrollAmounts({ gross: 100_000, irsaExemptEarnings: 100_001, dependants: 0, rule })).toThrow(/exonérée IRSA/);
   });
 
   it("rejette un nombre de personnes à charge non entier", () => {
