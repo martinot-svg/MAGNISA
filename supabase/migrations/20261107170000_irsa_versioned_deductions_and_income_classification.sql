@@ -2,7 +2,7 @@ begin;
 
 -- Paramètres fiscaux versionnés: CGI 2026 art. 01.03.19 (réduction personne à charge),
 -- CGI art. 01.03.09, 1° (cotisations retraite salariales déductibles plafonnées à 10%),
--- art. 01.03.09, 2° (cotisation santé déductible plafonnée à 2%),
+-- art. 01.03.09, 2° (cotisation santé déductible plafonnée à 2%), art. 01.03.11 (notification écrite préalable obligatoire),
 -- art. 01.03.07 et 01.03.03 (qualification des rémunérations imposables/exonérées).
 alter table public.payroll_rule_sets
   add column if not exists irsa_dependant_reduction numeric(18,2) not null default 2000
@@ -14,7 +14,17 @@ alter table public.payroll_rule_sets
   add column if not exists irsa_rounding_unit numeric(18,2) not null default 100
     check (irsa_rounding_unit > 0);
 
+alter table public.employees
+  add column if not exists irsa_deduction_authorized boolean not null default false,
+  add column if not exists irsa_deduction_authorization_reference text,
+  add column if not exists irsa_deduction_authorized_from date,
+  add column if not exists irsa_deduction_authorized_to date,
+  add constraint employees_irsa_deduction_authorization_dates_check
+    check (irsa_deduction_authorized_to is null or irsa_deduction_authorized_from is null or irsa_deduction_authorized_to >= irsa_deduction_authorized_from);
+
 alter table public.payslips
+  add column if not exists irsa_deduction_authorized boolean not null default false,
+  add column if not exists irsa_deduction_authorization_reference text,
   add column if not exists employee_pension_contribution numeric(18,2) not null default 0 check (employee_pension_contribution >= 0),
   add column if not exists employee_pension_reference text,
   add column if not exists irsa_exempt_earnings numeric(18,2) not null default 0 check (irsa_exempt_earnings >= 0),
@@ -304,6 +314,11 @@ AS $function$
 declare
   v_rule public.payroll_rule_sets%rowtype;
   v_period date;
+  v_period_start date;
+  v_irsa_deduction_authorized boolean;
+  v_irsa_deduction_authorization_reference text;
+  v_irsa_deduction_authorized_from date;
+  v_irsa_deduction_authorized_to date;
   v_count integer;
   v_social numeric;
   v_health numeric;
@@ -320,7 +335,7 @@ declare
   v_deductible_pension numeric;
   v_exempt_earnings numeric;
 begin
-  select period_end into v_period
+  select period_start,period_end into v_period_start,v_period
   from public.payroll_runs
   where id = new.payroll_run_id
     and organization_id = new.organization_id;
@@ -364,7 +379,7 @@ begin
 
   v_social := round(least(new.gross_pay, v_rule.cnaps_monthly_ceiling) * v_rule.cnaps_employee_rate, 2);
   v_health := round(least(new.gross_pay, v_rule.health_monthly_ceiling) * v_rule.health_employee_rate, 2);
-  v_deductible_health := least(v_health, round(new.gross_pay * v_rule.irsa_health_deduction_rate, 2));
+  v_deductible_health := 0;
   v_emp_social := round(least(new.gross_pay, v_rule.cnaps_monthly_ceiling) * v_rule.cnaps_employer_rate, 2);
   v_emp_health := round(least(new.gross_pay, v_rule.health_monthly_ceiling) * v_rule.health_employer_rate, 2);
 
@@ -378,9 +393,8 @@ begin
   if coalesce(new.employee_pension_contribution,0) > 0 and nullif(btrim(coalesce(new.employee_pension_reference,'')), '') is null then
     raise exception 'La référence du régime de retraite déductible est obligatoire';
   end if;
-  v_deductible_pension := least(coalesce(new.employee_pension_contribution,0), round(new.gross_pay * v_rule.irsa_pension_deduction_rate, 2));
-  -- Le versement patronal de retraite complémentaire est imposable; la cotisation retraite salariale n'est déductible que dans la limite légale.
-  v_taxable := floor(greatest(0, new.gross_pay + coalesce(new.taxable_supplementary_pension, 0) - coalesce(new.irsa_exempt_earnings,0) - v_social - v_deductible_health - v_deductible_pension) / v_rule.irsa_rounding_unit) * v_rule.irsa_rounding_unit;
+  -- Les déductions de l'article 01.03.09 ne sont admises que sur notification écrite (article 01.03.11); la CNaPS et la retraite complémentaire salariale partagent le plafond de 10%.
+  v_taxable := floor(greatest(0, new.gross_pay + coalesce(new.taxable_supplementary_pension, 0) - coalesce(new.irsa_exempt_earnings,0) - v_deductible_health - v_deductible_pension) / v_rule.irsa_rounding_unit) * v_rule.irsa_rounding_unit;
 
   for v_b in select value from jsonb_array_elements(v_rule.irsa_brackets) loop
     v_rate := (v_b->>'rate')::numeric;
@@ -414,10 +428,26 @@ begin
     v_tax := greatest(coalesce(v_rule.irsa_minimum, 0), round(v_tax, 2));
   end if;
 
-  select irsa_dependants into v_dependants
+  select irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from,irsa_deduction_authorized_to
+    into v_dependants,v_irsa_deduction_authorized,v_irsa_deduction_authorization_reference,v_irsa_deduction_authorized_from,v_irsa_deduction_authorized_to
   from public.employees
   where id = new.employee_id
     and organization_id = new.organization_id;
+
+  if coalesce(v_irsa_deduction_authorized,false) and nullif(btrim(coalesce(v_irsa_deduction_authorization_reference,'')), '') is null then
+    raise exception 'La notification écrite du service fiscal doit être référencée avant toute déduction IRSA';
+  end if;
+  new.irsa_deduction_authorized := coalesce(v_irsa_deduction_authorized,false)
+    and (v_irsa_deduction_authorized_from is null or v_irsa_deduction_authorized_from <= v_period_start)
+    and (v_irsa_deduction_authorized_to is null or v_irsa_deduction_authorized_to >= v_period);
+  new.irsa_deduction_authorization_reference := case when new.irsa_deduction_authorized then v_irsa_deduction_authorization_reference else null end;
+  if new.irsa_deduction_authorized then
+    v_deductible_health := least(v_health, round(new.gross_pay * v_rule.irsa_health_deduction_rate, 2));
+    v_deductible_pension := least(v_social + coalesce(new.employee_pension_contribution,0), round(new.gross_pay * v_rule.irsa_pension_deduction_rate, 2));
+  else
+    v_deductible_health := 0;
+    v_deductible_pension := 0;
+  end if;
 
   if v_dependants is null or v_dependants < 0 or v_dependants > 30 then
     raise exception 'Nombre de personnes à charge IRSA invalide';
@@ -551,7 +581,7 @@ begin
 
   perform public.audit_event(
     p_org,'payslip.calculated','payslip',v_id,null,
-    jsonb_build_object('employee_id',p_employee,'payroll_run_id',p_run,'gross_pay',v_gross,'net_pay',v_net,'taxable_supplementary_pension',coalesce(p_taxable_supplementary_pension,0),'employee_pension_contribution',coalesce(p_employee_pension_contribution,0),'employee_pension_reference',p_employee_pension_reference,'irsa_exempt_earnings',coalesce(p_irsa_exempt_earnings,0),'irsa_exemption_reference',p_irsa_exemption_reference)
+    jsonb_build_object('employee_id',p_employee,'payroll_run_id',p_run,'gross_pay',v_gross,'net_pay',v_net,'taxable_supplementary_pension',coalesce(p_taxable_supplementary_pension,0),'employee_pension_contribution',coalesce(p_employee_pension_contribution,0),'employee_pension_reference',p_employee_pension_reference,'irsa_deduction_authorized',ps.irsa_deduction_authorized,'irsa_deduction_authorization_reference',ps.irsa_deduction_authorization_reference,'irsa_exempt_earnings',coalesce(p_irsa_exempt_earnings,0),'irsa_exemption_reference',p_irsa_exemption_reference)
   );
 
   return v_id;
