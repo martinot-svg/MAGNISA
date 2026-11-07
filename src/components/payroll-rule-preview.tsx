@@ -4,7 +4,7 @@ import {calculatePayrollAmounts} from "@/lib/payroll/calculate-payroll";
 import {useState} from "react";
 
 type Bracket={up_to:number|null;rate:number};
-type Rule={id:string;name:string;effective_from:string;effective_to:string|null;status:string;cnaps_employee_rate:number;cnaps_employer_rate:number;health_employee_rate:number;health_employer_rate:number;fmfp_employer_rate:number;cnaps_monthly_ceiling:number|null;health_monthly_ceiling:number|null;irsa_health_deduction_rate:number;irsa_brackets:unknown;irsa_minimum:number|null;rounding_policy:string|null;legal_reference:string|null;smie_partner_name?:string|null;};
+type Rule={id:string;name:string;effective_from:string;effective_to:string|null;status:string;cnaps_employee_rate:number;cnaps_employer_rate:number;health_employee_rate:number;health_employer_rate:number;fmfp_employer_rate:number;cnaps_monthly_ceiling:number|null;health_monthly_ceiling:number|null;irsa_health_deduction_rate:number;irsa_pension_deduction_rate:number;irsa_brackets:unknown;irsa_minimum:number|null;irsa_dependant_reduction:number;irsa_dependant_threshold:number;rounding_policy:string|null;legal_reference:string|null;smie_partner_name?:string|null;};
 export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rules:Rule[];currency:string;companyName:string;defaultSmie:string|null}){
  const [date,setDate]=useState(new Date().toISOString().slice(0,10));
  const [gross,setGross]=useState("1000000");
@@ -33,9 +33,11 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
          fmfp_employer_rate:Number(applicable.fmfp_employer_rate),
          cnaps_monthly_ceiling:Number(applicable.cnaps_monthly_ceiling),
          health_monthly_ceiling:Number(applicable.health_monthly_ceiling),
-         irsa_health_deduction_rate:Number(applicable.irsa_health_deduction_rate),
+         irsa_health_deduction_rate:Number(applicable.irsa_health_deduction_rate),irsa_pension_deduction_rate:Number(applicable.irsa_pension_deduction_rate),
          irsa_brackets:applicable.irsa_brackets as Bracket[],
          irsa_minimum:Number(applicable.irsa_minimum),
+         irsa_dependant_reduction:Number(applicable.irsa_dependant_reduction),
+         irsa_dependant_threshold:Number(applicable.irsa_dependant_threshold),
        },
      });
      baseCnaps=calculation.cnapsBase;

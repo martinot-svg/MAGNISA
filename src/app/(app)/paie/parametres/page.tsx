@@ -8,6 +8,40 @@ import {smieDeadlines} from "@/lib/payroll/smie-calendar";
 import {IrsaBracketEditor} from "@/components/irsa-bracket-editor";
 import {SmiePartnerFields} from "@/components/smie-partner-fields";
 
+function parseCompensationRules(raw:string):Array<Record<string,unknown>> {
+ let parsed:unknown;
+ try { parsed=JSON.parse(raw || "[]"); } catch { throw new Error("Les règles de classification IRSA doivent être un JSON valide."); }
+ if(!Array.isArray(parsed)) throw new Error("Les règles de classification IRSA doivent être un tableau JSON.");
+ const allowed=["fully_taxable","fully_exempt","partially_taxable","exemption_capped","conditional","special"];
+ for(const item of parsed){
+  if(!item || typeof item!=="object" || typeof item.code!=="string" || !item.code.trim() ||
+     !allowed.includes(String(item.treatment)) || typeof item.legalReference!=="string" || !item.legalReference.trim() ||
+     typeof item.ruleVersion!=="string" || !item.ruleVersion.trim() ||
+     !/^\d{4}-\d{2}-\d{2}$/.test(String(item.effectiveFrom||""))){
+   throw new Error("Chaque règle IRSA doit préciser code, treatment, legalReference, ruleVersion et effectiveFrom (AAAA-MM-JJ).");
+  }
+ }
+ return parsed as Array<Record<string,unknown>>;
+}
+
+function parseOvertimePremiumRules(raw:string):Array<Record<string,unknown>> {
+ let parsed:unknown;
+ try { parsed=JSON.parse(raw || "[]"); } catch { throw new Error("Les majorations d'heures supplémentaires doivent être un JSON valide."); }
+ if(!Array.isArray(parsed)) throw new Error("Les majorations d'heures supplémentaires doivent être un tableau JSON.");
+ const categories=["regular","night","sunday","holiday","night_holiday"];
+ for(const item of parsed){
+  if(!item || typeof item!=="object" || !categories.includes(String(item.category)) ||
+    !Number.isFinite(Number(item.premiumPercent)) || Number(item.premiumPercent)<0 || Number(item.premiumPercent)>500 ||
+    typeof item.legalReference!=="string" || !item.legalReference.trim() ||
+    typeof item.ruleVersion!=="string" || !item.ruleVersion.trim() ||
+    !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(item.effectiveFrom||"")) ||
+    item.effectiveTo && !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(item.effectiveTo))){
+   throw new Error("Chaque majoration doit préciser catégorie, taux en %, référence officielle, version et période d'effet.");
+  }
+ }
+ return parsed as Array<Record<string,unknown>>;
+}
+
 function smieFields(fd:FormData){
  const limits={smie_partner_name:160,smie_partner_contact:500,smie_affiliation_number:120,smie_contract_reference:200} as const;
  const result:Record<string,string|null>={};
@@ -22,9 +56,10 @@ async function saveRuleInternal(fd:FormData){
  const until=String(fd.get("effective_to")||"")||null;
  if(!name||!/^\d{4}-\d{2}-\d{2}$/.test(from)||until&&(!/^\d{4}-\d{2}-\d{2}$/.test(until)||until<from))throw new Error("Nom ou période invalide.");
  const rates=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate"] as const;
- const data:Record<string,string|number|null>={name,effective_from:from,effective_to:until,status:"pending_review",legal_reference:String(fd.get("legal_reference")||"").trim()||null,rounding_policy:"unverified"};
+ const data:Record<string,any>={name,effective_from:from,effective_to:until,status:"pending_review",legal_reference:String(fd.get("legal_reference")||"").trim()||null,rounding_policy:"unverified",irsa_compensation_rules:parseCompensationRules(String(fd.get("irsa_compensation_rules")||"[]")),overtime_premium_rules:parseOvertimePremiumRules(String(fd.get("overtime_premium_rules")||"[]"))};
  for(const key of rates){const raw=Number(fd.get(key));if(!Number.isFinite(raw)||raw<0||raw>100)throw new Error("Taux invalide : "+key);data[key]=raw/100;}
- const irsaHealthRate=Number(fd.get("irsa_health_deduction_rate")??2);if(!Number.isFinite(irsaHealthRate)||irsaHealthRate<0||irsaHealthRate>100)throw new Error("Plafond de déduction santé IRSA invalide.");data.irsa_health_deduction_rate=irsaHealthRate/100;
+ const irsaHealthRate=Number(fd.get("irsa_health_deduction_rate")??2);if(!Number.isFinite(irsaHealthRate)||irsaHealthRate<0||irsaHealthRate>2)throw new Error("Plafond de déduction santé IRSA invalide.");data.irsa_health_deduction_rate=irsaHealthRate/100;
+ const irsaPensionRate=Number(fd.get("irsa_pension_deduction_rate")??10);if(!Number.isFinite(irsaPensionRate)||irsaPensionRate<0||irsaPensionRate>10)throw new Error("Plafond de déduction retraite IRSA invalide.");data.irsa_pension_deduction_rate=irsaPensionRate/100;
  for(const key of ["cnaps_monthly_ceiling","health_monthly_ceiling"]){const raw=String(fd.get(key)||"").trim();const n=Number(raw);if(raw!==""&&(!Number.isFinite(n)||n<0))throw new Error("Plafond invalide.");data[key]=raw===""?null:n;}
  const bracketCount=Number(fd.get("irsa_bracket_count")??0);
  if(!Number.isInteger(bracketCount)||bracketCount<1||bracketCount>20)throw new Error("Le barème IRSA doit comporter entre 1 et 20 tranches.");
@@ -42,15 +77,16 @@ async function saveRuleInternal(fd:FormData){
  const minimumRaw=String(fd.get("irsa_minimum")??"").trim();
  const minimum=Number(minimumRaw);
  if(minimumRaw===""||!Number.isFinite(minimum)||minimum<0)throw new Error("Le minimum IRSA doit être renseigné et vérifié.");
+ const dependantReduction=Number(fd.get("irsa_dependant_reduction")??2000);
+ const dependantThreshold=Number(fd.get("irsa_dependant_threshold")??350000);
+ if(!Number.isFinite(dependantReduction)||dependantReduction<0||!Number.isFinite(dependantThreshold)||dependantThreshold<0)throw new Error("Réduction ou seuil personnes à charge invalide.");
  const rounding=String(fd.get("rounding_policy")??"unverified");
  if(!["floor_100","unverified"].includes(rounding))throw new Error("Règle d’arrondi inconnue.");
  if(!String(data.legal_reference||"").trim())throw new Error("Pour appliquer le référentiel, renseigne la référence officielle contrôlée.");
  if(data.cnaps_monthly_ceiling===null||data.health_monthly_ceiling===null)throw new Error("Pour appliquer le référentiel, renseigne les deux plafonds obligatoires.");
  if(rounding!=="floor_100")throw new Error("Choisis la règle d’arrondi vérifiée avant l’application.");
- const {data:created,error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,...smieFields(fd),irsa_brackets:brackets,irsa_minimum:minimum,rounding_policy:rounding,organization_id:ctx.organizationId}).select("id").single();
+ const {data:created,error}=await ctx.supabase.from("payroll_rule_sets").insert({...data,...smieFields(fd),irsa_brackets:brackets,irsa_minimum:minimum,irsa_dependant_reduction:dependantReduction,irsa_dependant_threshold:dependantThreshold,rounding_policy:rounding,organization_id:ctx.organizationId}).select("id").single();
  if(error||!created)throw new Error(error?.message||"Impossible d'enregistrer le référentiel.");
- const {error:activationError}=await ctx.supabase.rpc("activate_payroll_rule",{p_org:ctx.organizationId,p_rule:created.id});
- if(activationError)throw new Error("Référentiel enregistré mais non activé : "+activationError.message);
  revalidatePath("/paie/parametres");
 }
 
@@ -58,7 +94,7 @@ async function saveRuleInternal(fd:FormData){
 async function saveRule(fd:FormData){
  "use server";
  let outcome:"success"|"error"="success";
- let message="Référentiel enregistré et appliqué.";
+ let message="Nouveau référentiel enregistré comme brouillon. Vérifie-le avant activation.";
  try {
   await saveRuleInternal(fd);
  } catch(error) {
@@ -85,7 +121,7 @@ async function executeRuleAction(fd:FormData){
   const newFrom=String(fd.get("new_effective_from")||"");
   const newName=String(fd.get("new_name")||"").trim();
   if(!/^\d{4}-\d{2}-\d{2}$/.test(newFrom)||!newName||newFrom<=current.effective_from)throw new Error("Nouvelle date ou nom de version invalide.");
-  const copiedFields=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate","irsa_health_deduction_rate","cnaps_monthly_ceiling","health_monthly_ceiling","irsa_brackets","irsa_minimum","rounding_policy","legal_reference","smie_partner_name","smie_partner_contact","smie_affiliation_number","smie_contract_reference"] as const;
+  const copiedFields=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate","irsa_health_deduction_rate","irsa_pension_deduction_rate","cnaps_monthly_ceiling","health_monthly_ceiling","irsa_brackets","irsa_minimum","irsa_dependant_reduction","irsa_dependant_threshold","rounding_policy","legal_reference","irsa_compensation_rules","overtime_premium_rules","smie_partner_name","smie_partner_contact","smie_affiliation_number","smie_contract_reference"] as const;
   const copy:Record<string,unknown>={organization_id:ctx.organizationId,name:newName,effective_from:newFrom,effective_to:null,status:"pending_review"};
   for(const key of copiedFields)copy[key]=current[key];
   copy.legal_reference="À vérifier pour la nouvelle période. Référence précédente : "+String(current.legal_reference||"Non renseignée");
@@ -109,13 +145,17 @@ async function executeRuleAction(fd:FormData){
   if(!["draft","pending_review"].includes(current.status))throw new Error("Seuls les brouillons et paramètres à vérifier sont modifiables.");
   const name=String(fd.get("name")||"").trim(),date=String(fd.get("effective_from")||""),end=String(fd.get("effective_to")||"")||null,reference=String(fd.get("legal_reference")||"").trim();
   if(!name||!/^\d{4}-\d{2}-\d{2}$/.test(date)||end&&end<date)throw new Error("Nom ou dates invalides.");
-  const patch:Record<string,unknown>={...smieFields(fd),name,effective_from:date,effective_to:end,legal_reference:reference||null,status:"pending_review",updated_at:new Date().toISOString()};
+  const patch:Record<string,unknown>={...smieFields(fd),name,effective_from:date,effective_to:end,legal_reference:reference||null,status:"pending_review",updated_at:new Date().toISOString(),irsa_compensation_rules:parseCompensationRules(String(fd.get("irsa_compensation_rules")||"[]")),overtime_premium_rules:parseOvertimePremiumRules(String(fd.get("overtime_premium_rules")||"[]"))};
   const rateKeys=["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate"];
   for(const key of rateKeys){const raw=String(fd.get(key)??"").trim();if(raw==="")throw new Error("Taux obligatoire pour la validation : "+key);const val=Number(raw);if(!Number.isFinite(val)||val<0||val>100)throw new Error("Taux invalide : "+key);patch[key]=val/100;}
-  const irsaHealthRate=Number(fd.get("irsa_health_deduction_rate")??2);if(!Number.isFinite(irsaHealthRate)||irsaHealthRate<0||irsaHealthRate>100)throw new Error("Plafond de déduction santé IRSA invalide.");patch.irsa_health_deduction_rate=irsaHealthRate/100;
+  const irsaHealthRate=Number(fd.get("irsa_health_deduction_rate")??2);if(!Number.isFinite(irsaHealthRate)||irsaHealthRate<0||irsaHealthRate>2)throw new Error("Plafond de déduction santé IRSA invalide.");patch.irsa_health_deduction_rate=irsaHealthRate/100;
+  const irsaPensionRate=Number(fd.get("irsa_pension_deduction_rate")??10);if(!Number.isFinite(irsaPensionRate)||irsaPensionRate<0||irsaPensionRate>10)throw new Error("Plafond de déduction retraite IRSA invalide.");patch.irsa_pension_deduction_rate=irsaPensionRate/100;
   for(const key of ["cnaps_monthly_ceiling","health_monthly_ceiling"]){const raw=String(fd.get(key)??"").trim();const val=Number(raw);if(raw!==""&&(!Number.isFinite(val)||val<=0))throw new Error("Plafond invalide : "+key);patch[key]=raw===""?null:val;}
   const minimumRaw=String(fd.get("irsa_minimum")??"").trim();
   if(minimumRaw!==""){const min=Number(minimumRaw);if(!Number.isFinite(min)||min<0)throw new Error("Minimum IRSA invalide.");patch.irsa_minimum=min;}
+  const dependantReduction=Number(fd.get("irsa_dependant_reduction")??2000),dependantThreshold=Number(fd.get("irsa_dependant_threshold")??350000);
+  if(!Number.isFinite(dependantReduction)||dependantReduction<0||!Number.isFinite(dependantThreshold)||dependantThreshold<0)throw new Error("Réduction ou seuil personnes à charge invalide.");
+  patch.irsa_dependant_reduction=dependantReduction;patch.irsa_dependant_threshold=dependantThreshold;
   // Le barème n’est jamais remplacé automatiquement par une valeur codée en dur.
   const bracketCount=Number(fd.get("irsa_bracket_count")??0);
   if(Number.isInteger(bracketCount)&&bracketCount>0&&bracketCount<=20){
@@ -137,8 +177,7 @@ async function executeRuleAction(fd:FormData){
   patch.rounding_policy=rounding;
   const {error}=await ctx.supabase.from("payroll_rule_sets").update(patch).eq("organization_id",ctx.organizationId).eq("id",id);
   if(error)throw new Error(error.message);
-  const {error:activationError}=await ctx.supabase.rpc("activate_payroll_rule",{p_org:ctx.organizationId,p_rule:id});
-  if(activationError)throw new Error("Modifications enregistrées mais non activées : "+activationError.message);
+
  }else throw new Error("Opération non reconnue.");
  revalidatePath("/paie/parametres");
 }
@@ -162,14 +201,14 @@ async function ruleAction(fd:FormData){
 export default async function PayrollSettings({searchParams}:{searchParams:Promise<{result?:string;message?:string}>}){
  const ctx=await requireOrganization();await requirePermission(ctx,"payroll.view");
  const [{data:rules,error},{data:org}]=await Promise.all([
- ctx.supabase.from("payroll_rule_sets").select("id,name,effective_from,effective_to,status,cnaps_employee_rate,cnaps_employer_rate,health_employee_rate,health_employer_rate,fmfp_employer_rate,cnaps_monthly_ceiling,health_monthly_ceiling,irsa_health_deduction_rate,irsa_brackets,irsa_minimum,rounding_policy,legal_reference,smie_partner_name,smie_partner_contact,smie_affiliation_number,smie_contract_reference").eq("organization_id",ctx.organizationId).order("effective_from",{ascending:false}),
+ ctx.supabase.from("payroll_rule_sets").select("id,name,effective_from,effective_to,status,cnaps_employee_rate,cnaps_employer_rate,health_employee_rate,health_employer_rate,fmfp_employer_rate,cnaps_monthly_ceiling,health_monthly_ceiling,irsa_health_deduction_rate,irsa_pension_deduction_rate,irsa_brackets,irsa_minimum,irsa_dependant_reduction,irsa_dependant_threshold,irsa_compensation_rules,overtime_premium_rules,rounding_policy,legal_reference,smie_partner_name,smie_partner_contact,smie_affiliation_number,smie_contract_reference").eq("organization_id",ctx.organizationId).order("effective_from",{ascending:false}),
  ctx.supabase.from("organizations").select("currency,name,smie_partner_name").eq("id",ctx.organizationId).single()
  ]);
  if(error)throw new Error(error.message);
  const notice=await searchParams;
  return <><div className="pageHead"><div><p className="eyebrow">Personnel & Paie</p><h1>Paramètres de paie - Madagascar</h1><p>Règles datées par organisation, contrôle de conformité et prévisualisation non comptable.</p></div><Link className="button" href="/paie">Retour aux bulletins</Link></div>
  {notice.result && notice.message && <div role="status" aria-live="polite" className="card section" style={{borderLeft:notice.result==="error"?"4px solid #b45309":"4px solid #15803d"}}><strong>{notice.result==="error"?"Opération non effectuée":"Opération effectuée"}</strong><p>{notice.message.slice(0,450)}</p></div>}
- <div className="card"><details><summary style={{cursor:"pointer",fontWeight:600}}>Créer un référentiel réglementaire</summary><h2>Nouveau jeu de paramètres</h2><p className="muted">À l'enregistrement, MAGNISA sauvegarde puis tente d'activer immédiatement cette version pour sa période d'application. Vérifie les taux et plafonds auprès des sources officielles avant de l'utiliser en paie.</p>
+ <div className="card"><details><summary style={{cursor:"pointer",fontWeight:600}}>Créer un référentiel réglementaire</summary><h2>Nouveau jeu de paramètres</h2><p className="muted">L'enregistrement crée une version en attente de vérification. Elle ne modifie pas le référentiel actif. Après contrôle des textes officiels, utilise l'action d'activation explicite pour programmer son application à la période prévue.</p>
  <form action={saveRule} className="form"><div className="grid2">
  <div className="field"><label>Nom / version</label><input name="name" placeholder="Ex. Référentiel 2026 à vérifier" required/></div>
  <div className="field"><label>Référence officielle contrôlée</label><input name="legal_reference" placeholder="Texte, article, date de publication et URL officielle" required/></div>
@@ -183,14 +222,16 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <div className="field"><label>Santé salarié (%)</label><input name="health_employee_rate" type="number" min="0" max="100" step="0.0001" required/></div>
  <div className="field"><label>Santé employeur (%)</label><input name="health_employer_rate" type="number" min="0" max="100" step="0.0001" required/></div>
  <div className="field"><label>FMFP employeur (%)</label><input name="fmfp_employer_rate" type="number" min="0" max="100" step="0.0001" required/></div>
- <div className="field"><label>Plafond de déduction santé IRSA (%)</label><input name="irsa_health_deduction_rate" type="number" min="0" max="100" step="0.01" defaultValue="2" required/></div>
+ <div className="field"><label>Plafond de déduction santé IRSA (%)</label><input name="irsa_health_deduction_rate" type="number" min="0" max="2" step="0.01" defaultValue="2" required/></div><div className="field"><label>Plafond de déduction retraite IRSA (%)</label><input name="irsa_pension_deduction_rate" type="number" min="0" max="10" step="0.01" defaultValue="10" required/></div>
  <div className="field"><label>Plafond CNaPS mensuel (Ar)</label><input name="cnaps_monthly_ceiling" type="number" min="0" step="0.01" placeholder="À confirmer" required/></div>
  <div className="field"><label>Plafond organisme santé (Ar)</label><input name="health_monthly_ceiling" type="number" min="0" step="0.01" placeholder="À confirmer" required/></div>
  </div>
  <h3>Barème IRSA pour cette version</h3>
- <div className="grid2"><div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" required placeholder="À vérifier dans le texte officiel"/></div><div className="field"><label>Arrondi de l’assiette IRSA</label><select name="rounding_policy" defaultValue="unverified" required><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d’ariary inférieure - après vérification</option></select></div></div>
+ <div className="grid2"><div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" required placeholder="À vérifier dans le texte officiel"/></div><div className="field"><label>Réduction IRSA par personne à charge (Ar/mois)</label><input name="irsa_dependant_reduction" type="number" min="0" step="1" defaultValue="2000" required/></div><div className="field"><label>Seuil de revenu imposable ouvrant droit à réduction (Ar)</label><input name="irsa_dependant_threshold" type="number" min="0" step="1" defaultValue="350000" required/></div><div className="field"><label>Arrondi de l’assiette IRSA</label><select name="rounding_policy" defaultValue="unverified" required><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d’ariary inférieure - après vérification</option></select></div></div>
  <IrsaBracketEditor />
- <button className="button primary">Enregistrer et appliquer</button></form>
+ <div className="field"><label>Règles de classification fiscale des rémunérations (JSON versionné)</label><textarea name="irsa_compensation_rules" rows={10} defaultValue="[]" spellCheck={false}/><small>Chaque prime ou autre gain doit être classifié par code, traitement, référence officielle, version et date d'effet. Sans règle applicable, le calcul du bulletin refusera cet élément plutôt que de l'exclure arbitrairement de l'assiette IRSA.</small></div>
+ <div className="field"><label>Majorations des heures supplémentaires par catégorie (JSON versionné)</label><textarea name="overtime_premium_rules" rows={8} defaultValue="[]" spellCheck={false}/><small>Chaque objet JSON doit contenir category, premiumPercent (en %), legalReference, ruleVersion et effectiveFrom. Catégories : regular, night, sunday, holiday, night_holiday. Aucun taux n'est prérempli : chaque majoration doit être sourcée et datée.</small></div>
+ <button className="button primary">Enregistrer comme brouillon</button></form>
  </details></div>
  <section id="bareme-irsa" className="card section" aria-label="Barème IRSA configurable">
  <h2>Barème IRSA configurable</h2>
@@ -208,19 +249,21 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <h3>Calendrier déclaratif SMIE - 2026</h3><p className="muted">Échéances indicatives : déclaration durant le mois suivant chaque trimestre civil. Ce calendrier ne constitue pas une déclaration envoyée ni une preuve de règlement.</p>
  <div className="tableWrap"><table><thead><tr><th>Trimestre</th><th>Période concernée</th><th>Fenêtre de déclaration</th></tr></thead><tbody>{smieDeadlines(2026).map(d=><tr key={d.quarter}><td>T{d.quarter}</td><td>{d.period}</td><td>{d.windowStart} au {d.windowEnd}</td></tr>)}</tbody></table></div>
  </section>
- <div className="section card"><h2>Historique des règles</h2>{!rules?.length?<p className="muted">Aucun paramètre enregistré.</p>:<div className="tableWrap"><table><thead><tr><th>Version</th><th>Début</th><th>Fin</th><th>Statut</th><th>Référence</th><th>Actions</th></tr></thead><tbody>{rules.map((r:any)=><tr key={r.id}><td>{r.name}</td><td>{r.effective_from}</td><td>{r.effective_to||"Sans date de fin"}</td><td><span className="badge">{r.status==="pending_review"?"À vérifier":r.status}</span></td><td>{r.legal_reference||"Non renseignée"}</td><td><details><summary style={{cursor:"pointer"}}>Consulter / Actions</summary><p className="muted">SMIE partenaire : <strong>{r.smie_partner_name||"Non renseigné"}</strong> - Coordonnées : {r.smie_partner_contact||"Non renseignées"} - Affiliation : {r.smie_affiliation_number||"Non renseignée"} - Contrat : {r.smie_contract_reference||"Non renseigné"}</p><p className="muted">CNaPS salarié : {Number(r.cnaps_employee_rate)*100}% - employeur : {Number(r.cnaps_employer_rate)*100}%</p><p className="muted">Santé salarié : {Number(r.health_employee_rate)*100}% - employeur : {Number(r.health_employer_rate)*100}% - FMFP : {Number(r.fmfp_employer_rate)*100}% - plafond déduction santé IRSA : {Number(r.irsa_health_deduction_rate??0.02)*100}%</p><p className="muted">Plafonds : CNaPS {r.cnaps_monthly_ceiling??"Non confirmé"} Ar - Santé {r.health_monthly_ceiling??"Non confirmé"} Ar</p><form action={ruleAction} className="form" style={{marginTop:12}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="duplicate"/><div className="field"><label>Nom de la nouvelle version</label><input name="new_name" defaultValue={r.name+" - nouvelle version"} required/></div><div className="field"><label>Nouvelle date d'effet</label><input type="date" name="new_effective_from" min={r.effective_from} required/></div><button className="button">Créer une nouvelle version à vérifier</button></form>{["draft","pending_review"].includes(r.status)&&<>
+ <div className="section card"><h2>Historique des règles</h2>{!rules?.length?<p className="muted">Aucun paramètre enregistré.</p>:<div className="tableWrap"><table><thead><tr><th>Version</th><th>Début</th><th>Fin</th><th>Statut</th><th>Référence</th><th>Actions</th></tr></thead><tbody>{rules.map((r:any)=><tr key={r.id}><td>{r.name}</td><td>{r.effective_from}</td><td>{r.effective_to||"Sans date de fin"}</td><td><span className="badge">{r.status==="pending_review"?"À vérifier":r.status}</span></td><td>{r.legal_reference||"Non renseignée"}</td><td><details><summary style={{cursor:"pointer"}}>Consulter / Actions</summary><p className="muted">SMIE partenaire : <strong>{r.smie_partner_name||"Non renseigné"}</strong> - Coordonnées : {r.smie_partner_contact||"Non renseignées"} - Affiliation : {r.smie_affiliation_number||"Non renseignée"} - Contrat : {r.smie_contract_reference||"Non renseigné"}</p><p className="muted">CNaPS salarié : {Number(r.cnaps_employee_rate)*100}% - employeur : {Number(r.cnaps_employer_rate)*100}%</p><p className="muted">Santé salarié : {Number(r.health_employee_rate)*100}% - employeur : {Number(r.health_employer_rate)*100}% - FMFP : {Number(r.fmfp_employer_rate)*100}% - plafond déduction santé IRSA : {Number(r.irsa_health_deduction_rate??0.02)*100}% - plafond déduction retraite : {Number(r.irsa_pension_deduction_rate??0.10)*100}%</p><p className="muted">Plafonds : CNaPS {r.cnaps_monthly_ceiling??"Non confirmé"} Ar - Santé {r.health_monthly_ceiling??"Non confirmé"} Ar</p><form action={ruleAction} className="form" style={{marginTop:12}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="duplicate"/><div className="field"><label>Nom de la nouvelle version</label><input name="new_name" defaultValue={r.name+" - nouvelle version"} required/></div><div className="field"><label>Nouvelle date d'effet</label><input type="date" name="new_effective_from" min={r.effective_from} required/></div><button className="button">Créer une nouvelle version à vérifier</button></form>{["draft","pending_review"].includes(r.status)&&<>
 <form action={ruleAction} className="form" style={{minWidth:260}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="edit"/><div className="field"><label>Version</label><input name="name" defaultValue={r.name} required/></div><div className="field"><label>Début</label><input type="date" name="effective_from" defaultValue={r.effective_from} required/></div><div className="field"><label>Fin</label><input type="date" name="effective_to" defaultValue={r.effective_to||""}/></div><div className="field"><label>Référence</label><textarea name="legal_reference" defaultValue={r.legal_reference||""}/></div><SmiePartnerFields defaultName={r.smie_partner_name||""} defaultContact={r.smie_partner_contact||""} />
 <div className="field"><label>Numéro d'affiliation (facultatif)</label><input name="smie_affiliation_number" maxLength={120} defaultValue={r.smie_affiliation_number||""}/></div>
 <div className="field"><label>Référence contractuelle (facultatif)</label><input name="smie_contract_reference" maxLength={200} defaultValue={r.smie_contract_reference||""}/></div><div className="grid2">
 {(["cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate"] as const).map(key=><div className="field" key={key}><label>{key.replaceAll("_"," ")} (%)</label><input type="number" min="0" max="100" step="0.0001" name={key} defaultValue={Number(r[key])*100} required/></div>)}
-<div className="field"><label>Plafond déduction santé IRSA (%)</label><input name="irsa_health_deduction_rate" type="number" min="0" max="100" step="0.01" defaultValue={Number(r.irsa_health_deduction_rate??0.02)*100} required/></div>
+<div className="field"><label>Plafond déduction santé IRSA (%)</label><input name="irsa_health_deduction_rate" type="number" min="0" max="2" step="0.01" defaultValue={Number(r.irsa_health_deduction_rate??0.02)*100} required/></div><div className="field"><label>Plafond déduction retraite IRSA (%)</label><input name="irsa_pension_deduction_rate" type="number" min="0" max="10" step="0.01" defaultValue={Number(r.irsa_pension_deduction_rate??0.10)*100} required/></div>
 <div className="field"><label>Plafond CNaPS (Ar)</label><input name="cnaps_monthly_ceiling" type="number" step="0.01" min="0.01" defaultValue={r.cnaps_monthly_ceiling??""}/></div>
 <div className="field"><label>Plafond organisme sanitaire (Ar)</label><input name="health_monthly_ceiling" type="number" step="0.01" min="0.01" defaultValue={r.health_monthly_ceiling??""}/></div>
-<div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" defaultValue={r.irsa_minimum??0}/></div>
+<div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" defaultValue={r.irsa_minimum??0}/></div><div className="field"><label>Réduction IRSA par personne à charge (Ar/mois)</label><input name="irsa_dependant_reduction" type="number" min="0" step="1" defaultValue={r.irsa_dependant_reduction??2000}/></div><div className="field"><label>Seuil de revenu imposable ouvrant droit à réduction (Ar)</label><input name="irsa_dependant_threshold" type="number" min="0" step="1" defaultValue={r.irsa_dependant_threshold??350000}/></div>
 <div className="field"><label>Arrondi de l'assiette IRSA</label><select name="rounding_policy" defaultValue={r.rounding_policy||"unverified"}><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d'ariary inférieure - vérifié</option></select></div>
 </div>
 <div className="field"><strong>Barème IRSA appliqué au référentiel</strong><p className="muted">Modifie les plafonds, les taux et le nombre de tranches pour cette version non validée. Aucune valeur réglementaire n’est injectée automatiquement.</p>
 <IrsaBracketEditor initialBrackets={Array.isArray(r.irsa_brackets)?r.irsa_brackets:[]} />
+<div className="field"><label>Règles de classification fiscale des rémunérations (JSON versionné)</label><textarea name="irsa_compensation_rules" rows={10} defaultValue={JSON.stringify(r.irsa_compensation_rules||[],null,2)} spellCheck={false}/><small>Chaque code de prime ou autre gain doit avoir une règle datée et une référence officielle. Codes protégés automatiquement : base_salary, overtime, taxable_supplementary_pension.</small></div>
+<div className="field"><label>Majorations des heures supplémentaires par catégorie (JSON versionné)</label><textarea name="overtime_premium_rules" rows={8} defaultValue={JSON.stringify(r.overtime_premium_rules||[],null,2)} spellCheck={false}/><small>Chaque taux doit être vérifié, sourcé et daté. Aucun taux par défaut n'est injecté.</small></div>
 <p className="muted">Les changements restent dans cette version à vérifier jusqu’à son activation explicite.</p></div>
 <button className="button primary">Enregistrer et appliquer</button></form>
 <div className="actions" style={{marginTop:10}}><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="review"/><button className="button">Maintenir à vérifier</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="activate"/><button className="button primary">Valider et activer ce référentiel</button></form></div></>}</details>{r.status==="validated"&&<form action={ruleAction} style={{marginTop:8}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="archive"/><button className="button">Archiver ce référentiel</button></form>}{["draft","pending_review"].includes(r.status)&&<form action={ruleAction} className="form" style={{marginTop:8}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="delete"/><div className="field"><label>Suppression définitive : tape SUPPRIMER</label><input name="delete_confirmation" required pattern="SUPPRIMER" autoComplete="off"/></div><button className="button" aria-label={"Supprimer définitivement la version "+r.name}>Supprimer définitivement</button></form>}</td></tr>)}</tbody></table></div>}</div>

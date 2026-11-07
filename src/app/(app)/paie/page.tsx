@@ -8,6 +8,7 @@ import { money } from "@/lib/money";
 import { EmptyState } from "@/components/empty-state";
 import { PayrollGrossPreview } from "@/components/payroll-gross-preview";
 import { calculatePayrollAmounts } from "@/lib/payroll/calculate-payroll";
+import { classifyIrsaCompensation, calculateOvertimeIrsa } from "@/lib/payroll/irsa-compensation";
 import { FormDialog } from "@/components/form-dialog";
 
 async function createEmployee(fd: FormData) {
@@ -83,7 +84,7 @@ async function saveVariableDraft(fd: FormData) {
   await assertPermission(ctx,"payroll.manage");
   const runId=String(fd.get("payroll_run_id")||"");
   const employeeId=String(fd.get("employee_id")||"");
-  const keys=["bonuses","overtime","other_earnings","taxable_supplementary_pension","advances_recovered","other_deductions"] as const;
+  const keys=["bonuses","overtime","other_earnings","taxable_supplementary_pension","employee_supplementary_pension","advances_recovered","other_deductions"] as const;
   const amounts=Object.fromEntries(keys.map(key=>[key,Number(fd.get(key)??0)]));
   if(Object.values(amounts).some(v=>!Number.isFinite(v)||v<0||v>1000000000000))throw new Error("Montants du brouillon invalides.");
   const [{data:run},{data:employee}]=await Promise.all([
@@ -111,6 +112,7 @@ async function createPayslip(fd: FormData) {
     "overtime",
     "other_earnings",
     "taxable_supplementary_pension",
+    "employee_supplementary_pension",
     "employee_social",
     "employee_health",
     "income_tax",
@@ -131,7 +133,7 @@ async function createPayslip(fd: FormData) {
   const runId=String(fd.get("payroll_run_id")||"");
   const employeeId=String(fd.get("employee_id")||"");
   const [{data:run,error:runError},{data:employee,error:employeeError}]=await Promise.all([
-    ctx.supabase.from("payroll_runs").select("period_end").eq("organization_id",ctx.organizationId).eq("id",runId).single(),
+    ctx.supabase.from("payroll_runs").select("period_start,period_end").eq("organization_id",ctx.organizationId).eq("id",runId).single(),
     ctx.supabase.from("employees").select("base_salary,irsa_dependants").eq("organization_id",ctx.organizationId).eq("id",employeeId).single(),
   ]);
   if(runError||employeeError||!run||!employee)throw new Error("Salarié ou période introuvable.");
@@ -145,13 +147,86 @@ async function createPayslip(fd: FormData) {
   if (!Number.isFinite(baseSalary) || baseSalary < 0) throw new Error("Salaire de base invalide.");
   const gross=baseSalary+amounts.bonuses+amounts.overtime+amounts.other_earnings;
   if (!Number.isFinite(gross) || gross < 0) throw new Error("Salaire brut invalide.");
+
+  const overtimeHours=Number(fd.get("overtime_hours")||0);
+  const overtimeHourlyRate=Number(fd.get("overtime_hourly_rate")||0);
+  const overtimePremiumPercent=Number(fd.get("overtime_premium_percent")||0);
+  const overtimeAdditionalPremiums=Number(fd.get("overtime_additional_premiums")||0);
+  const overtimeIsCadre=fd.get("overtime_is_cadre")==="on";
+  const overtimeRecordReconciled=fd.get("overtime_record_reconciled")==="on";
+  const overtimeRecordReference=String(fd.get("overtime_record_reference")||"").trim();
+  const overtimeCategory=String(fd.get("overtime_category")||"regular");
+  if(!["regular","night","sunday","holiday","night_holiday"].includes(overtimeCategory))throw new Error("Catégorie d’heures supplémentaires inconnue.");
+  if(amounts.overtime>0){
+    const schedules=Array.isArray(rule.overtime_premium_rules)?rule.overtime_premium_rules:[];
+    const matching=schedules.filter((entry:any)=>entry.category===overtimeCategory
+      && String(entry.effectiveFrom||"")<=String(run.period_end)
+      && (!entry.effectiveTo||String(entry.effectiveTo)>=String(run.period_end)));
+    if(matching.length!==1)throw new Error("Aucune majoration officielle unique et datée n'est configurée pour cette catégorie d'heures supplémentaires.");
+    const schedule=matching[0];
+    if(!schedule.legalReference||!schedule.ruleVersion||!Number.isFinite(Number(schedule.premiumPercent))
+      ||Number(schedule.premiumPercent)<0||Number(schedule.premiumPercent)>500)
+      throw new Error("La majoration de cette catégorie doit comporter un taux et une référence réglementaire vérifiés.");
+    if(Math.abs(overtimePremiumPercent-Number(schedule.premiumPercent))>0.0001)
+      throw new Error("La majoration saisie ne correspond pas au référentiel applicable à la période.");
+  }
+  if(amounts.overtime>0 && String(run.period_start).slice(0,7)!==String(run.period_end).slice(0,7))throw new Error("Le calcul de l’exonération des 20 premières heures exige une période de paie contenue dans un seul mois civil.");
+  if(amounts.overtime>0 && (!overtimeRecordReference || overtimeHours<=0 || overtimeHourlyRate<=0 || !overtimeRecordReconciled))
+    throw new Error("Les heures supplémentaires exigent les heures, le taux horaire, la majoration et un relevé mensuel rapproché avec référence justificative.");
+  if(amounts.overtime===0 && (overtimeHours>0 || overtimeAdditionalPremiums>0))
+    throw new Error("Les heures et primes supplémentaires ne peuvent être renseignées sans montant d'heures supplémentaires.");
+
+  const {data:priorSlips,error:priorSlipsError}=await ctx.supabase.from("payslips")
+    .select("overtime,fiscal_snapshot,payroll_runs(period_end)")
+    .eq("organization_id",ctx.organizationId).eq("employee_id",employeeId);
+  if(priorSlipsError)throw new Error(priorSlipsError.message);
+  const currentMonth=String(run.period_end).slice(0,7);
+  let priorMonthHours=0;
+  for(const prior of priorSlips||[]){
+    const priorMonth=String((prior as any).payroll_runs?.period_end||"").slice(0,7);
+    if(priorMonth!==currentMonth)continue;
+    const snap=(prior as any).fiscal_snapshot;
+    if(!snap && Number((prior as any).overtime||0)>0)
+      throw new Error("Un bulletin antérieur du même mois ne possède pas de détail d'heures historisé : exonération mensuelle non calculable sans risque de double avantage.");
+    priorMonthHours+=Number(snap?.overtime?.totalHours||0);
+  }
+  const overtimeTax=amounts.overtime>0 ? calculateOvertimeIrsa({
+    totalHours:overtimeHours,
+    hourlyRate:overtimeHourlyRate,
+    premiumRate:overtimePremiumPercent/100,
+    overtimePay:amounts.overtime,
+    additionalPremiums:overtimeAdditionalPremiums,
+    isCadre:overtimeIsCadre,
+    timeRecordReconciled:overtimeRecordReconciled,
+    monthlyExemptHoursLimit:Math.max(0,20-priorMonthHours),
+  }) : {exemptHours:0,taxableHours:0,exemptAmount:0,taxableAmount:0,exemptionApplied:false};
+
+  const configuredCompensationRules=Array.isArray(rule.irsa_compensation_rules)?rule.irsa_compensation_rules:[];
+  const protectedCodes=["base_salary","bonuses","overtime","taxable_supplementary_pension"];
+  if(configuredCompensationRules.some((r:any)=>protectedCodes.includes(String(r.code))))
+    throw new Error("Les classifications du salaire de base, des heures supplémentaires et de la retraite complémentaire sont gérées par les règles légales intégrées.");
+  const legalRules=[
+    {code:"base_salary",treatment:"fully_taxable",legalReference:"CGI Madagascar, article 01.03.02 ; https://www.impots.mg/explorer?path=%2Flegislation%2FCodes+et+Manuels",ruleVersion:String(rule.id),effectiveFrom:String(rule.effective_from)},
+    {code:"bonuses",treatment:"fully_taxable",legalReference:"CGI Madagascar, article 01.03.02 (primes et gratifications) ; https://www.impots.mg/explorer?path=%2Flegislation%2FCodes+et+Manuels",ruleVersion:String(rule.id),effectiveFrom:String(rule.effective_from)},
+    {code:"overtime",treatment:"special",legalReference:"Décision DGI n°02-MEF/SG/DGI/DLFC du 11 octobre 2019, articles 3 à 5 ; https://portal.impots.mg/textes/textes/2019-10-11--N-02-MEF.SG.DGI.DLFC-Ref-K49HU4-FFPKVG.pdf",ruleVersion:String(rule.id),effectiveFrom:String(rule.effective_from)},
+    {code:"taxable_supplementary_pension",treatment:"fully_taxable",legalReference:"Loi n°2025-021, CGI article 01.03.02 ; https://cnlegis.gov.mg/uploads/L2025-021_VF.pdf",ruleVersion:String(rule.id),effectiveFrom:String(rule.effective_from)},
+  ];
+  const compensationItems:any[]=[{code:"base_salary",amount:baseSalary}];
+  if(amounts.bonuses>0)compensationItems.push({code:"bonuses",amount:amounts.bonuses});
+  if(amounts.overtime>0)compensationItems.push({code:"overtime",amount:amounts.overtime,specialTaxableAmount:overtimeTax.taxableAmount});
+  if(amounts.other_earnings>0)compensationItems.push({code:"other_earnings",amount:amounts.other_earnings});
+  if(amounts.taxable_supplementary_pension>0)compensationItems.push({code:"taxable_supplementary_pension",amount:amounts.taxable_supplementary_pension});
+  const classified=classifyIrsaCompensation(compensationItems,[...legalRules,...configuredCompensationRules],String(run.period_end));
+  const taxableCashCompensation=classified.details.filter(d=>d.code!=="taxable_supplementary_pension").reduce((sum,d)=>sum+d.taxableAmount,0);
   for (const key of ["cnaps_monthly_ceiling","health_monthly_ceiling","cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate"] as const) {
     const value=Number(rule[key]);
     if (!Number.isFinite(value) || value < 0 || (key.endsWith("_rate") && value > 1)) throw new Error("Paramètre réglementaire invalide : "+key);
   }
   const calculation = calculatePayrollAmounts({
     gross,
+    taxableCompensation: taxableCashCompensation,
     taxableSupplementaryPension: amounts.taxable_supplementary_pension,
+    additionalEmployeePensionContribution: amounts.employee_supplementary_pension,
     dependants: Number(employee.irsa_dependants),
     rule: {
       cnaps_employee_rate: Number(rule.cnaps_employee_rate),
@@ -162,8 +237,11 @@ async function createPayslip(fd: FormData) {
       cnaps_monthly_ceiling: Number(rule.cnaps_monthly_ceiling),
       health_monthly_ceiling: Number(rule.health_monthly_ceiling),
       irsa_health_deduction_rate: Number(rule.irsa_health_deduction_rate),
+      irsa_pension_deduction_rate: Number(rule.irsa_pension_deduction_rate),
       irsa_brackets: rule.irsa_brackets as { up_to: number | null; rate: number }[],
       irsa_minimum: Number(rule.irsa_minimum),
+      irsa_dependant_reduction: Number(rule.irsa_dependant_reduction),
+      irsa_dependant_threshold: Number(rule.irsa_dependant_threshold),
     },
   });
   amounts.employee_social=calculation.employeeSocial;
@@ -173,7 +251,17 @@ async function createPayslip(fd: FormData) {
   amounts.employer_health=calculation.employerHealth;
   if(calculation.netBeforeOtherDeductions-amounts.advances_recovered-amounts.other_deductions<0)throw new Error("Le net calculé serait négatif.");
   // Le FMFP est calculé côté Supabase à partir du référentiel validé et comptabilisé séparément.
-  const { error } = await ctx.supabase.rpc("create_payslip", {
+  const fiscalSnapshot={
+    schemaVersion:1,
+    calculatedAt:new Date().toISOString(),
+    periodEnd:String(run.period_end),
+    payrollRuleSet:{id:rule.id,name:rule.name,effectiveFrom:rule.effective_from,effectiveTo:rule.effective_to,legalReference:rule.legal_reference,roundingPolicy:rule.rounding_policy,irsaBrackets:rule.irsa_brackets,irsaMinimum:rule.irsa_minimum,dependantReduction:rule.irsa_dependant_reduction,dependantThreshold:rule.irsa_dependant_threshold,healthDeductionRate:rule.irsa_health_deduction_rate,pensionDeductionRate:rule.irsa_pension_deduction_rate,compensationRules:[...legalRules,...configuredCompensationRules],overtimePremiumRules:rule.overtime_premium_rules||[]},
+    employee:{id:employeeId,baseSalary,dependants:Number(employee.irsa_dependants)},
+    compensation:classified,
+    overtime:{totalHours:overtimeHours,hourlyRate:overtimeHourlyRate,premiumRate:overtimePremiumPercent/100,additionalPremiums:overtimeAdditionalPremiums,isCadre:overtimeIsCadre,timeRecordReconciled:overtimeRecordReconciled,recordReference:overtimeRecordReference,category:overtimeCategory,priorMonthHours, ...overtimeTax},
+    calculation:{gross:calculation.gross,taxableBase:calculation.taxableBase,taxableCompensation:calculation.taxableCompensation,employeeSocial:calculation.employeeSocial,employeeHealth:calculation.employeeHealth,deductiblePension:calculation.deductiblePension,incomeTax:calculation.incomeTax,employerSocial:calculation.employerSocial,employerHealth:calculation.employerHealth,employerFmfp:calculation.employerFmfp,netBeforeOtherDeductions:calculation.netBeforeOtherDeductions,employerCost:calculation.employerCost},
+  };
+  const { data:payslipId,error } = await ctx.supabase.rpc("create_payslip", {
     p_org: ctx.organizationId,
     p_run: String(fd.get("payroll_run_id") || ""),
     p_employee: String(fd.get("employee_id") || ""),
@@ -181,6 +269,9 @@ async function createPayslip(fd: FormData) {
     p_overtime: amounts.overtime,
     p_other_earnings: amounts.other_earnings,
     p_taxable_supplementary_pension: amounts.taxable_supplementary_pension,
+    p_employee_supplementary_pension: amounts.employee_supplementary_pension,
+    p_taxable_compensation: calculation.taxableCompensation,
+    p_fiscal_snapshot: fiscalSnapshot,
     p_employee_social: amounts.employee_social,
     p_employee_health: amounts.employee_health,
     p_income_tax: amounts.income_tax,
@@ -191,6 +282,7 @@ async function createPayslip(fd: FormData) {
   });
 
   if (error) throw new Error(error.message);
+  if(!payslipId)throw new Error("Le bulletin a été créé sans identifiant retourné.");
   revalidatePath("/paie");
 }
 
@@ -406,13 +498,13 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
         <form action={saveVariableDraft} className="form">
           <div className="grid2"><div className="field"><label>Salarié actif</label><select name="employee_id" required>{employees.filter((e:any)=>e.status==="active").map((e:any)=><option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}</select></div>
           <div className="field"><label>Période modifiable</label><select name="payroll_run_id" required>{editableRuns.map((r:any)=><option key={r.id} value={r.id}>{r.period_start} au {r.period_end}</option>)}</select></div></div>
-          <div className="grid2"><MoneyInput name="bonuses" label="Primes"/><MoneyInput name="overtime" label="Heures supplémentaires"/><MoneyInput name="other_earnings" label="Autres gains"/><MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable"/><MoneyInput name="advances_recovered" label="Avances récupérées"/><MoneyInput name="other_deductions" label="Autres retenues"/></div>
+          <div className="grid2"><MoneyInput name="bonuses" label="Primes"/><MoneyInput name="overtime" label="Heures supplémentaires"/><MoneyInput name="other_earnings" label="Autres gains"/><MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable"/><MoneyInput name="employee_supplementary_pension" label="Cotisation retraite complémentaire salariale"/><MoneyInput name="advances_recovered" label="Avances récupérées"/><MoneyInput name="other_deductions" label="Autres retenues"/></div>
           <button className="button primary">Enregistrer le brouillon</button>
         </form></FormDialog> : <p className="muted">Un salarié actif et une période modifiable sont nécessaires pour enregistrer un brouillon.</p>}
-        {variableDrafts.length>0 && <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Période</th><th>Primes</th><th>Heures</th><th>Autres gains</th><th>Retraite complémentaire patronale</th><th>Retenues et avances</th><th>Action</th></tr></thead><tbody>{variableDrafts.map((d:any)=>{
+        {variableDrafts.length>0 && <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Période</th><th>Primes</th><th>Heures</th><th>Autres gains</th><th>Retraite patronale</th><th>Retraite salariale</th><th>Retenues et avances</th><th>Action</th></tr></thead><tbody>{variableDrafts.map((d:any)=>{
           const e=employees.find((x:any)=>x.id===d.employee_id);
           const r=runs.find((x:any)=>x.id===d.payroll_run_id);
-          return <tr key={d.id}><td>{e?`${e.first_name} ${e.last_name}`:"Salarié indisponible"}</td><td>{r?`${r.period_start} au ${r.period_end}`:"Période indisponible"}</td><td>{money(d.bonuses,c)}</td><td>{money(d.overtime,c)}</td><td>{money(d.other_earnings,c)}</td><td>{money(d.taxable_supplementary_pension,c)}</td><td>{money(Number(d.advances_recovered)+Number(d.other_deductions),c)}</td><td><Link href={`/paie?draft=${d.id}`}>Reprendre dans le calcul</Link></td></tr>;
+          return <tr key={d.id}><td>{e?`${e.first_name} ${e.last_name}`:"Salarié indisponible"}</td><td>{r?`${r.period_start} au ${r.period_end}`:"Période indisponible"}</td><td>{money(d.bonuses,c)}</td><td>{money(d.overtime,c)}</td><td>{money(d.other_earnings,c)}</td><td>{money(d.taxable_supplementary_pension,c)}</td><td>{money(d.employee_supplementary_pension,c)}</td><td>{money(Number(d.advances_recovered)+Number(d.other_deductions),c)}</td><td><Link href={`/paie?draft=${d.id}`}>Reprendre dans le calcul</Link></td></tr>;
         })}</tbody></table></div>}
       </section>
 
@@ -447,8 +539,15 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
               <div className="grid2">
                 <MoneyInput name="bonuses" label="Primes" defaultAmount={selectedDraft?.bonuses} />
                 <MoneyInput name="overtime" label="Heures supplémentaires" defaultAmount={selectedDraft?.overtime} />
+                <div className="field"><label>Catégorie d’heures supplémentaires</label><select name="overtime_category"><option value="regular">Jour normal</option><option value="night">Nuit</option><option value="sunday">Dimanche</option><option value="holiday">Jour férié</option><option value="night_holiday">Nuit, dimanche ou jour férié</option></select></div><MoneyInput name="overtime_hours" label="Nombre d'heures supplémentaires" />
+                <MoneyInput name="overtime_hourly_rate" label="Taux horaire normal (Ar)" />
+                <MoneyInput name="overtime_premium_percent" label="Majoration (%)" />
+                <MoneyInput name="overtime_additional_premiums" label="Primes additionnelles exclues de l'exonération (Ar)" />
+                <div className="field"><label><input type="checkbox" name="overtime_is_cadre"/> Salarié cadre</label></div>
+                <div className="field"><label><input type="checkbox" name="overtime_record_reconciled"/> Relevé mensuel rapproché et vérifié</label></div>
+                <div className="field"><label>Référence du relevé / justificatif</label><input name="overtime_record_reference" maxLength={200}/></div>
                 <MoneyInput name="other_earnings" label="Autres gains" defaultAmount={selectedDraft?.other_earnings} />
-                <MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable" defaultAmount={selectedDraft?.taxable_supplementary_pension} />
+                <MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable" defaultAmount={selectedDraft?.taxable_supplementary_pension} /><MoneyInput name="employee_supplementary_pension" label="Cotisation retraite complémentaire salariale" defaultAmount={selectedDraft?.employee_supplementary_pension} />
                 <MoneyInput name="advances_recovered" label="Avances récupérées" defaultAmount={selectedDraft?.advances_recovered} />
                 <MoneyInput name="other_deductions" label="Autres retenues" defaultAmount={selectedDraft?.other_deductions} />
               </div>
