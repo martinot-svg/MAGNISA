@@ -63,9 +63,10 @@ describe("Calcul centralisé des bulletins", () => {
     });
     expect(result.gross).toBe(1_000_000);
     expect(result.taxableCompensation).toBe(700_000);
-    expect(result.taxableBase).toBe(670_000);
-    expect(result.incomeTax).toBe(41_500);
-    expect(result.netBeforeOtherDeductions).toBe(838_500);
+    // With 1% employee health and a 2% deduction ceiling, the full 1% is deductible.
+    expect(result.taxableBase).toBe(680_000);
+    expect(result.incomeTax).toBe(43_500);
+    expect(result.netBeforeOtherDeductions).toBe(936_500);
   });
 
   it("intègre la retraite complémentaire patronale à l'assiette IRSA sans la payer en net", () => {
