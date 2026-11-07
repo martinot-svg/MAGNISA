@@ -53,7 +53,11 @@ begin
     and effective_from <= v_period
     and (effective_to is null or effective_to >= v_period);
 
-  if v_rule.irsa_health_deduction_rate is null
+  if v_rule.irsa_dependant_reduction is null
+    or v_rule.irsa_dependant_reduction < 0
+    or v_rule.irsa_dependant_threshold is null
+    or v_rule.irsa_dependant_threshold < 0
+    or v_rule.irsa_health_deduction_rate is null
     or v_rule.irsa_health_deduction_rate < 0
     or v_rule.irsa_health_deduction_rate > 0.02
     or v_rule.irsa_pension_deduction_rate is null
@@ -119,8 +123,8 @@ begin
     raise exception 'Nombre de personnes à charge IRSA invalide';
   end if;
 
-  if v_taxable > 350000 and v_dependants > 0 then
-    v_tax := greatest(coalesce(v_rule.irsa_minimum, 0), v_tax - 2000 * v_dependants);
+  if v_taxable > v_rule.irsa_dependant_threshold and v_dependants > 0 then
+    v_tax := greatest(coalesce(v_rule.irsa_minimum, 0), v_tax - v_rule.irsa_dependant_reduction * v_dependants);
   end if;
 
   if abs(new.employee_social - v_social) > .01
