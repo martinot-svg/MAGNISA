@@ -9,6 +9,7 @@ export type PayrollCalculationRule = {
   fmfp_employer_rate: number;
   cnaps_monthly_ceiling: number;
   health_monthly_ceiling: number;
+  irsa_health_deduction_rate: number;
   irsa_brackets: readonly IrsaBracket[];
   irsa_minimum: number;
 };
@@ -60,6 +61,7 @@ export function calculatePayrollAmounts(input: {
   assertRate("SMIE salarié", rule.health_employee_rate);
   assertRate("SMIE employeur", rule.health_employer_rate);
   assertRate("FMFP employeur", rule.fmfp_employer_rate);
+  assertRate("Plafond de déduction santé IRSA", rule.irsa_health_deduction_rate);
 
   for (const [name, value] of [
     ["plafond CNaPS", rule.cnaps_monthly_ceiling],
@@ -79,10 +81,9 @@ export function calculatePayrollAmounts(input: {
   );
   const employeeSocial = roundMoney(cnapsBase * rule.cnaps_employee_rate);
 
-  // Loi n°2024-025 portant LF 2025, article 01.03.09, 2° : la cotisation ouvrière
-  // à un organisme sanitaire/assurance santé est déductible dans la limite de
-  // 2 % du salaire brut. La retenue SMIE réelle reste due intégralement.
-  const deductibleHealth = Math.min(health.employee, roundMoney(gross * 0.02));
+  // Le plafond de déduction santé IRSA est versionné dans le référentiel applicable à la période.
+  // La retenue santé réelle reste intégralement due, même si elle dépasse ce plafond.
+  const deductibleHealth = Math.min(health.employee, roundMoney(gross * rule.irsa_health_deduction_rate));
 
   const irsa = calculateIrsa({
     taxableIncome: Math.max(0, gross + taxableSupplementaryPension - employeeSocial - deductibleHealth),
