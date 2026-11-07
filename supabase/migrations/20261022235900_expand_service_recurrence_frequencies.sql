@@ -19,6 +19,10 @@ alter table public.recurring_service_contracts
   add column if not exists custom_interval_days integer;
 
 alter table public.recurring_service_contracts
+  add column if not exists billing_timing text not null default 'advance'
+  check (billing_timing in ('advance','arrears'));
+
+alter table public.recurring_service_contracts
   drop constraint if exists recurring_service_contracts_frequency_check,
   add constraint recurring_service_contracts_frequency_check
     check (
@@ -32,7 +36,8 @@ alter table public.recurring_service_contracts
 
 create or replace function public.create_recurring_service_contract(
   p_org uuid, p_order uuid, p_order_line uuid, p_frequency text,
-  p_start_date date, p_end_date date default null, p_billing_day integer default null
+  p_start_date date, p_end_date date default null, p_billing_day integer default null,
+  p_billing_timing text default 'advance'
 ) returns uuid
 language plpgsql security definer set search_path=pg_catalog, public as $$
 declare
@@ -41,17 +46,35 @@ declare
   v_id uuid;
   v_day integer;
   v_service public.services%rowtype;
+  v_interval interval;
+  v_first_due date;
 begin
   perform public.assert_org_access(p_org);
   perform public.assert_org_permission(p_org, 'orders.manage');
   if p_frequency not in ('daily','weekly','monthly','quarterly','semiannual','annual','custom') then
     raise exception 'Fréquence de facturation invalide';
   end if;
+  if p_billing_timing not in ('advance','arrears') then
+    raise exception 'Mode de facturation invalide';
+  end if;
   if p_start_date is null or (p_end_date is not null and p_end_date < p_start_date) then
     raise exception 'Période du contrat invalide';
   end if;
   v_day := coalesce(p_billing_day, least(extract(day from p_start_date)::integer, 28));
   if v_day < 1 or v_day > 28 then raise exception 'Le jour de facturation doit être compris entre 1 et 28'; end if;
+  v_interval := case p_frequency
+    when 'daily' then interval '1 day'
+    when 'weekly' then interval '1 week'
+    when 'monthly' then interval '1 month'
+    when 'quarterly' then interval '3 months'
+    when 'semiannual' then interval '6 months'
+    when 'annual' then interval '1 year'
+    when 'custom' then make_interval(days => coalesce((select custom_interval_days from public.services where id=p_order_line), 30))
+  end;
+  if p_frequency='custom' then
+    v_interval := make_interval(days => (select custom_interval_days from public.services where id=(select service_id from public.order_lines where id=p_order_line)));
+  end if;
+  v_first_due := case when p_billing_timing='advance' then p_start_date else (p_start_date + v_interval)::date end;
   select * into o from public.orders
     where id=p_order and organization_id=p_org and status in ('confirmed','in_progress','completed')
     for update;
@@ -73,14 +96,14 @@ begin
   end if;
   insert into public.recurring_service_contracts(
     organization_id,order_id,order_line_id,customer_id,service_id,description,quantity,unit,
-    unit_price,tax_rate,frequency,custom_interval_days,start_date,end_date,billing_day,next_billing_date,created_by
+    unit_price,tax_rate,frequency,custom_interval_days,start_date,end_date,billing_day,next_billing_date,billing_timing,created_by
   ) values (
     p_org,o.id,l.id,o.customer_id,l.service_id,l.description,l.quantity,l.unit,
     round(l.line_total / nullif(l.quantity * (1 + l.tax_rate / 100), 0), 2),l.tax_rate,
-    p_frequency,v_service.custom_interval_days,p_start_date,p_end_date,v_day,p_start_date,auth.uid()
+    p_frequency,v_service.custom_interval_days,p_start_date,p_end_date,v_day,v_first_due,p_billing_timing,auth.uid()
   ) returning id into v_id;
   perform public.audit_event(p_org,'recurring_service.created','recurring_service',v_id,null,
-    jsonb_build_object('order_id',o.id,'order_line_id',l.id,'frequency',p_frequency,'start_date',p_start_date,'end_date',p_end_date));
+    jsonb_build_object('order_id',o.id,'order_line_id',l.id,'frequency',p_frequency,'start_date',p_start_date,'end_date',p_end_date,'billing_timing',p_billing_timing));
   return v_id;
 end; $$;
 
@@ -136,6 +159,7 @@ returns integer
 language plpgsql security definer set search_path=pg_catalog, public, private as $$
 declare
   c public.recurring_service_contracts%rowtype;
+  v_trigger date;
   v_period_start date;
   v_period_end date;
   v_next_date date;
@@ -158,7 +182,6 @@ begin
   for c in
     select * from public.recurring_service_contracts
     where organization_id=p_org and status='active' and next_billing_date <= current_date
-      and (end_date is null or next_billing_date <= end_date)
     order by next_billing_date, created_at
     for update skip locked
   loop
@@ -171,15 +194,23 @@ begin
       when 'annual' then interval '1 year'
       when 'custom' then make_interval(days => coalesce(c.custom_interval_days,30))
     end;
-    v_period_start := c.next_billing_date;
-    while v_period_start <= current_date and (c.end_date is null or v_period_start <= c.end_date) loop
-      if c.frequency in ('daily','weekly','custom') then
-        v_period_end := (v_period_start::timestamp + v_interval)::date - 1;
+    v_trigger := c.next_billing_date;
+    while v_trigger <= current_date loop
+      if c.billing_timing='arrears' then
+        v_period_start := (v_trigger - v_interval)::date;
+        v_period_end := (v_trigger - 1)::date;
+        v_next_date := (v_trigger + v_interval)::date;
       else
-        v_period_end := (date_trunc('month', v_period_start::timestamp + v_interval) + (c.billing_day - 1) * interval '1 day')::date - 1;
+        v_period_start := v_trigger;
+        if c.frequency in ('daily','weekly','custom') then
+          v_period_end := (v_period_start::timestamp + v_interval)::date - 1;
+        else
+          v_period_end := (date_trunc('month', v_period_start::timestamp + v_interval) + (c.billing_day - 1) * interval '1 day')::date - 1;
+        end if;
+        v_period_end := least(v_period_end, (v_period_start::timestamp + v_interval)::date - 1);
+        v_next_date := (v_period_start::timestamp + v_interval)::date;
       end if;
-      -- Keep the service period aligned to the configured billing cycle and never beyond the contract end date.
-      v_period_end := least(v_period_end, (v_period_start::timestamp + v_interval)::date - 1);
+      if c.end_date is not null and v_period_start > c.end_date then exit; end if;
       if c.end_date is not null then v_period_end := least(v_period_end, c.end_date); end if;
       if not exists(select 1 from public.invoices i
         where i.organization_id=p_org and i.recurring_contract_id=c.id
@@ -220,17 +251,12 @@ begin
           jsonb_build_object('contract_id',c.id,'period_start',v_period_start,'period_end',v_period_end,'total',v_total));
         v_created := v_created+1;
       end if;
-      if c.frequency in ('daily','weekly','custom') then
-        v_next_date := (v_period_start::timestamp + v_interval)::date;
-      else
-        v_next_date := (date_trunc('month',v_period_start::timestamp + v_interval) + (c.billing_day - 1) * interval '1 day')::date;
-      end if;
-      if v_next_date <= v_period_start then raise exception 'La prochaine échéance doit être postérieure à la période courante'; end if;
-      v_period_start := v_next_date;
+      if v_next_date <= v_trigger then raise exception 'La prochaine échéance doit être postérieure à la période courante'; end if;
+      v_trigger := v_next_date;
     end loop;
     update public.recurring_service_contracts set
-      next_billing_date=v_period_start,
-      status=case when end_date is not null and v_period_start > end_date then 'ended' else status end,
+      next_billing_date=v_trigger,
+      status=case when end_date is not null and v_trigger > end_date and (billing_timing='advance' or v_trigger - v_interval > end_date) then 'ended' else status end,
       updated_at=now()
     where id=c.id;
   end loop;
