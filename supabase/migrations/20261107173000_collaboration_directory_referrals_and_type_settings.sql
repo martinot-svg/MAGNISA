@@ -313,6 +313,9 @@ begin
   if p_type='transfer' and (p_responsible is null or p_stage_status<>'transferred') then
     raise exception 'Un transfert exige un nouveau responsable actif et le statut transféré.';
   end if;
+  if p_type<>'transfer' and (p_responsible is not null or p_stage_status='transferred') then
+    raise exception 'Seule une intervention de transfert peut changer le responsable.';
+  end if;
   if p_type not in (
     'recommendation','prospecting','contact','presentation','qualification','negotiation',
     'transfer','closing','signature','follow_up','retention'
