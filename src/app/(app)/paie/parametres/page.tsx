@@ -208,7 +208,17 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  ]);
  if(error)throw new Error(error.message);
  const notice=await searchParams;
- return <><div className="pageHead"><div><p className="eyebrow">Personnel & Paie</p><h1>Paramètres de paie</h1><p>Configuration réglementaire versionnée et contrôle des paramètres de paie.</p></div><div className="actions" style={{alignItems:"center"}}><PayrollSettingsDisclosure
+ return <><div className="pageHead" style={{display:"block"}}>
+ <div style={{width:"100%"}}>
+  <Link href="/paie" aria-label="Retour aux bulletins" title="Retour aux bulletins" className="button" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:40,height:40,minWidth:40,padding:0,marginBottom:12}}><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/><path d="M20 12H9"/></svg></Link>
+  <p className="eyebrow">Personnel & Paie</p>
+  <h1>Paramètres de paie</h1>
+  <p>Configuration réglementaire versionnée et contrôle des paramètres de paie.</p>
+ </div>
+</div>
+<PayrollSettingsDisclosure
+simulator={<PayrollRulePreview rules={(rules||[]) as any} currency={org?.currency||"MGA"} companyName={org?.name||"Entreprise"} defaultSmie={org?.smie_partner_name||null} />}
+<div><p className="eyebrow">Personnel & Paie</p><h1>Paramètres de paie</h1><p>Configuration réglementaire versionnée et contrôle des paramètres de paie.</p></div><div className="actions" style={{alignItems:"center"}}><PayrollSettingsDisclosure
 simulator={<PayrollRulePreview rules={(rules||[]) as any} currency={org?.currency||"MGA"} companyName={org?.name||"Entreprise"} defaultSmie={org?.smie_partner_name||null} />}
 createRule={<><div className="card section"><h2>Créer un référentiel réglementaire</h2><p className="muted">L'enregistrement crée une version en attente de vérification. Elle ne modifie pas le référentiel actif. Après contrôle des textes officiels, utilise l'action d'activation explicite pour programmer son application à la période prévue.</p>
  <form action={saveRule} className="form"><div className="grid2">
@@ -251,32 +261,9 @@ history={<><div className="section card"><h2>Historique des règles</h2>{!rules?
 <p className="muted">Les changements restent dans cette version à vérifier jusqu’à son activation explicite.</p></div>
 <button className="button primary">Enregistrer et appliquer</button></form>
 <div className="actions" style={{marginTop:10}}><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="review"/><button className="button">Maintenir à vérifier</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="activate"/><button className="button primary">Valider et activer ce référentiel</button></form></div></>}</details>{r.status==="validated"&&<form action={ruleAction} style={{marginTop:8}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="archive"/><button className="button">Archiver ce référentiel</button></form>}{["draft","pending_review"].includes(r.status)&&<form action={ruleAction} className="form" style={{marginTop:8}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="delete"/><div className="field"><label>Suppression définitive : tape SUPPRIMER</label><input name="delete_confirmation" required pattern="SUPPRIMER" autoComplete="off"/></div><button className="button" aria-label={"Supprimer définitivement la version "+r.name}>Supprimer définitivement</button></form>}</td></tr>)}</tbody></table></div>}</div></>}
-/><Link className="button" href="/paie">Retour aux bulletins</Link></div></div>
+/>
  {notice.result && notice.message && <div role="status" aria-live="polite" className="card section" style={{borderLeft:notice.result==="error"?"4px solid #b45309":"4px solid #15803d"}}><strong>{notice.result==="error"?"Opération non effectuée":"Opération effectuée"}</strong><p>{notice.message.slice(0,450)}</p></div>}
- <div className="card"><details><summary style={{cursor:"pointer",fontWeight:600}}>Créer un référentiel réglementaire</summary><h2>Nouveau jeu de paramètres</h2><p className="muted">L'enregistrement crée une version en attente de vérification. Elle ne modifie pas le référentiel actif. Après contrôle des textes officiels, utilise l'action d'activation explicite pour programmer son application à la période prévue.</p>
- <form action={saveRule} className="form"><div className="grid2">
- <div className="field"><label>Nom / version</label><input name="name" placeholder="Ex. Référentiel 2026 à vérifier" required/></div>
- <div className="field"><label>Référence officielle contrôlée</label><input name="legal_reference" placeholder="Texte, article, date de publication et URL officielle" required/></div>
- <div className="field"><label>Applicable du</label><input name="effective_from" type="date" required/></div>
- <div className="field"><label>Jusqu'au (facultatif)</label><input name="effective_to" type="date"/></div>
- <SmiePartnerFields />
- <div className="field"><label>Numéro d'affiliation (facultatif)</label><input name="smie_affiliation_number" maxLength={120}/></div>
- <div className="field"><label>Référence contractuelle (facultatif)</label><input name="smie_contract_reference" maxLength={200}/></div>
- <div className="field"><label>CNaPS salarié (%)</label><input name="cnaps_employee_rate" type="number" min="0" max="100" step="0.0001" required/></div>
- <div className="field"><label>CNaPS employeur (%)</label><input name="cnaps_employer_rate" type="number" min="0" max="100" step="0.0001" required/></div>
- <div className="field"><label>Santé salarié (%)</label><input name="health_employee_rate" type="number" min="0" max="100" step="0.0001" required/></div>
- <div className="field"><label>Santé employeur (%)</label><input name="health_employer_rate" type="number" min="0" max="100" step="0.0001" required/></div>
- <div className="field"><label>FMFP employeur (%)</label><input name="fmfp_employer_rate" type="number" min="0" max="100" step="0.0001" required/></div>
- <div className="field"><label>Plafond de déduction santé IRSA (%)</label><input name="irsa_health_deduction_rate" type="number" min="0" max="2" step="0.01" defaultValue="2" required/></div><div className="field"><label>Plafond de déduction retraite IRSA (%)</label><input name="irsa_pension_deduction_rate" type="number" min="0" max="10" step="0.01" defaultValue="10" required/></div>
- <div className="field"><label>Plafond CNaPS mensuel (Ar)</label><input name="cnaps_monthly_ceiling" type="number" min="0" step="0.01" placeholder="À confirmer" required/></div>
- <div className="field"><label>Plafond organisme santé (Ar)</label><input name="health_monthly_ceiling" type="number" min="0" step="0.01" placeholder="À confirmer" required/></div>
- </div>
- <h3>Barème IRSA pour cette version</h3>
- <div className="grid2"><div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" required placeholder="À vérifier dans le texte officiel"/></div><div className="field"><label>Réduction IRSA par personne à charge (Ar/mois)</label><input name="irsa_dependant_reduction" type="number" min="0" step="1" defaultValue="2000" required/></div><div className="field"><label>Seuil de revenu imposable ouvrant droit à réduction (Ar)</label><input name="irsa_dependant_threshold" type="number" min="0" step="1" defaultValue="350000" required/></div><div className="field"><label>Arrondi de l’assiette IRSA</label><select name="rounding_policy" defaultValue="unverified" required><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d’ariary inférieure - après vérification</option></select></div></div>
- <IrsaBracketEditor />
- <PayrollRegulatoryRuleFields />
- <button className="button primary">Enregistrer comme brouillon</button></form>
- </details></div>
+
  <section id="bareme-irsa" className="card section" aria-label="Barème IRSA configurable">
  <h2>Barème IRSA configurable</h2>
  <p>Le barème est géré par version et par entreprise. Les plafonds, taux, nombre de tranches, minimum de perception et règle d’arrondi peuvent être modifiés pour suivre une publication de l’autorité compétente. Une nouvelle version reste à vérifier jusqu’à sa validation explicite.</p>
