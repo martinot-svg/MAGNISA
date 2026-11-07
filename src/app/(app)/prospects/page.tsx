@@ -43,6 +43,7 @@ export default async function ProspectsPage() {
               </select>
               <small className="muted">La recommandation est enregistrée séparément et reste en attente de validation.</small>
             </div>
+            <div className="field"><label>Justificatif de recommandation (facultatif ou obligatoire selon la configuration)</label><input name="referrer_evidence_reference" maxLength={1000} placeholder="Référence e-mail, document ou contrat"/></div>
             <div className="field"><label>Notes</label><textarea name="notes" rows={3} maxLength={2000}/></div>
             <button className="button primary">Créer le prospect</button>
           </form>
