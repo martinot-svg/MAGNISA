@@ -40,6 +40,10 @@ select
     as fiscal_year_create_rpc_ready,
   to_regprocedure('public.magnisa_close_fiscal_year(uuid,uuid)') is not null
     as fiscal_year_close_rpc_ready,
+  position('period_end > current_date' in pg_get_functiondef('public.magnisa_close_fiscal_year(uuid,uuid)'::regprocedure)) > 0
+    as fiscal_year_close_date_guard_ready,
+  position('pg_advisory_xact_lock' in pg_get_functiondef('public.magnisa_create_fiscal_year(uuid,date,date,text,jsonb)'::regprocedure)) > 0
+    as fiscal_year_creation_lock_ready,
   exists (
     select 1 from information_schema.columns
     where table_schema='public' and table_name='lot1_financial_idempotency'
