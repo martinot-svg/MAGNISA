@@ -11,7 +11,8 @@ if (!url || !serviceKey || !anonKey || !email || !password) {
   throw new Error("Missing isolated local Supabase CRM smoke-test environment.");
 }
 const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-const { data: authData, error: authError } = await admin.auth.signInWithPassword({ email, password });
+const userClient = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
+const { data: authData, error: authError } = await userClient.auth.signInWithPassword({ email, password });
 if (authError || !authData.user) throw authError ?? new Error("Unable to authenticate CRM smoke user.");
 const userId = authData.user.id;
 const { data: membership, error: membershipError } = await admin.from("organization_members")
@@ -100,7 +101,7 @@ try {
   assert(converted.converted_customer_id, "Prospect conversion did not create a customer.");
 
   await page.goto(`${baseUrl}/clients/${converted.converted_customer_id}/contributions`, { waitUntil: "domcontentloaded" });
-  await page.getByRole("heading", { name: /Journal collaboratif/ }).waitFor();
+  await page.getByText("Client · Journal collaboratif").waitFor();
   await page.getByText(contributionDescription).waitFor();
 
   const followUpDescription = "Suivi client CRM UI " + Date.now();
