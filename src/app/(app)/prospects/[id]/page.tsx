@@ -36,7 +36,7 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
   const [{data:prospect},{data:members=[]},{data:interventions=[],error}] = await Promise.all([
     ctx.supabase.from("prospects").select("*").eq("organization_id",ctx.organizationId).eq("id",id).maybeSingle(),
     ctx.supabase.from("organization_members").select("user_id,role,department").eq("organization_id",ctx.organizationId).eq("status","active"),
-    ctx.supabase.from("prospect_interventions").select("*").eq("organization_id",ctx.organizationId).eq("prospect_id",id).order("occurred_at",{ascending:false}),
+    ctx.supabase.from("prospect_interventions").select("*").eq("organization_id",ctx.organizationId).or("prospect_id.eq."+id+(prospect?.converted_customer_id ? ",customer_id.eq."+prospect.converted_customer_id : "")).order("occurred_at",{ascending:false}),
   ]);
   if (!prospect) notFound();
   if (error) throw new Error("Impossible de charger l'historique collaboratif.");
