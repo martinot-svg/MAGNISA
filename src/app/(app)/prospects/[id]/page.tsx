@@ -27,9 +27,10 @@ const statusLabels: Record<string,string> = {
 export default async function ProspectDetailPage({ params }: { params: Promise<{id:string}> }) {
   const { id } = await params;
   const ctx = await requireOrganization();
-  const [canContribute, canReview] = await Promise.all([
+  const [canContribute, canReview, canAttributeForOthers] = await Promise.all([
     hasPermission(ctx,"commissions.contribute"),
     hasPermission(ctx,"commissions.policy.manage"),
+    hasPermission(ctx,"commissions.audit"),
   ]);
   if (!canContribute && !canReview) redirect("/dashboard?access=denied");
 
@@ -76,6 +77,9 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
             <option value="not_started">Non commencée</option><option value="in_progress">En cours</option><option value="completed">Terminée</option><option value="blocked">Bloquée</option><option value="cancelled">Annulée</option>
           </select></div>
           <div className="field"><label>Preuve / référence justificative</label><input name="evidence_reference" maxLength={500} placeholder="Lien, référence de document, compte rendu…"/></div>
+          {canReview || canAttributeForOthers ? <div className="field"><label>Collaborateur concerné (recommandation pour un tiers)</label><select name="contributor_user_id" defaultValue=""><option value="">Moi-même</option>
+            {(members||[]).map((m:any)=><option key={m.user_id} value={m.user_id}>{emailById.get(m.user_id)||m.user_id} {m.department? "· "+m.department:""}</option>)}
+          </select></div> : null}
         </div>
         <div className="field"><label>Description de l'intervention</label><textarea name="description" rows={3} minLength={3} maxLength={2000} required/></div>
         <div className="field"><label>Nouveau responsable (uniquement pour un transfert)</label><select name="responsible_user_id" defaultValue=""><option value="">Aucun transfert</option>
