@@ -83,7 +83,7 @@ await expectRpcDenied(collaborator, "review_prospect_intervention", {
 }, "A contributor must not validate their own intervention.");
 
 await rpc(owner, "change_prospect_intervention_status", {
-  p_org: organizationId, p_intervention: rejectedId, p_stage_status: "in_progress",
+  p_org: organizationId, p_intervention: rejectedId, p_stage_status: "blocked",
   p_reason: "Stage transition recorded by an authorized manager",
 });
 const history = await admin.from("prospect_intervention_history").select("id")
