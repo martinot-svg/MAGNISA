@@ -269,3 +269,114 @@ revoke all on function public.create_prospect_with_originator(uuid,text,text,tex
 grant execute on function public.record_prospect_intervention(uuid,uuid,uuid,uuid,text,text,text,text,text,text,uuid,timestamptz) to authenticated;
 grant execute on function public.review_prospect_intervention(uuid,uuid,text,text) to authenticated;
 grant execute on function public.create_prospect_with_originator(uuid,text,text,text,text,text) to authenticated;
+
+
+-- Guard commission creation: every contributor must have a matching validated intervention.
+create or replace function public.assert_commission_contributors_validated()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+  if not exists (
+    select 1 from public.prospect_contributors c
+    join public.prospect_interventions i
+      on i.organization_id=c.organization_id
+      and i.prospect_id=c.prospect_id
+      and i.contributor_user_id=c.user_id
+      and i.validation_status='validated'
+      and case i.contribution_role
+        when 'initiator' then 'originator'
+        when 'recommender' then 'originator'
+        when 'prospector' then 'qualifier'
+        when 'qualifier' then 'qualifier'
+        when 'negotiator' then 'negotiator'
+        when 'closer' then 'closer'
+        else null end = c.contribution_type
+    where c.organization_id=new.organization_id and c.prospect_id=new.prospect_id
+  ) or exists (
+    select 1 from public.prospect_contributors c
+    where c.organization_id=new.organization_id and c.prospect_id=new.prospect_id
+      and not exists (
+        select 1 from public.prospect_interventions i
+        where i.organization_id=c.organization_id and i.prospect_id=c.prospect_id
+          and i.contributor_user_id=c.user_id and i.validation_status='validated'
+          and case i.contribution_role
+            when 'initiator' then 'originator'
+            when 'recommender' then 'originator'
+            when 'prospector' then 'qualifier'
+            when 'qualifier' then 'qualifier'
+            when 'negotiator' then 'negotiator'
+            when 'closer' then 'closer'
+            else null end = c.contribution_type
+      )
+  ) then
+    raise exception 'Commission bloquée : chaque contributeur doit posséder une intervention correspondante validée.';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists commission_contributors_validation_guard on public.commission_calculations;
+create trigger commission_contributors_validation_guard
+before insert on public.commission_calculations
+for each row execute function public.assert_commission_contributors_validated();
+
+-- CRM events are captured from real business transitions, but remain pending review.
+create or replace function public.capture_confirmed_order_contribution()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+  if new.status='confirmed' and old.status is distinct from new.status
+     and new.created_by is not null
+     and exists (select 1 from public.organization_members
+       where organization_id=new.organization_id and user_id=new.created_by and status='active') then
+    insert into public.prospect_interventions(
+      organization_id,customer_id,contributor_user_id,created_by,intervention_type,
+      contribution_role,stage_status,validation_status,description,evidence_reference,occurred_at
+    ) values (
+      new.organization_id,new.customer_id,new.created_by,new.created_by,'closing',
+      'support','completed','pending',
+      'Événement CRM automatique : commande '||new.number||' confirmée.',
+      'order:'||new.id::text,now()
+    );
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists crm_capture_confirmed_order on public.orders;
+create trigger crm_capture_confirmed_order
+after update of status on public.orders
+for each row execute function public.capture_confirmed_order_contribution();
+
+create or replace function public.capture_paid_invoice_contribution()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+  if new.status='paid' and old.status is distinct from new.status
+     and new.created_by is not null
+     and exists (select 1 from public.organization_members
+       where organization_id=new.organization_id and user_id=new.created_by and status='active') then
+    insert into public.prospect_interventions(
+      organization_id,customer_id,contributor_user_id,created_by,intervention_type,
+      contribution_role,stage_status,validation_status,description,evidence_reference,occurred_at
+    ) values (
+      new.organization_id,new.customer_id,new.created_by,new.created_by,'follow_up',
+      'support','completed','pending',
+      'Événement CRM automatique : facture '||new.number||' entièrement soldée.',
+      'invoice:'||new.id::text,now()
+    );
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists crm_capture_paid_invoice on public.invoices;
+create trigger crm_capture_paid_invoice
+after update of status on public.invoices
+for each row execute function public.capture_paid_invoice_contribution();
