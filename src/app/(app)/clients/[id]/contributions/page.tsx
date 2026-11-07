@@ -23,7 +23,7 @@ export default async function ClientContributions({ params }: { params: Promise<
     Promise.all([hasPermission(ctx,"commissions.policy.manage"),hasPermission(ctx,"commissions.audit")])
       .then(([manage,audit])=>manage||audit),
   ]);
-  if (!canView && !canContribute) redirect("/dashboard?access=denied");
+  if (!canView && !canContribute && !canReview) redirect("/dashboard?access=denied");
 
   const [{data:customer},{data:events=[],error},{data:members=[],error:membersError},{data:interventionTypes=[],error:typesError}] = await Promise.all([
     ctx.supabase.from("customers").select("id,name").eq("organization_id",ctx.organizationId).eq("id",id).maybeSingle(),
