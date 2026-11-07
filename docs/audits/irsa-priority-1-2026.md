@@ -75,3 +75,12 @@ Sans relevé rapproché, l'exonération n'est pas appliquée.
 ## Protection des historiques
 
 La migration proposée est additive : nouvelles colonnes avec valeurs historiques par défaut, aucune mise à jour des deux bulletins déjà payés, aucune réécriture de bulletins clôturés. La migration n'est pas appliquée à Supabase Production tant que le replay SQL, les tests et la vérification de compatibilité ne sont pas réussis.
+
+
+## Contrôles Production en lecture seule (7 novembre 2026)
+
+- Aucun référentiel existant ne dépasse le plafond santé de 2 % dans `public.payroll_rule_sets`.
+- Les colonnes et règles de la migration IRSA 2026 ne sont pas encore appliquées en Production : les versions `20261107153000` et `20261107160000` sont absentes de `supabase_migrations.schema_migrations`.
+- La table `public.payslips` contient toujours exactement deux bulletins au statut `paid`.
+- Aucune migration de cette PR n'a été appliquée à Production et aucun bulletin réel n'a été modifié.
+- Le rejeu local des migrations a réussi après correction de l'assemblage SQL. Le test comptable a ensuite détecté un mapping PCG manquant ; la correspondance 442/431/645 a été réintégrée dans la migration, et son nouveau passage CI est en cours.
