@@ -111,7 +111,7 @@ export default async function ClientContributions({ params }: { params: Promise<
                 <button className="button small">Mettre à jour</button>
               </form>}
           </td><td>{item.validation_status}</td>
-          <td>{canReview && item.validation_status==="pending" ? <div className="actions">
+          <td>{canReview && item.validation_status==="pending" && item.contributor_user_id!==ctx.user.id ? <div className="actions">
             <form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={item.id}/><input type="hidden" name="decision" value="validate"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Justification"/><button className="button small">Valider</button></form>
             <form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={item.id}/><input type="hidden" name="decision" value="reject"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Motif du rejet"/><button className="button small">Rejeter</button></form>
           </div> : (item.review_reason||"—")}</td>
