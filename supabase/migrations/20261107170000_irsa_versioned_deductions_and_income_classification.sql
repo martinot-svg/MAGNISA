@@ -16,11 +16,13 @@ alter table public.payroll_rule_sets
 
 alter table public.payslips
   add column if not exists employee_pension_contribution numeric(18,2) not null default 0 check (employee_pension_contribution >= 0),
+  add column if not exists employee_pension_reference text,
   add column if not exists irsa_exempt_earnings numeric(18,2) not null default 0 check (irsa_exempt_earnings >= 0),
   add column if not exists irsa_exemption_reference text;
 
 alter table public.payroll_variable_drafts
   add column if not exists employee_pension_contribution numeric(18,2) not null default 0 check (employee_pension_contribution >= 0),
+  add column if not exists employee_pension_reference text,
   add column if not exists irsa_exempt_earnings numeric(18,2) not null default 0 check (irsa_exempt_earnings >= 0),
   add column if not exists irsa_exemption_reference text;
 
@@ -435,7 +437,8 @@ $function$
 CREATE OR REPLACE FUNCTION public.create_payslip_v2(p_org uuid, p_run uuid, p_employee uuid, p_bonuses numeric DEFAULT 0, p_overtime numeric DEFAULT 0, p_other_earnings numeric DEFAULT 0, p_employee_social numeric DEFAULT 0, p_employee_health numeric DEFAULT 0, p_income_tax numeric DEFAULT 0, p_advances_recovered numeric DEFAULT 0, p_other_deductions numeric DEFAULT 0, p_employer_social numeric DEFAULT 0, p_employer_health numeric DEFAULT 0, p_taxable_supplementary_pension numeric DEFAULT 0,
  p_employee_pension_contribution numeric DEFAULT 0,
  p_irsa_exempt_earnings numeric DEFAULT 0,
- p_irsa_exemption_reference text DEFAULT NULL)
+ p_irsa_exemption_reference text DEFAULT NULL,
+ p_employee_pension_reference text DEFAULT NULL)
  RETURNS uuid
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -495,6 +498,9 @@ begin
   if coalesce(p_irsa_exempt_earnings,0) > 0 and nullif(btrim(coalesce(p_irsa_exemption_reference,'')), '') is null then
     raise exception 'La référence juridique de l’exonération IRSA est obligatoire';
   end if;
+  if coalesce(p_employee_pension_contribution,0) > 0 and nullif(btrim(coalesce(p_employee_pension_reference,'')), '') is null then
+    raise exception 'La référence du régime de retraite déductible est obligatoire';
+  end if;
 
   v_net := round(
     v_gross
@@ -511,13 +517,13 @@ begin
 
   insert into public.payslips(
     organization_id,payroll_run_id,employee_id,base_salary,bonuses,overtime,other_earnings,
-    taxable_supplementary_pension,employee_pension_contribution,irsa_exempt_earnings,irsa_exemption_reference,
+    taxable_supplementary_pension,employee_pension_contribution,employee_pension_reference,irsa_exempt_earnings,irsa_exemption_reference,
     employee_social,employee_health,income_tax,advances_recovered,other_deductions,
     employer_social,employer_health,gross_pay,net_pay,paid_amount,status
   )
   values(
     p_org,p_run,p_employee,v_employee.base_salary,coalesce(p_bonuses,0),coalesce(p_overtime,0),coalesce(p_other_earnings,0),
-    coalesce(p_taxable_supplementary_pension,0),coalesce(p_employee_pension_contribution,0),coalesce(p_irsa_exempt_earnings,0),nullif(btrim(coalesce(p_irsa_exemption_reference,'')),''),
+    coalesce(p_taxable_supplementary_pension,0),coalesce(p_employee_pension_contribution,0),nullif(btrim(coalesce(p_employee_pension_reference,'')),''),coalesce(p_irsa_exempt_earnings,0),nullif(btrim(coalesce(p_irsa_exemption_reference,'')),''),
     coalesce(p_employee_social,0),coalesce(p_employee_health,0),coalesce(p_income_tax,0),
     coalesce(p_advances_recovered,0),coalesce(p_other_deductions,0),
     coalesce(p_employer_social,0),coalesce(p_employer_health,0),
@@ -538,7 +544,7 @@ begin
 
   perform public.audit_event(
     p_org,'payslip.calculated','payslip',v_id,null,
-    jsonb_build_object('employee_id',p_employee,'payroll_run_id',p_run,'gross_pay',v_gross,'net_pay',v_net,'taxable_supplementary_pension',coalesce(p_taxable_supplementary_pension,0),'employee_pension_contribution',coalesce(p_employee_pension_contribution,0),'irsa_exempt_earnings',coalesce(p_irsa_exempt_earnings,0),'irsa_exemption_reference',p_irsa_exemption_reference)
+    jsonb_build_object('employee_id',p_employee,'payroll_run_id',p_run,'gross_pay',v_gross,'net_pay',v_net,'taxable_supplementary_pension',coalesce(p_taxable_supplementary_pension,0),'employee_pension_contribution',coalesce(p_employee_pension_contribution,0),'employee_pension_reference',p_employee_pension_reference,'irsa_exempt_earnings',coalesce(p_irsa_exempt_earnings,0),'irsa_exemption_reference',p_irsa_exemption_reference)
   );
 
   return v_id;
