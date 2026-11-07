@@ -4,7 +4,7 @@ import {calculatePayrollAmounts} from "@/lib/payroll/calculate-payroll";
 import {useState} from "react";
 
 type Bracket={up_to:number|null;rate:number};
-type Rule={id:string;name:string;effective_from:string;effective_to:string|null;status:string;cnaps_employee_rate:number;cnaps_employer_rate:number;health_employee_rate:number;health_employer_rate:number;fmfp_employer_rate:number;cnaps_monthly_ceiling:number|null;health_monthly_ceiling:number|null;irsa_health_deduction_rate:number;irsa_brackets:unknown;irsa_minimum:number|null;rounding_policy:string|null;legal_reference:string|null;smie_partner_name?:string|null;};
+type Rule={id:string;name:string;effective_from:string;effective_to:string|null;status:string;cnaps_employee_rate:number;cnaps_employer_rate:number;health_employee_rate:number;health_employer_rate:number;fmfp_employer_rate:number;cnaps_monthly_ceiling:number|null;health_monthly_ceiling:number|null;irsa_health_deduction_rate:number;irsa_brackets:unknown;irsa_minimum:number|null;irsa_dependant_reduction:number;irsa_dependant_threshold:number;irsa_pension_deduction_rate:number;irsa_rounding_unit:number;rounding_policy:string|null;legal_reference:string|null;smie_partner_name?:string|null;};
 export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rules:Rule[];currency:string;companyName:string;defaultSmie:string|null}){
  const [date,setDate]=useState(new Date().toISOString().slice(0,10));
  const [gross,setGross]=useState("1000000");
@@ -36,6 +36,10 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
          irsa_health_deduction_rate:Number(applicable.irsa_health_deduction_rate),
          irsa_brackets:applicable.irsa_brackets as Bracket[],
          irsa_minimum:Number(applicable.irsa_minimum),
+         irsa_dependant_reduction:Number(applicable.irsa_dependant_reduction),
+         irsa_dependant_threshold:Number(applicable.irsa_dependant_threshold),
+         irsa_pension_deduction_rate:Number(applicable.irsa_pension_deduction_rate),
+         irsa_rounding_unit:Number(applicable.irsa_rounding_unit),
        },
      });
      baseCnaps=calculation.cnapsBase;
@@ -71,6 +75,8 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  <p>Retenue CNaPS salarié : <strong>{fmt(social)}</strong></p>
  <p>Assiette santé SMIE : <strong>{fmt(baseHealth)}</strong></p>
  <p>SMIE partenaire de {companyName} : <strong>{applicable.smie_partner_name||defaultSmie||"Non renseignée"}</strong></p><p>{applicable.smie_partner_name||defaultSmie||"SMIE"} salarié : <strong>{fmt(health)}</strong></p>
+ <p>Déduction retraite salariale IRSA (plafonnée) : <strong>{configured?fmt(calculation?.deductibleEmployeePension??0):"Non calculée"}</strong></p>
+ <p>Réduction par personne à charge : <strong>{configured?fmt(applicable.irsa_dependant_reduction):"Non calculée"}</strong></p>
  <p>Base imposable IRSA arrondie : <strong>{configured?fmt(taxable):"Non calculée"}</strong></p>
  <p>IRSA estimé : <strong>{tax!==null?fmt(tax):"Non calculé"}</strong></p>
  {error&&<p className="error">{error}</p>}
