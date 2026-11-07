@@ -52,11 +52,13 @@ export function calculatePayrollAmounts(input: {
   taxableSupplementaryPension?: number;
   employeePensionContribution?: number;
   irsaExemptEarnings?: number;
+  irsaDeductionAuthorized?: boolean;
 }): PayrollCalculation {
   const { gross, dependants, rule } = input;
   const taxableSupplementaryPension = input.taxableSupplementaryPension ?? 0;
   const employeePensionContribution = input.employeePensionContribution ?? 0;
   const irsaExemptEarnings = input.irsaExemptEarnings ?? 0;
+  const irsaDeductionAuthorized = input.irsaDeductionAuthorized ?? false;
   if (!Number.isFinite(taxableSupplementaryPension) || taxableSupplementaryPension < 0) {
     throw new Error("Versement patronal de retraite complémentaire invalide.");
   }
@@ -108,7 +110,7 @@ export function calculatePayrollAmounts(input: {
 
   const deductibleEmployeePension = Math.min(employeePensionContribution, roundMoney(gross * rule.irsa_pension_deduction_rate));
   const irsa = calculateIrsa({
-    taxableIncome: Math.max(0, gross - irsaExemptEarnings + taxableSupplementaryPension - employeeSocial - deductibleHealth - deductibleEmployeePension),
+    taxableIncome: Math.max(0, gross - irsaExemptEarnings + taxableSupplementaryPension - deductibleHealth - deductibleEmployeePension),
     dependants,
     brackets: rule.irsa_brackets,
     minimum: rule.irsa_minimum,
@@ -140,6 +142,7 @@ export function calculatePayrollAmounts(input: {
     employeePensionContribution,
     deductibleEmployeePension,
     irsaExemptEarnings,
+    irsaDeductionAuthorized,
     netBeforeOtherDeductions,
     employerCost,
   };
