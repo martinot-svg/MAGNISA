@@ -21,6 +21,10 @@ export default async function ProspectsPage() {
     .eq("organization_id", ctx.organizationId)
     .order("created_at", { ascending: false });
   if (error) throw new Error("Impossible de charger les prospects.");
+  const { data: members = [], error: membersError } = await ctx.supabase.rpc("list_collaboration_members", {
+    p_org: ctx.organizationId,
+  });
+  if (membersError) throw new Error("Impossible de charger le répertoire des collaborateurs.");
 
   return (
     <>
@@ -37,6 +41,7 @@ export default async function ProspectsPage() {
                 <div className="field"><label>E-mail</label><input name="email" type="email" maxLength={254} /></div>
                 <div className="field"><label>Téléphone</label><input name="phone" maxLength={40} /></div>
                 <div className="field"><label>Source</label><input name="source" maxLength={120} placeholder="Recommandation, appel, visite…" /></div>
+                <div className="field"><label>Recommandé par un collaborateur (facultatif)</label><select name="referrer_user_id" defaultValue=""><option value="">Aucune recommandation déclarée</option>{(members as any[]).filter((member:any)=>member.status==="active" && member.user_id!==ctx.user.id).map((member:any)=><option key={member.user_id} value={member.user_id}>{member.email || member.user_id} · {member.department || member.role}</option>)}</select><small className="muted">La recommandation sera enregistrée en attente de validation, sans commission automatique.</small></div>
                 <div className="field"><label>Notes</label><textarea name="notes" rows={3} maxLength={2000} /></div>
                 <button className="button primary">Créer le prospect</button>
               </form>
