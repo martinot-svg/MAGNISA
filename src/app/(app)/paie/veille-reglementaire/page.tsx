@@ -48,8 +48,9 @@ async function reviewRegulatoryEvent(fd: FormData) {
   const eventId = String(fd.get("event_id") || "");
   const status = String(fd.get("review_status") || "");
   const note = String(fd.get("review_note") || "").trim();
-  if (!eventId || !["reviewed", "not_relevant"].includes(status)) throw new Error("Décision de revue invalide.");
+  if (!eventId || !["reviewed", "validated", "not_relevant"].includes(status)) throw new Error("Décision de revue invalide.");
   if (note.length > 1000) throw new Error("La note de revue est trop longue.");
+  if (status === "validated" && note.length < 20) throw new Error("Pour valider un changement réglementaire, indique une justification d’au moins 20 caractères.");
   const admin = createAdminClient();
   const { data, error } = await admin.from("regulatory_watch_events").update({
     review_status: status, reviewed_by: ctx.user.id, reviewed_at: new Date().toISOString(), review_note: note || null,
@@ -189,12 +190,12 @@ export default async function RegulatoryWatchPage({ searchParams }: { searchPara
       {!events?.length ? <p className="muted">Aucun changement de contenu détecté depuis l'activation de la veille.</p> : <div className="tableWrap"><table><thead><tr><th>Source et date</th><th>État</th><th>Comparaison</th><th>Décision humaine</th></tr></thead><tbody>
         {events.map((event: any) => <tr key={event.id}>
           <td><a href={event.source_final_url || event.source_url} target="_blank" rel="noreferrer">{event.source_title}</a><br/><span className="muted">{dateTime(event.detected_at)}</span></td>
-          <td>{event.review_status === "unreviewed" ? "À vérifier" : event.review_status === "reviewed" ? "Examiné" : "Non pertinent"}</td>
+          <td>{event.review_status === "unreviewed" ? "À vérifier" : event.review_status === "reviewed" ? "Examiné" : event.review_status === "validated" ? "Changement confirmé" : "Non pertinent"}</td>
           <td><details><summary>Afficher l'extrait détecté</summary><p><strong>Avant</strong></p><pre className="muted" style={{ whiteSpace: "pre-wrap", maxHeight: 180, overflow: "auto" }}>{event.previous_excerpt || "Aucun extrait initial disponible"}</pre><p><strong>Après</strong></p><pre className="muted" style={{ whiteSpace: "pre-wrap", maxHeight: 180, overflow: "auto" }}>{event.current_excerpt || "Aucun extrait disponible"}</pre></details></td>
-          <td>{event.review_status === "unreviewed" ? <form action={reviewRegulatoryEvent} className="form"><input type="hidden" name="event_id" value={event.id}/><div className="field"><label>Note de vérification</label><textarea name="review_note" maxLength={1000} rows={2}/></div><button className="button" name="review_status" value="reviewed">Confirmer l'examen</button><button className="button" name="review_status" value="not_relevant">Classer non pertinent</button></form> : <span className="muted">{event.review_note || "Décision enregistrée le " + dateTime(event.reviewed_at)}</span>}</td>
+          <td>{event.review_status === "unreviewed" ? <form action={reviewRegulatoryEvent} className="form"><input type="hidden" name="event_id" value={event.id}/><div className="field"><label>Note de vérification</label><textarea name="review_note" maxLength={1000} rows={2}/></div><button className="button" name="review_status" value="reviewed">Marquer examiné</button><button className="button primary" name="review_status" value="validated">Valider le changement réglementaire</button><button className="button" name="review_status" value="not_relevant">Classer non pertinent</button></form> : <span className="muted">{event.review_note || "Décision enregistrée le " + dateTime(event.reviewed_at)}</span>}</td>
         </tr>)}
       </tbody></table></div>}
-      <p className="muted">Une modification de page peut être éditoriale ou technique. La revue confirme que l'alerte a été examinée, mais ne modifie jamais automatiquement les paramètres de paie.</p>
+      <p className="muted">Une validation réglementaire exige une justification écrite et confirme la portée juridique de l’alerte. Elle ne modifie jamais automatiquement les paramètres de paie : un nouveau référentiel doit ensuite être préparé, vérifié et activé séparément.</p>
     </section>
   </>;
 }
