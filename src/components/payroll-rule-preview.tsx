@@ -84,7 +84,6 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  <p>Retenue CNaPS salarié : <strong>{fmt(social)}</strong></p>
  <p>Assiette santé SMIE : <strong>{fmt(baseHealth)}</strong></p>
  <p>SMIE partenaire de {companyName} : <strong>{applicable.smie_partner_name||defaultSmie||"Non renseignée"}</strong></p><p>{applicable.smie_partner_name||defaultSmie||"SMIE"} salarié : <strong>{fmt(health)}</strong></p>
- <p>Déduction retraite salariale IRSA (plafonnée) : <strong>{configured?fmt(calculation?.deductibleEmployeePension??0):"Non calculée"}</strong></p>
  <p>Réduction par personne à charge : <strong>{configured?fmt(applicable.irsa_dependant_reduction):"Non calculée"}</strong></p>
  <p>Base imposable IRSA arrondie : <strong>{configured?fmt(taxable):"Non calculée"}</strong></p>
  <p>IRSA estimé : <strong>{tax!==null?fmt(tax):"Non calculé"}</strong></p>
