@@ -59,6 +59,7 @@ export default async function ProspectsPage() {
                     <td>{prospect.source || "—"}</td>
                     <td>{prospect.converted_customer_id ? <span className="badge">Client créé</span> : "Non converti"}</td>
                     <td>
+                      <a className="button small" href={`/prospects/${prospect.id}`}>Suivi collaboratif</a>
                       {canConvert && !prospect.converted_customer_id && prospect.status !== "lost" ? (
                         <form action={convertProspectToCustomer}>
                           <input type="hidden" name="prospect_id" value={prospect.id} />
