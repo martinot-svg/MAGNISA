@@ -49,7 +49,7 @@ async function readSource(source: Source): Promise<SourceRead> {
   }
   const combinedText = successful.map(item => `SOURCE: ${item.url}\n${item.text}`).join("\n\n");
   return {
-    ok: true, source, finalUrl: successful.map(item => item.finalUrl).join("\n"),
+    ok: true, source, finalUrl: successful[0].finalUrl,
     httpStatus: warnings.length ? 207 : 200,
     contentHash: createHash("sha256").update(combinedText).digest("hex"),
     excerpt: combinedText.slice(0, 3000), warnings,
