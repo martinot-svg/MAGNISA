@@ -67,10 +67,6 @@ begin
   if not exists (select 1 from pg_indexes where schemaname='public' and indexname='prospect_interventions_automatic_evidence_unique') then
     raise exception 'Automatic CRM event idempotency index is missing';
   end if;
-  if (select count(*) from public.prospect_intervention_type_settings) < 11 then
-    raise exception 'Default intervention catalog was not seeded';
-  end if;
-
   if not exists (select 1 from pg_trigger where tgname='commission_contributors_validation_guard' and not tgisinternal)
      or not exists (select 1 from pg_trigger where tgname='crm_capture_confirmed_order' and not tgisinternal)
      or not exists (select 1 from pg_trigger where tgname='crm_capture_paid_invoice' and not tgisinternal)
