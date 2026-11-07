@@ -48,7 +48,7 @@ describe("Calcul centralisé des bulletins", () => {
     expect(result.netBeforeOtherDeductions).toBe(858_500);
   });
 
-  it.each([0.03, 0.005])("utilise le plafond santé IRSA versionné à %s", (rate) => {
+  it.each([0.015, 0.005])("utilise le plafond santé IRSA versionné à %s", (rate) => {
     const result = calculatePayrollAmounts({ gross: 1_000_000, dependants: 0, rule: { ...rule, health_employee_rate: 0.03, irsa_health_deduction_rate: rate } });
     const deductible = Math.min(30_000, Math.round(1_000_000 * rate * 100) / 100);
     expect(result.taxableBase).toBe(Math.floor((1_000_000 - 10_000 - deductible) / 100) * 100);
