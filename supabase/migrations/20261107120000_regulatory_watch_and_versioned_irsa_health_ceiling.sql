@@ -56,7 +56,10 @@ create policy regulatory_watch_settings_admin_manage on public.regulatory_watch_
 drop policy if exists regulatory_watch_events_member_read on public.regulatory_watch_events;
 create policy regulatory_watch_events_member_read on public.regulatory_watch_events
   for select to authenticated using (public.is_org_member(organization_id));
-revoke all on public.regulatory_source_snapshots from public, anon, authenticated;\ngrant all on public.regulatory_source_snapshots to service_role;\ngrant all on public.regulatory_watch_events to service_role;\ngrant all on public.regulatory_watch_settings to service_role;
+revoke all on public.regulatory_source_snapshots from public, anon, authenticated;
+grant all on public.regulatory_source_snapshots to service_role;
+grant all on public.regulatory_watch_events to service_role;
+grant all on public.regulatory_watch_settings to service_role;
 revoke all on public.regulatory_watch_events from anon;
 revoke insert, update, delete on public.regulatory_watch_events from authenticated;
 grant select on public.regulatory_watch_events to authenticated;
