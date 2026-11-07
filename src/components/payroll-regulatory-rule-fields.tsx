@@ -13,6 +13,7 @@ type Treatment =
 
 type CompensationRule = {
   code: string;
+  customLabel?: string;
   treatment: Treatment;
   taxableRate?: number;
   exemptionCap?: number;
@@ -46,6 +47,77 @@ const treatments: Array<{ value: Treatment; label: string }> = [
   { value: "conditional", label: "Exonération sous condition" },
   { value: "special", label: "Traitement particulier" },
 ];
+
+
+const compensationOptions = [
+  ["transport_allowance", "Indemnité de transport"],
+  ["housing_allowance", "Indemnité de logement"],
+  ["meal_allowance", "Indemnité de restauration"],
+  ["travel_allowance", "Indemnité de déplacement"],
+  ["mission_allowance", "Indemnité de mission"],
+  ["representation_allowance", "Indemnité de représentation"],
+  ["position_allowance", "Indemnité de fonction"],
+  ["responsibility_allowance", "Indemnité de responsabilité"],
+  ["cash_allowance", "Indemnité de caisse"],
+  ["dirt_allowance", "Indemnité de salissure"],
+  ["clothing_allowance", "Indemnité d'habillement"],
+  ["meal_basket_allowance", "Indemnité de panier"],
+  ["residence_allowance", "Indemnité de résidence"],
+  ["risk_allowance", "Indemnité de risque"],
+  ["constraint_allowance", "Indemnité de sujétion"],
+  ["on_call_allowance", "Indemnité d'astreinte"],
+  ["phone_allowance", "Indemnité de téléphone"],
+  ["remote_location_allowance", "Indemnité d'éloignement"],
+  ["seniority_bonus", "Prime d'ancienneté"],
+  ["attendance_bonus", "Prime d'assiduité"],
+  ["presence_bonus", "Prime de présence"],
+  ["loyalty_bonus", "Prime de fidélité"],
+  ["exceptional_performance_bonus", "Prime de performance exceptionnelle"],
+  ["exceptional_responsibility_bonus", "Prime de responsabilité exceptionnelle"],
+  ["year_end_bonus", "Prime de fin d'année"],
+  ["balance_sheet_bonus", "Prime de bilan"],
+  ["birth_bonus", "Prime de naissance"],
+  ["marriage_bonus", "Prime de mariage"],
+  ["departure_bonus", "Prime de départ"],
+  ["exceptional_gratuity", "Gratification exceptionnelle"],
+  ["exceptional_bonus", "Bonus exceptionnel"],
+  ["sales_commission", "Commission commerciale"],
+  ["sales_commission_on_revenue", "Commission sur ventes"],
+  ["target_commission", "Commission sur objectifs"],
+  ["variable_compensation", "Rémunération variable"],
+  ["profit_sharing", "Participation aux résultats"],
+  ["incentive", "Intéressement"],
+  ["tips", "Pourboires"],
+  ["company_housing", "Logement de fonction"],
+  ["company_vehicle", "Véhicule de fonction"],
+  ["fuel_benefit", "Carburant pris en charge"],
+  ["company_phone", "Téléphone mis à disposition"],
+  ["utilities_benefit", "Électricité et eau prises en charge"],
+  ["provided_meals", "Repas fournis"],
+  ["provided_food", "Nourriture fournie"],
+  ["other_benefit_in_kind", "Autre avantage en nature"],
+  ["paid_leave_compensation", "Indemnité compensatrice de congés payés"],
+  ["notice_compensation", "Indemnité de préavis"],
+  ["dismissal_compensation", "Indemnité de licenciement"],
+  ["termination_compensation", "Indemnité de rupture"],
+  ["settlement_compensation", "Indemnité transactionnelle"],
+  ["salary_adjustment", "Rappel de salaire"],
+  ["bonus_adjustment", "Rappel de primes"],
+  ["allowance_adjustment", "Rappel d'indemnités"],
+  ["retroactive_compensation", "Rémunération rétroactive"],
+  ["travel_expense_reimbursement", "Remboursement de frais de déplacement"],
+  ["mission_expense_reimbursement", "Remboursement de frais de mission"],
+  ["communication_expense_reimbursement", "Remboursement de frais de communication"],
+  ["professional_expense_reimbursement", "Remboursement de frais professionnels"],
+  ["representation_expense_reimbursement", "Remboursement de frais de représentation"],
+  ["other_custom", "Autre rémunération créée par l'entreprise"],
+] as const;
+
+function customCompensationCode(label: string) {
+  const slug = label.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return slug ? `custom_${slug}` : "other_custom";
+}
 
 const overtimeCategories: Array<{ value: OvertimeCategory; label: string }> = [
   { value: "regular", label: "Jour ouvrable" },
@@ -88,68 +160,72 @@ export function PayrollRegulatoryRuleFields({
 
       <section className="card section">
         <h3>Classification fiscale des rémunérations</h3>
-        <p className="muted">
-          Définis le traitement fiscal de chaque type de rémunération. Utilise le même code que celui
-          de l'élément de paie. Chaque règle doit avoir une référence officielle, une version et une date d'effet.
-        </p>
-        <p className="muted">
-          Le salaire de base, les primes ordinaires, les heures supplémentaires et la retraite complémentaire
-          sont traités par les règles intégrées de MAGNISA : ne crée pas de doublon pour ces éléments.
-        </p>
+        <p className="muted">Sélectionne la rémunération concernée, puis indique son traitement fiscal. Les informations réglementaires sont reprises du référentiel de paie.</p>
         {compensation.length === 0 && <p className="notice">Aucune classification personnalisée. Ajoute une règle uniquement si ton entreprise utilise un élément de rémunération qui nécessite un traitement fiscal spécifique.</p>}
-        {compensation.map((rule, index) => (
-          <div className="card section" key={index}>
-            <div className="actions" style={{ justifyContent: "space-between", alignItems: "center" }}>
-              <strong>Règle fiscale {index + 1}</strong>
-              <button type="button" className="button" onClick={() => setCompensation((current) => current.filter((_, i) => i !== index))}>Supprimer cette règle</button>
+        {compensation.map((rule, index) => {
+          const isCustom = rule.code === "other_custom" || rule.code.startsWith("custom_");
+          const selectedValue = isCustom ? "other_custom" : rule.code;
+          const usedCodes = compensation.filter((_, i) => i !== index).map((item) => item.code);
+          return (
+            <div className="card section" key={index}>
+              <div className="actions" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                <strong>Rémunération {index + 1}</strong>
+                <button type="button" className="button" onClick={() => setCompensation((current) => current.filter((_, i) => i !== index))}>Supprimer</button>
+              </div>
+              <div className="grid2">
+                <Field label="Rémunération">
+                  <select value={selectedValue} onChange={(e) => {
+                    const value = e.target.value;
+                    updateCompensation(index, {
+                      code: value === "other_custom" ? "other_custom" : value,
+                      customLabel: value === "other_custom" ? (rule.customLabel || "") : undefined,
+                    });
+                  }} required>
+                    <option value="">Sélectionner une rémunération</option>
+                    {compensationOptions.filter(([value]) => value === "other_custom" || !usedCodes.includes(value) || value === selectedValue).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </Field>
+                {isCustom && <Field label="Précise la rémunération">
+                  <input value={rule.customLabel || ""} onChange={(e) => updateCompensation(index, {
+                    customLabel: e.target.value,
+                    code: customCompensationCode(e.target.value),
+                  })} placeholder="Ex. Indemnité exceptionnelle" maxLength={120} required />
+                </Field>}
+                <Field label="Traitement fiscal">
+                  <select value={rule.treatment || "fully_taxable"} onChange={(e) => updateCompensation(index, { treatment: e.target.value as Treatment })}>
+                    {treatments.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  </select>
+                </Field>
+                {rule.treatment === "partially_taxable" && (
+                  <Field label="Part imposable (%)">
+                    <input type="number" min="0" max="100" step="0.01" value={rule.taxableRate === undefined ? "" : rule.taxableRate * 100}
+                      onChange={(e) => updateCompensation(index, { taxableRate: e.target.value === "" ? undefined : Number(e.target.value) / 100 })} required />
+                  </Field>
+                )}
+                {rule.treatment === "exemption_capped" && (
+                  <Field label="Plafond d'exonération (Ar)">
+                    <input type="number" min="0" step="0.01" value={rule.exemptionCap ?? ""}
+                      onChange={(e) => updateCompensation(index, { exemptionCap: e.target.value === "" ? undefined : Number(e.target.value) })} required />
+                  </Field>
+                )}
+                {rule.treatment === "conditional" && (
+                  <Field label="Condition d'exonération">
+                    <input value={rule.conditionKey || ""} onChange={(e) => updateCompensation(index, { conditionKey: e.target.value })} placeholder="Ex. justificatif fourni" required />
+                  </Field>
+                )}
+                {rule.treatment === "special" && (
+                  <p className="muted">Le montant imposable de ce traitement particulier doit être déterminé lors de la saisie du bulletin.</p>
+                )}
+              </div>
             </div>
-            <div className="grid2">
-              <Field label="Code de l'élément de rémunération">
-                <input value={rule.code || ""} onChange={(e) => updateCompensation(index, { code: e.target.value })} placeholder="Ex. meal_allowance" required />
-              </Field>
-              <Field label="Traitement fiscal">
-                <select value={rule.treatment || "fully_taxable"} onChange={(e) => updateCompensation(index, { treatment: e.target.value as Treatment })}>
-                  {treatments.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                </select>
-              </Field>
-              {rule.treatment === "partially_taxable" && (
-                <Field label="Part imposable (%)">
-                  <input type="number" min="0" max="100" step="0.01" value={rule.taxableRate === undefined ? "" : rule.taxableRate * 100}
-                    onChange={(e) => updateCompensation(index, { taxableRate: e.target.value === "" ? undefined : Number(e.target.value) / 100 })} required />
-                </Field>
-              )}
-              {rule.treatment === "exemption_capped" && (
-                <Field label="Plafond d'exonération (Ar)">
-                  <input type="number" min="0" step="0.01" value={rule.exemptionCap ?? ""}
-                    onChange={(e) => updateCompensation(index, { exemptionCap: e.target.value === "" ? undefined : Number(e.target.value) })} required />
-                </Field>
-              )}
-              {rule.treatment === "conditional" && (
-                <Field label="Clé de la condition">
-                  <input value={rule.conditionKey || ""} onChange={(e) => updateCompensation(index, { conditionKey: e.target.value })} placeholder="Ex. justificatif_fourni" required />
-                </Field>
-              )}
-              {rule.treatment === "special" && (
-                <p className="muted">Le montant imposable de ce traitement particulier doit être déterminé et justifié lors de la saisie du bulletin.</p>
-              )}
-              <Field label="Référence officielle (texte, article, URL)">
-                <input value={rule.legalReference || ""} onChange={(e) => updateCompensation(index, { legalReference: e.target.value })} required />
-              </Field>
-              <Field label="Version de la règle">
-                <input value={rule.ruleVersion || ""} onChange={(e) => updateCompensation(index, { ruleVersion: e.target.value })} placeholder="Ex. CGI-2026-v1" required />
-              </Field>
-              <Field label="Date d'effet">
-                <input type="date" value={rule.effectiveFrom || ""} onChange={(e) => updateCompensation(index, { effectiveFrom: e.target.value })} required />
-              </Field>
-              <Field label="Date de fin (facultative)">
-                <input type="date" value={rule.effectiveTo || ""} onChange={(e) => updateCompensation(index, { effectiveTo: e.target.value || undefined })} />
-              </Field>
-            </div>
-          </div>
-        ))}
+          );
+        })}
         <button type="button" className="button" onClick={() => setCompensation((current) => [...current, {
-          code: "", treatment: "fully_taxable", legalReference: "", ruleVersion: "", effectiveFrom: "",
-        }])}>Ajouter une classification</button>
+          code: "", treatment: "fully_taxable", legalReference: "Référence à vérifier avant activation",
+          ruleVersion: "Version du référentiel", effectiveFrom: new Date().toISOString().slice(0, 10),
+        }])}>Ajouter une rémunération</button>
       </section>
 
       <section className="card section">
