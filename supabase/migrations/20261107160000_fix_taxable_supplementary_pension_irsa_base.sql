@@ -15,6 +15,7 @@ declare
   v_social numeric;
   v_health numeric;
   v_deductible_health numeric;
+  v_deductible_pension numeric;
   v_emp_social numeric;
   v_emp_health numeric;
   v_taxable numeric;
@@ -54,7 +55,10 @@ begin
 
   if v_rule.irsa_health_deduction_rate is null
     or v_rule.irsa_health_deduction_rate < 0
-    or v_rule.irsa_health_deduction_rate > 1
+    or v_rule.irsa_health_deduction_rate > 0.02
+    or v_rule.irsa_pension_deduction_rate is null
+    or v_rule.irsa_pension_deduction_rate < 0
+    or v_rule.irsa_pension_deduction_rate > 0.10
     or v_rule.cnaps_monthly_ceiling is null
     or v_rule.health_monthly_ceiling is null
     or v_rule.rounding_policy <> 'floor_100'
@@ -66,11 +70,13 @@ begin
   v_social := round(least(new.gross_pay, v_rule.cnaps_monthly_ceiling) * v_rule.cnaps_employee_rate, 2);
   v_health := round(least(new.gross_pay, v_rule.health_monthly_ceiling) * v_rule.health_employee_rate, 2);
   v_deductible_health := least(v_health, round(new.gross_pay * v_rule.irsa_health_deduction_rate, 2));
+  -- Article 01.03.09: employee social and personal pension contributions share the 10% gross remuneration cap.
+  v_deductible_pension := least(v_social + coalesce(new.employee_supplementary_pension, 0), round(new.gross_pay * v_rule.irsa_pension_deduction_rate, 2));
   v_emp_social := round(least(new.gross_pay, v_rule.cnaps_monthly_ceiling) * v_rule.cnaps_employer_rate, 2);
   v_emp_health := round(least(new.gross_pay, v_rule.health_monthly_ceiling) * v_rule.health_employer_rate, 2);
 
   -- Employer-funded supplementary pension is taxable for IRSA but is not part of gross cash pay.
-  v_taxable := floor(greatest(0, new.gross_pay + coalesce(new.taxable_supplementary_pension, 0) - v_social - v_deductible_health) / 100) * 100;
+  v_taxable := floor(greatest(0, new.gross_pay + coalesce(new.taxable_supplementary_pension, 0) - v_deductible_pension - v_deductible_health) / 100) * 100;
 
   for v_b in select value from jsonb_array_elements(v_rule.irsa_brackets) loop
     v_rate := (v_b->>'rate')::numeric;
