@@ -2,7 +2,8 @@
 begin;
 alter table public.payroll_rule_sets
   add column if not exists irsa_dependant_reduction numeric(18,2) not null default 2000,
-  add column if not exists irsa_dependant_threshold numeric(18,2) not null default 350000;
+  add column if not exists irsa_dependant_threshold numeric(18,2) not null default 350000,
+  add column if not exists irsa_pension_deduction_rate numeric(9,6) not null default 0.10;
 
 do $$ begin
   if not exists (select 1 from pg_constraint where conname='payroll_rule_irsa_dependant_reduction_check' and conrelid='public.payroll_rule_sets'::regclass) then
@@ -11,7 +12,10 @@ do $$ begin
   if not exists (select 1 from pg_constraint where conname='payroll_rule_irsa_dependant_threshold_check' and conrelid='public.payroll_rule_sets'::regclass) then
     alter table public.payroll_rule_sets add constraint payroll_rule_irsa_dependant_threshold_check check (irsa_dependant_threshold >= 0);
   end if;
-end $$;
+  if not exists (select 1 from pg_constraint where conname='payroll_rule_irsa_pension_deduction_rate_check' and conrelid='public.payroll_rule_sets'::regclass) then
+    alter table public.payroll_rule_sets add constraint payroll_rule_irsa_pension_deduction_rate_check check (irsa_pension_deduction_rate >= 0 and irsa_pension_deduction_rate <= 1);
+  end if;
+end $;
 
 create or replace function public.payroll_compute_fmfp_on_insert()
 returns trigger
@@ -26,6 +30,7 @@ declare
   v_social numeric;
   v_health numeric;
   v_deductible_health numeric;
+  v_deductible_pension numeric;
   v_emp_social numeric;
   v_emp_health numeric;
   v_taxable numeric;
@@ -68,6 +73,9 @@ begin
     or v_rule.irsa_health_deduction_rate is null
     or v_rule.irsa_health_deduction_rate < 0
     or v_rule.irsa_health_deduction_rate > 1
+    or v_rule.irsa_pension_deduction_rate is null
+    or v_rule.irsa_pension_deduction_rate < 0
+    or v_rule.irsa_pension_deduction_rate > 1
     or v_rule.cnaps_monthly_ceiling is null
     or v_rule.health_monthly_ceiling is null
     or v_rule.rounding_policy <> 'floor_100'
@@ -79,11 +87,12 @@ begin
   v_social := round(least(new.gross_pay, v_rule.cnaps_monthly_ceiling) * v_rule.cnaps_employee_rate, 2);
   v_health := round(least(new.gross_pay, v_rule.health_monthly_ceiling) * v_rule.health_employee_rate, 2);
   v_deductible_health := least(v_health, round(new.gross_pay * v_rule.irsa_health_deduction_rate, 2));
+  v_deductible_pension := least(v_social, round(new.gross_pay * v_rule.irsa_pension_deduction_rate, 2));
   v_emp_social := round(least(new.gross_pay, v_rule.cnaps_monthly_ceiling) * v_rule.cnaps_employer_rate, 2);
   v_emp_health := round(least(new.gross_pay, v_rule.health_monthly_ceiling) * v_rule.health_employer_rate, 2);
 
   -- Employer-funded supplementary pension is taxable for IRSA but is not part of gross cash pay.
-  v_taxable := floor(greatest(0, new.gross_pay + coalesce(new.taxable_supplementary_pension, 0) - v_social - v_deductible_health) / 100) * 100;
+  v_taxable := floor(greatest(0, new.gross_pay + coalesce(new.taxable_supplementary_pension, 0) - v_deductible_pension - v_deductible_health) / 100) * 100;
 
   for v_b in select value from jsonb_array_elements(v_rule.irsa_brackets) loop
     v_rate := (v_b->>'rate')::numeric;
@@ -169,6 +178,7 @@ begin
      old.irsa_minimum is distinct from new.irsa_minimum or
      old.irsa_dependant_reduction is distinct from new.irsa_dependant_reduction or
      old.irsa_dependant_threshold is distinct from new.irsa_dependant_threshold or
+     old.irsa_pension_deduction_rate is distinct from new.irsa_pension_deduction_rate or
      old.rounding_policy is distinct from new.rounding_policy or
      old.effective_from is distinct from new.effective_from)
    then raise exception 'Règle de paie validée immuable : créer une nouvelle version'; end if;
