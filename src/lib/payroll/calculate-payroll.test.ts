@@ -13,6 +13,8 @@ const rule: PayrollCalculationRule = {
   irsa_health_deduction_rate: 0.02,
   irsa_brackets: MADAGASCAR_IRSA_2026.brackets,
   irsa_minimum: 3_000,
+  irsa_dependant_reduction: 2_000,
+  irsa_dependant_threshold: 350_000,
 };
 
 describe("Calcul centralisé des bulletins", () => {
@@ -91,6 +93,19 @@ describe("Calcul centralisé des bulletins", () => {
       expect(result.incomeTax).toBeGreaterThanOrEqual(3_000);
     },
   );
+
+  it("utilise la réduction et le seuil personnes à charge du référentiel", () => {
+    const result = calculatePayrollAmounts({
+      gross: 1_000_000, dependants: 2,
+      rule: { ...rule, irsa_dependant_reduction: 3_500, irsa_dependant_threshold: 900_000 },
+    });
+    expect(result.incomeTax).toBe(96_500);
+    const belowThreshold = calculatePayrollAmounts({
+      gross: 800_000, dependants: 2,
+      rule: { ...rule, irsa_dependant_reduction: 3_500, irsa_dependant_threshold: 900_000 },
+    });
+    expect(belowThreshold.incomeTax).toBe(64_300);
+  });
 
   it("retourne zéro d'impôt pour un brut nul", () => {
     const result = calculatePayrollAmounts({ gross: 0, dependants: 0, rule });
