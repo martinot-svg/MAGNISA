@@ -237,5 +237,4 @@ drop trigger if exists payslip_fiscal_snapshot_immutable on public.payslips;
 create trigger payslip_fiscal_snapshot_immutable before update on public.payslips
 for each row execute function public.prevent_payslip_fiscal_snapshot_change();
 
-revoke all on function public.write_payslip_fiscal_snapshot(uuid,uuid,jsonb) from public,anon;
 commit;
