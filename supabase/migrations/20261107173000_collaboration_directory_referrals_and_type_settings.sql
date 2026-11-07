@@ -179,7 +179,8 @@ $save$;
 -- Referrals are recorded at prospect creation but remain pending review.
 create or replace function public.create_prospect_with_referrer(
   p_org uuid,p_name text,p_email text default null,p_phone text default null,
-  p_source text default null,p_notes text default null,p_referrer_user_id uuid default null
+  p_source text default null,p_notes text default null,p_referrer_user_id uuid default null,
+  p_referrer_evidence_reference text default null
 ) returns uuid
 language plpgsql
 security definer
@@ -189,6 +190,8 @@ declare
   v_prospect uuid;
   v_department text;
   v_intervention uuid;
+  v_recommendation_active boolean;
+  v_requires_evidence boolean;
 begin
   if auth.uid() is null or not public.has_org_permission(p_org,'commissions.contribute') then
     raise exception 'Tu n''as pas le droit de créer un prospect.';
@@ -203,6 +206,15 @@ begin
     if not found then
       raise exception 'Le recommandeur doit être un membre actif de cette entreprise.';
     end if;
+    select is_active,requires_evidence into v_recommendation_active,v_requires_evidence
+    from public.prospect_intervention_type_settings
+    where organization_id=p_org and intervention_type='recommendation';
+    if not found or not v_recommendation_active then
+      raise exception 'Le type Recommandation est désactivé pour cette entreprise.';
+    end if;
+    if v_requires_evidence and length(trim(coalesce(p_referrer_evidence_reference,'')))=0 then
+      raise exception 'Un justificatif est obligatoire pour cette recommandation.';
+    end if;
   end if;
   v_prospect := public.create_prospect_with_originator(
     p_org,p_name,p_email,p_phone,p_source,p_notes
@@ -210,11 +222,12 @@ begin
   if p_referrer_user_id is not null then
     insert into public.prospect_interventions(
       organization_id,prospect_id,contributor_user_id,created_by,department_snapshot,
-      intervention_type,contribution_role,stage_status,validation_status,description
+      intervention_type,contribution_role,stage_status,validation_status,description,evidence_reference
     ) values (
       p_org,v_prospect,p_referrer_user_id,auth.uid(),v_department,
       'recommendation','recommender','completed','pending',
-      'Recommandation déclarée lors de la création du prospect ; validation requise.'
+      'Recommandation déclarée lors de la création du prospect ; validation requise.',
+      nullif(trim(coalesce(p_referrer_evidence_reference,'')),'')
     ) returning id into v_intervention;
     insert into public.prospect_intervention_history(
       organization_id,intervention_id,action,actor_user_id,new_value,justification
@@ -412,10 +425,10 @@ revoke all on function public.seed_prospect_intervention_type_settings() from pu
 revoke all on function public.list_collaboration_members(uuid) from public,anon;
 revoke all on function public.list_prospect_intervention_types(uuid) from public,anon;
 revoke all on function public.save_prospect_intervention_types(uuid,jsonb) from public,anon;
-revoke all on function public.create_prospect_with_referrer(uuid,text,text,text,text,text,uuid) from public,anon;
+revoke all on function public.create_prospect_with_referrer(uuid,text,text,text,text,text,uuid,text) from public,anon;
 revoke all on function public.record_prospect_intervention(uuid,uuid,uuid,uuid,text,text,text,text,text,text,uuid,timestamptz) from public,anon;
 grant execute on function public.list_collaboration_members(uuid) to authenticated;
 grant execute on function public.list_prospect_intervention_types(uuid) to authenticated;
 grant execute on function public.save_prospect_intervention_types(uuid,jsonb) to authenticated;
-grant execute on function public.create_prospect_with_referrer(uuid,text,text,text,text,text,uuid) to authenticated;
+grant execute on function public.create_prospect_with_referrer(uuid,text,text,text,text,text,uuid,text) to authenticated;
 grant execute on function public.record_prospect_intervention(uuid,uuid,uuid,uuid,text,text,text,text,text,text,uuid,timestamptz) to authenticated;
