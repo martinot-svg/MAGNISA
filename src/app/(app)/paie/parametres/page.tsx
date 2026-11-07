@@ -218,8 +218,6 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
 </div>
 <PayrollSettingsDisclosure
 simulator={<PayrollRulePreview rules={(rules||[]) as any} currency={org?.currency||"MGA"} companyName={org?.name||"Entreprise"} defaultSmie={org?.smie_partner_name||null} />}
-<div><p className="eyebrow">Personnel & Paie</p><h1>Paramètres de paie</h1><p>Configuration réglementaire versionnée et contrôle des paramètres de paie.</p></div><div className="actions" style={{alignItems:"center"}}><PayrollSettingsDisclosure
-simulator={<PayrollRulePreview rules={(rules||[]) as any} currency={org?.currency||"MGA"} companyName={org?.name||"Entreprise"} defaultSmie={org?.smie_partner_name||null} />}
 createRule={<><div className="card section"><h2>Créer un référentiel réglementaire</h2><p className="muted">L'enregistrement crée une version en attente de vérification. Elle ne modifie pas le référentiel actif. Après contrôle des textes officiels, utilise l'action d'activation explicite pour programmer son application à la période prévue.</p>
  <form action={saveRule} className="form"><div className="grid2">
  <div className="field"><label>Nom / version</label><input name="name" placeholder="Ex. Référentiel 2026 à vérifier" required/></div>
