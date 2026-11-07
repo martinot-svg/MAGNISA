@@ -333,7 +333,6 @@ declare
   v_b jsonb;
   v_dependants integer;
   v_deductible_pension numeric;
-  v_exempt_earnings numeric;
 begin
   select period_start,period_end into v_period_start,v_period
   from public.payroll_runs
@@ -393,6 +392,27 @@ begin
   if coalesce(new.employee_pension_contribution,0) > 0 and nullif(btrim(coalesce(new.employee_pension_reference,'')), '') is null then
     raise exception 'La référence du régime de retraite déductible est obligatoire';
   end if;
+  select irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from,irsa_deduction_authorized_to
+    into v_dependants,v_irsa_deduction_authorized,v_irsa_deduction_authorization_reference,v_irsa_deduction_authorized_from,v_irsa_deduction_authorized_to
+  from public.employees
+  where id = new.employee_id
+    and organization_id = new.organization_id;
+
+  if coalesce(v_irsa_deduction_authorized,false) and nullif(btrim(coalesce(v_irsa_deduction_authorization_reference,'')), '') is null then
+    raise exception 'La notification écrite du service fiscal doit être référencée avant toute déduction IRSA';
+  end if;
+  new.irsa_deduction_authorized := coalesce(v_irsa_deduction_authorized,false)
+    and (v_irsa_deduction_authorized_from is null or v_irsa_deduction_authorized_from <= v_period_start)
+    and (v_irsa_deduction_authorized_to is null or v_irsa_deduction_authorized_to >= v_period);
+  new.irsa_deduction_authorization_reference := case when new.irsa_deduction_authorized then v_irsa_deduction_authorization_reference else null end;
+  if new.irsa_deduction_authorized then
+    v_deductible_health := least(v_health, round(new.gross_pay * v_rule.irsa_health_deduction_rate, 2));
+    v_deductible_pension := least(v_social + coalesce(new.employee_pension_contribution,0), round(new.gross_pay * v_rule.irsa_pension_deduction_rate, 2));
+  else
+    v_deductible_health := 0;
+    v_deductible_pension := 0;
+  end if;
+
   -- Les déductions de l'article 01.03.09 ne sont admises que sur notification écrite (article 01.03.11); la CNaPS et la retraite complémentaire salariale partagent le plafond de 10%.
   v_taxable := floor(greatest(0, new.gross_pay + coalesce(new.taxable_supplementary_pension, 0) - coalesce(new.irsa_exempt_earnings,0) - v_deductible_health - v_deductible_pension) / v_rule.irsa_rounding_unit) * v_rule.irsa_rounding_unit;
 
@@ -426,27 +446,6 @@ begin
     v_tax := 0;
   else
     v_tax := greatest(coalesce(v_rule.irsa_minimum, 0), round(v_tax, 2));
-  end if;
-
-  select irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from,irsa_deduction_authorized_to
-    into v_dependants,v_irsa_deduction_authorized,v_irsa_deduction_authorization_reference,v_irsa_deduction_authorized_from,v_irsa_deduction_authorized_to
-  from public.employees
-  where id = new.employee_id
-    and organization_id = new.organization_id;
-
-  if coalesce(v_irsa_deduction_authorized,false) and nullif(btrim(coalesce(v_irsa_deduction_authorization_reference,'')), '') is null then
-    raise exception 'La notification écrite du service fiscal doit être référencée avant toute déduction IRSA';
-  end if;
-  new.irsa_deduction_authorized := coalesce(v_irsa_deduction_authorized,false)
-    and (v_irsa_deduction_authorized_from is null or v_irsa_deduction_authorized_from <= v_period_start)
-    and (v_irsa_deduction_authorized_to is null or v_irsa_deduction_authorized_to >= v_period);
-  new.irsa_deduction_authorization_reference := case when new.irsa_deduction_authorized then v_irsa_deduction_authorization_reference else null end;
-  if new.irsa_deduction_authorized then
-    v_deductible_health := least(v_health, round(new.gross_pay * v_rule.irsa_health_deduction_rate, 2));
-    v_deductible_pension := least(v_social + coalesce(new.employee_pension_contribution,0), round(new.gross_pay * v_rule.irsa_pension_deduction_rate, 2));
-  else
-    v_deductible_health := 0;
-    v_deductible_pension := 0;
   end if;
 
   if v_dependants is null or v_dependants < 0 or v_dependants > 30 then
