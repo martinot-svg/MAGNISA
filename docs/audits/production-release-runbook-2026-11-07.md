@@ -66,6 +66,10 @@ Ordre de bascule recommandé :
 6. Vérifier à nouveau les privilèges `anon`, RLS, les fonctions RPC et les journaux.
 7. Réactiver les écritures et les traitements planifiés.
 
+## Tests ajoutés au candidat
+
+Le rejeu de migrations exécute désormais `supabase/tests/accounting-fiscal-year-opening-closing.sql`, qui vérifie les soldes initiaux équilibrés, le rejet des exercices chevauchants, l'obligation de clôturer l'exercice précédent, le report automatique des comptes PCG 1 à 5, l'équilibre des à-nouveaux et le refus de clôturer un exercice futur.
+
 ## Protection des données et retour arrière
 
 - Aucune mise à jour globale des bulletins historiques n'est autorisée dans cette bascule.
