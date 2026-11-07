@@ -25,14 +25,23 @@ export default async function ClientContributions({ params }: { params: Promise<
   ]);
   if (!canView && !canContribute && !canReview) redirect("/dashboard?access=denied");
 
-  const [{data:customer},{data:events=[],error},{data:members=[],error:membersError},{data:interventionTypes=[],error:typesError}] = await Promise.all([
+  const [{data:customer},{data:originatingProspect},{data:members=[],error:membersError},{data:interventionTypes=[],error:typesError}] = await Promise.all([
     ctx.supabase.from("customers").select("id,name").eq("organization_id",ctx.organizationId).eq("id",id).maybeSingle(),
-    ctx.supabase.from("prospect_interventions").select("*").eq("organization_id",ctx.organizationId).eq("customer_id",id).order("occurred_at",{ascending:false}),
+    ctx.supabase.from("prospects").select("id").eq("organization_id",ctx.organizationId).eq("converted_customer_id",id).maybeSingle(),
     ctx.supabase.rpc("list_collaboration_members",{p_org:ctx.organizationId}),
     ctx.supabase.rpc("list_prospect_intervention_types",{p_org:ctx.organizationId}),
   ]);
   if (!customer) notFound();
-  if (error || membersError || typesError) throw new Error("Impossible de charger les contributions client.");
+  if (membersError || typesError) throw new Error("Impossible de charger le répertoire ou le catalogue des interventions.");
+  let eventQuery = ctx.supabase.from("prospect_interventions").select("*")
+    .eq("organization_id",ctx.organizationId).eq("customer_id",id);
+  if (originatingProspect) {
+    eventQuery = ctx.supabase.from("prospect_interventions").select("*")
+      .eq("organization_id",ctx.organizationId)
+      .or("customer_id.eq."+id+",prospect_id.eq."+originatingProspect.id);
+  }
+  const {data:events=[],error} = await eventQuery.order("occurred_at",{ascending:false});
+  if (error) throw new Error("Impossible de charger les contributions client.");
   const emailById = new Map((members as any[]).map((member:any)=>[member.user_id,member.email]));
   const typeLabelByKey = new Map((interventionTypes as any[]).map((item:any)=>[item.intervention_type,item.label]));
   const eventIds=(events as any[]).map((item:any)=>item.id);
