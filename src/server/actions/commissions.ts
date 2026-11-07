@@ -278,6 +278,7 @@ export async function recordCommissionPayment(formData: FormData) {
 const interventionTypes = ["recommendation","prospecting","contact","presentation","qualification","negotiation","transfer","closing","signature","follow_up","retention"] as const;
 const contributionRoles = ["initiator","recommender","prospector","qualifier","negotiator","closer","account_manager","support"] as const;
 const stageStatuses = ["not_started","in_progress","completed","cancelled","blocked"] as const;
+const interventionRecordStatuses = [...stageStatuses,"transferred"] as const;
 
 export async function recordProspectIntervention(formData: FormData) {
   const ctx = await requireOrganization();
@@ -286,7 +287,7 @@ export async function recordProspectIntervention(formData: FormData) {
     prospect_id: z.string().uuid(),
     intervention_type: z.enum(interventionTypes),
     contribution_role: z.enum(contributionRoles),
-    stage_status: z.enum(stageStatuses),
+    stage_status: z.enum(interventionRecordStatuses),
     description: z.string().trim().min(3).max(2000),
     evidence_reference: z.string().trim().max(500),
     responsible_user_id: z.string().uuid().or(z.literal("")),
