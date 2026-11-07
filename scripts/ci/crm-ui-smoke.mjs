@@ -45,15 +45,19 @@ try {
 
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Prospects" }).waitFor();
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   await page.getByRole("link", { name: "Configurer les interventions" }).click();
   await page.getByRole("heading", { name: "Types d'intervention" }).waitFor();
   assert(await page.locator("tbody tr").count() === 11, "The configurable intervention catalog must show 11 types.");
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: "Prospects" }).waitFor();
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
 
   const prospectName = "CRM UI " + Date.now();
-  await page.getByRole("button", { name: "+ Nouveau prospect" }).click();
+  const createProspectButton = page.getByRole("button", { name: "+ Nouveau prospect" });
+  await createProspectButton.click();
   const prospectDialog = page.getByRole("dialog", { name: "Nouveau prospect" });
-  await prospectDialog.waitFor({ state: "visible" });
+  await prospectDialog.waitFor({ state: "visible", timeout: 10000 });
   await prospectDialog.locator('input[name="name"]').fill(prospectName);
   await prospectDialog.locator('input[name="source"]').fill("CI browser smoke");
   await prospectDialog.locator('textarea[name="notes"]').fill("Prospect créé par le test d'interface isolé.");
