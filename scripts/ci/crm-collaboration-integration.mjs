@@ -135,6 +135,36 @@ if (rules.error) throw rules.error;
 
 const customerId = await rpc(owner, "convert_prospect_to_customer", { p_org: organizationId, p_prospect: prospectId });
 assert(!!customerId, "Conversion must create a linked customer.");
+
+const orderNumber = `CRM-ORDER-${suffix}`;
+const order = await admin.from("orders").insert({
+  organization_id: organizationId, customer_id: customerId, number: orderNumber,
+  status: "confirmed", subtotal: 100000, tax_total: 0, total: 100000, created_by: ownerId,
+}).select("id").single();
+if (order.error) throw order.error;
+const invoiceNumber = `CRM-INVOICE-${suffix}`;
+const invoice = await admin.from("invoices").insert({
+  organization_id: organizationId, customer_id: customerId, number: invoiceNumber,
+  status: "paid", subtotal: 100000, discount_total: 0, tax_total: 0,
+  total: 100000, paid_amount: 100000, balance_due: 0, created_by: ownerId,
+}).select("id").single();
+if (invoice.error) throw invoice.error;
+
+const automaticEvents = await admin.from("prospect_interventions")
+  .select("id,intervention_type,contribution_role,validation_status,evidence_reference")
+  .eq("organization_id", organizationId).eq("customer_id", customerId)
+  .in("evidence_reference", [`order:${order.data.id}`, `invoice:${invoice.data.id}`]);
+if (automaticEvents.error) throw automaticEvents.error;
+assert(automaticEvents.data.length === 2, "Confirmed order and paid invoice must each create one CRM event.");
+assert(automaticEvents.data.every(event => event.validation_status === "pending" && event.contribution_role === "support"),
+  "Financial source events must remain pending support events and cannot earn commission automatically.");
+await admin.from("orders").update({ notes: "Idempotency update" }).eq("id", order.data.id);
+await admin.from("invoices").update({ notes: "Idempotency update" }).eq("id", invoice.data.id);
+const eventCounts = await admin.from("prospect_interventions").select("id", { count: "exact", head: true })
+  .eq("organization_id", organizationId).eq("customer_id", customerId)
+  .in("evidence_reference", [`order:${order.data.id}`, `invoice:${invoice.data.id}`]);
+assert(eventCounts.count === 2, "CRM event updates must not create duplicate intervention rows.");
+
 const requestKey = crypto.randomUUID();
 const calculationId = await rpc(owner, "calculate_prospect_commission", {
   p_org: organizationId, p_prospect: prospectId, p_policy: policy.data.id,
