@@ -2,57 +2,58 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCronAuthorizationError } from "@/lib/cron-auth";
+import { normalizeRegulatoryHtml } from "@/lib/regulatory-watch-content";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const SOURCES = [
-  { key: "dgi-legislation", title: "DGI - Codes et manuels", url: "https://www.impots.mg/explorer?path=%2Flegislation%2FCodes+et+Manuels" },
-  { key: "cnlegis", title: "CNLegis - Textes législatifs", url: "https://cnlegis.gov.mg/" },
-  { key: "cnaps-sme", title: "CNaPS - Historique SME", url: "https://www.cnaps.mg/historique-sme" },
-  { key: "fmfp-legal", title: "FMFP - Fondement légal", url: "https://www.fmfp.mg/fondement-legal/" },
+  { key: "dgi-legislation", title: "DGI - Textes et législation", url: "https://portal.impots.mg/textes/", additionalUrls: ["https://www.impots.mg/explorer?langue=2&path=%2Flegislation"] },
+  { key: "cnlegis", title: "CNLegis - Textes législatifs", url: "https://cnlegis.gov.mg/" , additionalUrls: [] },
+  { key: "cnaps-sme", title: "CNaPS - SME, actualités et documentation", url: "https://www.cnaps.mg/historique-sme", additionalUrls: ["https://www.cnaps.mg/actualites", "https://www.cnaps.mg/documents/documentation"] },
+  { key: "fmfp-legal", title: "FMFP - Fondement légal", url: "https://www.fmfp.mg/fondement-legal/", additionalUrls: [] },
 ] as const;
 
 type Source = (typeof SOURCES)[number];
 type SourceRead =
-  | { ok: true; source: Source; finalUrl: string; httpStatus: number; contentHash: string; excerpt: string }
+  | { ok: true; source: Source; finalUrl: string; httpStatus: number; contentHash: string; excerpt: string; warnings: string[] }
   | { ok: false; source: Source; error: string; httpStatus: number | null };
 
-function readableText(html: string): string {
-  return html
-    .replace(/<(script|style|noscript|svg)[^>]*>[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<!--([\s\S]*?)-->/g, " ")
-    .replace(/<\/(p|div|li|h[1-6]|tr|section|article|br)>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;|&#160;/gi, " ")
-    .replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([\da-f]+);/gi, (_, code: string) => String.fromCodePoint(parseInt(code, 16)))
-    .replace(/[\t\f\v ]+/g, " ").replace(/ *\n */g, "\n")
-    .replace(/\n{3,}/g, "\n\n").trim();
-}
-
 async function readSource(source: Source): Promise<SourceRead> {
-  try {
-    const response = await fetch(source.url, {
-      headers: { "user-agent": "MAGNISA-RegulatoryWatch/1.1 (+official-source-change-monitor)", accept: "text/html,application/xhtml+xml" },
-      signal: AbortSignal.timeout(20000), cache: "no-store", redirect: "follow",
-    });
-    if (!response.ok) return { ok: false, source, error: `HTTP ${response.status}`, httpStatus: response.status };
-    const contentType = response.headers.get("content-type") || "";
-    if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
-      return { ok: false, source, error: `Type de contenu inattendu : ${contentType || "inconnu"}`, httpStatus: response.status };
+  const urls = [source.url, ...source.additionalUrls];
+  const results = await Promise.all(urls.map(async (url) => {
+    try {
+      const response = await fetch(url, {
+        headers: { "user-agent": "MAGNISA-RegulatoryWatch/1.2 (+official-source-change-monitor)", accept: "text/html,application/xhtml+xml" },
+        signal: AbortSignal.timeout(20000), cache: "no-store", redirect: "follow",
+      });
+      if (!response.ok) return { ok: false as const, url, error: `HTTP ${response.status}`, httpStatus: response.status };
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
+        return { ok: false as const, url, error: `Type de contenu inattendu : ${contentType || "inconnu"}`, httpStatus: response.status };
+      }
+      const body = await response.text();
+      if (body.length > 5_000_000) return { ok: false as const, url, error: "Page supérieure à la limite de 5 Mo", httpStatus: response.status };
+      const text = normalizeRegulatoryHtml(body);
+      if (text.length < 100) return { ok: false as const, url, error: "Contenu lisible vide ou trop court", httpStatus: response.status };
+      return { ok: true as const, url, finalUrl: response.url, httpStatus: response.status, text };
+    } catch (error) {
+      return { ok: false as const, url, error: error instanceof Error ? error.message.slice(0, 500) : "Source inaccessible", httpStatus: null };
     }
-    const body = await response.text();
-    if (body.length > 5_000_000) return { ok: false, source, error: "Page supérieure à la limite de 5 Mo", httpStatus: response.status };
-    const text = readableText(body);
-    if (text.length < 100) return { ok: false, source, error: "Contenu lisible vide ou trop court", httpStatus: response.status };
-    return { ok: true, source, finalUrl: response.url, httpStatus: response.status,
-      contentHash: createHash("sha256").update(text).digest("hex"), excerpt: text.slice(0, 3000) };
-  } catch (error) {
-    return { ok: false, source, error: error instanceof Error ? error.message.slice(0, 500) : "Source inaccessible", httpStatus: null };
+  }));
+  const successful = results.filter((item): item is Extract<typeof item, { ok: true }> => item.ok);
+  const warnings = results.filter((item): item is Extract<typeof item, { ok: false }> => !item.ok)
+    .map(item => `${item.url}: ${item.error}`);
+  if (!successful.length) {
+    return { ok: false, source, error: warnings.join(" ; ").slice(0, 1000) || "Aucune page accessible", httpStatus: null };
   }
+  const combinedText = successful.map(item => `SOURCE: ${item.url}\n${item.text}`).join("\n\n");
+  return {
+    ok: true, source, finalUrl: successful.map(item => item.finalUrl).join("\n"),
+    httpStatus: warnings.length ? 207 : 200,
+    contentHash: createHash("sha256").update(combinedText).digest("hex"),
+    excerpt: combinedText.slice(0, 3000), warnings,
+  };
 }
 
 export async function GET(request: Request) {
@@ -124,9 +125,10 @@ export async function GET(request: Request) {
         }
 
         run.checked++;
+        if (result.warnings.length) { run.failures++; run.errors.push(...result.warnings.map(warning => `${result.source.key}: ${warning}`)); }
         await supabase.from("regulatory_watch_source_settings").update({
           last_attempt_at: attemptedAt, last_success_at: attemptedAt,
-          last_http_status: result.httpStatus, last_error: null,
+          last_http_status: result.httpStatus, last_error: result.warnings.length ? result.warnings.join(" ; ").slice(0, 1000) : null,
         }).eq("organization_id", org.id).eq("source_key", result.source.key);
 
         if (!previous) {
@@ -204,8 +206,9 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: failures === 0, organizations: activeOrganizations.length,
       sources_checked: checked, changes_detected: changes, failures,
-      source_errors: results.filter((item): item is Extract<SourceRead, { ok: false }> => !item.ok)
-        .map(item => ({ source: item.source.key, error: item.error, http_status: item.httpStatus })),
+      source_errors: results.flatMap(item => !item.ok
+        ? [{ source: item.source.key, error: item.error, http_status: item.httpStatus }]
+        : item.warnings.map(error => ({ source: item.source.key, error, http_status: item.httpStatus }))),
       note: "Une modification de contenu crée une alerte à examiner ; aucun taux de paie n'est modifié automatiquement.",
     }, { status: failures ? 207 : 200 });
   } catch (error) {
