@@ -53,7 +53,7 @@ const getRule = async (id) => {
   if (error) throw error;
   return data;
 };
-const ruleRow = (page, name) => page.locator("tbody tr").filter({ hasText: name });
+const ruleRow = (page, name) => page.getByRole("dialog").locator("tbody tr").filter({ hasText: name });
 const openRuleActions = async (page, name) => {
   const row = ruleRow(page, name);
   await row.locator("details > summary").click();
