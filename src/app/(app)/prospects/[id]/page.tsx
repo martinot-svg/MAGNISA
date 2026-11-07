@@ -140,7 +140,7 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
           </td>
           <td><span className="badge">{validationLabels[item.validation_status] || item.validation_status}</span>{item.review_reason && <div className="muted">{item.review_reason}</div>}</td>
           <td>{item.evidence_reference || "—"}<div className="muted">Saisi par {emailById.get(item.created_by) || item.created_by}</div></td>
-          <td>{canReview && item.validation_status==="pending" ? <div className="actions">
+          <td>{canReview && item.validation_status==="pending" && item.contributor_user_id!==ctx.user.id ? <div className="actions">
             <form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={item.id}/><input type="hidden" name="decision" value="validate"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Justification"/><button className="button small">Valider</button></form>
             <form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={item.id}/><input type="hidden" name="decision" value="reject"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Motif du rejet"/><button className="button small">Rejeter</button></form>
           </div> : item.reviewed_by ? <span className="muted">Décidé par {emailById.get(item.reviewed_by) || item.reviewed_by}</span> : "—"}</td>
