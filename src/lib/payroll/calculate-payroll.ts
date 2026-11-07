@@ -12,6 +12,8 @@ export type PayrollCalculationRule = {
   irsa_health_deduction_rate: number;
   irsa_brackets: readonly IrsaBracket[];
   irsa_minimum: number;
+  irsa_dependant_reduction: number;
+  irsa_dependant_threshold: number;
 };
 
 export type PayrollCalculation = {
@@ -90,6 +92,8 @@ export function calculatePayrollAmounts(input: {
     dependants,
     brackets: rule.irsa_brackets,
     minimum: rule.irsa_minimum,
+    dependantReduction: rule.irsa_dependant_reduction,
+    dependantThreshold: rule.irsa_dependant_threshold,
   });
   const employerSocial = roundMoney(cnapsBase * rule.cnaps_employer_rate);
   const employerFmfp = roundMoney(cnapsBase * rule.fmfp_employer_rate);
