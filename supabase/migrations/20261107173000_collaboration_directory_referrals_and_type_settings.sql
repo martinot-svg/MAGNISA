@@ -27,6 +27,29 @@ using (
   public.has_org_permission(organization_id,'sales.view')
   or public.has_org_permission(organization_id,'commissions.contribute')
   or public.has_org_permission(organization_id,'commissions.policy.manage')
+  or public.has_org_permission(organization_id,'commissions.audit')
+);
+
+drop policy if exists prospect_interventions_select on public.prospect_interventions;
+create policy prospect_interventions_select on public.prospect_interventions
+for select to authenticated
+using (
+  public.has_org_permission(organization_id,'sales.view')
+  or public.has_org_permission(organization_id,'commissions.contribute')
+  or public.has_org_permission(organization_id,'commissions.policy.manage')
+  or public.has_org_permission(organization_id,'commissions.audit')
+  or contributor_user_id=(select auth.uid())
+  or created_by=(select auth.uid())
+);
+
+drop policy if exists prospect_intervention_history_select on public.prospect_intervention_history;
+create policy prospect_intervention_history_select on public.prospect_intervention_history
+for select to authenticated
+using (
+  public.has_org_permission(organization_id,'sales.view')
+  or public.has_org_permission(organization_id,'commissions.policy.manage')
+  or public.has_org_permission(organization_id,'commissions.audit')
+  or actor_user_id=(select auth.uid())
 );
 
 create or replace function public.seed_prospect_intervention_type_settings()
@@ -114,6 +137,7 @@ begin
     public.has_org_permission(p_org,'sales.view')
     or public.has_org_permission(p_org,'commissions.contribute')
     or public.has_org_permission(p_org,'commissions.policy.manage')
+    or public.has_org_permission(p_org,'commissions.audit')
   ) then
     raise exception 'Accès au catalogue des interventions refusé.';
   end if;
