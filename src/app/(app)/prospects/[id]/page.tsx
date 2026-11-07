@@ -42,7 +42,7 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
   if (prospect.converted_customer_id) eventQuery = ctx.supabase.from("prospect_interventions").select("*").eq("organization_id",ctx.organizationId).or("prospect_id.eq."+id+",customer_id.eq."+prospect.converted_customer_id);
   const {data:interventions=[],error} = await eventQuery.order("occurred_at",{ascending:false});
   if (error) throw new Error("Impossible de charger l'historique collaboratif.");
-  const ids = Array.from(new Set([...(members as any[]).map((m:any)=>m.user_id), ...(interventions as any[]).flatMap((x:any)=>[x.contributor_user_id,x.created_by,x.responsible_user_id,x.reviewed_by].filter(Boolean))]));
+  const ids = Array.from(new Set([...(members as any[]).map((m:any)=>m.user_id), prospect.current_owner_id, ...(interventions as any[]).flatMap((x:any)=>[x.contributor_user_id,x.created_by,x.responsible_user_id,x.reviewed_by].filter(Boolean))]));
   const {data:profiles=[]} = ids.length
     ? await ctx.supabase.from("profiles").select("id,email").in("id",ids)
     : {data:[] as any[]};
@@ -52,7 +52,7 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
   return <>
     <div className="pageHead">
       <div><p className="eyebrow">Dossier commercial · Prospect</p><h1>{prospect.name}</h1>
-        <p>{prospect.email || "Sans e-mail"} · {prospect.phone || "Sans téléphone"} · Source : {prospect.source || "Non renseignée"}</p></div>
+        <p>{prospect.email || "Sans e-mail"} · {prospect.phone || "Sans téléphone"} · Source : {prospect.source || "Non renseignée"} · Responsable actuel : {prospect.current_owner_id ? (emailById.get(prospect.current_owner_id) || prospect.current_owner_id) : "Non attribué"}</p></div>
       <div className="actions"><Link className="button" href="/prospects">Retour aux prospects</Link></div>
     </div>
     <div className="grid grid-3">
@@ -91,7 +91,7 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
           <td><strong>{typeLabels[item.intervention_type]}</strong><div>{item.description}</div></td>
           <td>{statusLabels[item.stage_status]}</td>
           <td><span className="badge">{validationLabels[item.validation_status]}</span>{item.review_reason && <div className="muted">{item.review_reason}</div>}</td>
-          <td>{item.evidence_reference ? <a href={item.evidence_reference} target="_blank" rel="noreferrer">Voir le justificatif</a> : "—"}<div className="muted">Saisi par {emailById.get(item.created_by) || item.created_by}</div></td>
+          <td>{item.evidence_reference ? <span>{item.evidence_reference}</span> : "—"}<div className="muted">Saisi par {emailById.get(item.created_by) || item.created_by}</div></td>
           <td>{canReview && item.validation_status==="pending" ? <div className="actions">
             <form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={item.id}/><input type="hidden" name="decision" value="validate"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Justification" className="input"/><button className="button small">Valider</button></form>
             <form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={item.id}/><input type="hidden" name="decision" value="reject"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Motif du rejet" className="input"/><button className="button small">Rejeter</button></form>
