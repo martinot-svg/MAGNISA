@@ -6,6 +6,11 @@
 select
   to_regprocedure('public.archive_payroll_rule(uuid,uuid)') is not null as archive_payroll_rule_ready,
   to_regprocedure('public.delete_payroll_rule_draft(uuid,uuid,text)') is not null as delete_payroll_rule_draft_ready,
+  position('v_deductible_health' in pg_get_functiondef('public.payroll_compute_fmfp_on_insert()'::regprocedure)) > 0
+    and position('0.02' in pg_get_functiondef('public.payroll_compute_fmfp_on_insert()'::regprocedure)) > 0
+    as irsa_health_deduction_cap_ready,
+  position('existing.effective_from = v.effective_from' in pg_get_functiondef('public.activate_payroll_rule(uuid,uuid)'::regprocedure)) > 0
+    as duplicate_payroll_rule_start_guard_ready,
   to_regprocedure('public.create_payslip(uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric)') is not null as create_payslip_with_supplementary_pension_ready,
   to_regprocedure('public.payroll_compute_fmfp_on_insert()') is not null as payroll_validation_trigger_function_present,
   exists (
