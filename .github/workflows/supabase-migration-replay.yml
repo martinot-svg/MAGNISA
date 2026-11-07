@@ -89,6 +89,7 @@ jobs:
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/payroll-ui-seed.sql
       - name: Start MAGNISA locally
+        id: app_server
         run: |
           npm run dev -- --hostname 127.0.0.1 > /tmp/magnisa-next.log 2>&1 &
           echo $! > /tmp/magnisa-next.pid
@@ -101,6 +102,7 @@ jobs:
       - name: Test authenticated payroll UI actions
         run: node scripts/ci/payroll-ui-smoke.mjs
       - name: Test authenticated CRM UI actions
+        if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
         run: node scripts/ci/crm-ui-smoke.mjs
       - name: Stop MAGNISA local server
         if: always()
