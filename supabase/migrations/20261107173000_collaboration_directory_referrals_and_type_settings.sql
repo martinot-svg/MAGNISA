@@ -283,6 +283,7 @@ declare
   v_department text;
   v_type_active boolean;
   v_requires_evidence boolean;
+  v_previous_owner uuid;
 begin
   if auth.uid() is null or not public.has_org_permission(p_org,'commissions.contribute') then
     raise exception 'Tu n''as pas l''autorisation d''enregistrer une intervention.';
@@ -342,6 +343,15 @@ begin
   select nullif(trim(department),'') into v_department
   from public.organization_members
   where organization_id=p_org and user_id=p_contributor;
+  if p_type='transfer' then
+    if p_prospect is not null then
+      select current_owner_id into v_previous_owner from public.prospects
+      where id=p_prospect and organization_id=p_org;
+    else
+      select current_owner_id into v_previous_owner from public.customers
+      where id=p_customer and organization_id=p_org;
+    end if;
+  end if;
   insert into public.prospect_interventions(
     organization_id,prospect_id,customer_id,contributor_user_id,created_by,department_snapshot,
     intervention_type,contribution_role,stage_status,description,evidence_reference,
@@ -352,11 +362,14 @@ begin
     p_responsible,coalesce(p_occurred_at,now())
   ) returning id into v_id;
   insert into public.prospect_intervention_history(
-    organization_id,intervention_id,action,actor_user_id,new_value,justification
+    organization_id,intervention_id,action,actor_user_id,previous_value,new_value,justification
   ) values (
     p_org,v_id,case when p_type='transfer' then 'transferred' else 'created' end,auth.uid(),
+    case when p_type='transfer' then jsonb_build_object('current_owner_id',v_previous_owner) else null end,
     jsonb_build_object('contributor_user_id',p_contributor,'department',v_department,
-      'type',p_type,'role',p_role,'stage_status',p_stage_status,'responsible_user_id',p_responsible),
+      'type',p_type,'role',p_role,'stage_status',p_stage_status,
+      'responsible_user_id',p_responsible,
+      'current_owner_id',case when p_type='transfer' then p_responsible else null end),
     case when p_type='transfer' then 'Transfert de responsabilité enregistré' else null end
   );
   if p_type='transfer' then
