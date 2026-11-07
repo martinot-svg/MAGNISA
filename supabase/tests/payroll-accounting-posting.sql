@@ -147,12 +147,12 @@ begin
     p_overtime => 0,
     p_other_earnings => 0,
     p_employee_social => 10000,
-    p_employee_health => 10000,
+    p_employee_health => 30000,
     p_income_tax => 93500,
     p_advances_recovered => 0,
     p_other_deductions => 0,
     p_employer_social => 130000,
-    p_employer_health => 50000,
+    p_employer_health => 80000,
     p_taxable_supplementary_pension => 0,
     p_employee_supplementary_pension => 50000
   );
@@ -160,7 +160,7 @@ begin
   select income_tax,net_pay,employee_supplementary_pension,status
     into v_tax,v_net,v_pension,v_status
     from public.payslips where id=v_payslip_employee_pension;
-  if v_status <> 'calculated' or v_tax <> 93500 or v_net <> 836500 or v_pension <> 50000 then
+  if v_status <> 'calculated' or v_tax <> 93500 or v_net <> 816500 or v_pension <> 50000 then
     raise exception 'TEST FAILED: employee supplementary pension was not deducted and taxed correctly';
   end if;
 
@@ -169,7 +169,7 @@ begin
    where organization_id=v_org and source_type='payslip' and source_id=v_payslip_employee_pension;
   select coalesce(sum(debit),0),coalesce(sum(credit),0)
     into v_debit,v_credit from public.journal_entry_lines where journal_entry_id=v_entry;
-  if v_debit <> v_credit or v_debit <> 1190000 then
+  if v_debit <> v_credit or v_debit <> 1220000 then
     raise exception 'TEST FAILED: employee supplementary pension journal entry is not balanced';
   end if;
   select count(*) into v_employee_pension_payable_count
