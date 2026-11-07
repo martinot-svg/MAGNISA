@@ -3,16 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
-
-function suggestPcgCode(accountLabel: string, accountKey: string): string {
-  const value = `${accountLabel} ${accountKey}`
-    .toLowerCase();
-  // Suggestion prudente : le matériel informatique durable relève généralement des immobilisations.
-  // La validation reste explicite dans le formulaire d'imputation.
-  if (/(ordinateur|matériel informatique|materiel informatique|équipement informatique|equipement informatique|matériel numérique|materiel numerique)/.test(value)) return "218";
-  if (/(remboursement.*mvola|frais.*mvola.*reclasser)/.test(value)) return "471";
-  return "";
-}
+import { suggestPcgCode } from "@/lib/accounting/suggest-pcg-code";
 
 async function assignAccountMapping(formData: FormData) {
   "use server";
