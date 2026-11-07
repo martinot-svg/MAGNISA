@@ -290,6 +290,7 @@ export async function recordProspectIntervention(formData: FormData) {
     description: z.string().trim().min(3).max(2000),
     evidence_reference: z.string().trim().max(500),
     responsible_user_id: z.string().uuid().or(z.literal("")),
+    contributor_user_id: z.string().uuid().or(z.literal("")),
   }).safeParse({
     prospect_id: String(formData.get("prospect_id") ?? ""),
     intervention_type: String(formData.get("intervention_type") ?? ""),
@@ -298,13 +299,21 @@ export async function recordProspectIntervention(formData: FormData) {
     description: String(formData.get("description") ?? ""),
     evidence_reference: String(formData.get("evidence_reference") ?? ""),
     responsible_user_id: String(formData.get("responsible_user_id") ?? ""),
+    contributor_user_id: String(formData.get("contributor_user_id") ?? ""),
   });
   if (!parsed.success) throw new Error("Vérifie les informations de l'intervention.");
   const { data: auth } = await ctx.supabase.auth.getUser();
   if (!auth.user) throw new Error("Session utilisateur introuvable.");
+  const mayAttributeForOthers = await hasPermission(ctx,"commissions.policy.manage")
+    || await hasPermission(ctx,"commissions.audit");
+  const contributorId = parsed.data.contributor_user_id || auth.user.id;
+  if (contributorId !== auth.user.id && !mayAttributeForOthers) {
+    throw new Error("Seuls les responsables habilités peuvent déclarer une contribution au nom d'un autre collaborateur.");
+  }
   const { data: member } = await ctx.supabase.from("organization_members")
     .select("department").eq("organization_id", ctx.organizationId)
-    .eq("user_id", auth.user.id).eq("status", "active").single();
+    .eq("user_id", contributorId).eq("status", "active").single();
+  if (!member) throw new Error("Le collaborateur déclaré n'est pas membre actif de cette entreprise.");
   const isTransfer = parsed.data.intervention_type === "transfer";
   if (isTransfer && (!parsed.data.responsible_user_id || parsed.data.stage_status !== "transferred"
       || !["support","account_manager"].includes(parsed.data.contribution_role))) {
@@ -317,7 +326,7 @@ export async function recordProspectIntervention(formData: FormData) {
     p_org: ctx.organizationId,
     p_prospect: parsed.data.prospect_id,
     p_customer: null,
-    p_contributor: auth.user.id,
+    p_contributor: contributorId,
     p_department: member?.department ?? null,
     p_type: parsed.data.intervention_type,
     p_role: parsed.data.contribution_role,
