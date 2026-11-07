@@ -7,6 +7,7 @@ import {PayrollRulePreview} from "@/components/payroll-rule-preview";
 import {smieDeadlines} from "@/lib/payroll/smie-calendar";
 import {IrsaBracketEditor} from "@/components/irsa-bracket-editor";
 import {SmiePartnerFields} from "@/components/smie-partner-fields";
+import {PayrollRegulatoryRuleFields} from "@/components/payroll-regulatory-rule-fields";
 
 function parseCompensationRules(raw:string):Array<Record<string,unknown>> {
  let parsed:unknown;
@@ -206,7 +207,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  ]);
  if(error)throw new Error(error.message);
  const notice=await searchParams;
- return <><div className="pageHead"><div><p className="eyebrow">Personnel & Paie</p><h1>Paramètres de paie - Madagascar</h1><p>Règles datées par organisation, contrôle de conformité et prévisualisation non comptable.</p></div><Link className="button" href="/paie">Retour aux bulletins</Link></div>
+ return <><div className="pageHead"><div><p className="eyebrow">Personnel & Paie</p><h1>Paramètres de paie - Madagascar</h1><p>Configuration réglementaire versionnée, contrôle de conformité et prévisualisation non comptable.</p></div><Link className="button" href="/paie">Retour aux bulletins</Link></div>
  {notice.result && notice.message && <div role="status" aria-live="polite" className="card section" style={{borderLeft:notice.result==="error"?"4px solid #b45309":"4px solid #15803d"}}><strong>{notice.result==="error"?"Opération non effectuée":"Opération effectuée"}</strong><p>{notice.message.slice(0,450)}</p></div>}
  <div className="card"><details><summary style={{cursor:"pointer",fontWeight:600}}>Créer un référentiel réglementaire</summary><h2>Nouveau jeu de paramètres</h2><p className="muted">L'enregistrement crée une version en attente de vérification. Elle ne modifie pas le référentiel actif. Après contrôle des textes officiels, utilise l'action d'activation explicite pour programmer son application à la période prévue.</p>
  <form action={saveRule} className="form"><div className="grid2">
@@ -229,8 +230,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
  <h3>Barème IRSA pour cette version</h3>
  <div className="grid2"><div className="field"><label>Minimum IRSA (Ar)</label><input name="irsa_minimum" type="number" min="0" step="0.01" required placeholder="À vérifier dans le texte officiel"/></div><div className="field"><label>Réduction IRSA par personne à charge (Ar/mois)</label><input name="irsa_dependant_reduction" type="number" min="0" step="1" defaultValue="2000" required/></div><div className="field"><label>Seuil de revenu imposable ouvrant droit à réduction (Ar)</label><input name="irsa_dependant_threshold" type="number" min="0" step="1" defaultValue="350000" required/></div><div className="field"><label>Arrondi de l’assiette IRSA</label><select name="rounding_policy" defaultValue="unverified" required><option value="unverified">Non vérifié</option><option value="floor_100">Centaine d’ariary inférieure - après vérification</option></select></div></div>
  <IrsaBracketEditor />
- <div className="field"><label>Règles de classification fiscale des rémunérations (JSON versionné)</label><textarea name="irsa_compensation_rules" rows={10} defaultValue="[]" spellCheck={false}/><small>Chaque prime ou autre gain doit être classifié par code, traitement, référence officielle, version et date d'effet. Sans règle applicable, le calcul du bulletin refusera cet élément plutôt que de l'exclure arbitrairement de l'assiette IRSA.</small></div>
- <div className="field"><label>Majorations des heures supplémentaires par catégorie (JSON versionné)</label><textarea name="overtime_premium_rules" rows={8} defaultValue="[]" spellCheck={false}/><small>Chaque objet JSON doit contenir category, premiumPercent (en %), legalReference, ruleVersion et effectiveFrom. Catégories : regular, night, sunday, holiday, night_holiday. Aucun taux n'est prérempli : chaque majoration doit être sourcée et datée.</small></div>
+ <PayrollRegulatoryRuleFields />
  <button className="button primary">Enregistrer comme brouillon</button></form>
  </details></div>
  <section id="bareme-irsa" className="card section" aria-label="Barème IRSA configurable">
@@ -262,8 +262,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
 </div>
 <div className="field"><strong>Barème IRSA appliqué au référentiel</strong><p className="muted">Modifie les plafonds, les taux et le nombre de tranches pour cette version non validée. Aucune valeur réglementaire n’est injectée automatiquement.</p>
 <IrsaBracketEditor initialBrackets={Array.isArray(r.irsa_brackets)?r.irsa_brackets:[]} />
-<div className="field"><label>Règles de classification fiscale des rémunérations (JSON versionné)</label><textarea name="irsa_compensation_rules" rows={10} defaultValue={JSON.stringify(r.irsa_compensation_rules||[],null,2)} spellCheck={false}/><small>Chaque code de prime ou autre gain doit avoir une règle datée et une référence officielle. Codes protégés automatiquement : base_salary, overtime, taxable_supplementary_pension.</small></div>
-<div className="field"><label>Majorations des heures supplémentaires par catégorie (JSON versionné)</label><textarea name="overtime_premium_rules" rows={8} defaultValue={JSON.stringify(r.overtime_premium_rules||[],null,2)} spellCheck={false}/><small>Chaque taux doit être vérifié, sourcé et daté. Aucun taux par défaut n'est injecté.</small></div>
+<PayrollRegulatoryRuleFields compensationRules={r.irsa_compensation_rules||[]} overtimeRules={r.overtime_premium_rules||[]} />
 <p className="muted">Les changements restent dans cette version à vérifier jusqu’à son activation explicite.</p></div>
 <button className="button primary">Enregistrer et appliquer</button></form>
 <div className="actions" style={{marginTop:10}}><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="review"/><button className="button">Maintenir à vérifier</button></form><form action={ruleAction}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="activate"/><button className="button primary">Valider et activer ce référentiel</button></form></div></>}</details>{r.status==="validated"&&<form action={ruleAction} style={{marginTop:8}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="archive"/><button className="button">Archiver ce référentiel</button></form>}{["draft","pending_review"].includes(r.status)&&<form action={ruleAction} className="form" style={{marginTop:8}}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="operation" value="delete"/><div className="field"><label>Suppression définitive : tape SUPPRIMER</label><input name="delete_confirmation" required pattern="SUPPRIMER" autoComplete="off"/></div><button className="button" aria-label={"Supprimer définitivement la version "+r.name}>Supprimer définitivement</button></form>}</td></tr>)}</tbody></table></div>}</div>
