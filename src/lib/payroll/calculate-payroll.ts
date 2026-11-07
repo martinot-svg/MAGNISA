@@ -72,6 +72,8 @@ export function calculatePayrollAmounts(input: {
   assertRate("FMFP employeur", rule.fmfp_employer_rate);
   assertRate("Plafond de déduction santé IRSA", rule.irsa_health_deduction_rate);
   assertRate("Plafond de déduction retraite IRSA", rule.irsa_pension_deduction_rate);
+  if (rule.irsa_health_deduction_rate > 0.02) throw new Error("Le plafond légal de déduction santé IRSA ne peut pas dépasser 2 %.");
+  if (rule.irsa_pension_deduction_rate > 0.10) throw new Error("Le plafond légal de déduction retraite IRSA ne peut pas dépasser 10 %.");
 
   for (const [name, value] of [
     ["plafond CNaPS", rule.cnaps_monthly_ceiling],
