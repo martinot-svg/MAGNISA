@@ -82,7 +82,7 @@ using (
   or public.has_org_permission(organization_id,'commissions.audit')
   or actor_user_id=(select auth.uid())
 );
-revoke all on public.prospect_interventions, public.prospect_intervention_history from anon;
+revoke all on public.prospect_interventions, public.prospect_intervention_history from anon, authenticated;
 grant select on public.prospect_interventions, public.prospect_intervention_history to authenticated;
 
 create or replace function public.record_prospect_intervention(
