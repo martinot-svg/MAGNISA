@@ -2,6 +2,8 @@
 -- Additive migration: immutable activity records, append-only review history and responsibility transfers.
 alter table public.organization_members
   add column if not exists department text;
+alter table public.prospects add column if not exists current_owner_id uuid references auth.users(id);
+alter table public.customers add column if not exists current_owner_id uuid references auth.users(id);
 
 create table if not exists public.prospect_interventions (
   id uuid primary key default gen_random_uuid(),
@@ -125,6 +127,9 @@ begin
     where organization_id=p_org and user_id=p_responsible and status='active') then
     raise exception 'Le nouveau responsable doit être un membre actif de cette entreprise.';
   end if;
+  if p_type='transfer' and (p_responsible is null or p_stage_status<>'transferred') then
+    raise exception 'Un transfert exige un nouveau responsable actif et le statut transféré.';
+  end if;
   if p_type not in ('recommendation','prospecting','contact','presentation','qualification','negotiation','transfer','closing','signature','follow_up','retention')
      or p_role not in ('initiator','recommender','prospector','qualifier','negotiator','closer','account_manager','support')
      or p_stage_status not in ('not_started','in_progress','completed','transferred','cancelled','blocked')
@@ -151,9 +156,18 @@ begin
       'type',p_type,'role',p_role,'stage_status',p_stage_status,'responsible_user_id',p_responsible),
     case when p_type='transfer' then 'Transfert de responsabilité enregistré' else null end
   );
+  if p_type='transfer' then
+    if p_prospect is not null then
+      update public.prospects set current_owner_id=p_responsible,updated_at=now()
+      where id=p_prospect and organization_id=p_org;
+    else
+      update public.customers set current_owner_id=p_responsible,updated_at=now()
+      where id=p_customer and organization_id=p_org;
+    end if;
+  end if;
   return v_id;
 end;
-$$;
+$;
 
 create or replace function public.review_prospect_intervention(
   p_org uuid,p_intervention uuid,p_decision text,p_reason text
