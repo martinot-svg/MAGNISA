@@ -8,6 +8,7 @@ import { money } from "@/lib/money";
 import { EmptyState } from "@/components/empty-state";
 import { PayrollGrossPreview } from "@/components/payroll-gross-preview";
 import { calculatePayrollAmounts } from "@/lib/payroll/calculate-payroll";
+import { classifyIrsaCompensation, calculateOvertimeIrsa } from "@/lib/payroll/irsa-compensation";
 import { FormDialog } from "@/components/form-dialog";
 
 async function createEmployee(fd: FormData) {
@@ -146,12 +147,67 @@ async function createPayslip(fd: FormData) {
   if (!Number.isFinite(baseSalary) || baseSalary < 0) throw new Error("Salaire de base invalide.");
   const gross=baseSalary+amounts.bonuses+amounts.overtime+amounts.other_earnings;
   if (!Number.isFinite(gross) || gross < 0) throw new Error("Salaire brut invalide.");
+
+  const overtimeHours=Number(fd.get("overtime_hours")||0);
+  const overtimeHourlyRate=Number(fd.get("overtime_hourly_rate")||0);
+  const overtimePremiumPercent=Number(fd.get("overtime_premium_percent")||0);
+  const overtimeAdditionalPremiums=Number(fd.get("overtime_additional_premiums")||0);
+  const overtimeIsCadre=fd.get("overtime_is_cadre")==="on";
+  const overtimeRecordReconciled=fd.get("overtime_record_reconciled")==="on";
+  const overtimeRecordReference=String(fd.get("overtime_record_reference")||"").trim();
+  if(amounts.overtime>0 && (!overtimeRecordReference || overtimeHours<=0 || overtimeHourlyRate<=0 || !overtimeRecordReconciled))
+    throw new Error("Les heures supplémentaires exigent les heures, le taux horaire, la majoration et un relevé mensuel rapproché avec référence justificative.");
+  if(amounts.overtime===0 && (overtimeHours>0 || overtimeAdditionalPremiums>0))
+    throw new Error("Les heures et primes supplémentaires ne peuvent être renseignées sans montant d'heures supplémentaires.");
+
+  const {data:priorSlips,error:priorSlipsError}=await ctx.supabase.from("payslips")
+    .select("fiscal_snapshot,payroll_runs(period_end)")
+    .eq("organization_id",ctx.organizationId).eq("employee_id",employeeId);
+  if(priorSlipsError)throw new Error(priorSlipsError.message);
+  const currentMonth=String(run.period_end).slice(0,7);
+  let priorMonthHours=0;
+  for(const prior of priorSlips||[]){
+    const priorMonth=String((prior as any).payroll_runs?.period_end||"").slice(0,7);
+    if(priorMonth!==currentMonth)continue;
+    const snap=(prior as any).fiscal_snapshot;
+    if(!snap && Number((prior as any).overtime||0)>0)
+      throw new Error("Un bulletin antérieur du même mois ne possède pas de détail d'heures historisé : exonération mensuelle non calculable sans risque de double avantage.");
+    priorMonthHours+=Number(snap?.overtime?.totalHours||0);
+  }
+  const overtimeTax=amounts.overtime>0 ? calculateOvertimeIrsa({
+    totalHours:overtimeHours,
+    hourlyRate:overtimeHourlyRate,
+    premiumRate:overtimePremiumPercent/100,
+    overtimePay:amounts.overtime,
+    additionalPremiums:overtimeAdditionalPremiums,
+    isCadre:overtimeIsCadre,
+    timeRecordReconciled:overtimeRecordReconciled,
+    monthlyExemptHoursLimit:Math.max(0,20-priorMonthHours),
+  }) : {exemptHours:0,taxableHours:0,exemptAmount:0,taxableAmount:0,exemptionApplied:false};
+
+  const configuredCompensationRules=Array.isArray(rule.irsa_compensation_rules)?rule.irsa_compensation_rules:[];
+  const protectedCodes=["base_salary","overtime","taxable_supplementary_pension"];
+  if(configuredCompensationRules.some((r:any)=>protectedCodes.includes(String(r.code))))
+    throw new Error("Les classifications du salaire de base, des heures supplémentaires et de la retraite complémentaire sont gérées par les règles légales intégrées.");
+  const legalRules=[
+    {code:"base_salary",treatment:"fully_taxable",legalReference:"CGI Madagascar, article 01.03.02 ; https://www.impots.mg/explorer?path=%2Flegislation%2FCodes+et+Manuels",ruleVersion:String(rule.id),effectiveFrom:String(rule.effective_from)},
+    {code:"overtime",treatment:"special",legalReference:"Décision DGI n°02-MEF/SG/DGI/DLFC du 11 octobre 2019, articles 3 à 5 ; https://portal.impots.mg/textes/textes/2019-10-11--N-02-MEF.SG.DGI.DLFC-Ref-K49HU4-FFPKVG.pdf",ruleVersion:String(rule.id),effectiveFrom:String(rule.effective_from)},
+    {code:"taxable_supplementary_pension",treatment:"fully_taxable",legalReference:"Loi n°2025-021, CGI article 01.03.02 ; https://cnlegis.gov.mg/uploads/L2025-021_VF.pdf",ruleVersion:String(rule.id),effectiveFrom:String(rule.effective_from)},
+  ];
+  const compensationItems:any[]=[{code:"base_salary",amount:baseSalary}];
+  if(amounts.bonuses>0)compensationItems.push({code:"bonuses",amount:amounts.bonuses});
+  if(amounts.overtime>0)compensationItems.push({code:"overtime",amount:amounts.overtime,specialTaxableAmount:overtimeTax.taxableAmount});
+  if(amounts.other_earnings>0)compensationItems.push({code:"other_earnings",amount:amounts.other_earnings});
+  if(amounts.taxable_supplementary_pension>0)compensationItems.push({code:"taxable_supplementary_pension",amount:amounts.taxable_supplementary_pension});
+  const classified=classifyIrsaCompensation(compensationItems,[...legalRules,...configuredCompensationRules],String(run.period_end));
+  const taxableCashCompensation=classified.details.filter(d=>d.code!=="taxable_supplementary_pension").reduce((sum,d)=>sum+d.taxableAmount,0);
   for (const key of ["cnaps_monthly_ceiling","health_monthly_ceiling","cnaps_employee_rate","cnaps_employer_rate","health_employee_rate","health_employer_rate","fmfp_employer_rate"] as const) {
     const value=Number(rule[key]);
     if (!Number.isFinite(value) || value < 0 || (key.endsWith("_rate") && value > 1)) throw new Error("Paramètre réglementaire invalide : "+key);
   }
   const calculation = calculatePayrollAmounts({
     gross,
+    taxableCompensation: taxableCashCompensation,
     taxableSupplementaryPension: amounts.taxable_supplementary_pension,
     additionalEmployeePensionContribution: amounts.employee_supplementary_pension,
     dependants: Number(employee.irsa_dependants),
@@ -178,7 +234,17 @@ async function createPayslip(fd: FormData) {
   amounts.employer_health=calculation.employerHealth;
   if(calculation.netBeforeOtherDeductions-amounts.advances_recovered-amounts.other_deductions<0)throw new Error("Le net calculé serait négatif.");
   // Le FMFP est calculé côté Supabase à partir du référentiel validé et comptabilisé séparément.
-  const { error } = await ctx.supabase.rpc("create_payslip", {
+  const fiscalSnapshot={
+    schemaVersion:1,
+    calculatedAt:new Date().toISOString(),
+    periodEnd:String(run.period_end),
+    payrollRuleSet:{id:rule.id,name:rule.name,effectiveFrom:rule.effective_from,effectiveTo:rule.effective_to,legalReference:rule.legal_reference,roundingPolicy:rule.rounding_policy,irsaBrackets:rule.irsa_brackets,irsaMinimum:rule.irsa_minimum,dependantReduction:rule.irsa_dependant_reduction,dependantThreshold:rule.irsa_dependant_threshold,healthDeductionRate:rule.irsa_health_deduction_rate,pensionDeductionRate:rule.irsa_pension_deduction_rate,compensationRules:[...legalRules,...configuredCompensationRules]},
+    employee:{id:employeeId,baseSalary,dependants:Number(employee.irsa_dependants)},
+    compensation:classified,
+    overtime:{totalHours:overtimeHours,hourlyRate:overtimeHourlyRate,premiumRate:overtimePremiumPercent/100,additionalPremiums:overtimeAdditionalPremiums,isCadre:overtimeIsCadre,timeRecordReconciled:overtimeRecordReconciled,recordReference:overtimeRecordReference,priorMonthHours, ...overtimeTax},
+    calculation:{gross:calculation.gross,taxableBase:calculation.taxableBase,taxableCompensation:calculation.taxableCompensation,employeeSocial:calculation.employeeSocial,employeeHealth:calculation.employeeHealth,deductiblePension:calculation.deductiblePension,incomeTax:calculation.incomeTax,employerSocial:calculation.employerSocial,employerHealth:calculation.employerHealth,employerFmfp:calculation.employerFmfp,netBeforeOtherDeductions:calculation.netBeforeOtherDeductions,employerCost:calculation.employerCost},
+  };
+  const { data:payslipId,error } = await ctx.supabase.rpc("create_payslip", {
     p_org: ctx.organizationId,
     p_run: String(fd.get("payroll_run_id") || ""),
     p_employee: String(fd.get("employee_id") || ""),
@@ -197,6 +263,11 @@ async function createPayslip(fd: FormData) {
   });
 
   if (error) throw new Error(error.message);
+  if(!payslipId)throw new Error("Le bulletin a été créé sans identifiant retourné : snapshot fiscal non attaché.");
+  const {error:snapshotError}=await ctx.supabase.rpc("write_payslip_fiscal_snapshot",{
+    p_org:ctx.organizationId,p_payslip:payslipId,p_snapshot:fiscalSnapshot,
+  });
+  if(snapshotError)throw new Error("Bulletin calculé mais snapshot fiscal non enregistré : "+snapshotError.message+". Ne valide pas ce bulletin.");
   revalidatePath("/paie");
 }
 
@@ -453,6 +524,13 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
               <div className="grid2">
                 <MoneyInput name="bonuses" label="Primes" defaultAmount={selectedDraft?.bonuses} />
                 <MoneyInput name="overtime" label="Heures supplémentaires" defaultAmount={selectedDraft?.overtime} />
+                <MoneyInput name="overtime_hours" label="Nombre d'heures supplémentaires" />
+                <MoneyInput name="overtime_hourly_rate" label="Taux horaire normal (Ar)" />
+                <MoneyInput name="overtime_premium_percent" label="Majoration (%)" />
+                <MoneyInput name="overtime_additional_premiums" label="Primes additionnelles exclues de l'exonération (Ar)" />
+                <div className="field"><label><input type="checkbox" name="overtime_is_cadre"/> Salarié cadre</label></div>
+                <div className="field"><label><input type="checkbox" name="overtime_record_reconciled"/> Relevé mensuel rapproché et vérifié</label></div>
+                <div className="field"><label>Référence du relevé / justificatif</label><input name="overtime_record_reference" maxLength={200}/></div>
                 <MoneyInput name="other_earnings" label="Autres gains" defaultAmount={selectedDraft?.other_earnings} />
                 <MoneyInput name="taxable_supplementary_pension" label="Retraite complémentaire patronale imposable" defaultAmount={selectedDraft?.taxable_supplementary_pension} /><MoneyInput name="employee_supplementary_pension" label="Cotisation retraite complémentaire salariale" defaultAmount={selectedDraft?.employee_supplementary_pension} />
                 <MoneyInput name="advances_recovered" label="Avances récupérées" defaultAmount={selectedDraft?.advances_recovered} />
