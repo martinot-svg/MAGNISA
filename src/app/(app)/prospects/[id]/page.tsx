@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
-import { recordProspectIntervention, reviewProspectIntervention } from "@/server/actions/commissions";
+import { changeProspectInterventionStatus, recordProspectIntervention, reviewProspectIntervention } from "@/server/actions/commissions";
 
 const roleLabels: Record<string,string> = {
   initiator:"Initiateur", recommender:"Recommandeur", prospector:"Prospecteur",
@@ -21,11 +21,12 @@ const validationLabels: Record<string,string> = {
 export default async function ProspectDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ctx = await requireOrganization();
-  const [canView, canContribute, canReview] = await Promise.all([
+  const [canView, canContribute, canReview, canManage] = await Promise.all([
     hasPermission(ctx,"sales.view"),
     hasPermission(ctx,"commissions.contribute"),
     Promise.all([hasPermission(ctx,"commissions.policy.manage"),hasPermission(ctx,"commissions.audit")])
       .then(([manage,audit])=>manage||audit),
+    hasPermission(ctx,"commissions.policy.manage"),
   ]);
   if (!canView && !canContribute && !canReview) redirect("/dashboard?access=denied");
 
@@ -119,12 +120,24 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
     <section className="section">
       <h2>Chronologie complète des contributions</h2>
       {(interventions as any[]).length===0 ? <div className="card muted">Aucune intervention enregistrée pour ce prospect.</div> :
-      <div className="tableWrap"><table><thead><tr><th>Date</th><th>Collaborateur / rôle</th><th>Intervention</th><th>Étape</th><th>Validation</th><th>Preuve et auteur</th><th>Décision</th></tr></thead><tbody>
+      <div className="tableWrap"><table><thead><tr><th>Date</th><th>Collaborateur / rôle</th><th>Intervention</th><th>Étape et suivi</th><th>Validation</th><th>Preuve et auteur</th><th>Décision</th></tr></thead><tbody>
         {(interventions as any[]).map((item:any)=><tr key={item.id}>
           <td>{new Date(item.occurred_at).toLocaleString("fr-FR")}</td>
           <td><strong>{emailById.get(item.contributor_user_id) || item.contributor_user_id}</strong><div className="muted">{roleLabels[item.contribution_role] || item.contribution_role} · {item.department_snapshot || "Département non renseigné"}</div></td>
           <td><strong>{typeLabelByKey.get(item.intervention_type) || item.intervention_type}</strong><div>{item.description}</div></td>
-          <td>{statusLabels[item.stage_status] || item.stage_status}</td>
+          <td>{statusLabels[item.stage_status] || item.stage_status}
+            {canContribute && item.intervention_type!=="transfer" && item.stage_status!=="transferred" &&
+              (canManage || item.contributor_user_id===ctx.user.id || item.created_by===ctx.user.id) &&
+              <form action={changeProspectInterventionStatus} className="form">
+                <input type="hidden" name="intervention_id" value={item.id}/>
+                <input type="hidden" name="subject_path" value={path}/>
+                <select name="stage_status" defaultValue={item.stage_status}>
+                  {Object.entries(statusLabels).filter(([key])=>key!=="transferred").map(([value,label])=><option key={value} value={value}>{label}</option>)}
+                </select>
+                <input name="reason" required minLength={3} maxLength={1000} placeholder="Justification du changement"/>
+                <button className="button small">Mettre à jour</button>
+              </form>}
+          </td>
           <td><span className="badge">{validationLabels[item.validation_status] || item.validation_status}</span>{item.review_reason && <div className="muted">{item.review_reason}</div>}</td>
           <td>{item.evidence_reference || "—"}<div className="muted">Saisi par {emailById.get(item.created_by) || item.created_by}</div></td>
           <td>{canReview && item.validation_status==="pending" ? <div className="actions">
