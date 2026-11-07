@@ -72,6 +72,7 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
               Écrire avec MagniMail
             </Link>
           )}
+          <Link className="button" href={"/clients/" + customer.id + "/contributions"}>Suivi collaboratif</Link>
           <Link className="button" href="/clients">Retour aux clients</Link>
         </div>
       </div>
