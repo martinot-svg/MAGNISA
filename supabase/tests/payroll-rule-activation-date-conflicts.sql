@@ -100,3 +100,22 @@ end
 $test$;
 
 rollback;
+
+
+-- The SECURITY DEFINER activation RPC must use a pinned, trusted search_path.
+DO $assert$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND p.proname = 'activate_payroll_rule'
+       AND p.proargtypes = '2950 2950'::oidvector
+       AND p.prosecdef
+       AND coalesce(p.proconfig, ARRAY[]::text[]) @> ARRAY['search_path=pg_catalog, public']
+  ) THEN
+    RAISE EXCEPTION 'TEST FAILED: activate_payroll_rule must be SECURITY DEFINER with search_path=pg_catalog, public';
+  END IF;
+END
+$assert$;
