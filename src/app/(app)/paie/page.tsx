@@ -157,6 +157,19 @@ async function createPayslip(fd: FormData) {
   const overtimeRecordReference=String(fd.get("overtime_record_reference")||"").trim();
   const overtimeCategory=String(fd.get("overtime_category")||"regular");
   if(!["regular","night","sunday","holiday","night_holiday"].includes(overtimeCategory))throw new Error("Catégorie d’heures supplémentaires inconnue.");
+  if(amounts.overtime>0){
+    const schedules=Array.isArray(rule.overtime_premium_rules)?rule.overtime_premium_rules:[];
+    const matching=schedules.filter((entry:any)=>entry.category===overtimeCategory
+      && String(entry.effectiveFrom||"")<=String(run.period_end)
+      && (!entry.effectiveTo||String(entry.effectiveTo)>=String(run.period_end)));
+    if(matching.length!==1)throw new Error("Aucune majoration officielle unique et datée n'est configurée pour cette catégorie d'heures supplémentaires.");
+    const schedule=matching[0];
+    if(!schedule.legalReference||!schedule.ruleVersion||!Number.isFinite(Number(schedule.premiumPercent))
+      ||Number(schedule.premiumPercent)<0||Number(schedule.premiumPercent)>500)
+      throw new Error("La majoration de cette catégorie doit comporter un taux et une référence réglementaire vérifiés.");
+    if(Math.abs(overtimePremiumPercent-Number(schedule.premiumPercent))>0.0001)
+      throw new Error("La majoration saisie ne correspond pas au référentiel applicable à la période.");
+  }
   if(amounts.overtime>0 && String(run.period_start).slice(0,7)!==String(run.period_end).slice(0,7))throw new Error("Le calcul de l’exonération des 20 premières heures exige une période de paie contenue dans un seul mois civil.");
   if(amounts.overtime>0 && (!overtimeRecordReference || overtimeHours<=0 || overtimeHourlyRate<=0 || !overtimeRecordReconciled))
     throw new Error("Les heures supplémentaires exigent les heures, le taux horaire, la majoration et un relevé mensuel rapproché avec référence justificative.");
