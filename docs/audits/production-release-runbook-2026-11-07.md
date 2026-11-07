@@ -29,6 +29,7 @@ Les éléments suivants manquent encore dans le schéma actuellement utilisé pa
 - `lot1_financial_idempotency.updated_at` existe.
 - Les lignes de journal PCG et les mécanismes d'intégrité comptable existent.
 - Aucun doublon de date de début ni chevauchement de périodes validées n'a été détecté dans les référentiels de paie actuels.
+- Deux contrats récurrents actifs ont été contrôlés : chacun possède une facture dont la période commence à la date d'émission et couvre le cycle suivant. Le défaut `advance` de la migration correspond donc au comportement historique observé pour ces contrats.
 
 ## Ordre de migration candidat
 
