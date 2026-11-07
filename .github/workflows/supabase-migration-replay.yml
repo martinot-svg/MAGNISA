@@ -88,6 +88,8 @@ jobs:
       - name: Seed isolated payroll test organization
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/payroll-ui-seed.sql
+      - name: Test collaborative CRM RPCs, commission splits and tenant isolation
+        run: node scripts/ci/crm-collaboration-integration.mjs
       - name: Start MAGNISA locally
         id: app_server
         run: |
