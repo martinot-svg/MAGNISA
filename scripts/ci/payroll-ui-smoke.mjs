@@ -53,9 +53,7 @@ const getRule = async (id) => {
   if (error) throw error;
   return data;
 };
-const historySection = (page) => page.locator("div.section.card")
-  .filter({ has: page.getByRole("heading", { name: "Historique des règles" }) });
-const ruleRow = (page, name) => historySection(page).locator("tbody tr").filter({ hasText: name });
+const ruleRow = (page, name) => page.locator("tbody tr").filter({ hasText: name });
 const openRuleActions = async (page, name) => {
   const row = ruleRow(page, name);
   await row.locator("details > summary").click();
@@ -78,6 +76,7 @@ const resetPage = async (page) => {
   try {
     await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor({ timeout: 15000 });
     await page.getByRole("button", { name: "Historique des règles" }).click();
+    await page.getByRole("heading", { name: "Historique des règles" }).waitFor({ state: "visible", timeout: 10000 });
   } catch (error) {
     process.stdout.write("RESET PAGE URL " + page.url() + " STATUS " + response?.status() + "\\n");
     process.stdout.write("RESET PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\\n");
@@ -107,6 +106,7 @@ try {
   try {
     await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor({ timeout: 15000 });
     await page.getByRole("button", { name: "Historique des règles" }).click();
+    await page.getByRole("heading", { name: "Historique des règles" }).waitFor({ state: "visible", timeout: 10000 });
   } catch (error) {
     process.stdout.write("PAYROLL PAGE URL " + page.url() + " STATUS " + payrollResponse?.status() + "\\n");
     process.stdout.write("PAYROLL PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\\n");
