@@ -20,7 +20,7 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  const validDependants=dependants.trim()!==""&&Number.isInteger(people)&&people>=0&&people<=30;
  const pensionAmount=Number(pension),exemptAmount=Number(exempt);
  const validDeductions=pension.trim()!==""&&exempt.trim()!==""&&Number.isFinite(pensionAmount)&&pensionAmount>=0&&pensionAmount<=brut&&Number.isFinite(exemptAmount)&&exemptAmount>=0&&exemptAmount<=brut;
- const configured=!!applicable&&applicable.status==="validated"&&applicable.cnaps_monthly_ceiling!==null&&applicable.health_monthly_ceiling!==null&&applicable.rounding_policy==="floor_100"&&Number.isFinite(Number(applicable.irsa_dependant_reduction))&&Number.isFinite(Number(applicable.irsa_dependant_threshold))&&Number.isFinite(Number(applicable.irsa_pension_deduction_rate))&&Number.isFinite(Number(applicable.irsa_rounding_unit))&&Array.isArray(applicable.irsa_brackets)&&applicable.irsa_brackets.length>0;
+ const configured=!!applicable&&applicable.status==="validated"&&applicable.cnaps_monthly_ceiling!==null&&applicable.health_monthly_ceiling!==null&&applicable.rounding_policy==="floor_100"&&Number.isFinite(Number(applicable.irsa_dependant_reduction))&&Number.isFinite(Number(applicable?.irsa_dependant_threshold))&&Number.isFinite(Number(applicable?.irsa_pension_deduction_rate))&&Number.isFinite(Number(applicable.irsa_rounding_unit))&&Array.isArray(applicable.irsa_brackets)&&applicable.irsa_brackets.length>0;
  let baseCnaps=0,baseHealth=0,social=0,health=0,patronCnaps=0,patronHealth=0,patronFmfp=0,employer=0,taxable=0;
  let tax:number|null=null,net:number|null=null;
  let error="";
