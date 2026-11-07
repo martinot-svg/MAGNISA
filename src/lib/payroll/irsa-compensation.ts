@@ -170,6 +170,10 @@ export function calculateOvertimeIrsa(input: OvertimeTaxInput): OvertimeTaxResul
   if (additionalPremiums > overtimePay) {
     throw new Error("Les primes additionnelles dépassent la rémunération des heures supplémentaires.");
   }
+  const expectedOvertimePay = totalHours * hourlyRate * (1 + premiumRate) + additionalPremiums;
+  if (Math.abs(overtimePay - expectedOvertimePay) > 0.01) {
+    throw new Error("Le montant des heures supplémentaires ne correspond pas aux heures, au taux horaire, à la majoration et aux primes déclarées.");
+  }
 
   const exemptHours = !isCadre && timeRecordReconciled
     ? Math.min(totalHours, monthlyExemptHoursLimit)
