@@ -15,7 +15,7 @@ create or replace function public.create_recurring_service_contract(
   p_billing_day integer default null,
   p_billing_timing text default 'advance'
 ) returns uuid
-language plpgsql security definer set search_path=public as $$
+language plpgsql security definer set search_path=pg_catalog, public as $$
 declare
   o public.orders%rowtype;
   l public.order_lines%rowtype;
@@ -75,7 +75,7 @@ grant execute on function public.create_recurring_service_contract(uuid,uuid,uui
 
 create or replace function private.process_due_recurring_invoice_drafts(p_org uuid, p_actor uuid)
 returns integer
-language plpgsql security definer set search_path=public,private as $$
+language plpgsql security definer set search_path=pg_catalog, public, private as $$
 declare
   c public.recurring_service_contracts%rowtype;
   v_trigger date;
@@ -179,7 +179,7 @@ end; $$;
 create or replace function public.set_recurring_service_status(
   p_org uuid, p_contract uuid, p_status text, p_reason text default null
 ) returns void
-language plpgsql security definer set search_path=public as $$
+language plpgsql security definer set search_path=pg_catalog, public as $$
 declare
   c public.recurring_service_contracts%rowtype;
   v_interval interval;

@@ -22,3 +22,42 @@ begin
   end if;
 end;
 $$;
+
+
+-- SECURITY DEFINER routines must pin trusted system and application schemas.
+DO $search_path$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public'
+      AND p.proname='create_recurring_service_contract'
+      AND p.prosecdef
+      AND coalesce(p.proconfig, ARRAY[]::text[]) @> ARRAY['search_path=pg_catalog, public']
+  ) THEN
+    RAISE EXCEPTION 'TEST FAILED: create_recurring_service_contract search_path is not pinned';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='private'
+      AND p.proname='process_due_recurring_invoice_drafts'
+      AND p.prosecdef
+      AND coalesce(p.proconfig, ARRAY[]::text[]) @> ARRAY['search_path=pg_catalog, public, private']
+  ) THEN
+    RAISE EXCEPTION 'TEST FAILED: process_due_recurring_invoice_drafts search_path is not pinned';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public'
+      AND p.proname='set_recurring_service_status'
+      AND p.prosecdef
+      AND coalesce(p.proconfig, ARRAY[]::text[]) @> ARRAY['search_path=pg_catalog, public']
+  ) THEN
+    RAISE EXCEPTION 'TEST FAILED: set_recurring_service_status search_path is not pinned';
+  END IF;
+END
+$search_path$;

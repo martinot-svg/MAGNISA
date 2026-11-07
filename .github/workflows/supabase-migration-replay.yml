@@ -4,6 +4,7 @@ on:
     paths:
       - "supabase/**"
       - ".github/workflows/supabase-migration-replay.yml"
+      - "scripts/ci/**"
   push:
     branches:
       - main
@@ -11,10 +12,13 @@ on:
       - "supabase/**"
 permissions:
   contents: read
+concurrency:
+  group: supabase-replay-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   replay:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v3
@@ -27,8 +31,77 @@ jobs:
         run: supabase db reset --yes
       - name: Verify public RPC execution grants
         run: |
-          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\"')
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/default-rpc-execution.sql
+      - name: Verify anonymous table and sequence privileges
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/anon-privileges.sql
+      - name: Verify private legal archive access
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/private-payroll-archive.sql
+      - name: Verify payroll activation rejects identical start dates
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/payroll-rule-activation-date-conflicts.sql
+      - name: Verify payroll accounting posting and supplementary pension
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/payroll-accounting-posting.sql
+      - name: Verify payroll rule archival behavior
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/payroll-rule-archival.sql
+      - name: Verify fiscal-year opening, carry-forward and close guards
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/accounting-fiscal-year-opening-closing.sql
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install app and browser test dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          npx --yes npm@11.19.1 install --no-save --package-lock=false playwright
+          npx playwright install --with-deps chromium
+      - name: Export isolated local Supabase credentials
+        run: |
+          eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY|DB_URL)=')"
+          echo "DB_URL=$DB_URL" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000" >> "$GITHUB_ENV"
+          echo "TEST_EMAIL=payroll-ui-smoke@magnisa.test" >> "$GITHUB_ENV"
+          echo "TEST_PASSWORD=Magnisa-UI-Smoke-2026!" >> "$GITHUB_ENV"
+      - name: Create authenticated local test user
+        id: ui_user
+        run: node scripts/ci/create-payroll-ui-user.mjs
+      - name: Seed isolated payroll test organization
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/payroll-ui-seed.sql
+      - name: Start MAGNISA locally
+        run: |
+          npm run dev -- --hostname 127.0.0.1 > /tmp/magnisa-next.log 2>&1 &
+          echo $! > /tmp/magnisa-next.pid
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/magnisa-next.log
+          exit 1
+      - name: Test authenticated payroll UI actions
+        run: node scripts/ci/payroll-ui-smoke.mjs
+      - name: Stop MAGNISA local server
+        if: always()
+        run: |
+          if [ -f /tmp/magnisa-next.pid ]; then kill "$(cat /tmp/magnisa-next.pid)" || true; fi
+      - name: Show local app logs after UI smoke failure
+        if: failure()
+        run: cat /tmp/magnisa-next.log || true
       - name: Stop local Supabase
         if: always() && steps.supabase_cli.outcome == 'success'
         run: supabase stop --no-backup
