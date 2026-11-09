@@ -160,7 +160,7 @@ async function createPayslip(fd: FormData) {
   const employeeId=String(fd.get("employee_id")||"");
   // Fetch the effective-dated written IRSA authorization evidence with the employee before calculating the payslip.
   const [{data:run,error:runError},{data:employee,error:employeeError}]=await Promise.all([
-    ctx.supabase.from("payroll_runs").select("period_end").eq("organization_id",ctx.organizationId).eq("id",runId).single(),
+    ctx.supabase.from("payroll_runs").select("period_start,period_end").eq("organization_id",ctx.organizationId).eq("id",runId).single(),
     ctx.supabase.from("employees").select("base_salary,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from,irsa_deduction_authorized_to").eq("organization_id",ctx.organizationId).eq("id",employeeId).single(),
   ]);
   if(runError||employeeError||!run||!employee)throw new Error("Salarié ou période introuvable.");
