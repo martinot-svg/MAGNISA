@@ -28,6 +28,7 @@ export type PayrollCalculation = {
   employerFmfp: number;
   taxableBase: number;
   taxableCompensation: number;
+  deductibleHealth: number;
   deductiblePension: number;
   incomeTax: number;
   taxableSupplementaryPension: number;
@@ -140,6 +141,7 @@ export function calculatePayrollAmounts(input: {
     employerFmfp,
     taxableBase: irsa.taxableBase,
     taxableCompensation,
+    deductibleHealth,
     deductiblePension,
     incomeTax: irsa.tax,
     taxableSupplementaryPension,
