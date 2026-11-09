@@ -137,24 +137,44 @@ jobs:
           LOCAL_DB_URL=$(printf '%s\n' "$LOCAL_ENV" | sed -n 's/^DB_URL=//p' | tr -d '"')
           LOCAL_API_URL=$(printf '%s\n' "$LOCAL_ENV" | sed -n 's/^API_URL=//p' | tr -d '"')
           LOCAL_SERVICE_ROLE_KEY=$(printf '%s\n' "$LOCAL_ENV" | sed -n 's/^SERVICE_ROLE_KEY=//p' | tr -d '"')
-          test -n "$LOCAL_DB_URL" && test -n "$LOCAL_API_URL" && test -n "$LOCAL_SERVICE_ROLE_KEY"
+          LOCAL_DB_CONTAINER=$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)
+          test -n "$LOCAL_DB_URL" && test -n "$LOCAL_API_URL" && test -n "$LOCAL_SERVICE_ROLE_KEY" && test -n "$LOCAL_DB_CONTAINER"
+          docker exec "$LOCAL_DB_CONTAINER" pg_isready -U postgres -d postgres
           echo "::add-mask::$LOCAL_SERVICE_ROLE_KEY"
+
+          # Supabase-managed Auth tables are owned by supabase_auth_admin, not
+          # the regular local postgres role. Use the local supabase_admin
+          # superuser context for the restore while keeping the API services
+          # connected with their normal service roles.
+          ADMIN_ROLE_CHECK=$(docker run --rm --network host postgres:17 \
+            psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -At \
+              -c "select case when coalesce((select rolsuper from pg_roles where rolname='supabase_admin'), false) and pg_has_role('postgres','supabase_admin','MEMBER') then 'ok' else 'missing' end")
+          test "$ADMIN_ROLE_CHECK" = "ok" || {
+            echo "::error::The isolated Supabase stack does not expose a usable supabase_admin superuser role to the local postgres connection."
+            exit 1
+          }
+
+          { printf 'SET ROLE supabase_admin;\n'; cat backup/roles.sql; } > backup/roles-restore.sql
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -f /backup/roles.sql
-          # The local Supabase stack is initialized with system schemas. Clean the
-          # pre-data objects first (schemas/tables/types), then restore data and
-          # post-data objects separately. Cleaning post-data policies before their
-          # parent tables exist makes pg_restore issue DROP POLICY against a
-          # missing relation (IF EXISTS does not suppress that PostgreSQL error).
+            psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -f /backup/roles-restore.sql
+          ADMIN_ROLE_CHECK_AFTER=$(docker run --rm --network host postgres:17 \
+            psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -At \
+              -c "select case when coalesce((select rolsuper from pg_roles where rolname='supabase_admin'), false) and pg_has_role('postgres','supabase_admin','MEMBER') then 'ok' else 'missing' end")
+          test "$ADMIN_ROLE_CHECK_AFTER" = "ok" || {
+            echo "::error::The role backup changed local supabase_admin elevation or membership; refusing to restore with reduced privileges."
+            exit 1
+          }
+
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$LOCAL_DB_URL" --no-owner --clean --if-exists --exit-on-error \
+            pg_restore --dbname="$LOCAL_DB_URL" --role=supabase_admin --clean --if-exists --exit-on-error \
               --section=pre-data /backup/magnisa-production.dump
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$LOCAL_DB_URL" --no-owner --exit-on-error \
+            pg_restore --dbname="$LOCAL_DB_URL" --role=supabase_admin --exit-on-error \
               --section=data /backup/magnisa-production.dump
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$LOCAL_DB_URL" --no-owner --exit-on-error \
+            pg_restore --dbname="$LOCAL_DB_URL" --role=supabase_admin --exit-on-error \
               --section=post-data /backup/magnisa-production.dump
+
           SUPABASE_URL="$LOCAL_API_URL" SUPABASE_SERVICE_ROLE_KEY="$LOCAL_SERVICE_ROLE_KEY" \
             node scripts/backup/restore-supabase-storage.mjs
           SUPABASE_URL="$LOCAL_API_URL" SUPABASE_SERVICE_ROLE_KEY="$LOCAL_SERVICE_ROLE_KEY" \
