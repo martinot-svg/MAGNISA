@@ -2,11 +2,6 @@ name: Encrypted Supabase Production Backup Verification
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - fix/class2-pcg232-integration-fixture
-    paths:
-      - .github/workflows/backup-supabase-production.yml
 
 permissions:
   contents: read
@@ -17,7 +12,7 @@ concurrency:
 
 jobs:
   backup-and-restore-test:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/fix/class2-pcg232-integration-fixture')
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
