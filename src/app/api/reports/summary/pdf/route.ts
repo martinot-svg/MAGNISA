@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
+import { resolveOrganizationLogoUrl } from "@/lib/storage/organization-logo";
 
 export async function GET() {
   const ctx = await requireOrganization();
@@ -18,15 +19,16 @@ export async function GET() {
   const [{ data: m }, { data: org }, {data:settings},{data:template}] = await Promise.all([
     supabase.rpc("dashboard_metrics", { p_org: organizationId }),
     supabase.from("organizations").select("name,currency").eq("id", organizationId).single(),
-    supabase.from("company_settings").select("trade_name,legal_name,slogan,address,phone,email,website,tax_id,stat_id,registry_id,bank_details,legal_mentions,document_theme,logo_url").eq("organization_id",organizationId).maybeSingle(),
+    supabase.from("company_settings").select("trade_name,legal_name,slogan,address,phone,email,website,tax_id,stat_id,registry_id,bank_details,legal_mentions,document_theme,logo_url,logo_storage_path").eq("organization_id",organizationId).maybeSingle(),
     supabase.from("document_templates").select("configuration").eq("organization_id",organizationId).eq("document_type","report").eq("is_default",true).limit(1).maybeSingle(),
   ]);
 
+  const logoUrl = await resolveOrganizationLogoUrl(supabase, settings || {});
   const buffer = await renderToBuffer(
     Report({
       company: settings?.trade_name || settings?.legal_name || org?.name || "Entreprise",
       currency: org?.currency || "MGA",
-      m: m || {},themeInput:settings?.document_theme,template:template?.configuration,logoUrl:settings?.logo_url,companyDetails:settings||undefined,
+      m: m || {},themeInput:settings?.document_theme,template:template?.configuration,logoUrl,companyDetails:settings||undefined,
     })
   );
 
