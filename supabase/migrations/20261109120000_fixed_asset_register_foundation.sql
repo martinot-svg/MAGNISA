@@ -57,6 +57,9 @@ CREATE INDEX IF NOT EXISTS fixed_assets_org_pcg_code_idx
 CREATE INDEX IF NOT EXISTS fixed_assets_org_status_service_date_idx
   ON public.fixed_assets (organization_id, status, in_service_date);
 
+CREATE UNIQUE INDEX IF NOT EXISTS fixed_assets_id_org_uidx
+  ON public.fixed_assets (id, organization_id);
+
 CREATE TABLE IF NOT EXISTS public.fixed_asset_depreciation_entries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
@@ -82,9 +85,6 @@ CREATE TABLE IF NOT EXISTS public.fixed_asset_depreciation_entries (
   FOREIGN KEY (fixed_asset_id, organization_id)
     REFERENCES public.fixed_assets(id, organization_id) ON DELETE RESTRICT
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS fixed_assets_id_org_uidx
-  ON public.fixed_assets (id, organization_id);
 
 ALTER TABLE public.fixed_asset_depreciation_entries ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS fixed_asset_depreciation_entries_select ON public.fixed_asset_depreciation_entries;
