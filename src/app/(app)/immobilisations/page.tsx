@@ -12,6 +12,7 @@ import {
   postFixedAssetAcquisition,
   postFixedAssetDepreciation,
   recordFixedAssetImpairment,
+  reverseFixedAssetDepreciation,
   reverseFixedAssetImpairment,
   transferFixedAsset,
 } from "@/server/actions/fixed-assets";
@@ -24,6 +25,7 @@ export default async function FixedAssets() {
     { data: organization },
     { data: canManage },
     { data: depreciationEntries = [] },
+    { data: postedDepreciationEntries = [] },
     { data: impairmentEntries = [] },
     { data: ifrsAdjustments = [] },
   ] = await Promise.all([
@@ -36,6 +38,9 @@ export default async function FixedAssets() {
     ctx.supabase.from("fixed_asset_depreciation_entries")
       .select("id,fixed_asset_id,period_start,period_end,depreciation_charge,closing_net_book_value,status,journal_entry_id")
       .eq("organization_id", ctx.organizationId).eq("status", "planned").order("period_end", { ascending: true }).limit(50),
+    ctx.supabase.from("fixed_asset_depreciation_entries")
+      .select("id,fixed_asset_id,period_start,period_end,depreciation_charge,journal_entry_id")
+      .eq("organization_id", ctx.organizationId).eq("status", "posted").not("journal_entry_id", "is", null).order("period_end", { ascending: false }).limit(50),
     ctx.supabase.from("fixed_asset_impairments")
       .select("id,fixed_asset_id,event_date,amount,reason,event_type")
       .eq("organization_id", ctx.organizationId).eq("event_type", "impairment").order("event_date", { ascending: false }).limit(50),
@@ -136,6 +141,23 @@ export default async function FixedAssets() {
             return <tr key={entry.id}><td>{asset?.asset_code || asset?.name || entry.fixed_asset_id}</td><td>{entry.period_start} au {entry.period_end}</td><td className="right">{money(Number(entry.depreciation_charge), currency)}</td><td className="right">{money(Number(entry.closing_net_book_value), currency)}</td><td><form action={postFixedAssetDepreciation}><input type="hidden" name="depreciation_entry_id" value={entry.id}/><button className="button primary" type="submit">Comptabiliser</button></form></td></tr>;
           })}
         </tbody></table></div>}
+      {postedDepreciationEntries.length > 0 && <>
+        <h3>Dotations déjà comptabilisées</h3>
+        <div className="tableWrap"><table><thead><tr><th>Bien</th><th>Période</th><th className="right">Dotation</th><th>Journal</th><th>Contrepassation</th></tr></thead><tbody>
+          {postedDepreciationEntries.map((entry: any) => <tr key={entry.id}>
+            <td>{assets.find((a: any) => a.id === entry.fixed_asset_id)?.asset_code || assets.find((a: any) => a.id === entry.fixed_asset_id)?.name || entry.fixed_asset_id}</td>
+            <td>{entry.period_start} au {entry.period_end}</td>
+            <td className="right">{money(Number(entry.depreciation_charge), currency)}</td>
+            <td>{entry.journal_entry_id}</td>
+            <td><form action={reverseFixedAssetDepreciation} className="form">
+              <input type="hidden" name="depreciation_entry_id" value={entry.id}/>
+              <input type="date" name="reversal_date" required aria-label="Date de contrepassation"/>
+              <input name="reason" minLength={10} required placeholder="Motif de contrepassation" aria-label="Motif de contrepassation"/>
+              <button className="button" type="submit">Contrepasser</button>
+            </form></td>
+          </tr>)}
+        </tbody></table></div>
+      </>}
     </section>
 
     <section className="card section">
