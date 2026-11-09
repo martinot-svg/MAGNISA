@@ -83,7 +83,6 @@ export function calculateStraightLineDepreciation(
   const periodStart = parseDate(input.periodStart, "début de période");
   const periodEnd = parseDate(input.periodEnd, "fin de période");
   if (periodEnd < periodStart) throw new Error("La fin de période doit être postérieure ou égale au début.");
-  if (periodEnd < service) throw new Error("La période se termine avant la mise en service.");
 
   const gross = cents(cost + directCosts);
   if (residual > gross) throw new Error("La valeur résiduelle ne peut pas dépasser le coût amortissable brut.");
