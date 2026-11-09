@@ -206,6 +206,66 @@ await expectRpcDenied(owner, "record_prospect_intervention", {
   p_evidence: null, p_responsible: null, p_occurred_at: null,
 }, "A user must not create contributions in an organization where they are not a member.");
 
+const ownTenantRead = await collaborator.from("prospects").select("id")
+  .eq("organization_id", secondOrg.data.id).eq("id", secondProspect);
+if (ownTenantRead.error) throw ownTenantRead.error;
+assert(ownTenantRead.data.length === 1, "An active member must retain access to their own organization.");
+const crossTenantRead = await owner.from("prospects").select("id")
+  .eq("organization_id", secondOrg.data.id).eq("id", secondProspect);
+if (crossTenantRead.error) throw crossTenantRead.error;
+assert(crossTenantRead.data.length === 0, "A member of another organization must not read cross-tenant prospects.");
+
+const assertNoRows = async (client, table, orgId, label) => {
+  const result = await client.from(table).select("id").eq("organization_id", orgId).limit(5);
+  if (result.error) {
+    assert(result.error.code === "42501", `${label}: unexpected read error ${result.error.code}`);
+    return;
+  }
+  assert(result.data.length === 0, `${label}: non-member can still read ${table}`);
+};
+
+const suspendedMembership = await admin.from("organization_members").update({ status: "suspended" })
+  .eq("organization_id", organizationId).eq("user_id", collaboratorId);
+if (suspendedMembership.error) throw suspendedMembership.error;
+for (const table of [
+  "prospect_interventions",
+  "prospect_intervention_history",
+  "prospect_contributors",
+  "commission_allocations",
+  "commission_calculations",
+  "commission_payments",
+  "commission_policies",
+]) {
+  await assertNoRows(collaborator, table, organizationId, "Former member");
+}
+
+const externalEmail = `crm-external-${suffix}@magnisa.test`;
+const externalPassword = `External-${suffix}-${crypto.randomUUID()}!Aa9`;
+const externalCreated = await admin.auth.admin.createUser({
+  email: externalEmail, password: externalPassword, email_confirm: true,
+  user_metadata: { full_name: "MAGNISA CRM External Integration User" },
+});
+if (externalCreated.error || !externalCreated.data.user) {
+  throw externalCreated.error ?? new Error("Could not create isolated external CRM user.");
+}
+const external = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
+const externalAuth = await external.auth.signInWithPassword({ email: externalEmail, password: externalPassword });
+if (externalAuth.error) throw externalAuth.error;
+const anonymous = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
+for (const table of [
+  "prospect_interventions",
+  "prospect_intervention_history",
+  "prospect_contributors",
+  "commission_allocations",
+  "commission_calculations",
+  "commission_payments",
+  "commission_policies",
+]) {
+  await assertNoRows(external, table, organizationId, "External authenticated user");
+  await assertNoRows(anonymous, table, organizationId, "Anonymous user");
+}
+
+process.stdout.write("PASS RLS: active member allowed; suspended former member, external user, anonymous user and cross-tenant reads denied\n");
 process.stdout.write("PASS CRM integration: multiple validated contributors, rejected/self-review guard, stage history and transfer audit\n");
 process.stdout.write("PASS CRM integration: transfer/support events do not enter commission allocations\n");
 process.stdout.write("PASS CRM integration: commission shares 40/30/20/10 reconcile to 10,000 MGA; idempotency verified\n");
