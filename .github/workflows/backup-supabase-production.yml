@@ -144,11 +144,13 @@ jobs:
 
           # Keep the local Supabase system database untouched. Restore the
           # production dump into a fresh database on the same PostgreSQL 17
-          # server. Keep the Realtime and Vault schemas in the encrypted dump, but exclude
-          # them from local replay: Realtime functions require the privileged
-          # log_min_messages setting, and Vault contains production secrets that must
-          # not be copied into a disposable CI database. Both are platform-managed,
-          # not application data.
+          # server. Keep Realtime, Vault and Cron in the encrypted dump, but
+          # exclude them from local replay: Realtime functions need a privileged
+          # log_min_messages setting, Vault contains production secrets, and the
+          # local stack does not provision the pg_cron schema. These are managed
+          # platform schemas, not application business data.
+          # The encrypted dump retains ownership and ACLs; local replay omits
+          # them because its postgres role cannot change other roles' defaults.
           # Storage binary objects are restored separately through the local
           # Storage API and verified by SHA-256.
           POSTGRES_CREATEDB=$(docker run --rm --network host postgres:17 \
