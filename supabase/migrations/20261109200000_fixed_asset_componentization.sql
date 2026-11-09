@@ -139,7 +139,8 @@ BEGIN
     IF v_method='straight_line' AND (coalesce(v_life,0)<=0 OR v_accum_account IS NULL OR v_expense_account IS NULL) THEN
       RAISE EXCEPTION 'Composant % : durée et comptes PCG 28/68 obligatoires',v_count;
     END IF;
-    IF (v_asset_account !~ '^(20|21|22|23|26|27)[0-9]{0,4}
+    IF v_asset_account !~ '^(20|21|22|23|26|27)[0-9]{0,4}$'
+      OR v_asset_account ~ '^229'
       OR v_impairment_account IS NULL OR v_impairment_account !~ '^29[0-9]{0,4}$'
       OR v_impairment_expense_account IS NULL OR v_impairment_expense_account !~ '^68[0-9]{0,4}$'
       OR v_impairment_reversal_account IS NULL OR v_impairment_reversal_account !~ '^78[0-9]{0,4}$'
