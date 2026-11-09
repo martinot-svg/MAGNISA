@@ -65,7 +65,7 @@ BEGIN
   IF position('PCG:%' IN pg_get_viewdef('public.pcg2005_journal_lines'::regclass,true))=0 THEN
     RAISE EXCEPTION 'Direct PCG journal keys are not mapped into the PCG trial balance';
   END IF;
-  IF position('debit - credit' IN pg_get_viewdef('public.fixed_asset_register_reconciliation'::regclass,true))=0 THEN
+  IF position('ledger_net' IN pg_get_viewdef('public.fixed_asset_register_reconciliation'::regclass,true))=0 THEN
     RAISE EXCEPTION 'Fixed asset reconciliation must compare net ledger balances';
   END IF;
 END $$;
