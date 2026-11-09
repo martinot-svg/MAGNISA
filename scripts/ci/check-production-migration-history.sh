@@ -17,6 +17,7 @@ REMOTE_ONLY="$TMP_DIR/remote-only.txt"
 NAME_MISMATCH="$TMP_DIR/name-mismatch.txt"
 DUPLICATE_LOCAL="$TMP_DIR/duplicate-local.txt"
 DUPLICATE_REMOTE="$TMP_DIR/duplicate-remote.txt"
+LEGACY="$TMP_DIR/legacy-files.txt"
 UNEXPECTED="$TMP_DIR/unexpected.txt"
 UNMAPPED="$TMP_DIR/unmapped.txt"
 USED_MAP="$TMP_DIR/used-map.txt"
@@ -31,6 +32,7 @@ else
 fi
 
 : > "$LOCAL"
+: > "$LEGACY"
 LEGACY_COUNT=0
 for file in "$MIGRATIONS_DIR"/*.sql; do
   [[ -f "$file" ]] || continue
@@ -39,13 +41,18 @@ for file in "$MIGRATIONS_DIR"/*.sql; do
     printf '%s|%s|%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "$filename" >> "$LOCAL"
   else
     LEGACY_COUNT=$((LEGACY_COUNT + 1))
-    printf 'Historical non-versioned file excluded from direct deployment: %s\n' "$filename"
+    printf '%s\n' "$filename" >> "$LEGACY"
   fi
 done
 sort -t '|' -k1,1 -o "$LOCAL" "$LOCAL"
 
 if [[ ! -s "$LOCAL" ]]; then
   echo "::error::No timestamped local migrations found"
+  exit 1
+fi
+if [[ -s "$LEGACY" ]]; then
+  echo "::error::Unversioned SQL files remain in supabase/migrations. Supabase CLI can execute them, so they must be recovered into a timestamped migration or moved outside this directory."
+  cat "$LEGACY"
   exit 1
 fi
 
@@ -145,7 +152,7 @@ done < "$REMOTE"
 
 echo "Remote migration records: $(wc -l < "$REMOTE" | tr -d ' ')"
 echo "Timestamped local SQL files: $(wc -l < "$LOCAL" | tr -d ' ')"
-echo "Historical non-versioned SQL files (excluded from direct deployment): $LEGACY_COUNT"
+echo "Historical non-versioned SQL files: $LEGACY_COUNT"
 echo "Local versions not recorded remotely: $(wc -l < "$LOCAL_ONLY" | tr -d ' ')"
 echo "Allowlisted pending local versions: $(comm -12 "$LOCAL_ONLY" "$ALLOW" | wc -l | tr -d ' ')"
 echo "Unreviewed pending local versions: $(wc -l < "$UNEXPECTED" | tr -d ' ')"
