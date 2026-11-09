@@ -582,7 +582,7 @@ begin
 
   perform public.audit_event(
     p_org,'payslip.calculated','payslip',v_id,null,
-    jsonb_build_object('employee_id',p_employee,'payroll_run_id',p_run,'gross_pay',v_gross,'net_pay',v_net,'taxable_supplementary_pension',coalesce(p_taxable_supplementary_pension,0),'employee_pension_contribution',coalesce(p_employee_pension_contribution,0),'employee_pension_reference',p_employee_pension_reference,'irsa_deduction_authorized',ps.irsa_deduction_authorized,'irsa_deduction_authorization_reference',ps.irsa_deduction_authorization_reference,'irsa_exempt_earnings',coalesce(p_irsa_exempt_earnings,0),'irsa_exemption_reference',p_irsa_exemption_reference)
+    jsonb_build_object('employee_id',p_employee,'payroll_run_id',p_run,'gross_pay',v_gross,'net_pay',v_net,'taxable_supplementary_pension',coalesce(p_taxable_supplementary_pension,0),'employee_pension_contribution',coalesce(p_employee_pension_contribution,0),'employee_pension_reference',p_employee_pension_reference,'irsa_deduction_authorized',v_payslip.irsa_deduction_authorized,'irsa_deduction_authorization_reference',v_payslip.irsa_deduction_authorization_reference,'irsa_exempt_earnings',coalesce(p_irsa_exempt_earnings,0),'irsa_exemption_reference',p_irsa_exemption_reference)
   );
 
   return v_id;
