@@ -100,6 +100,9 @@ CREATE POLICY fixed_asset_depreciation_entries_update
   USING (public.has_org_permission(organization_id, 'accounting.manage'))
   WITH CHECK (public.has_org_permission(organization_id, 'accounting.manage'));
 
+REVOKE ALL ON public.fixed_asset_depreciation_entries FROM PUBLIC, anon;
+GRANT SELECT, INSERT, UPDATE ON public.fixed_asset_depreciation_entries TO authenticated;
+
 CREATE INDEX IF NOT EXISTS fixed_asset_depreciation_entries_org_period_idx
   ON public.fixed_asset_depreciation_entries (organization_id, period_end, status);
 
