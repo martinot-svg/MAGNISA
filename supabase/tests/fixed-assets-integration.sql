@@ -113,6 +113,12 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM='Duplicate commissioning should be rejected' THEN RAISE; END IF;
   END;
+  BEGIN
+    PERFORM public.magnisa_plan_fixed_asset_depreciation(v_org,v_wip,'2026-01-01','2026-06-30');
+    RAISE EXCEPTION 'Pre-commissioning depreciation period should be rejected';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM='Pre-commissioning depreciation period should be rejected' THEN RAISE; END IF;
+  END;
   v_wip_depreciation_entry := public.magnisa_plan_fixed_asset_depreciation(
     v_org,v_wip,'2026-07-01','2026-12-31'
   );
