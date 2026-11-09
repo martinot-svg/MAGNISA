@@ -58,7 +58,7 @@ async function updateEmployeeDependants(fd: FormData) {
   const reference=String(fd.get("irsa_deduction_authorization_reference")||"").trim();
   const from=String(fd.get("irsa_deduction_authorized_from")||"");
   const to=String(fd.get("irsa_deduction_authorized_to")||"")||null;
-  const datePattern=/^\\d{4}-\\d{2}-\\d{2}$/;
+  const datePattern=/^\d{4}-\d{2}-\d{2}$/;
   if(authorized&&(!reference||reference.length>200||!datePattern.test(from))) {
     throw new Error("Une autorisation écrite IRSA exige une référence et une date de prise d'effet.");
   }
@@ -257,7 +257,7 @@ async function createPayslip(fd: FormData) {
   const authorizationTo=String(employee.irsa_deduction_authorized_to||"");
   const deductionsAuthorized=employee.irsa_deduction_authorized===true
     && authorizationReference.length>0
-    && /^\\d{4}-\\d{2}-\\d{2}$/.test(authorizationFrom)
+    && /^\d{4}-\d{2}-\d{2}$/.test(authorizationFrom)
     && authorizationFrom<=String(run.period_start)
     && (!authorizationTo||authorizationTo>=String(run.period_end));
   const calculation = calculatePayrollAmounts({
