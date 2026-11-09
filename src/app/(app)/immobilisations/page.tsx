@@ -25,6 +25,7 @@ export default async function FixedAssets() {
   const [
     { data: assets = [], error },
     { data: organization },
+    { data: assetAccounts = [], error: assetAccountsError },
     { data: canManage },
     { data: depreciationEntries = [] },
     { data: postedDepreciationEntries = [] },
@@ -38,6 +39,7 @@ export default async function FixedAssets() {
       .eq("organization_id", ctx.organizationId)
       .order("acquisition_date", { ascending: false }),
     ctx.supabase.from("organizations").select("currency").eq("id", ctx.organizationId).single(),
+    ctx.supabase.from("pcg2005_accounts").select("code,label").eq("kind", "asset").order("code"),
     ctx.supabase.rpc("has_org_permission", { p_org: ctx.organizationId, p_permission: "accounting.manage" }),
     ctx.supabase.from("fixed_asset_depreciation_entries")
       .select("id,fixed_asset_id,period_start,period_end,depreciation_charge,closing_net_book_value,status,journal_entry_id")
@@ -59,6 +61,7 @@ export default async function FixedAssets() {
       .eq("organization_id", ctx.organizationId).order("account_code"),
   ]);
   if (error) throw new Error("Impossible de charger le registre des immobilisations : " + error.message);
+  if (assetAccountsError) throw new Error("Impossible de charger le plan comptable PCG : " + assetAccountsError.message);
   if (reconciliationError) throw new Error("Impossible de charger le rapprochement registre / grand livre : " + reconciliationError.message);
   if (commissioningError) throw new Error("Impossible de charger l’historique des mises en service : " + commissioningError.message);
   const currency = organization?.currency || "MGA";
@@ -66,6 +69,8 @@ export default async function FixedAssets() {
   const totalAccumulated = assets.reduce((sum: number, asset: any) => sum + Number(asset.accumulated_depreciation || 0), 0);
   const totalNet = assets.reduce((sum: number, asset: any) => sum + Number(asset.net_book_value || 0), 0);
   const commissionableAssets = assets.filter((asset: any) => asset.status === "active" && asset.pcg_asset_account_code?.startsWith("23") && !asset.in_service_date);
+  const commissionTargetAccounts = assetAccounts.filter((account: any) => /^(20|21|22[0-8])[0-9]{0,4}$/.test(account.code));
+  const registrationAssetAccounts = assetAccounts.filter((account: any) => /^(20|21|22[0-8]|23|26|27)[0-9]{0,4}$/.test(account.code));
   return <>
     <div className="pageHead">
       <div>
@@ -87,7 +92,7 @@ export default async function FixedAssets() {
           <div className="field"><label>Code immobilisation</label><input name="asset_code" required maxLength={40} placeholder="IMO-00001"/></div>
           <div className="field"><label>Désignation</label><input name="name" required maxLength={180}/></div>
           <div className="field"><label>Catégorie</label><input name="category" maxLength={100} placeholder="Matériel informatique, véhicule..."/></div>
-          <div className="field"><label>Compte d'immobilisation PCG</label><input name="pcg_asset_account_code" required pattern="(20|21|22|23|26|27)[0-9]{0,4}" placeholder="218"/></div>
+          <div className="field"><label>Compte d'immobilisation PCG</label><select name="pcg_asset_account_code" required defaultValue=""><option value="" disabled>Choisir le compte d’immobilisation</option>{registrationAssetAccounts.map((account: any) => <option key={account.code} value={account.code}>{account.code} · {account.label}</option>)}</select></div>
           <div className="field"><label>Contrepartie PCG (404, 512, 10x, 45x ou 72x)</label><input name="pcg_acquisition_counterpart_account_code" required placeholder="404"/></div>
           <div className="field"><label>Date d'acquisition</label><input name="acquisition_date" type="date" required/></div>
           <div className="field"><label>Date de mise en service</label><input name="in_service_date" type="date"/><small className="muted">Laisse vide pour une immobilisation en cours de classe 23. Sa mise en service sera enregistrée séparément.</small></div>
@@ -160,7 +165,7 @@ export default async function FixedAssets() {
         <div className="grid3">
           <div className="field"><label>Immobilisation en cours</label><select name="asset_id" required defaultValue=""><option value="" disabled>Choisir un bien en compte 23</option>{commissionableAssets.map((a: any) => <option key={a.id} value={a.id}>{a.asset_code || a.name} · {a.name}</option>)}</select></div>
           <div className="field"><label>Date effective de mise en service</label><input name="event_date" type="date" required/></div>
-          <div className="field"><label>Nouveau compte d’actif PCG</label><input name="new_asset_account_code" placeholder="215, 205, 221..." required/></div>
+          <div className="field"><label>Nouveau compte d’actif PCG</label><select name="new_asset_account_code" required defaultValue=""><option value="" disabled>Choisir le compte définitif</option>{commissionTargetAccounts.map((account: any) => <option key={account.code} value={account.code}>{account.code} · {account.label}</option>)}</select></div>
           <div className="field"><label>Méthode après mise en service</label><select name="depreciation_method" defaultValue="straight_line"><option value="straight_line">Linéaire</option><option value="none">Sans amortissement</option></select></div>
           <div className="field"><label>Durée d’utilisation (mois)</label><input name="useful_life_months" type="number" min="1" max="1200" placeholder="60"/></div>
           <div className="field"><label>Compte 28 adapté</label><input name="pcg_accumulated_depreciation_account_code" placeholder="280, 281 ou 282"/></div>
@@ -168,7 +173,7 @@ export default async function FixedAssets() {
           <div className="field"><label>Compte 29 adapté</label><input name="pcg_impairment_account_code" placeholder="290, 291 ou 292" required/></div>
           <div className="field"><label>Justification</label><input name="reason" minLength={10} required placeholder="Réception, procès-verbal, mise en exploitation..."/></div>
         </div>
-        <button className="button" type="submit" disabled={!commissionableAssets.length}>Comptabiliser la mise en service</button>
+        <button className="button" type="submit" disabled={!commissionableAssets.length || !commissionTargetAccounts.length}>Comptabiliser la mise en service</button>
       </form>}
       {!commissionableAssets.length && <p className="muted">Aucune immobilisation en cours à mettre en service actuellement.</p>}
       {commissionings.length > 0 && <div className="tableWrap"><table><thead><tr><th>Date</th><th>Immobilisation</th><th>Reclassement PCG</th><th>Coût reclassé</th><th>Dépréciation transférée</th><th>Méthode / durée</th><th>Journal</th></tr></thead><tbody>

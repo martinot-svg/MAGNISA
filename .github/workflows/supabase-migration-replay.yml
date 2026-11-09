@@ -62,10 +62,14 @@ jobs:
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/fixed-assets-accounting.sql
-      - name: Verify internal transfer clearing uses PCG 581
+      - name: Verify automatic PCG 581 mapping for internal transfer clearing
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="$TEST_USER_ID" -f supabase/tests/pcg-internal-transfer-581.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/pcg-internal-transfer-581.sql
+      - name: Verify safe legacy PCG mapping and transit classification
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/pcg-mapping-view-integrity.sql
       - name: Verify collaborative prospect contribution security and automation
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
@@ -80,6 +84,11 @@ jobs:
           npm ci --no-audit --no-fund
           npx --yes npm@11.19.1 install --no-save --package-lock=false playwright
           npx playwright install --with-deps chromium
+      - name: Syntax-check encrypted backup and Storage restore scripts
+        run: |
+          node --check scripts/backup/export-supabase-storage.mjs
+          node --check scripts/backup/restore-supabase-storage.mjs
+          node --check scripts/backup/verify-supabase-storage.mjs
       - name: Export isolated local Supabase credentials
         run: |
           eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY|DB_URL)=')"
