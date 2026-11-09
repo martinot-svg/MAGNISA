@@ -1,5 +1,10 @@
 -- Recalculate depreciation prospectively from the carrying amount after impairment.
 -- The statutory PCG register remains authoritative; this migration only changes future schedules.
+DROP POLICY IF EXISTS fixed_asset_depreciation_entries_select ON public.fixed_asset_depreciation_entries;
+CREATE POLICY fixed_asset_depreciation_entries_select
+  ON public.fixed_asset_depreciation_entries FOR SELECT TO authenticated
+  USING (public.has_org_permission(organization_id,'accounting.view'));
+
 CREATE OR REPLACE FUNCTION public.magnisa_fixed_asset_month_units(
   p_service_date date,p_start date,p_end_exclusive date,p_useful_months integer
 ) RETURNS numeric
