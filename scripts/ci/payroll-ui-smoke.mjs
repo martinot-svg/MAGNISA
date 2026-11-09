@@ -58,7 +58,13 @@ const historySection = (page) => page.getByRole("dialog").locator("div.section.c
 const ruleRow = (page, name) => page.getByRole("dialog").locator("tbody tr").filter({ hasText: name });
 const openRuleActions = async (page, name) => {
   const row = ruleRow(page, name);
-  await row.locator("details > summary").click();
+  await row.waitFor({ state: "visible" });
+  const status = (await row.locator("td").nth(3).innerText()).trim();
+  // Validated rules expose archival outside the collapsed details panel.
+  // Draft and pending rules keep edit/activation controls inside that panel.
+  if (["draft", "pending_review"].includes(status)) {
+    await row.locator("details > summary").click();
+  }
   return row;
 };
 const waitForNotice = async (page, fragment) => {
@@ -149,11 +155,14 @@ try {
   process.stdout.write("PASS UI: current rule archival correctly refused\n");
   await resetPage(page);
 
-  row = await openRuleActions(page, "UI TEST future");
-  await clickAction(page, row.getByRole("button", { name: "Archiver ce référentiel" }));
-  await waitForNotice(page, "Référentiel archivé.");
-  assert((await getRule(ids.future)).status === "archived", "Future rule was not archived.");
-  process.stdout.write("PASS UI: future archival\n");
+  const futureDraftRow = ruleRow(page, "UI TEST future");
+  await futureDraftRow.waitFor({ state: "visible" });
+  assert(
+    await futureDraftRow.getByRole("button", { name: "Archiver ce référentiel" }).count() === 0,
+    "A future draft must not expose the archive action before activation.",
+  );
+  assert((await getRule(ids.future)).status === "draft", "Future draft status changed unexpectedly.");
+  process.stdout.write("PASS UI: future draft cannot be archived before activation\n");
   await resetPage(page);
 
   row = await openRuleActions(page, "UI TEST delete draft");
