@@ -65,4 +65,61 @@ describe("calculateStraightLineDepreciation", () => {
     expect(() => calculateStraightLineDepreciation({ ...base, usefulLifeMonths: 0 })).toThrow();
     expect(() => calculateStraightLineDepreciation({ ...base, usefulLifeMonths: 12, residualValue: 2_000 })).toThrow();
   });
+
+  it("applies day prorata from the service date within an incomplete month", () => {
+    const result = calculateStraightLineDepreciation({
+      acquisitionCost: 1_200,
+      usefulLifeMonths: 12,
+      inServiceDate: "2025-01-16",
+      periodStart: "2025-01-16",
+      periodEnd: "2025-01-31",
+    });
+    expect(result.depreciationCharge).toBe(51.61);
+    expect(result.daysDepreciatedInPeriod).toBe(16);
+  });
+
+  it("keeps cumulative depreciation consistent when a year is split into two periods", () => {
+    const first = calculateStraightLineDepreciation({
+      acquisitionCost: 1_200,
+      usefulLifeMonths: 12,
+      inServiceDate: "2025-01-01",
+      periodStart: "2025-01-01",
+      periodEnd: "2025-06-30",
+    });
+    const second = calculateStraightLineDepreciation({
+      acquisitionCost: 1_200,
+      usefulLifeMonths: 12,
+      inServiceDate: "2025-01-01",
+      periodStart: "2025-07-01",
+      periodEnd: "2025-12-31",
+    });
+    expect(first.depreciationCharge).toBe(600);
+    expect(second.openingAccumulatedDepreciation).toBe(600);
+    expect(second.depreciationCharge).toBe(600);
+    expect(second.closingAccumulatedDepreciation).toBe(1_200);
+  });
+
+  it("preserves the residual value at the end of useful life", () => {
+    const result = calculateStraightLineDepreciation({
+      acquisitionCost: 10_000,
+      residualValue: 1_000,
+      usefulLifeMonths: 12,
+      inServiceDate: "2025-01-01",
+      periodStart: "2025-01-01",
+      periodEnd: "2026-01-31",
+    });
+    expect(result.closingAccumulatedDepreciation).toBe(9_000);
+    expect(result.closingNetBookValue).toBe(1_000);
+  });
+
+  it("rejects impossible calendar dates", () => {
+    expect(() => calculateStraightLineDepreciation({
+      acquisitionCost: 1_000,
+      usefulLifeMonths: 12,
+      inServiceDate: "2025-02-29",
+      periodStart: "2025-01-01",
+      periodEnd: "2025-12-31",
+    })).toThrow("Date invalide");
+  });
+
 });
