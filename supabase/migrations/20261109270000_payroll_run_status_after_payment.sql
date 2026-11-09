@@ -132,20 +132,27 @@ END;
 $function$;
 
 -- Snapshot-less legacy overloads bypass the atomic fiscal snapshot contract.
--- The application now uses only the overload that requires p_fiscal_snapshot.
-REVOKE ALL ON FUNCTION public.create_payslip(
-  uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric
-) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.create_payslip(
-  uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric
-) TO service_role;
-
-REVOKE ALL ON FUNCTION public.create_payslip(
-  uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric
-) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.create_payslip(
-  uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric
-) TO service_role;
+-- The application uses only the overload that requires p_fiscal_snapshot.
+-- Older deployments may retain overloads that a clean replay no longer creates,
+-- so revoke them only when present.
+DO $revoke$
+DECLARE
+  v_signature text;
+  v_function regprocedure;
+BEGIN
+  FOREACH v_signature IN ARRAY ARRAY[
+    'public.create_payslip(uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric)',
+    'public.create_payslip(uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric)'
+  ]
+  LOOP
+    v_function := to_regprocedure(v_signature);
+    IF v_function IS NOT NULL THEN
+      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,anon,authenticated',v_function);
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role',v_function);
+    END IF;
+  END LOOP;
+END;
+$revoke$;
 
 -- Repair derived run statuses already inconsistent with their payslip payment states.
 -- Amounts, payslips, payments, financial transactions and journal entries are untouched.
