@@ -70,20 +70,20 @@ const dateAtOffset = days => {
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 };
-let periodStart;
-let periodEnd;
-for (let offset = 3; offset < 1000; offset += 1) {
-  const candidateStart = dateAtOffset(offset);
-  const candidateEnd = dateAtOffset(offset + 1);
-  if (!usedPeriods.has(`${candidateStart}|${candidateEnd}`)) {
-    periodStart = candidateStart;
-    periodEnd = candidateEnd;
-    break;
+const findFreePeriod = (startOffset) => {
+  for (let offset = startOffset; offset < 1000; offset += 1) {
+    const candidateStart = dateAtOffset(offset);
+    const candidateEnd = dateAtOffset(offset + 1);
+    const key = `${candidateStart}|${candidateEnd}`;
+    if (!usedPeriods.has(key)) {
+      usedPeriods.add(key);
+      return { start: candidateStart, end: candidateEnd };
+    }
   }
-}
-if (!periodStart || !periodEnd) {
   throw new Error("Could not find an unused payroll period for the integration test.");
-}
+};
+const { start: legacyPeriodStart, end: legacyPeriodEnd } = findFreePeriod(3);
+const { start: periodStart, end: periodEnd } = findFreePeriod(5);
 
 const legacyRun = await admin.from("payroll_runs").insert({
   organization_id: organizationId,
