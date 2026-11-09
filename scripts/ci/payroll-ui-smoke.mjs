@@ -78,7 +78,9 @@ const openHistory = async (page) => {
   const button = page.getByRole("button", { name: "Historique des règles" });
   await button.waitFor({ state: "visible" });
   await page.waitForTimeout(1200);
-  await button.click();
+  if (await button.getAttribute("aria-expanded") !== "true") {
+    await button.click();
+  }
   await page.waitForFunction(() =>
     document.querySelector('button[aria-haspopup="dialog"][aria-expanded="true"]') !== null,
     null,
@@ -127,6 +129,7 @@ try {
     process.stdout.write("PAYROLL PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\n");
     throw error;
   }
+  // The history dialog was already opened in the guarded page check above.
   await ruleRow(page, "UI TEST historical").waitFor();
 
   let row = await openRuleActions(page, "UI TEST historical");
