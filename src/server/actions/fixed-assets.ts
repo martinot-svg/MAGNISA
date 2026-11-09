@@ -44,6 +44,12 @@ const assetSchema = z.object({
   for (const [field, code, pattern, message] of classRules) {
     if (code && !pattern.test(code)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message });
   }
+  if (value.depreciation_method === "straight_line" && /^(23|26|27)/.test(value.pcg_asset_account_code)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["depreciation_method"], message: "Les immobilisations en cours et financières ne sont pas amorties par le moteur linéaire. Utilise la méthode sans amortissement et traite séparément la mise en service ou la dépréciation." });
+  }
+  if (value.depreciation_method === "straight_line" && value.pcg_asset_account_code === "211") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["depreciation_method"], message: "Les terrains (211) ne sont pas amortis par défaut. Les aménagements doivent être suivis dans leur compte distinct." });
+  }
   if (value.in_service_date < value.acquisition_date) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["in_service_date"], message: "La mise en service ne peut pas précéder l'acquisition." });
   }
