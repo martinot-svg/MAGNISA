@@ -32,6 +32,17 @@ const assetSchema = z.object({
   custodian: z.string().trim().max(180).optional(),
   notes: z.string().trim().max(2000).optional(),
 }).superRefine((value, ctx) => {
+  const classRules: Array<[string | undefined, RegExp, string]> = [
+    [value.pcg_impairment_account_code, /^29\\d{0,4}$/, "Le compte de dépréciation doit appartenir à la classe 29."],
+    [value.pcg_impairment_expense_account_code, /^68\\d{0,4}$/, "Le compte de dotation pour dépréciation doit appartenir à la classe 68."],
+    [value.pcg_impairment_reversal_income_account_code, /^78\\d{0,4}$/, "Le compte de reprise doit appartenir à la classe 78."],
+    [value.pcg_disposal_receivable_account_code, /^46\\d{0,4}$/, "Le compte de créance de cession doit appartenir à la classe 46."],
+    [value.pcg_disposal_expense_account_code, /^65\\d{0,4}$/, "Le compte de moins-value doit appartenir à la classe 65."],
+    [value.pcg_disposal_income_account_code, /^75\\d{0,4}$/, "Le compte de plus-value doit appartenir à la classe 75."],
+  ];
+  for (const [code, pattern, message] of classRules) {
+    if (code && !pattern.test(code)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pcg_asset_account_code"], message });
+  }
   if (value.in_service_date < value.acquisition_date) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["in_service_date"], message: "La mise en service ne peut pas précéder l'acquisition." });
   }
