@@ -2,9 +2,6 @@ name: Encrypted Supabase Production Backup Verification
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -15,12 +12,13 @@ concurrency:
 
 jobs:
   backup-and-restore-test:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-prod-backup]')
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
     env:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
       SUPABASE_PROJECT_REF: pmlzirobpdlzsrvtkvir
       SUPABASE_DB_HOST: aws-0-us-west-2.pooler.supabase.com
       SUPABASE_DB_USER: postgres.pmlzirobpdlzsrvtkvir
@@ -33,6 +31,8 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$SUPABASE_DB_PASSWORD" || { echo "::error::Add SUPABASE_DB_PASSWORD to the GitHub production environment secrets"; exit 1; }
+          test -n "$BACKUP_ENCRYPTION_PASSPHRASE" || { echo "::error::Add a separate BACKUP_ENCRYPTION_PASSPHRASE secret to the GitHub production environment"; exit 1; }
+          command -v gpg >/dev/null || { echo "::error::GnuPG is unavailable on the runner"; exit 1; }
 
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v3
@@ -50,6 +50,7 @@ jobs:
           user = os.environ["SUPABASE_DB_USER"]
           host = os.environ["SUPABASE_DB_HOST"]
           url = f"postgresql://{user}:{password}@{host}:5432/postgres"
+          print("::add-mask::" + url)
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
               env_file.write("SUPABASE_DB_URL=" + url + chr(10))
           PY
@@ -130,14 +131,22 @@ jobs:
         run: |
           set -euo pipefail
           tar -czf backup/magnisa-production.tar.gz -C backup production-summary.tsv production-counts.tsv restored-counts.tsv roles.sql magnisa-production.dump
-          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 \
-            -pass env:SUPABASE_DB_PASSWORD \
-            -in backup/magnisa-production.tar.gz -out backup/magnisa-production.tar.gz.enc
-          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
-            -pass env:SUPABASE_DB_PASSWORD \
-            -in backup/magnisa-production.tar.gz.enc -out backup/verified-decryption.tar.gz
+          PASSPHRASE_FILE=$(mktemp)
+          chmod 600 "$PASSPHRASE_FILE"
+          trap 'rm -f "$PASSPHRASE_FILE"' EXIT
+          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" > "$PASSPHRASE_FILE"
+          gpg --batch --yes --pinentry-mode loopback \
+            --symmetric --cipher-algo AES256 --compress-algo none \
+            --s2k-mode 3 --s2k-digest-algo SHA512 --s2k-count 65011712 \
+            --passphrase-file "$PASSPHRASE_FILE" \
+            --output backup/magnisa-production.tar.gz.gpg \
+            backup/magnisa-production.tar.gz
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase-file "$PASSPHRASE_FILE" \
+            --output backup/verified-decryption.tar.gz \
+            --decrypt backup/magnisa-production.tar.gz.gpg
           cmp backup/magnisa-production.tar.gz backup/verified-decryption.tar.gz
-          sha256sum backup/magnisa-production.tar.gz.enc | awk '{print $1}' > backup/magnisa-production.tar.gz.enc.sha256
+          sha256sum backup/magnisa-production.tar.gz.gpg | awk '{print $1}' > backup/magnisa-production.tar.gz.gpg.sha256
           rm -f backup/magnisa-production.tar.gz backup/verified-decryption.tar.gz backup/magnisa-production.dump backup/roles.sql
           echo "Encrypted archive decrypted and byte-for-byte verified; only encrypted archive and checksum will be uploaded."
 
@@ -146,8 +155,8 @@ jobs:
         with:
           name: magnisa-supabase-production-encrypted-backup
           path: |
-            backup/magnisa-production.tar.gz.enc
-            backup/magnisa-production.tar.gz.enc.sha256
+            backup/magnisa-production.tar.gz.gpg
+            backup/magnisa-production.tar.gz.gpg.sha256
           if-no-files-found: error
           retention-days: 90
 
