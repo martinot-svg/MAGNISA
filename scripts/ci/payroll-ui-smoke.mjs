@@ -78,7 +78,9 @@ const openHistory = async (page) => {
   const button = page.getByRole("button", { name: "Historique des règles" });
   await button.waitFor({ state: "visible" });
   await page.waitForTimeout(1200);
-  await button.click();
+  if (await button.getAttribute("aria-expanded") !== "true") {
+    await button.click();
+  }
   await page.waitForFunction(() =>
     document.querySelector('button[aria-haspopup="dialog"][aria-expanded="true"]') !== null,
     null,
