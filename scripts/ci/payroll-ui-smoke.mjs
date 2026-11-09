@@ -58,7 +58,13 @@ const historySection = (page) => page.getByRole("dialog").locator("div.section.c
 const ruleRow = (page, name) => page.getByRole("dialog").locator("tbody tr").filter({ hasText: name });
 const openRuleActions = async (page, name) => {
   const row = ruleRow(page, name);
-  await row.locator("details > summary").click();
+  await row.waitFor({ state: "visible" });
+  const status = (await row.locator("td").nth(3).innerText()).trim();
+  // Validated rules expose archival outside the collapsed details panel.
+  // Draft and pending rules keep edit/activation controls inside that panel.
+  if (["draft", "pending_review"].includes(status)) {
+    await row.locator("details > summary").click();
+  }
   return row;
 };
 const waitForNotice = async (page, fragment) => {
