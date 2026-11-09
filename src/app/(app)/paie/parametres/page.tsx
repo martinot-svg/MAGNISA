@@ -98,7 +98,8 @@ async function executeRuleAction(fd:FormData){
 }else if(action==="delete"){
   if(!["draft","pending_review"].includes(current.status))throw new Error("Une version validée ou archivée ne peut pas être supprimée.");
   if(String(fd.get("delete_confirmation")||"").trim()!=="SUPPRIMER")throw new Error("Tape SUPPRIMER pour confirmer la suppression définitive.");
-  const {error}=await ctx.supabase.from("payroll_rule_sets").delete().eq("organization_id",ctx.organizationId).eq("id",id).in("status",["draft","pending_review"]);
+  const confirmation=String(fd.get("delete_confirmation")||"");
+  const {error}=await ctx.supabase.rpc("delete_payroll_rule_draft",{p_org:ctx.organizationId,p_rule:id,p_confirmation:confirmation});
   if(error)throw new Error(error.message);
  }else if(action==="review"){
   if(!["draft","pending_review"].includes(current.status))throw new Error("Version non modifiable.");
