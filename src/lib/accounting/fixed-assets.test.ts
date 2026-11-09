@@ -122,4 +122,20 @@ describe("calculateStraightLineDepreciation", () => {
     })).toThrow("Date invalide");
   });
 
+  it("recalculates future depreciation prospectively after an impairment", () => {
+    const result = calculateStraightLineDepreciation({
+      acquisitionCost: 1_200,
+      usefulLifeMonths: 12,
+      inServiceDate: "2025-01-01",
+      periodStart: "2025-07-01",
+      periodEnd: "2025-12-31",
+      openingAccumulatedDepreciation: 600,
+      openingImpairmentLoss: 300,
+      openingNetBookValue: 300,
+    });
+    expect(result.depreciationCharge).toBe(300);
+    expect(result.closingAccumulatedDepreciation).toBe(900);
+    expect(result.closingNetBookValue).toBe(0);
+  });
+
 });
