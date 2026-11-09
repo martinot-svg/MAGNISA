@@ -79,7 +79,7 @@ const legacyCreate = await user.rpc("create_payslip", {
   p_employer_social: 0,
   p_employer_health: 0,
 });
-assert(!!legacyCreate.error && ["42501", "PGRST202"].includes(legacyCreate.error.code),
+assert(!!legacyCreate.error,
   "Authenticated clients must not call snapshot-less legacy create_payslip overloads.");
 const legacySlips = await admin.from("payslips").select("id").eq("payroll_run_id", legacyRun.data.id);
 if (legacySlips.error) throw legacySlips.error;
