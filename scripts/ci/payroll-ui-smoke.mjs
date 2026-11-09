@@ -118,6 +118,9 @@ try {
   const membershipCheck = await admin.from("organization_members")
     .select("organization_id,role,status").eq("user_id", process.env.TEST_USER_ID);
   if (membershipCheck.error) throw membershipCheck.error;
+  const activeMembership = membershipCheck.data.find((membership) => membership.status === "active");
+  assert(activeMembership, "Authenticated UI test user must have an active organization membership.");
+  const testOrganizationId = activeMembership.organization_id;
   process.stdout.write("TEST USER MEMBERSHIPS " + JSON.stringify(membershipCheck.data) + "\n");
 
   const payrollResponse = await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
@@ -186,6 +189,10 @@ try {
   await page.getByRole("heading", { name: "Registre des immobilisations" }).waitFor({ timeout: 15000 });
   await page.getByRole("heading", { name: "Planifier et comptabiliser les dotations" }).waitFor({ timeout: 10000 });
   await page.getByRole("heading", { name: "Mise en service des immobilisations en cours" }).waitFor({ timeout: 10000 });
+  const registrationAccountSelect = page.locator('select[name="pcg_asset_account_code"]');
+  await registrationAccountSelect.waitFor({ state: "visible", timeout: 10000 });
+  assert(await registrationAccountSelect.getAttribute("required") !== null, "Fixed-asset account must be mandatory.");
+  assert(await registrationAccountSelect.locator('option[value="215"]').count() === 1, "PCG account 215 must be selectable from the catalogue when creating an asset.");
   const commissioningAccountSelect = page.locator('select[name="new_asset_account_code"]');
   await commissioningAccountSelect.waitFor({ state: "visible", timeout: 10000 });
   assert(await commissioningAccountSelect.getAttribute("required") !== null, "Commissioning target account must be mandatory.");
@@ -193,6 +200,59 @@ try {
   process.stdout.write("PASS UI: commissioning target account is selected from the PCG catalogue\\n");
   await page.getByRole("heading", { name: "Ventilation par composants" }).waitFor({ timeout: 10000 });
   await page.getByRole("heading", { name: "Rapprochement IFRS distinct" }).waitFor({ timeout: 10000 });
+  const assetCode = `UI-IMM-${Date.now()}`;
+  const assetDate = new Date().toISOString().slice(0, 10);
+  const registrationForm = page.locator("form").filter({ has: page.locator('input[name="asset_code"]') });
+  await registrationForm.locator('input[name="asset_code"]').fill(assetCode);
+  await registrationForm.locator('input[name="name"]').fill("UI authenticated fixed asset test");
+  await registrationForm.locator('input[name="category"]').fill("equipment");
+  await registrationForm.locator('select[name="pcg_asset_account_code"]').selectOption("215");
+  await registrationForm.locator('input[name="pcg_acquisition_counterpart_account_code"]').fill("404");
+  await registrationForm.locator('input[name="acquisition_date"]').fill(assetDate);
+  await registrationForm.locator('input[name="in_service_date"]').fill(assetDate);
+  await registrationForm.locator('input[name="acquisition_cost"]').fill("123456");
+  await registrationForm.locator('select[name="depreciation_method"]').selectOption("straight_line");
+  await registrationForm.locator('input[name="useful_life_months"]').fill("60");
+  await registrationForm.locator('input[name="pcg_accumulated_depreciation_account_code"]').fill("281");
+  await registrationForm.locator('input[name="pcg_depreciation_expense_account_code"]').fill("681");
+  await registrationForm.locator('input[name="pcg_impairment_account_code"]').fill("291");
+  await registrationForm.locator('input[name="pcg_impairment_expense_account_code"]').fill("681");
+  await registrationForm.locator('input[name="pcg_impairment_reversal_income_account_code"]').fill("781");
+  await registrationForm.locator('input[name="pcg_disposal_receivable_account_code"]').fill("462");
+  await registrationForm.locator('input[name="pcg_disposal_expense_account_code"]').fill("652");
+  await registrationForm.locator('input[name="pcg_disposal_income_account_code"]').fill("752");
+  await registrationForm.getByRole("button", { name: "Enregistrer la fiche" }).click();
+  const createdAssetRow = page.locator("tbody tr").filter({ hasText: assetCode });
+  await createdAssetRow.waitFor({ state: "visible", timeout: 20000 });
+  const createdAsset = await admin.from("fixed_assets")
+    .select("id,pcg_asset_account_code,acquisition_journal_entry_id,net_book_value")
+    .eq("organization_id", testOrganizationId).eq("asset_code", assetCode).single();
+  if (createdAsset.error) throw createdAsset.error;
+  assert(createdAsset.data.pcg_asset_account_code === "215", "Created asset must retain selected PCG 215.");
+  assert(Number(createdAsset.data.net_book_value) === 123456, "Created asset must retain its gross net book value before depreciation.");
+  await createdAssetRow.getByRole("button", { name: "Comptabiliser" }).click();
+  await createdAssetRow.getByText("Comptabilisée").waitFor({ state: "visible", timeout: 20000 });
+  const postedAsset = await admin.from("fixed_assets")
+    .select("id,acquisition_journal_entry_id").eq("organization_id", testOrganizationId)
+    .eq("asset_code", assetCode).single();
+  if (postedAsset.error) throw postedAsset.error;
+  assert(postedAsset.data.acquisition_journal_entry_id, "UI acquisition action must attach a posted journal to the asset.");
+  const acquisitionLines = await admin.from("journal_entry_lines")
+    .select("account_key,debit,credit").eq("organization_id", testOrganizationId)
+    .eq("journal_entry_id", postedAsset.data.acquisition_journal_entry_id);
+  if (acquisitionLines.error) throw acquisitionLines.error;
+  const assetDebit = acquisitionLines.data.filter((line) => line.account_key === "PCG:215")
+    .reduce((sum, line) => sum + Number(line.debit), 0);
+  const supplierCredit = acquisitionLines.data.filter((line) => line.account_key === "PCG:404")
+    .reduce((sum, line) => sum + Number(line.credit), 0);
+  assert(assetDebit === 123456 && supplierCredit === 123456, "UI acquisition journal must debit PCG 215 and credit PCG 404 for 123456 MGA.");
+  const acquisitionHistory = await admin.from("audit_logs").select("id,action")
+    .eq("organization_id", testOrganizationId).eq("entity_type", "fixed_asset")
+    .eq("entity_id", postedAsset.data.id).eq("action", "fixed_asset.acquisition.posted");
+  if (acquisitionHistory.error) throw acquisitionHistory.error;
+  assert(acquisitionHistory.data.length === 1, "Fixed-asset acquisition audit history must contain exactly one event.");
+  process.stdout.write("PASS UI: authenticated asset creation, PCG selection, acquisition posting, ledger lines and audit history\\n");
+
   const fixedAssetRead = await authenticatedClient.from("fixed_assets").select("id").limit(1);
   if (fixedAssetRead.error) throw fixedAssetRead.error;
   const depreciationRead = await authenticatedClient.from("fixed_asset_depreciation_entries").select("id").limit(1);
