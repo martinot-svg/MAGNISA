@@ -3,44 +3,44 @@ CREATE OR REPLACE VIEW public.fixed_asset_register_reconciliation
 WITH (security_invoker=true) AS
 WITH register_balances AS (
   SELECT organization_id,pcg_asset_account_code AS account_code,
-    sum(acquisition_cost+coalesce(directly_attributable_cost,0))::numeric(18,2) AS register_debit,
-    0::numeric(18,2) AS register_credit
+    sum(acquisition_cost+coalesce(directly_attributable_cost,0))::numeric(20,2) AS register_debit,
+    0::numeric(20,2) AS register_credit
   FROM public.fixed_assets
   WHERE status<>'disposed' AND pcg_asset_account_code IS NOT NULL
   GROUP BY organization_id,pcg_asset_account_code
   UNION ALL
   SELECT organization_id,pcg_accumulated_depreciation_account_code,
-    0::numeric(18,2),sum(accumulated_depreciation)::numeric(18,2)
+    0::numeric(20,2),sum(accumulated_depreciation)::numeric(20,2)
   FROM public.fixed_assets
   WHERE status<>'disposed' AND pcg_accumulated_depreciation_account_code IS NOT NULL
   GROUP BY organization_id,pcg_accumulated_depreciation_account_code
   UNION ALL
   SELECT organization_id,pcg_impairment_account_code,
-    0::numeric(18,2),sum(impairment_loss)::numeric(18,2)
+    0::numeric(20,2),sum(impairment_loss)::numeric(20,2)
   FROM public.fixed_assets
   WHERE status<>'disposed' AND pcg_impairment_account_code IS NOT NULL
   GROUP BY organization_id,pcg_impairment_account_code
 ),
 register_totals AS (
-  SELECT organization_id,account_code,sum(register_debit)::numeric(18,2) AS register_debit,
-    sum(register_credit)::numeric(18,2) AS register_credit
+  SELECT organization_id,account_code,sum(register_debit)::numeric(20,2) AS register_debit,
+    sum(register_credit)::numeric(20,2) AS register_credit
   FROM register_balances GROUP BY organization_id,account_code
 ),
 ledger_totals AS (
   SELECT organization_id,pcg_code AS account_code,
-    sum(debit-credit)::numeric(18,2) AS ledger_net
+    sum(debit-credit)::numeric(20,2) AS ledger_net
   FROM public.pcg2005_journal_lines
   WHERE status='posted' AND pcg_code ~ '^(2|28|29)'
   GROUP BY organization_id,pcg_code
 )
 SELECT coalesce(r.organization_id,l.organization_id) AS organization_id,
   coalesce(r.account_code,l.account_code) AS account_code,
-  coalesce(r.register_debit,0)::numeric(18,2) AS register_debit,
-  coalesce(r.register_credit,0)::numeric(18,2) AS register_credit,
-  greatest(coalesce(l.ledger_net,0),0)::numeric(18,2) AS ledger_debit,
-  greatest(-coalesce(l.ledger_net,0),0)::numeric(18,2) AS ledger_credit,
-  (coalesce(r.register_debit,0)-greatest(coalesce(l.ledger_net,0),0))::numeric(18,2) AS debit_difference,
-  (coalesce(r.register_credit,0)-greatest(-coalesce(l.ledger_net,0),0))::numeric(18,2) AS credit_difference,
+  coalesce(r.register_debit,0)::numeric(20,2) AS register_debit,
+  coalesce(r.register_credit,0)::numeric(20,2) AS register_credit,
+  greatest(coalesce(l.ledger_net,0),0)::numeric(20,2) AS ledger_debit,
+  greatest(-coalesce(l.ledger_net,0),0)::numeric(20,2) AS ledger_credit,
+  (coalesce(r.register_debit,0)-greatest(coalesce(l.ledger_net,0),0))::numeric(20,2) AS debit_difference,
+  (coalesce(r.register_credit,0)-greatest(-coalesce(l.ledger_net,0),0))::numeric(20,2) AS credit_difference,
   CASE WHEN abs(coalesce(r.register_debit,0)-greatest(coalesce(l.ledger_net,0),0))<0.01
          AND abs(coalesce(r.register_credit,0)-greatest(-coalesce(l.ledger_net,0),0))<0.01
        THEN 'reconciled' ELSE 'difference' END AS reconciliation_status
