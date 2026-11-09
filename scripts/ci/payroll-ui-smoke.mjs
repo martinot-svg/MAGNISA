@@ -127,7 +127,7 @@ try {
     process.stdout.write("PAYROLL PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\n");
     throw error;
   }
-  await openHistory(page);
+  // The history dialog was already opened in the guarded page check above.
   await ruleRow(page, "UI TEST historical").waitFor();
 
   let row = await openRuleActions(page, "UI TEST historical");
