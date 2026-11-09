@@ -14,8 +14,12 @@ REMOTE="$TMP_DIR/remote.tsv"
 LOCAL_VERSIONS="$TMP_DIR/local-versions.txt"
 REMOTE_VERSIONS="$TMP_DIR/remote-versions.txt"
 LOCAL_ONLY="$TMP_DIR/local-only.txt"
+LOCAL_ONLY_DETAILS="$TMP_DIR/local-only-details.tsv"
 UNEXPECTED="$TMP_DIR/unexpected.txt"
 NAME_MISMATCH="$TMP_DIR/name-mismatch.txt"
+DUPLICATE_LOCAL="$TMP_DIR/duplicate-local.txt"
+ALIASES="$TMP_DIR/candidate-aliases.txt"
+REMOTE_NORMALIZED="$TMP_DIR/remote-normalized.tsv"
 ALLOW="$TMP_DIR/allowlist.txt"
 
 for file in "$MIGRATIONS_DIR"/*.sql; do
@@ -37,7 +41,32 @@ psql "$SUPABASE_DB_URL" -X -qAt -F '|' \
 
 cut -d '|' -f1 "$LOCAL" | sort -u > "$LOCAL_VERSIONS"
 cut -d '|' -f1 "$REMOTE" | sort -u > "$REMOTE_VERSIONS"
+cut -d '|' -f1 "$LOCAL" | sort | uniq -d > "$DUPLICATE_LOCAL"
+if [ -s "$DUPLICATE_LOCAL" ]; then
+  echo "::error::Duplicate local migration versions:"
+  cat "$DUPLICATE_LOCAL"
+  exit 1
+fi
 comm -23 "$LOCAL_VERSIONS" "$REMOTE_VERSIONS" > "$LOCAL_ONLY"
+awk -F '|' 'NR==FNR {pending[$1]=1; next} ($1 in pending) {print}' "$LOCAL_ONLY" "$LOCAL" > "$LOCAL_ONLY_DETAILS"
+
+awk -F '|' '
+  function normalize(name) {
+    sub(/^[0-9]{14}_/, "", name)
+    sub(/_[0-9]+$/, "", name)
+    return name
+  }
+  {print normalize($2) "|" $1 "|" $2}
+' "$REMOTE" > "$REMOTE_NORMALIZED"
+
+: > "$ALIASES"
+while IFS='|' read -r version name; do
+  normalized="$(printf '%s' "$name" | sed -E 's/^[0-9]{14}_//; s/_[0-9]+$//')"
+  matches="$(awk -F '|' -v n="$normalized" '$1==n {print $2 " " $3}' "$REMOTE_NORMALIZED")"
+  if [ -n "$matches" ]; then
+    printf '%s %s => %s\\n' "$version" "$name" "$(printf '%s' "$matches" | tr '\\n' ';')"
+  fi
+done < "$LOCAL_ONLY_DETAILS" > "$ALIASES"
 
 if [ -f "$ALLOWLIST" ]; then
   awk 'NF && $1 !~ /^#/ {print $1}' "$ALLOWLIST" | sort -u > "$ALLOW"
@@ -62,7 +91,12 @@ echo "Local versions not recorded remotely: $(wc -l < "$LOCAL_ONLY" | tr -d ' ')
 echo "Allowlisted pending versions: $(comm -12 "$LOCAL_ONLY" "$ALLOW" | wc -l | tr -d ' ')"
 echo "Unexpected pending versions: $(wc -l < "$UNEXPECTED" | tr -d ' ')"
 echo "Same-version name mismatches: $(wc -l < "$NAME_MISMATCH" | tr -d ' ')"
+echo "Candidate version aliases by normalized migration name: $(wc -l < "$ALIASES" | tr -d ' ')"
 echo "Remote-only historical versions are reported by Supabase CLI and are not treated as pending local migrations."
+if [ -s "$ALIASES" ]; then
+  echo "Candidate aliases (verify SQL equivalence before renaming files):"
+  cat "$ALIASES"
+fi
 
 if [ -s "$UNEXPECTED" ]; then
   echo "::error::Unreviewed local migrations would be applied to production:"
