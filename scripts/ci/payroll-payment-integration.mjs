@@ -100,7 +100,12 @@ const slips = await admin.from("payslips").insert(employeeRows.data.map(employee
   employee_id: employee.id,
   base_salary: 100000,
   gross_pay: 100000,
-  net_pay: 100000,
+  employee_social: 0,
+  employee_health: 0,
+  income_tax: 5000,
+  employer_social: 1000,
+  employer_health: 5000,
+  net_pay: 95000,
   paid_amount: 0,
   status: "validated",
 }))).select("id,employee_id");
@@ -130,9 +135,9 @@ const paymentArgs = (payslipId, amount, requestKey, reference) => ({
 
 const firstKey = crypto.randomUUID();
 const firstPayment = await rpc("lot2_record_payroll_payment_idempotent",
-  paymentArgs(slips.data[0].id, 100000, firstKey, `CI-PAY-${suffix}-A`));
+  paymentArgs(slips.data[0].id, 95000, firstKey, `CI-PAY-${suffix}-A`));
 const repeatedFirstPayment = await rpc("lot2_record_payroll_payment_idempotent",
-  paymentArgs(slips.data[0].id, 100000, firstKey, `CI-PAY-${suffix}-A`));
+  paymentArgs(slips.data[0].id, 95000, firstKey, `CI-PAY-${suffix}-A`));
 assert(firstPayment === repeatedFirstPayment, "Payroll payment idempotency must return the same payment id.");
 
 const afterFirst = await admin.from("payroll_runs").select("status").eq("id", run.data.id).single();
@@ -142,7 +147,7 @@ assert(afterFirst.data.status === "partially_paid",
 
 const secondKey = crypto.randomUUID();
 await rpc("lot2_record_payroll_payment_idempotent",
-  paymentArgs(slips.data[1].id, 40000, secondKey, `CI-PAY-${suffix}-B1`));
+  paymentArgs(slips.data[1].id, 38000, secondKey, `CI-PAY-${suffix}-B1`));
 const afterPartial = await admin.from("payroll_runs").select("status").eq("id", run.data.id).single();
 if (afterPartial.error) throw afterPartial.error;
 assert(afterPartial.data.status === "partially_paid",
@@ -150,7 +155,7 @@ assert(afterPartial.data.status === "partially_paid",
 
 const thirdKey = crypto.randomUUID();
 await rpc("lot2_record_payroll_payment_idempotent",
-  paymentArgs(slips.data[1].id, 60000, thirdKey, `CI-PAY-${suffix}-B2`));
+  paymentArgs(slips.data[1].id, 57000, thirdKey, `CI-PAY-${suffix}-B2`));
 
 const [finalRun, finalSlips, finalPayments] = await Promise.all([
   admin.from("payroll_runs").select("status").eq("id", run.data.id).single(),
@@ -161,10 +166,10 @@ if (finalRun.error) throw finalRun.error;
 if (finalSlips.error) throw finalSlips.error;
 if (finalPayments.error) throw finalPayments.error;
 assert(finalRun.data.status === "paid", "The payroll run must become paid only when all active payslips are paid.");
-assert(finalSlips.data.length === 2 && finalSlips.data.every(s => s.status === "paid" && Number(s.paid_amount) === 100000),
+assert(finalSlips.data.length === 2 && finalSlips.data.every(s => s.status === "paid" && Number(s.paid_amount) === 95000),
   "Both payslips must be fully paid.");
 assert(finalPayments.data.length === 3, "Idempotent retry must not create a duplicate payroll payment.");
-assert(finalPayments.data.reduce((sum, payment) => sum + Number(payment.amount), 0) === 200000,
+assert(finalPayments.data.reduce((sum, payment) => sum + Number(payment.amount), 0) === 190000,
   "Payroll payments must reconcile to the total net payable.");
 
 const cancelledRun = await admin.from("payroll_runs").insert({
