@@ -98,13 +98,13 @@ BEGIN
   IF v_id IS NOT NULL THEN RETURN v_id; END IF;
 
   IF EXISTS (SELECT 1 FROM public.fixed_asset_depreciation_entries
-    WHERE organization_id=p_org AND fixed_asset_id=p_asset AND status='posted'
+    WHERE organization_id=p_org AND fixed_asset_id=p_asset AND status IN ('posted','reversed')
       AND daterange(period_start,period_end,'[]') && daterange(p_period_start,p_period_end,'[]')) THEN
     RAISE EXCEPTION 'La période chevauche une dotation déjà comptabilisée';
   END IF;
   SELECT max(period_end) INTO v_last_period_end
   FROM public.fixed_asset_depreciation_entries
-  WHERE organization_id=p_org AND fixed_asset_id=p_asset AND status='posted';
+  WHERE organization_id=p_org AND fixed_asset_id=p_asset AND status IN ('posted','reversed');
   IF v_last_period_end IS NOT NULL AND p_period_start<>v_last_period_end+1 THEN
     RAISE EXCEPTION 'Les périodes doivent être continues : commence le lendemain de la dernière dotation comptabilisée';
   END IF;
