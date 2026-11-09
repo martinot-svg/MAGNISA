@@ -98,7 +98,7 @@ jobs:
           done
           cat /tmp/magnisa-next.log
           exit 1
-      - name: Test authenticated payroll UI actions
+      - name: Test authenticated payroll and fixed-asset UI actions
         run: node scripts/ci/payroll-ui-smoke.mjs
       - name: Stop MAGNISA local server
         if: always()
