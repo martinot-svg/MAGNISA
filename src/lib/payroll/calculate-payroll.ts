@@ -50,6 +50,7 @@ export function calculatePayrollAmounts(input: {
   rule: PayrollCalculationRule;
   taxableSupplementaryPension?: number;
   additionalEmployeePensionContribution?: number;
+  deductionsAuthorized?: boolean;
 }): PayrollCalculation {
   const { gross, dependants, rule } = input;
   const taxableCompensation = input.taxableCompensation ?? gross;
@@ -58,6 +59,7 @@ export function calculatePayrollAmounts(input: {
   }
   const taxableSupplementaryPension = input.taxableSupplementaryPension ?? 0;
   const additionalEmployeePensionContribution = input.additionalEmployeePensionContribution ?? 0;
+  const deductionsAuthorized = input.deductionsAuthorized === true;
   if (!Number.isFinite(taxableSupplementaryPension) || taxableSupplementaryPension < 0) {
     throw new Error("Versement patronal de retraite complémentaire invalide.");
   }
@@ -101,9 +103,14 @@ export function calculatePayrollAmounts(input: {
 
   // Le plafond de déduction santé IRSA est versionné dans le référentiel applicable à la période.
   // La retenue santé réelle reste intégralement due, même si elle dépasse ce plafond.
-  const deductibleHealth = Math.min(health.employee, roundMoney(gross * rule.irsa_health_deduction_rate));
-  // Article 01.03.09, 1° : employee pension contributions are deductible up to 10% of gross remuneration subject to withholding.
-  const deductiblePension = Math.min(employeeSocial + additionalEmployeePensionContribution, roundMoney(gross * rule.irsa_pension_deduction_rate));
+  // Articles 01.03.09 and 01.03.11: these deductions apply only when the
+  // employer has the employee's written notification covering the full pay period.
+  const deductibleHealth = deductionsAuthorized
+    ? Math.min(health.employee, roundMoney(gross * rule.irsa_health_deduction_rate))
+    : 0;
+  const deductiblePension = deductionsAuthorized
+    ? Math.min(employeeSocial + additionalEmployeePensionContribution, roundMoney(gross * rule.irsa_pension_deduction_rate))
+    : 0;
 
   const irsa = calculateIrsa({
     taxableIncome: Math.max(0, taxableCompensation + taxableSupplementaryPension - deductiblePension - deductibleHealth),
