@@ -14,6 +14,9 @@ declare
   v_payslip_employee_pension uuid;
   v_classified_employee uuid;
   v_classified_payslip uuid;
+  v_unauthorized_employee uuid;
+  v_unauthorized_payslip uuid;
+  v_authorized boolean;
   v_snapshot jsonb;
   v_entry uuid;
   v_status text;
@@ -65,8 +68,8 @@ begin
   );
   update public.payroll_rule_sets set status='validated' where id=v_rule;
 
-  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants)
-  values(v_employee,v_org,'Test','Payroll',1000000,'active',0);
+  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from)
+  values(v_employee,v_org,'Test','Payroll',1000000,'active',0,true,'TEST-NOTIFICATION-PAYROLL',current_date-31);
 
   insert into public.payroll_runs(id,organization_id,period_start,period_end,status,created_by)
   values(v_run,v_org,date_trunc('month',current_date)::date,(date_trunc('month',current_date)+interval '1 month - 1 day')::date,'draft',v_owner);
@@ -105,8 +108,8 @@ begin
   end if;
 
   -- Versioned dependant reduction: two dependants, custom Ar 3,500 reduction above Ar 900,000.
-  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants)
-  values(gen_random_uuid(),v_org,'Test','Dependants above threshold',1000000,'active',2);
+  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from)
+  values(gen_random_uuid(),v_org,'Test','Dependants above threshold',1000000,'active',2,true,'TEST-NOTIFICATION-DEPENDANTS-A',current_date-31);
   -- Reuse the generated employee ID without touching any existing production employee.
   select id into v_employee_pension from public.employees
    where organization_id=v_org and first_name='Test' and last_name='Dependants above threshold';
@@ -120,8 +123,8 @@ begin
   );
 
   -- Below the configured threshold, no dependant reduction is allowed.
-  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants)
-  values(gen_random_uuid(),v_org,'Test','Dependants below threshold',800000,'active',2);
+  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from)
+  values(gen_random_uuid(),v_org,'Test','Dependants below threshold',800000,'active',2,true,'TEST-NOTIFICATION-DEPENDANTS-B',current_date-31);
   select id into v_employee_pension from public.employees
    where organization_id=v_org and first_name='Test' and last_name='Dependants below threshold';
   perform public.create_payslip(
@@ -178,8 +181,8 @@ begin
 
   -- Use a fresh UUID: v_employee_pension was assigned to the dependant-threshold fixture above.
   v_employee_pension := gen_random_uuid();
-  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants)
-  values(v_employee_pension,v_org,'Test','Employee pension',1000000,'active',0);
+  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from)
+  values(v_employee_pension,v_org,'Test','Employee pension',1000000,'active',0,true,'TEST-NOTIFICATION-PENSION',current_date-31);
 
   -- Employee-funded supplementary pension is deducted from net and from IRSA base within the 10% cap.
   v_payslip_employee_pension := public.create_payslip(
@@ -235,8 +238,8 @@ begin
     'overtime',jsonb_build_object('totalHours',0,'exemptHours',0),
     'calculation',jsonb_build_object('taxableBase',670000,'incomeTax',41500)
   );
-  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants)
-  values(v_classified_employee,v_org,'Test','Classified base',1000000,'active',0);
+  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from)
+  values(v_classified_employee,v_org,'Test','Classified base',1000000,'active',0,true,'TEST-NOTIFICATION-CLASSIFIED',current_date-31);
   v_classified_payslip := public.create_payslip(
     p_org=>v_org,p_run=>v_run,p_employee=>v_classified_employee,
     p_bonuses=>0,p_overtime=>0,p_other_earnings=>0,
@@ -258,6 +261,33 @@ begin
   exception when others then
     if sqlerrm not like '%snapshot fiscal%immuable%' then raise; end if;
   end;
+
+  -- Without a dated written notification, neither health nor pension contributions reduce the IRSA base.
+  v_unauthorized_employee:=gen_random_uuid();
+  insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants)
+  values(v_unauthorized_employee,v_org,'Test','No written notification',1000000,'active',0);
+  v_snapshot:=jsonb_build_object(
+    'schemaVersion',1,
+    'payrollRuleSet',jsonb_build_object('id',v_rule,'name','TEST payroll 2026'),
+    'employee',jsonb_build_object('irsaDeductionAuthorization',jsonb_build_object('declared',false,'activeForPeriod',false)),
+    'compensation',jsonb_build_object('taxableCompensation',1000000),
+    'overtime',jsonb_build_object('totalHours',0,'exemptHours',0),
+    'calculation',jsonb_build_object('taxableBase',1000000,'incomeTax',107500)
+  );
+  v_unauthorized_payslip:=public.create_payslip(
+    p_org=>v_org,p_run=>v_run,p_employee=>v_unauthorized_employee,
+    p_bonuses=>0,p_overtime=>0,p_other_earnings=>0,
+    p_employee_social=>10000,p_employee_health=>30000,p_income_tax=>107500,
+    p_advances_recovered=>0,p_other_deductions=>0,
+    p_employer_social=>130000,p_employer_health=>80000,
+    p_taxable_supplementary_pension=>0,p_employee_supplementary_pension=>0,
+    p_taxable_compensation=>1000000,p_fiscal_snapshot=>v_snapshot
+  );
+  select income_tax,irsa_deduction_authorized
+    into v_tax,v_authorized from public.payslips where id=v_unauthorized_payslip;
+  if v_tax<>107500 or v_authorized then
+    raise exception 'TEST FAILED: IRSA deductions were applied without a written notification covering the period';
+  end if;
 
   select status into v_status from public.payslips where id=v_payslip;
   if v_status <> 'validated' then
