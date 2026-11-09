@@ -1,9 +1,10 @@
 name: Encrypted Supabase Production Backup Verification
 
 on:
+  workflow_dispatch:
   push:
     branches:
-      - ops/backup-supabase-prod-20261109
+      - main
 
 permissions:
   contents: read
@@ -14,6 +15,7 @@ concurrency:
 
 jobs:
   backup-and-restore-test:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-prod-backup]')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
@@ -131,4 +133,4 @@ jobs:
 
       - name: Stop isolated Supabase stack
         if: always()
-        run: supabase stop --no-backup
+        run: supabase stop --no-backup || true
