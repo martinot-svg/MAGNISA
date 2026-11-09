@@ -41,7 +41,7 @@ DECLARE
   v_remaining_amount numeric;
 BEGIN
   IF p_opening_net_book_value IS NULL OR p_residual_value IS NULL
-     OR p_opening_net_book_value<p_residual_value OR p_residual_value<0
+     OR p_opening_net_book_value<0 OR p_residual_value<0
      OR p_useful_months<=0 OR p_period_start IS NULL OR p_period_end<p_period_start THEN
     RAISE EXCEPTION 'Valeurs d’ouverture ou période d’amortissement invalides';
   END IF;
@@ -122,7 +122,7 @@ BEGIN
   v_life_end := (a.in_service_date + make_interval(months => a.useful_life_months))::date;
   v_opening := round(coalesce(a.accumulated_depreciation,0),2);
   v_opening_net := round(coalesce(a.net_book_value,v_gross-v_opening-coalesce(a.impairment_loss,0)),2);
-  IF v_opening_net<coalesce(a.residual_value,0) OR v_opening_net>v_gross-v_opening THEN
+  IF abs(v_opening_net-greatest(0,v_gross-v_opening-coalesce(a.impairment_loss,0)))>0.01 THEN
     RAISE EXCEPTION 'La VNC d’ouverture ne correspond pas au coût, aux amortissements et aux dépréciations du registre';
   END IF;
   v_remaining_units := greatest(0,a.useful_life_months-
@@ -132,7 +132,7 @@ BEGIN
     v_opening_net,coalesce(a.residual_value,0),a.in_service_date,a.useful_life_months,p_period_start,p_period_end);
   v_charge := least(v_charge,greatest(0,v_opening_net-coalesce(a.residual_value,0)));
   v_closing := round(v_opening+v_charge,2);
-  v_closing_net := greatest(coalesce(a.residual_value,0),round(v_opening_net-v_charge,2));
+  v_closing_net := greatest(0,round(v_opening_net-v_charge,2));
   v_details := jsonb_build_object(
     'engine','magnisa_fixed_asset_period_charge',
     'method','straight_line_day_prorata_prospective',
@@ -228,7 +228,7 @@ BEGIN
   UPDATE public.fixed_assets
   SET accumulated_depreciation=d.closing_accumulated_depreciation,
       net_book_value=d.closing_net_book_value,
-      status=CASE WHEN d.closing_net_book_value<=coalesce(residual_value,0) THEN 'fully_depreciated' ELSE 'active' END,
+      status=CASE WHEN d.depreciation_charge>0 AND d.closing_net_book_value<=coalesce(residual_value,0) THEN 'fully_depreciated' ELSE status END,
       updated_at=now()
   WHERE id=a.id AND organization_id=p_org;
   PERFORM public.audit_event(p_org,'fixed_asset.depreciation.posted','fixed_asset_depreciation',d.id,
