@@ -25,6 +25,8 @@ describe("Calcul centralisé des bulletins", () => {
     expect(result.healthBase).toBe(1_000_000);
     expect(result.employeeSocial).toBe(10_000);
     expect(result.employeeHealth).toBe(10_000);
+    expect(result.deductibleHealth).toBe(10_000);
+    expect(result.deductiblePension).toBe(10_000);
     expect(result.employerSocial).toBe(130_000);
     expect(result.employerHealth).toBe(50_000);
     expect(result.employerFmfp).toBe(10_000);
@@ -38,6 +40,7 @@ describe("Calcul centralisé des bulletins", () => {
     const result = calculatePayrollAmounts({ gross: 1_000_000, dependants: 0, rule });
     expect(result.employeeSocial).toBe(10_000);
     expect(result.employeeHealth).toBe(10_000);
+    expect(result.deductibleHealth).toBe(0);
     expect(result.deductiblePension).toBe(0);
     expect(result.taxableBase).toBe(1_000_000);
     expect(result.incomeTax).toBe(107_500);
