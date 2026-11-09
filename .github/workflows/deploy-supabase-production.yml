@@ -36,17 +36,15 @@ jobs:
     timeout-minutes: 20
     env:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       SUPABASE_PROJECT_REF: pmlzirobpdlzsrvtkvir
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
 
-      - name: Verify required credentials are configured
+      - name: Verify required credential
         shell: bash
         run: |
           test -n "$SUPABASE_DB_PASSWORD" || (echo "::error::Secret SUPABASE_DB_PASSWORD manquant"; exit 1)
-          test -n "$SUPABASE_DB_URL" || (echo "::error::Secret SUPABASE_DB_URL manquant"; exit 1)
 
       - name: Install PostgreSQL client
         run: |
@@ -68,16 +66,14 @@ jobs:
               print(f"SUPABASE_DB_URL={url}", file=env_file)
           PY
 
-      - name: Show pending migrations without applying them
-        run: |
-          echo "READ-ONLY PREFLIGHT: aucune migration ne sera appliquée par ce job."
-          supabase db push --db-url "$SUPABASE_DB_URL" --include-all --dry-run
+      - name: Reconcile the complete migration ledger (read-only)
+        run: bash scripts/ci/check-production-migration-history.sh
 
-      - name: Verify remote migration history
+      - name: Verify Supabase CLI migration list
         run: supabase migration list --db-url "$SUPABASE_DB_URL"
 
-      - name: Block unreviewed migration history drift
-        run: bash scripts/ci/check-production-migration-history.sh
+      - name: Preview pending migrations without applying them
+        run: supabase db push --db-url "$SUPABASE_DB_URL" --include-all --dry-run
 
   apply:
     name: Apply production migrations (explicit approval)
@@ -92,10 +88,15 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@v4
 
-      - name: Verify required credentials are configured
+      - name: Verify required credential
         shell: bash
         run: |
           test -n "$SUPABASE_DB_PASSWORD" || (echo "::error::Secret SUPABASE_DB_PASSWORD manquant"; exit 1)
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
 
       - name: Install pinned Supabase CLI
         run: npm install --global supabase@3.0.0
@@ -111,6 +112,9 @@ jobs:
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
               print(f"SUPABASE_DB_URL={url}", file=env_file)
           PY
+
+      - name: Reconcile the complete migration ledger again
+        run: bash scripts/ci/check-production-migration-history.sh
 
       - name: Apply pending migrations
         run: supabase db push --db-url "$SUPABASE_DB_URL" --include-all --yes
