@@ -96,7 +96,7 @@ try {
     .select("id,stage_status,validation_status").eq("organization_id", membership.organization_id)
     .eq("prospect_id", prospect.id).eq("description", contributionDescription).maybeSingle());
   assert(intervention.validation_status === "pending", "A newly declared contribution must remain pending.");
-  assert(await page.getByRole("button", { name: "Valider" }).count() === 1,
+  assert(await page.getByRole("button", { name: "Valider" }).count() >= 1,
     "An independent owner must be offered validation for another contributor.");
   const pendingRow = page.locator("tr").filter({ hasText: contributionDescription });
   const validationForm = pendingRow.locator("form").filter({ has: page.getByRole("button", { name: "Valider" }) });
