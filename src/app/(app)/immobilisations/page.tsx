@@ -27,7 +27,7 @@ export default async function FixedAssets() {
     { data: ifrsAdjustments = [] },
   ] = await Promise.all([
     ctx.supabase.from("fixed_assets")
-      .select("id,asset_code,name,category,acquisition_date,in_service_date,acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,depreciation_method,pcg_asset_account_code,pcg_acquisition_counterpart_account_code,acquisition_journal_entry_id,accumulated_depreciation,net_book_value,impairment_loss,status,magnisa_reference,location,custodian")
+      .select("id,asset_code,name,category,acquisition_date,in_service_date,acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,depreciation_method,pcg_asset_account_code,pcg_acquisition_counterpart_account_code,acquisition_journal_entry_id,legacy_accounting_origin,accumulated_depreciation,net_book_value,impairment_loss,status,magnisa_reference,location,custodian")
       .eq("organization_id", ctx.organizationId)
       .order("acquisition_date", { ascending: false }),
     ctx.supabase.from("organizations").select("currency").eq("id", ctx.organizationId).single(),
@@ -111,7 +111,7 @@ export default async function FixedAssets() {
             <td className="right">{money(Number(asset.accumulated_depreciation || 0), currency)}</td>
             <td className="right">{money(Number(asset.impairment_loss || 0), currency)}</td>
             <td className="right">{money(Number(asset.net_book_value || 0), currency)}</td><td>{asset.status}</td>
-            <td>{asset.acquisition_journal_entry_id ? "Comptabilisée" : canManage === true ? <form action={postFixedAssetAcquisition}><input type="hidden" name="asset_id" value={asset.id}/><button className="button" type="submit">Comptabiliser</button></form> : "En attente"}</td>
+            <td>{asset.acquisition_journal_entry_id ? "Comptabilisée" : asset.legacy_accounting_origin ? "Historique à rapprocher" : canManage === true ? <form action={postFixedAssetAcquisition}><input type="hidden" name="asset_id" value={asset.id}/><button className="button" type="submit">Comptabiliser</button></form> : "En attente"}</td>
           </tr>;
         })}</tbody></table></div>}
     </section>
