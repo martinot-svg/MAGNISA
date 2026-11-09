@@ -4,6 +4,7 @@
 \set org_id 'e1000000-0000-4000-8000-000000000001'
 \set asset_id 'e1000000-0000-4000-8000-000000000021'
 \set component_parent_id 'e1000000-0000-4000-8000-000000000022'
+\set wip_asset_id 'e1000000-0000-4000-8000-000000000023'
 
 BEGIN;
 
@@ -19,7 +20,9 @@ INSERT INTO public.fixed_assets (
   (:'asset_id'::uuid,:'org_id'::uuid,'CI-IMM-POST-01','CI asset lifecycle','equipment','2026-01-01','2026-01-01',
    120000,0,0,24,'straight_line','215','404','281','681','291','681','781','462','652','752',0,0,120000,'active'),
   (:'component_parent_id'::uuid,:'org_id'::uuid,'CI-IMM-COMP-01','CI component parent','equipment','2026-01-01','2026-01-01',
-   100000,0,0,120,'straight_line','215','72','281','681','291','681','781','462','652','752',0,0,100000,'active');
+   100000,0,0,120,'straight_line','215','72','281','681','291','681','781','462','652','752',0,0,100000,'active'),
+  (:'wip_asset_id'::uuid,:'org_id'::uuid,'CI-IMM-WIP-01','CI work in progress','construction','2026-01-01',NULL,
+   100000,0,0,NULL,'none','231','404',NULL,NULL,'293','681','781','462','652','752',0,0,100000,'active');
 
 SELECT set_config('request.jwt.claim.sub', :'user_id', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
@@ -36,6 +39,13 @@ DECLARE
   v_org uuid := 'e1000000-0000-4000-8000-000000000001';
   v_asset uuid := 'e1000000-0000-4000-8000-000000000021';
   v_component_parent uuid := 'e1000000-0000-4000-8000-000000000022';
+  v_wip uuid := 'e1000000-0000-4000-8000-000000000023';
+  v_wip_acquisition_journal uuid;
+  v_wip_impairment_id uuid;
+  v_wip_impairment_journal uuid;
+  v_commissioning_id uuid;
+  v_commissioning_journal uuid;
+  v_wip_depreciation_entry uuid;
   v_acquisition_journal uuid;
   v_depreciation_entry uuid;
   v_depreciation_journal uuid;
@@ -63,6 +73,53 @@ DECLARE
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Authenticated test JWT is missing'; END IF;
   IF NOT public.is_org_member(v_org) THEN RAISE EXCEPTION 'Test user is not an active organization member'; END IF;
+
+  -- Class-23 work in progress remains non-depreciable until commissioning.
+  v_wip_acquisition_journal := public.magnisa_post_fixed_asset_acquisition(v_org,v_wip);
+  IF v_wip_acquisition_journal IS NULL THEN RAISE EXCEPTION 'WIP acquisition journal was not posted'; END IF;
+  v_wip_impairment_id := public.magnisa_record_fixed_asset_impairment(
+    v_org,v_wip,'2026-06-30',10000,'CI WIP impairment supported by recoverable amount evidence'
+  );
+  SELECT journal_entry_id INTO v_wip_impairment_journal
+  FROM public.fixed_asset_impairments WHERE id=v_wip_impairment_id;
+  IF v_wip_impairment_journal IS NULL THEN RAISE EXCEPTION 'WIP impairment journal was not posted'; END IF;
+
+  BEGIN
+    PERFORM public.magnisa_plan_fixed_asset_depreciation(v_org,v_wip,'2026-01-01','2026-06-30');
+    RAISE EXCEPTION 'WIP depreciation before commissioning should be rejected';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM='WIP depreciation before commissioning should be rejected' THEN RAISE; END IF;
+  END;
+
+  v_commissioning_id := public.magnisa_commission_fixed_asset(
+    v_org,v_wip,'2026-07-01','215','straight_line',24,'281','681','291',
+    'CI WIP commissioning after acceptance and commissioning report'
+  );
+  SELECT journal_entry_id INTO v_commissioning_journal
+  FROM public.fixed_asset_commissionings WHERE id=v_commissioning_id;
+  IF v_commissioning_journal IS NULL OR NOT EXISTS (
+    SELECT 1 FROM public.fixed_assets
+    WHERE id=v_wip AND pcg_asset_account_code='215' AND in_service_date='2026-07-01'
+      AND depreciation_method='straight_line' AND useful_life_months=24
+      AND pcg_impairment_account_code='291' AND impairment_loss=10000
+      AND net_book_value=90000
+  ) THEN RAISE EXCEPTION 'WIP commissioning did not reclassify the register and preserve impairment'; END IF;
+  BEGIN
+    PERFORM public.magnisa_commission_fixed_asset(
+      v_org,v_wip,'2026-07-01','215','straight_line',24,'281','681','291',
+      'CI repeated commissioning attempt'
+    );
+    RAISE EXCEPTION 'Duplicate commissioning should be rejected';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM='Duplicate commissioning should be rejected' THEN RAISE; END IF;
+  END;
+  v_wip_depreciation_entry := public.magnisa_plan_fixed_asset_depreciation(
+    v_org,v_wip,'2026-07-01','2026-12-31'
+  );
+  IF NOT EXISTS (
+    SELECT 1 FROM public.fixed_asset_depreciation_entries
+    WHERE id=v_wip_depreciation_entry AND depreciation_charge>0
+  ) THEN RAISE EXCEPTION 'WIP depreciation did not start after commissioning'; END IF;
 
   -- Acquisition posting is idempotent and creates one balanced PCG journal.
   v_acquisition_journal := public.magnisa_post_fixed_asset_acquisition(v_org,v_asset);
@@ -188,7 +245,8 @@ BEGIN
     v_acquisition_journal,v_depreciation_journal,v_depreciation_reversal_journal,
     v_impairment_journal,v_post_impairment_journal,v_post_impairment_reversal_journal,
     v_impairment_reversal_journal,v_disposal_journal,
-    v_component_acquisition_journal,v_componentization_journal
+    v_component_acquisition_journal,v_componentization_journal,
+    v_wip_acquisition_journal,v_wip_impairment_journal,v_commissioning_journal
   ] LOOP
     SELECT coalesce(sum(debit),0),coalesce(sum(credit),0)
       INTO v_debit,v_credit
