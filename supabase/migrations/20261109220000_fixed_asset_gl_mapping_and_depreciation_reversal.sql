@@ -96,6 +96,9 @@ BEGIN
   SELECT * INTO a FROM public.fixed_assets
   WHERE id=d.fixed_asset_id AND organization_id=p_org FOR UPDATE;
   IF NOT FOUND OR a.status='disposed' THEN RAISE EXCEPTION 'Immobilisation sortie ou introuvable'; END IF;
+  IF round(coalesce(a.accumulated_depreciation,0),2)<>round(d.closing_accumulated_depreciation,2) THEN
+    RAISE EXCEPTION 'Contrepassation refusée : le cumul du registre ne correspond plus à la dotation sélectionnée';
+  END IF;
   IF a.component_reference='componentized_parent' THEN RAISE EXCEPTION 'La fiche mère a été ventilée en composants'; END IF;
 
   SELECT jsonb_agg(jsonb_build_object(
