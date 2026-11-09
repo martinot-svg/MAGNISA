@@ -49,6 +49,7 @@ DECLARE
   v_disposal_journal uuid;
   v_componentization_id uuid;
   v_componentization_journal uuid;
+  v_component_acquisition_journal uuid;
   v_component_id uuid;
   v_ifrs_id uuid;
   v_debit numeric;
@@ -118,7 +119,7 @@ BEGIN
   END IF;
 
   -- Componentization reclassifies one parent into two child components in the same register.
-  v_componentization_id := public.magnisa_post_fixed_asset_acquisition(v_org,v_component_parent);
+  v_component_acquisition_journal := public.magnisa_post_fixed_asset_acquisition(v_org,v_component_parent);
   v_componentization_id := public.magnisa_componentize_fixed_asset(
     v_org,v_component_parent,'2026-12-31',
     jsonb_build_array(
@@ -170,7 +171,7 @@ BEGIN
   FOREACH v_journal IN ARRAY ARRAY[
     v_acquisition_journal,v_depreciation_journal,v_depreciation_reversal_journal,
     v_impairment_journal,v_impairment_reversal_journal,v_disposal_journal,
-    v_componentization_journal
+    v_component_acquisition_journal,v_componentization_journal
   ] LOOP
     SELECT coalesce(sum(debit),0),coalesce(sum(credit),0)
       INTO v_debit,v_credit
