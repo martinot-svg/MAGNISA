@@ -87,8 +87,8 @@ if (!periodStart || !periodEnd) {
 
 const legacyRun = await admin.from("payroll_runs").insert({
   organization_id: organizationId,
-  period_start: periodStart,
-  period_end: periodEnd,
+  period_start: legacyPeriodStart,
+  period_end: legacyPeriodEnd,
   status: "draft",
   created_by: userId,
 }).select("id").single();
