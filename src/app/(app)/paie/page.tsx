@@ -53,8 +53,20 @@ async function updateEmployeeDependants(fd: FormData) {
   await assertPermission(ctx,"payroll.manage");
   const id=String(fd.get("employee_id")||"");
   const count=Number(fd.get("irsa_dependants"));
+  const authorized=fd.get("irsa_deduction_authorized")==="on";
+  const reference=String(fd.get("irsa_deduction_authorization_reference")||"").trim();
+  const authorizedFrom=String(fd.get("irsa_deduction_authorized_from")||"").trim()||null;
+  const authorizedTo=String(fd.get("irsa_deduction_authorized_to")||"").trim()||null;
   if (!id || !Number.isInteger(count) || count<0 || count>30) throw new Error("Nombre de personnes à charge invalide.");
-  const {error}=await ctx.supabase.from("employees").update({irsa_dependants:count}).eq("organization_id",ctx.organizationId).eq("id",id);
+  if (authorized && !reference) throw new Error("La référence de la notification écrite du service fiscal est obligatoire.");
+  if (authorizedFrom && authorizedTo && authorizedTo < authorizedFrom) throw new Error("La date de fin de validité doit être postérieure à la date de début.");
+  const {error}=await ctx.supabase.from("employees").update({
+    irsa_dependants:count,
+    irsa_deduction_authorized:authorized,
+    irsa_deduction_authorization_reference:reference||null,
+    irsa_deduction_authorized_from:authorizedFrom,
+    irsa_deduction_authorized_to:authorizedTo,
+  }).eq("organization_id",ctx.organizationId).eq("id",id);
   if(error) throw new Error(error.message);
   revalidatePath("/paie");
 }
@@ -149,7 +161,7 @@ async function createPayslip(fd: FormData) {
   const employeeId=String(fd.get("employee_id")||"");
   const [{data:run,error:runError},{data:employee,error:employeeError}]=await Promise.all([
     ctx.supabase.from("payroll_runs").select("period_start,period_end").eq("organization_id",ctx.organizationId).eq("id",runId).single(),
-    ctx.supabase.from("employees").select("base_salary,irsa_dependants").eq("organization_id",ctx.organizationId).eq("id",employeeId).single(),
+    ctx.supabase.from("employees").select("base_salary,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from,irsa_deduction_authorized_to").eq("organization_id",ctx.organizationId).eq("id",employeeId).single(),
   ]);
   if(runError||employeeError||!run||!employee)throw new Error("Salarié ou période introuvable.");
   const {data:rules,error:ruleError}=await ctx.supabase.from("payroll_rule_sets").select("*").eq("organization_id",ctx.organizationId).eq("status","validated").lte("effective_from",run.period_end).order("effective_from",{ascending:false});
@@ -237,8 +249,13 @@ async function createPayslip(fd: FormData) {
     const value=Number(rule[key]);
     if (!Number.isFinite(value) || value < 0 || (key.endsWith("_rate") && value > 1)) throw new Error("Paramètre réglementaire invalide : "+key);
   }
+  const irsaDeductionAuthorized = employee.irsa_deduction_authorized === true
+    && Boolean(String(employee.irsa_deduction_authorization_reference || "").trim())
+    && (!employee.irsa_deduction_authorized_from || String(employee.irsa_deduction_authorized_from) <= String(run.period_start))
+    && (!employee.irsa_deduction_authorized_to || String(employee.irsa_deduction_authorized_to) >= String(run.period_end));
   const calculation = calculatePayrollAmounts({
     gross,
+    irsaDeductionAuthorized,
     taxableCompensation: taxableCashCompensation,
     taxableSupplementaryPension: amounts.taxable_supplementary_pension,
     additionalEmployeePensionContribution: amounts.employee_supplementary_pension,
@@ -267,14 +284,15 @@ async function createPayslip(fd: FormData) {
   if(calculation.netBeforeOtherDeductions-amounts.advances_recovered-amounts.other_deductions<0)throw new Error("Le net calculé serait négatif.");
   // Le FMFP est calculé côté Supabase à partir du référentiel validé et comptabilisé séparément.
   const fiscalSnapshot={
-    schemaVersion:1,
+    schemaVersion:2,
     calculatedAt:new Date().toISOString(),
     periodEnd:String(run.period_end),
     payrollRuleSet:{id:rule.id,name:rule.name,effectiveFrom:rule.effective_from,effectiveTo:rule.effective_to,legalReference:rule.legal_reference,roundingPolicy:rule.rounding_policy,irsaBrackets:rule.irsa_brackets,irsaMinimum:rule.irsa_minimum,dependantReduction:rule.irsa_dependant_reduction,dependantThreshold:rule.irsa_dependant_threshold,healthDeductionRate:rule.irsa_health_deduction_rate,pensionDeductionRate:rule.irsa_pension_deduction_rate,compensationRules:[...legalRules,...configuredCompensationRules],overtimePremiumRules:rule.overtime_premium_rules||[]},
     employee:{id:employeeId,baseSalary,dependants:Number(employee.irsa_dependants)},
+     irsaDeductionAuthorization:{authorized:irsaDeductionAuthorized,reference:irsaDeductionAuthorized?employee.irsa_deduction_authorization_reference:null,validFrom:employee.irsa_deduction_authorized_from||null,validTo:employee.irsa_deduction_authorized_to||null,legalReference:"CGI Madagascar, article 01.03.11"},
     compensation:classified,
     overtime:{totalHours:overtimeHours,hourlyRate:overtimeHourlyRate,premiumRate:overtimePremiumPercent/100,additionalPremiums:overtimeAdditionalPremiums,isCadre:overtimeIsCadre,timeRecordReconciled:overtimeRecordReconciled,recordReference:overtimeRecordReference,category:overtimeCategory,priorMonthHours, ...overtimeTax},
-    calculation:{gross:calculation.gross,taxableBase:calculation.taxableBase,taxableCompensation:calculation.taxableCompensation,employeeSocial:calculation.employeeSocial,employeeHealth:calculation.employeeHealth,deductiblePension:calculation.deductiblePension,incomeTax:calculation.incomeTax,employerSocial:calculation.employerSocial,employerHealth:calculation.employerHealth,employerFmfp:calculation.employerFmfp,netBeforeOtherDeductions:calculation.netBeforeOtherDeductions,employerCost:calculation.employerCost},
+    calculation:{gross:calculation.gross,taxableBase:calculation.taxableBase,taxableCompensation:calculation.taxableCompensation,employeeSocial:calculation.employeeSocial,employeeHealth:calculation.employeeHealth,deductibleHealth:calculation.deductibleHealth,deductiblePension:calculation.deductiblePension,irsaDeductionAuthorized:calculation.irsaDeductionAuthorized,incomeTax:calculation.incomeTax,employerSocial:calculation.employerSocial,employerHealth:calculation.employerHealth,employerFmfp:calculation.employerFmfp,netBeforeOtherDeductions:calculation.netBeforeOtherDeductions,employerCost:calculation.employerCost},
   };
   const { data:payslipId,error } = await ctx.supabase.rpc("create_payslip", {
     p_org: ctx.organizationId,
@@ -435,7 +453,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
         <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Réf. MAGNISA</th><th>Matricule saisi</th><th>Poste</th><th>Statut</th><th>Gestion</th></tr></thead><tbody>
           {employees.map((e:any)=><tr key={e.id}><td><strong>{e.first_name} {e.last_name}</strong></td><td><code>{e.magnisa_reference||"-"}</code></td><td>{e.employee_number||"Non renseigné"}</td><td>{e.job_title||"Non renseigné"}</td><td>{e.status==="active"?"Actif":e.status}</td><td>
             <FormDialog title={`IRSA - ${e.first_name} ${e.last_name}`} buttonLabel="Modifier IRSA"><div className="field"><p className="muted">Salaire de base : {money(e.base_salary,c)}. Personnes à charge : {e.irsa_dependants??0}.</p>
-              <form action={updateEmployeeDependants} className="form"><input type="hidden" name="employee_id" value={e.id}/><label>Personnes à charge IRSA éligibles</label><input aria-label={`Personnes à charge de ${e.first_name} ${e.last_name}`} type="number" name="irsa_dependants" min="0" max="30" step="1" defaultValue={e.irsa_dependants??0} required/><button className="button">Enregistrer</button></form>
+              <form action={updateEmployeeDependants} className="form"><input type="hidden" name="employee_id" value={e.id}/><label>Personnes à charge IRSA éligibles</label><input aria-label={`Personnes à charge de ${e.first_name} ${e.last_name}`} type="number" name="irsa_dependants" min="0" max="30" step="1" defaultValue={e.irsa_dependants??0} required/><label className="checkRow"><input type="checkbox" name="irsa_deduction_authorized" defaultChecked={e.irsa_deduction_authorized===true}/> Notification écrite du service fiscal reçue et valide</label><label>Référence de la notification</label><input name="irsa_deduction_authorization_reference" defaultValue={e.irsa_deduction_authorization_reference||""} placeholder="N° de notification / référence DGI"/><div className="grid2"><div className="field"><label>Valable à partir du</label><input type="date" name="irsa_deduction_authorized_from" defaultValue={e.irsa_deduction_authorized_from||""}/></div><div className="field"><label>Valable jusqu'au</label><input type="date" name="irsa_deduction_authorized_to" defaultValue={e.irsa_deduction_authorized_to||""}/></div></div><p className="muted">Sans notification écrite couvrant toute la période de paie, les cotisations restent retenues mais ne sont pas déduites de l'assiette IRSA.</p><button className="button">Enregistrer</button></form>
             </div></FormDialog>
           </td></tr>)}
         </tbody></table></div>}
