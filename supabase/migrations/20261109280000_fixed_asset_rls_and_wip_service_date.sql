@@ -99,3 +99,16 @@ COMMENT ON POLICY fixed_assets_finance_insert ON public.fixed_assets IS
   'Only members with accounting.manage may create fixed-asset register rows.';
 COMMENT ON POLICY fixed_assets_finance_update ON public.fixed_assets IS
   'Only members with accounting.manage may update fixed-asset register rows.';
+
+-- Remove duplicate or fragmented permissive policies while preserving their exact access logic.
+DROP POLICY IF EXISTS audit_logs_select ON public.audit_logs;
+DROP POLICY IF EXISTS "User can read own profile" ON public.profiles;
+DROP POLICY IF EXISTS prospects_commissions_select ON public.prospects;
+DROP POLICY IF EXISTS prospects_select ON public.prospects;
+
+CREATE POLICY prospects_authorized_select
+  ON public.prospects FOR SELECT TO authenticated
+  USING (
+    public.has_org_permission(organization_id,'sales.view')
+    OR public.has_org_permission(organization_id,'commissions.contribute')
+  );
