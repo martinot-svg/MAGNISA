@@ -68,13 +68,16 @@ export async function createFixedAsset(formData: FormData) {
     value.pcg_disposal_expense_account_code,
     value.pcg_disposal_income_account_code,
   ].filter((code): code is string => !!code);
-  const requiredCodes = [value.pcg_asset_account_code, ...optionalCodes];
+  const requiredCodes = [value.pcg_asset_account_code, value.pcg_acquisition_counterpart_account_code, ...optionalCodes];
   const { data: pcgAccounts, error: pcgError } = await ctx.supabase
     .from("pcg2005_accounts").select("code,kind").in("code", requiredCodes);
   if (pcgError) throw new Error("Impossible de vérifier les comptes PCG.");
   const accountKinds = new Map((pcgAccounts || []).map((account: { code: string; kind: string }) => [account.code, account.kind]));
   if (accountKinds.get(value.pcg_asset_account_code) !== "asset") {
     throw new Error("Le compte d'immobilisation n'existe pas dans le plan PCG ou n'est pas classé à l'actif.");
+  }
+  if (!["asset", "liability"].includes(accountKinds.get(value.pcg_acquisition_counterpart_account_code) || "")) {
+    throw new Error("La contrepartie d'acquisition doit être un compte de fournisseur ou de trésorerie du plan PCG.");
   }
   if (value.depreciation_method === "straight_line" &&
       (accountKinds.get(value.pcg_accumulated_depreciation_account_code || "") !== "asset" ||
@@ -109,6 +112,7 @@ export async function createFixedAsset(formData: FormData) {
     useful_life_months: usefulLife,
     depreciation_method: value.depreciation_method,
     pcg_asset_account_code: value.pcg_asset_account_code,
+    pcg_acquisition_counterpart_account_code: value.pcg_acquisition_counterpart_account_code,
     pcg_accumulated_depreciation_account_code: value.pcg_accumulated_depreciation_account_code || null,
     pcg_depreciation_expense_account_code: value.pcg_depreciation_expense_account_code || null,
     pcg_impairment_account_code: value.pcg_impairment_account_code || null,
@@ -300,5 +304,21 @@ export async function approveFixedAssetIfrsAdjustment(formData: FormData) {
   });
   if (error) throw new Error("Impossible d'approuver l'ajustement IFRS : " + error.message);
   revalidatePath("/immobilisations");
+  return data;
+}
+
+
+export async function postFixedAssetAcquisition(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "accounting.manage");
+  const parsed = z.string().uuid().safeParse(formData.get("asset_id"));
+  if (!parsed.success) throw new Error("Immobilisation invalide.");
+  const { data, error } = await ctx.supabase.rpc("magnisa_post_fixed_asset_acquisition", {
+    p_org: ctx.organizationId, p_asset: parsed.data,
+  });
+  if (error) throw new Error("Impossible de comptabiliser l'acquisition : " + error.message);
+  revalidatePath("/immobilisations");
+  revalidatePath("/etats-financiers");
+  revalidatePath("/comptabilite");
   return data;
 }
