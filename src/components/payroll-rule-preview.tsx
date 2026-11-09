@@ -56,7 +56,7 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  }
  const fmt=(n:number)=>Number.isFinite(n)?money(n):"-";
  return <div className="card" style={{marginTop:18}}>
- <h2>Simulateur de paie</h2><p className="muted">Estimation basée sur le référentiel daté et les paramètres saisis. Sans avances, primes supplémentaires ni autres retenues. Aucun bulletin ni écriture n'est créé.</p>
+ <h2>Simulateur de paie</h2><p className="muted">Estimation basée sur le référentiel daté et les paramètres saisis. Sans avances, primes supplémentaires ni autres retenues. Les déductions IRSA santé et retraite sont exclues faute de vérification d'une notification écrite individuelle. Aucun bulletin ni écriture n'est créé.</p>
  <div className="grid2">
  <div className="field"><label>Date de paie</label><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
  <div className="field"><label>Brut de simulation (Ar)</label><input type="number" min="0" value={gross} onChange={e=>setGross(e.target.value)}/></div>
