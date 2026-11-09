@@ -181,6 +181,7 @@ try {
   assert(fixedAssetsResponse?.ok(), `Fixed-assets route returned ${fixedAssetsResponse?.status()}`);
   await page.getByRole("heading", { name: "Registre des immobilisations" }).waitFor({ timeout: 15000 });
   await page.getByRole("heading", { name: "Planifier et comptabiliser les dotations" }).waitFor({ timeout: 10000 });
+  await page.getByRole("heading", { name: "Mise en service des immobilisations en cours" }).waitFor({ timeout: 10000 });
   await page.getByRole("heading", { name: "Ventilation par composants" }).waitFor({ timeout: 10000 });
   await page.getByRole("heading", { name: "Rapprochement IFRS distinct" }).waitFor({ timeout: 10000 });
   const fixedAssetRead = await authenticatedClient.from("fixed_assets").select("id").limit(1);
