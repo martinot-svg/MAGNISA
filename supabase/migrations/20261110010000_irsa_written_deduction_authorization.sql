@@ -28,6 +28,8 @@ BEGIN
         NOT irsa_deduction_authorized OR (
           nullif(trim(coalesce(irsa_deduction_authorization_reference,'')),'') IS NOT NULL
           AND irsa_deduction_authorized_from IS NOT NULL
+          AND length(irsa_deduction_authorization_reference)<=200
+          AND length(irsa_deduction_authorization_reference)<=200
           AND (irsa_deduction_authorized_to IS NULL
             OR irsa_deduction_authorized_to >= irsa_deduction_authorized_from)
         )
@@ -124,7 +126,8 @@ begin
   select irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,
          irsa_deduction_authorized_from,irsa_deduction_authorized_to
     into v_dependants,v_deduction_authorized,v_deduction_reference,v_deduction_from,v_deduction_to
-    from public.employees where id=new.employee_id and organization_id=new.organization_id;
+    from public.employees where id=new.employee_id and organization_id=new.organization_id
+    for share;
 
   v_deduction_authorized:=coalesce(v_deduction_authorized,false)
     and nullif(trim(coalesce(v_deduction_reference,'')),'') is not null
@@ -135,6 +138,13 @@ begin
   new.irsa_deduction_authorization_reference:=v_deduction_reference;
   new.irsa_deduction_authorized_from:=v_deduction_from;
   new.irsa_deduction_authorized_to:=v_deduction_to;
+
+  IF new.fiscal_snapshot IS NOT NULL
+     AND new.fiscal_snapshot #> '{employee,irsaDeductionAuthorization}' IS NOT NULL
+     AND coalesce((new.fiscal_snapshot #>> '{employee,irsaDeductionAuthorization,activeForPeriod}')::boolean,false)
+         IS DISTINCT FROM v_deduction_authorized THEN
+    RAISE EXCEPTION 'Le snapshot fiscal ne correspond pas à la notification écrite IRSA valide pour la période';
+  END IF;
 
   v_deductible_health:=case when v_deduction_authorized
     then least(v_health,round(new.gross_pay*v_rule.irsa_health_deduction_rate,2)) else 0 end;
