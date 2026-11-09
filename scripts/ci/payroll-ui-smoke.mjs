@@ -184,6 +184,11 @@ try {
   await page.getByRole("heading", { name: "Registre des immobilisations" }).waitFor({ timeout: 15000 });
   await page.getByRole("heading", { name: "Planifier et comptabiliser les dotations" }).waitFor({ timeout: 10000 });
   await page.getByRole("heading", { name: "Mise en service des immobilisations en cours" }).waitFor({ timeout: 10000 });
+  const commissioningAccountSelect = page.locator('select[name="new_asset_account_code"]');
+  await commissioningAccountSelect.waitFor({ state: "visible", timeout: 10000 });
+  assert(await commissioningAccountSelect.getAttribute("required") !== null, "Commissioning target account must be mandatory.");
+  assert(await commissioningAccountSelect.locator('option[value="215"]').count() === 1, "PCG account 215 must be selectable for commissioning.");
+  process.stdout.write("PASS UI: commissioning target account is selected from the PCG catalogue\\n");
   await page.getByRole("heading", { name: "Ventilation par composants" }).waitFor({ timeout: 10000 });
   await page.getByRole("heading", { name: "Rapprochement IFRS distinct" }).waitFor({ timeout: 10000 });
   const fixedAssetRead = await authenticatedClient.from("fixed_assets").select("id").limit(1);
