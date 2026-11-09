@@ -80,7 +80,6 @@ CREATE TABLE IF NOT EXISTS public.fixed_asset_depreciation_entries (
   updated_at timestamptz NOT NULL DEFAULT now(),
   CHECK (period_end >= period_start),
   CHECK (closing_accumulated_depreciation >= opening_accumulated_depreciation),
-  CHECK (closing_net_book_value <= depreciable_base + 0.01),
   UNIQUE (organization_id, fixed_asset_id, period_start, period_end),
   FOREIGN KEY (fixed_asset_id, organization_id)
     REFERENCES public.fixed_assets(id, organization_id) ON DELETE RESTRICT
@@ -94,12 +93,12 @@ CREATE POLICY fixed_asset_depreciation_entries_select
 DROP POLICY IF EXISTS fixed_asset_depreciation_entries_insert ON public.fixed_asset_depreciation_entries;
 CREATE POLICY fixed_asset_depreciation_entries_insert
   ON public.fixed_asset_depreciation_entries FOR INSERT
-  WITH CHECK (public.is_org_member(organization_id));
+  WITH CHECK (public.has_org_permission(organization_id, 'accounting.manage'));
 DROP POLICY IF EXISTS fixed_asset_depreciation_entries_update ON public.fixed_asset_depreciation_entries;
 CREATE POLICY fixed_asset_depreciation_entries_update
   ON public.fixed_asset_depreciation_entries FOR UPDATE
-  USING (public.is_org_member(organization_id))
-  WITH CHECK (public.is_org_member(organization_id));
+  USING (public.has_org_permission(organization_id, 'accounting.manage'))
+  WITH CHECK (public.has_org_permission(organization_id, 'accounting.manage'));
 
 CREATE INDEX IF NOT EXISTS fixed_asset_depreciation_entries_org_period_idx
   ON public.fixed_asset_depreciation_entries (organization_id, period_end, status);
