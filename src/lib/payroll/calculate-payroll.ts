@@ -105,11 +105,16 @@ export function calculatePayrollAmounts(input: {
   );
   const employeeSocial = roundMoney(cnapsBase * rule.cnaps_employee_rate);
 
-  // Le plafond de déduction santé IRSA est versionné dans le référentiel applicable à la période.
-  // La retenue santé réelle reste intégralement due, même si elle dépasse ce plafond.
-  const deductibleHealth = Math.min(health.employee, roundMoney(gross * rule.irsa_health_deduction_rate));
-
-  const deductibleEmployeePension = Math.min(employeePensionContribution, roundMoney(gross * rule.irsa_pension_deduction_rate));
+  // CGI 01.03.09 (1° et 2°) : la déduction retraite agrège la retenue CNaPS
+  // et la cotisation retraite complémentaire, dans le plafond versionné de 10 %.
+  // CGI 01.03.11 : aucune déduction de ces cotisations sans notification écrite valide.
+  // Les retenues sociales et santé restent dues intégralement, même sans autorisation.
+  const deductibleHealth = irsaDeductionAuthorized
+    ? Math.min(health.employee, roundMoney(gross * rule.irsa_health_deduction_rate))
+    : 0;
+  const deductibleEmployeePension = irsaDeductionAuthorized
+    ? Math.min(employeeSocial + employeePensionContribution, roundMoney(gross * rule.irsa_pension_deduction_rate))
+    : 0;
   const irsa = calculateIrsa({
     taxableIncome: Math.max(0, gross - irsaExemptEarnings + taxableSupplementaryPension - deductibleHealth - deductibleEmployeePension),
     dependants,
