@@ -12,7 +12,7 @@ CREATE OR REPLACE FUNCTION public.record_payroll_payment(
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $function$
 DECLARE
   ps public.payslips%ROWTYPE;
   v_run public.payroll_runs%ROWTYPE;
@@ -129,7 +129,7 @@ BEGIN
 
   RETURN v_id;
 END;
-$;
+$function$;
 
 -- Repair derived run statuses already inconsistent with their payslip payment states.
 -- Amounts, payslips, payments, financial transactions and journal entries are untouched.
