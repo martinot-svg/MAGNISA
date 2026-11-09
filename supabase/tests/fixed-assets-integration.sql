@@ -168,6 +168,12 @@ BEGIN
   IF public.magnisa_post_fixed_asset_acquisition(v_org,v_asset)<>v_acquisition_journal THEN
     RAISE EXCEPTION 'Acquisition posting is not idempotent';
   END IF;
+  IF (SELECT coalesce(sum(debit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_acquisition_journal AND account_key='PCG:215')<>120000
+     OR (SELECT coalesce(sum(credit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_acquisition_journal AND account_key='PCG:404')<>120000 THEN
+    RAISE EXCEPTION 'Asset acquisition must debit PCG 215 and credit PCG 404 for 120000 MGA';
+  END IF;
 
   -- Plan and post depreciation, then reverse it without modifying the original journal.
   v_depreciation_entry := public.magnisa_plan_fixed_asset_depreciation(v_org,v_asset,'2026-01-01','2026-12-31');
@@ -175,13 +181,25 @@ BEGIN
   SELECT depreciation_charge INTO v_balance
   FROM public.fixed_asset_depreciation_entries
   WHERE id=v_depreciation_entry AND organization_id=v_org;
-  IF coalesce(v_balance,0)<=0 THEN RAISE EXCEPTION 'Depreciation charge must be positive'; END IF;
+  IF v_balance<>60000 THEN RAISE EXCEPTION '2026 depreciation must be 60000 MGA for 12 of 24 months; got %',v_balance; END IF;
   v_depreciation_journal := public.magnisa_post_fixed_asset_depreciation(v_org,v_depreciation_entry);
   IF v_depreciation_journal IS NULL THEN RAISE EXCEPTION 'Depreciation journal was not posted'; END IF;
+  IF (SELECT coalesce(sum(debit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_depreciation_journal AND account_key='PCG:681')<>60000
+     OR (SELECT coalesce(sum(credit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_depreciation_journal AND account_key='PCG:281')<>60000 THEN
+    RAISE EXCEPTION 'Depreciation must debit PCG 681 and credit PCG 281 for 60000 MGA';
+  END IF;
   v_depreciation_reversal_journal := public.magnisa_reverse_fixed_asset_depreciation(
     v_org,v_depreciation_entry,'2026-12-31','CI test controlled depreciation reversal'
   );
   IF v_depreciation_reversal_journal IS NULL THEN RAISE EXCEPTION 'Depreciation reversal was not posted'; END IF;
+  IF (SELECT coalesce(sum(debit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_depreciation_reversal_journal AND account_key='PCG:281')<>60000
+     OR (SELECT coalesce(sum(credit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_depreciation_reversal_journal AND account_key='PCG:681')<>60000 THEN
+    RAISE EXCEPTION 'Depreciation reversal must debit PCG 281 and credit PCG 681 for 60000 MGA';
+  END IF;
   IF (SELECT status FROM public.fixed_asset_depreciation_entries WHERE id=v_depreciation_entry)<>'reversed' THEN
     RAISE EXCEPTION 'Depreciation schedule did not move to reversed status';
   END IF;
@@ -193,6 +211,16 @@ BEGIN
   SELECT journal_entry_id INTO v_impairment_journal
   FROM public.fixed_asset_impairments WHERE id=v_impairment_id;
   IF v_impairment_journal IS NULL THEN RAISE EXCEPTION 'Impairment journal was not posted'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.fixed_asset_impairments
+      WHERE id=v_impairment_id AND event_type='impairment' AND event_date='2026-12-31' AND amount=30000) THEN
+    RAISE EXCEPTION 'Impairment must be 30000 MGA on 2026-12-31 to reduce 120000 MGA to recoverable value 90000 MGA';
+  END IF;
+  IF (SELECT coalesce(sum(debit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_impairment_journal AND account_key='PCG:681')<>30000
+     OR (SELECT coalesce(sum(credit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_impairment_journal AND account_key='PCG:291')<>30000 THEN
+    RAISE EXCEPTION 'Impairment must debit PCG 681 and credit PCG 291 for 30000 MGA';
+  END IF;
   -- Future depreciation must use the impaired carrying amount over the remaining useful life.
   v_post_impairment_entry := public.magnisa_plan_fixed_asset_depreciation(
     v_org,v_asset,'2027-01-01','2027-12-31'
@@ -203,15 +231,40 @@ BEGIN
     RAISE EXCEPTION 'Post-impairment depreciation should be 90000 over the remaining useful life; got %',v_balance;
   END IF;
   v_post_impairment_journal := public.magnisa_post_fixed_asset_depreciation(v_org,v_post_impairment_entry);
+  IF v_post_impairment_journal IS NULL
+     OR (SELECT coalesce(sum(debit),0) FROM public.journal_entry_lines
+         WHERE organization_id=v_org AND journal_entry_id=v_post_impairment_journal AND account_key='PCG:681')<>90000
+     OR (SELECT coalesce(sum(credit),0) FROM public.journal_entry_lines
+         WHERE organization_id=v_org AND journal_entry_id=v_post_impairment_journal AND account_key='PCG:281')<>90000 THEN
+    RAISE EXCEPTION 'Post-impairment depreciation must debit PCG 681 and credit PCG 281 for 90000 MGA';
+  END IF;
   v_post_impairment_reversal_journal := public.magnisa_reverse_fixed_asset_depreciation(
     v_org,v_post_impairment_entry,'2027-12-31','CI test reversal of prospective post-impairment depreciation'
   );
+  IF v_post_impairment_reversal_journal IS NULL
+     OR (SELECT coalesce(sum(debit),0) FROM public.journal_entry_lines
+         WHERE organization_id=v_org AND journal_entry_id=v_post_impairment_reversal_journal AND account_key='PCG:281')<>90000
+     OR (SELECT coalesce(sum(credit),0) FROM public.journal_entry_lines
+         WHERE organization_id=v_org AND journal_entry_id=v_post_impairment_reversal_journal AND account_key='PCG:681')<>90000 THEN
+    RAISE EXCEPTION 'Post-impairment depreciation reversal must debit PCG 281 and credit PCG 681 for 90000 MGA';
+  END IF;
   v_impairment_reversal_id := public.magnisa_reverse_fixed_asset_impairment(
     v_org,v_impairment_id,'2027-12-31','CI test reversal of impairment after recovery'
   );
   SELECT journal_entry_id INTO v_impairment_reversal_journal
   FROM public.fixed_asset_impairments WHERE id=v_impairment_reversal_id;
   IF v_impairment_reversal_journal IS NULL THEN RAISE EXCEPTION 'Impairment reversal journal was not posted'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.fixed_asset_impairments
+      WHERE id=v_impairment_reversal_id AND event_type='reversal'
+        AND event_date='2027-12-31' AND amount=30000) THEN
+    RAISE EXCEPTION 'Impairment reversal must restore 30000 MGA on 2027-12-31';
+  END IF;
+  IF (SELECT coalesce(sum(debit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_impairment_reversal_journal AND account_key='PCG:291')<>30000
+     OR (SELECT coalesce(sum(credit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_impairment_reversal_journal AND account_key='PCG:781')<>30000 THEN
+    RAISE EXCEPTION 'Impairment reversal must debit PCG 291 and credit PCG 781 for 30000 MGA';
+  END IF;
 
   -- Transfer is traceable and updates the existing register row.
   v_transfer_id := public.magnisa_transfer_fixed_asset(
@@ -219,6 +272,11 @@ BEGIN
   );
   IF NOT EXISTS (SELECT 1 FROM public.fixed_assets WHERE id=v_asset AND location='CI Site B' AND custodian='CI Custodian') THEN
     RAISE EXCEPTION 'Asset transfer did not update the register';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.fixed_asset_transfers
+      WHERE id=v_transfer_id AND transfer_date='2027-12-31'
+        AND new_location='CI Site B' AND new_custodian='CI Custodian') THEN
+    RAISE EXCEPTION 'Transfer history must preserve its date, destination and custodian';
   END IF;
 
   -- Disposal derecognizes the asset and posts proceeds plus the loss.
@@ -231,6 +289,19 @@ BEGIN
     SELECT 1 FROM public.fixed_assets WHERE id=v_asset AND status='disposed' AND net_book_value=0
   ) THEN
     RAISE EXCEPTION 'Disposal did not derecognize the asset';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.fixed_asset_disposals
+      WHERE id=v_disposal_id AND disposal_date='2027-12-31' AND proceeds=100000
+        AND carrying_amount=120000 AND gain=0 AND loss=20000) THEN
+    RAISE EXCEPTION 'Disposal must derecognize 120000 MGA at proceeds 100000 MGA and loss 20000 MGA';
+  END IF;
+  IF (SELECT coalesce(sum(debit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_disposal_journal AND account_key='PCG:462')<>100000
+     OR (SELECT coalesce(sum(debit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_disposal_journal AND account_key='PCG:652')<>20000
+     OR (SELECT coalesce(sum(credit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_disposal_journal AND account_key='PCG:215')<>120000 THEN
+    RAISE EXCEPTION 'Disposal journal must debit PCG 462 for 100000, debit PCG 652 for 20000 and credit PCG 215 for 120000 MGA';
   END IF;
 
   -- Componentization reclassifies one parent into two child components in the same register.
