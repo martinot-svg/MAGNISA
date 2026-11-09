@@ -70,6 +70,7 @@ export default async function FixedAssets() {
   const totalNet = assets.reduce((sum: number, asset: any) => sum + Number(asset.net_book_value || 0), 0);
   const commissionableAssets = assets.filter((asset: any) => asset.status === "active" && asset.pcg_asset_account_code?.startsWith("23") && !asset.in_service_date);
   const commissionTargetAccounts = assetAccounts.filter((account: any) => /^(20|21|22[0-8])[0-9]{0,4}$/.test(account.code));
+  const registrationAssetAccounts = assetAccounts.filter((account: any) => /^(20|21|22[0-8]|23|26|27)[0-9]{0,4}$/.test(account.code));
   return <>
     <div className="pageHead">
       <div>
@@ -91,7 +92,7 @@ export default async function FixedAssets() {
           <div className="field"><label>Code immobilisation</label><input name="asset_code" required maxLength={40} placeholder="IMO-00001"/></div>
           <div className="field"><label>Désignation</label><input name="name" required maxLength={180}/></div>
           <div className="field"><label>Catégorie</label><input name="category" maxLength={100} placeholder="Matériel informatique, véhicule..."/></div>
-          <div className="field"><label>Compte d'immobilisation PCG</label><input name="pcg_asset_account_code" required pattern="(20|21|22|23|26|27)[0-9]{0,4}" placeholder="218"/></div>
+          <div className="field"><label>Compte d'immobilisation PCG</label><select name="pcg_asset_account_code" required defaultValue=""><option value="" disabled>Choisir le compte d’immobilisation</option>{registrationAssetAccounts.map((account: any) => <option key={account.code} value={account.code}>{account.code} · {account.label}</option>)}</select></div>
           <div className="field"><label>Contrepartie PCG (404, 512, 10x, 45x ou 72x)</label><input name="pcg_acquisition_counterpart_account_code" required placeholder="404"/></div>
           <div className="field"><label>Date d'acquisition</label><input name="acquisition_date" type="date" required/></div>
           <div className="field"><label>Date de mise en service</label><input name="in_service_date" type="date"/><small className="muted">Laisse vide pour une immobilisation en cours de classe 23. Sa mise en service sera enregistrée séparément.</small></div>
