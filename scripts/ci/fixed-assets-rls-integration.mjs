@@ -67,6 +67,9 @@ const viewerPassword = `Vw-${randomBytes(16).toString("hex")}!a9`;
 if (Buffer.byteLength(viewerPassword, "utf8") > 72) {
   throw new Error("Generated fixed-asset viewer password exceeds Supabase Auth password length limit.");
 }
+if (Buffer.byteLength(viewerPassword, "utf8") !== 39) {
+  throw new Error("Generated fixed-asset viewer password must keep its fixed 39-byte high-entropy format.");
+}
 const created = await admin.auth.admin.createUser({
   email: viewerEmail,
   password: viewerPassword,
