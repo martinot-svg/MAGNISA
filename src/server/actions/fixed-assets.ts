@@ -10,7 +10,7 @@ const assetSchema = z.object({
   name: z.string().trim().min(2).max(180),
   category: z.string().trim().max(100).optional(),
   acquisition_date: z.string().date(),
-  in_service_date: z.string().date().optional(),
+  in_service_date: z.preprocess((value) => value === "" || value == null ? undefined : value, z.string().date().optional()),
   acquisition_cost: z.coerce.number().finite().positive(),
   directly_attributable_cost: z.coerce.number().finite().nonnegative().default(0),
   residual_value: z.coerce.number().finite().nonnegative().default(0),
@@ -435,5 +435,84 @@ export async function reverseFixedAssetIfrsAdjustment(formData: FormData) {
   if (error) throw new Error("Impossible de contrepasser l'ajustement IFRS : " + error.message);
   revalidatePath("/immobilisations");
   revalidatePath("/etats-financiers");
+  return data;
+}
+
+
+const commissioningSchema = z.object({
+  asset_id: z.string().uuid(),
+  event_date: z.string().date(),
+  new_asset_account_code: z.string().trim().regex(/^(20|21|22[0-8])\\d{0,4}$/),
+  depreciation_method: z.enum(["straight_line", "none"]),
+  useful_life_months: z.preprocess((value) => value === "" || value == null ? undefined : value, z.coerce.number().int().positive().optional()),
+  pcg_accumulated_depreciation_account_code: z.string().trim().optional(),
+  pcg_depreciation_expense_account_code: z.string().trim().optional(),
+  pcg_impairment_account_code: z.string().trim().regex(/^29\\d{0,4}$/),
+  reason: z.string().trim().min(10).max(1500),
+}).superRefine((value, ctx) => {
+  const family = value.new_asset_account_code.slice(0, 2);
+  const impairmentPrefix: Record<string, string> = { "20": "290", "21": "291", "22": "292" };
+  if (!value.pcg_impairment_account_code.startsWith(impairmentPrefix[family] || "invalid")) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pcg_impairment_account_code"], message: "Le compte 29 doit correspondre à la famille du nouvel actif." });
+  }
+  if (value.depreciation_method === "straight_line") {
+    if (value.new_asset_account_code.startsWith("211")) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["depreciation_method"], message: "Les terrains 211 ne sont pas amortis par défaut." });
+    }
+    if (!value.useful_life_months) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["useful_life_months"], message: "La durée d'utilisation est obligatoire." });
+    }
+    const accumulatedPrefix: Record<string, string> = { "20": "280", "21": "281", "22": "282" };
+    if (!value.pcg_accumulated_depreciation_account_code?.startsWith(accumulatedPrefix[family] || "invalid")) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pcg_accumulated_depreciation_account_code"], message: "Le compte 28 doit correspondre à la famille du nouvel actif." });
+    }
+    if (!/^681\\d{0,4}$/.test(value.pcg_depreciation_expense_account_code || "")) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pcg_depreciation_expense_account_code"], message: "Renseigne un compte 681." });
+    }
+  } else if (value.useful_life_months || value.pcg_accumulated_depreciation_account_code || value.pcg_depreciation_expense_account_code) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["depreciation_method"], message: "Sans amortissement, laisse la durée et les comptes 28/68 vides." });
+  }
+});
+
+export async function commissionFixedAsset(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "accounting.manage");
+  const parsed = commissioningSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message || "Données de mise en service invalides.");
+  const value = parsed.data;
+  const accountCodes = [
+    value.new_asset_account_code,
+    value.pcg_impairment_account_code,
+    value.pcg_accumulated_depreciation_account_code,
+    value.pcg_depreciation_expense_account_code,
+  ].filter((code): code is string => !!code);
+  const { data: accounts, error: accountError } = await ctx.supabase
+    .from("pcg2005_accounts").select("code,kind").in("code", accountCodes);
+  if (accountError) throw new Error("Impossible de vérifier les comptes PCG de mise en service.");
+  const kinds = new Map((accounts || []).map((account: { code: string; kind: string }) => [account.code, account.kind]));
+  if (kinds.get(value.new_asset_account_code) !== "asset" || kinds.get(value.pcg_impairment_account_code) !== "asset") {
+    throw new Error("Les comptes d'actif et de dépréciation doivent exister dans le plan PCG.");
+  }
+  if (value.depreciation_method === "straight_line" &&
+      (kinds.get(value.pcg_accumulated_depreciation_account_code || "") !== "asset" ||
+       kinds.get(value.pcg_depreciation_expense_account_code || "") !== "expense")) {
+    throw new Error("Les comptes 28 et 681 ne correspondent pas au plan PCG.");
+  }
+  const { data, error } = await ctx.supabase.rpc("magnisa_commission_fixed_asset", {
+    p_org: ctx.organizationId,
+    p_asset: value.asset_id,
+    p_event_date: value.event_date,
+    p_new_asset_account_code: value.new_asset_account_code,
+    p_depreciation_method: value.depreciation_method,
+    p_useful_life_months: value.depreciation_method === "straight_line" ? value.useful_life_months : null,
+    p_accumulated_depreciation_account_code: value.depreciation_method === "straight_line" ? value.pcg_accumulated_depreciation_account_code : null,
+    p_depreciation_expense_account_code: value.depreciation_method === "straight_line" ? value.pcg_depreciation_expense_account_code : null,
+    p_impairment_account_code: value.pcg_impairment_account_code,
+    p_reason: value.reason,
+  });
+  if (error) throw new Error("Impossible de mettre en service l'immobilisation : " + error.message);
+  revalidatePath("/immobilisations");
+  revalidatePath("/etats-financiers");
+  revalidatePath("/comptabilite");
   return data;
 }
