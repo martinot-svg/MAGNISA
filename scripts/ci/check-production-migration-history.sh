@@ -123,6 +123,9 @@ while IFS='|' read -r version remote_name local_file mapping_type evidence_ref e
   printf '%s\n' "$version" >> "$USED_MAP"
 done < "$RECONCILIATION_FILE"
 
+awk -F '|' 'NR==FNR {mapped[$1]=1; next} !($1 in mapped)' "$USED_MAP" "$NAME_MISMATCH" > "$TMP_DIR/name-mismatch-unmapped"
+mv "$TMP_DIR/name-mismatch-unmapped" "$NAME_MISMATCH"
+
 while IFS='|' read -r version remote_name; do
   [[ -n "$version" ]] || continue
   local_row="$(awk -F '|' -v v="$version" '$1==v {print $2}' "$LOCAL")"
