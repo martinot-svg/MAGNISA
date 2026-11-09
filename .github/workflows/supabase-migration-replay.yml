@@ -76,6 +76,11 @@ jobs:
           npm ci --no-audit --no-fund
           npx --yes npm@11.19.1 install --no-save --package-lock=false playwright
           npx playwright install --with-deps chromium
+      - name: Syntax-check encrypted backup and Storage restore scripts
+        run: |
+          node --check scripts/backup/export-supabase-storage.mjs
+          node --check scripts/backup/restore-supabase-storage.mjs
+          node --check scripts/backup/verify-supabase-storage.mjs
       - name: Export isolated local Supabase credentials
         run: |
           eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY|DB_URL)=')"
