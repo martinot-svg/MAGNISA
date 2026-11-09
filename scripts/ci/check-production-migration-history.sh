@@ -111,6 +111,10 @@ while IFS='|' read -r version remote_name local_file mapping_type evidence_ref e
     echo "::error::Reconciliation manifest does not match the remote ledger for $version"
     exit 1
   fi
+  if [[ "$local_file" != "$(basename "$local_file")" || "$local_file" != *.sql ]]; then
+    echo "::error::Reconciliation source must be a SQL file directly under supabase/migrations: $local_file"
+    exit 1
+  fi
   local_path="$MIGRATIONS_DIR/$local_file"
   if [[ ! -f "$local_path" ]]; then
     echo "::error::Reconciliation source file is missing for $version: $local_file"
@@ -127,7 +131,7 @@ done < "$RECONCILIATION_FILE"
 : > "$TMP_DIR/name-mismatch-unmapped"
 while read -r mismatch_version mismatch_detail; do
   [[ -n "$mismatch_version" ]] || continue
-  grep -Fxq "$mismatch_version" "$USED_MAP" || printf '%s %s\\n' "$mismatch_version" "$mismatch_detail" >> "$TMP_DIR/name-mismatch-unmapped"
+  grep -Fxq "$mismatch_version" "$USED_MAP" || printf '%s %s\n' "$mismatch_version" "$mismatch_detail" >> "$TMP_DIR/name-mismatch-unmapped"
 done < "$NAME_MISMATCH"
 mv "$TMP_DIR/name-mismatch-unmapped" "$NAME_MISMATCH"
 
