@@ -15,6 +15,7 @@ SET search_path = public
 AS $$
 DECLARE
   ps public.payslips%ROWTYPE;
+  v_run public.payroll_runs%ROWTYPE;
   a public.financial_accounts%ROWTYPE;
   v_id uuid;
   v_entry uuid;
@@ -34,6 +35,16 @@ BEGIN
   FOR UPDATE;
 
   IF NOT FOUND THEN RAISE EXCEPTION 'Bulletin introuvable'; END IF;
+
+  SELECT * INTO v_run
+  FROM public.payroll_runs
+  WHERE id=ps.payroll_run_id AND organization_id=p_org
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Cycle de paie introuvable'; END IF;
+  IF v_run.status='cancelled' THEN
+    RAISE EXCEPTION 'Un cycle de paie annulé ne peut pas être payé';
+  END IF;
+
   IF ps.status NOT IN ('validated','partially_paid') THEN
     RAISE EXCEPTION 'Le bulletin doit être validé avant paiement';
   END IF;
@@ -118,4 +129,35 @@ BEGIN
 
   RETURN v_id;
 END;
-$$;
+$;
+
+-- Repair derived run statuses already inconsistent with their payslip payment states.
+-- Amounts, payslips, payments, financial transactions and journal entries are untouched.
+WITH run_payment_state AS (
+  SELECT
+    organization_id,
+    payroll_run_id,
+    count(*) FILTER (WHERE status<>'cancelled') AS active_slips,
+    bool_and(status IN ('paid','cancelled')) AS all_active_slips_paid,
+    bool_or(status IN ('partially_paid','paid')) AS has_any_payment
+  FROM public.payslips
+  GROUP BY organization_id,payroll_run_id
+)
+UPDATE public.payroll_runs r
+SET status = CASE
+      WHEN s.all_active_slips_paid THEN 'paid'
+      WHEN s.has_any_payment THEN 'partially_paid'
+      ELSE r.status
+    END,
+    updated_at=now()
+FROM run_payment_state s
+WHERE r.id=s.payroll_run_id
+  AND r.organization_id=s.organization_id
+  AND r.status<>'cancelled'
+  AND s.active_slips>0
+  AND s.has_any_payment
+  AND r.status IS DISTINCT FROM CASE
+      WHEN s.all_active_slips_paid THEN 'paid'
+      WHEN s.has_any_payment THEN 'partially_paid'
+      ELSE r.status
+    END;
