@@ -117,6 +117,11 @@ BEGIN
       AND event_date>p_period_start AND event_date<=p_period_end) THEN
     RAISE EXCEPTION 'Une dépréciation ou une reprise intervient dans cette période. Scinde la période à la date de l’événement.';
   END IF;
+  IF EXISTS (SELECT 1 FROM public.fixed_asset_impairments
+    WHERE organization_id=p_org AND fixed_asset_id=p_asset
+      AND event_date>p_period_end) THEN
+    RAISE EXCEPTION 'Un événement de dépréciation postérieur est déjà comptabilisé. Prépare les périodes antérieures avant cet événement.';
+  END IF;
   IF EXISTS (SELECT 1 FROM public.fixed_asset_disposals
     WHERE organization_id=p_org AND fixed_asset_id=p_asset) THEN
     RAISE EXCEPTION 'Immobilisation déjà sortie du registre';
