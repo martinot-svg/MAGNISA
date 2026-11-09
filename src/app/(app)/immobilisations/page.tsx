@@ -13,6 +13,7 @@ import {
   postFixedAssetDepreciation,
   recordFixedAssetImpairment,
   reverseFixedAssetDepreciation,
+  reverseFixedAssetIfrsAdjustment,
   reverseFixedAssetImpairment,
   transferFixedAsset,
 } from "@/server/actions/fixed-assets";
@@ -28,6 +29,7 @@ export default async function FixedAssets() {
     { data: postedDepreciationEntries = [] },
     { data: impairmentEntries = [] },
     { data: ifrsAdjustments = [] },
+    { data: reconciliation = [], error: reconciliationError },
   ] = await Promise.all([
     ctx.supabase.from("fixed_assets")
       .select("id,asset_code,name,category,acquisition_date,in_service_date,acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,depreciation_method,pcg_asset_account_code,pcg_acquisition_counterpart_account_code,acquisition_journal_entry_id,legacy_accounting_origin,parent_asset_id,component_reference,accumulated_depreciation,net_book_value,impairment_loss,status,magnisa_reference,location,custodian")
@@ -47,8 +49,12 @@ export default async function FixedAssets() {
     ctx.supabase.from("fixed_asset_ifrs_adjustments")
       .select("id,fixed_asset_id,adjustment_date,adjustment_type,standard_reference,statutory_carrying_amount,ifrs_carrying_amount,adjustment_amount,reason,status")
       .eq("organization_id", ctx.organizationId).order("adjustment_date", { ascending: false }).limit(50),
+    ctx.supabase.from("fixed_asset_register_reconciliation")
+      .select("account_code,register_debit,register_credit,ledger_debit,ledger_credit,debit_difference,credit_difference,reconciliation_status")
+      .eq("organization_id", ctx.organizationId).order("account_code"),
   ]);
   if (error) throw new Error("Impossible de charger le registre des immobilisations : " + error.message);
+  if (reconciliationError) throw new Error("Impossible de charger le rapprochement registre / grand livre : " + reconciliationError.message);
   const currency = organization?.currency || "MGA";
   const totalCost = assets.reduce((sum: number, asset: any) => sum + Number(asset.acquisition_cost || 0) + Number(asset.directly_attributable_cost || 0), 0);
   const totalAccumulated = assets.reduce((sum: number, asset: any) => sum + Number(asset.accumulated_depreciation || 0), 0);
@@ -120,6 +126,23 @@ export default async function FixedAssets() {
             <td>{asset.acquisition_journal_entry_id ? "Comptabilisée" : asset.parent_asset_id ? "Composant reclassé" : asset.legacy_accounting_origin ? "Historique à rapprocher" : canManage === true ? <form action={postFixedAssetAcquisition}><input type="hidden" name="asset_id" value={asset.id}/><button className="button" type="submit">Comptabiliser</button></form> : "En attente"}</td>
           </tr>;
         })}</tbody></table></div>}
+    </section>
+    <section className="card section">
+      <h2>Rapprochement registre / grand livre / bilan</h2>
+      <p className="muted">Les soldes nets des comptes 2, 28 et 29 sont comparés aux valeurs brutes, amortissements et dépréciations du registre. Les écritures de cession et de contrepassation sont prises en compte.</p>
+      {!reconciliation.length ? <p className="muted">Aucun solde à rapprocher pour le moment.</p> :
+        <div className="tableWrap"><table><thead><tr><th>Compte PCG</th><th className="right">Registre débit</th><th className="right">Grand livre débit</th><th className="right">Écart débit</th><th className="right">Registre crédit</th><th className="right">Grand livre crédit</th><th className="right">Écart crédit</th><th>État</th></tr></thead><tbody>
+          {reconciliation.map((r: any) => <tr key={r.account_code}>
+            <td>{r.account_code}</td>
+            <td className="right">{money(Number(r.register_debit), currency)}</td>
+            <td className="right">{money(Number(r.ledger_debit), currency)}</td>
+            <td className="right">{money(Number(r.debit_difference), currency)}</td>
+            <td className="right">{money(Number(r.register_credit), currency)}</td>
+            <td className="right">{money(Number(r.ledger_credit), currency)}</td>
+            <td className="right">{money(Number(r.credit_difference), currency)}</td>
+            <td>{r.reconciliation_status === "reconciled" ? "Rapproché" : "Écart à analyser"}</td>
+          </tr>)}
+        </tbody></table></div>}
     </section>
 
     {canManage === true && <>
@@ -234,7 +257,7 @@ export default async function FixedAssets() {
       </form>
       {!ifrsAdjustments.length ? <p className="muted">Aucun ajustement IFRS enregistré.</p> :
         <div className="tableWrap"><table><thead><tr><th>Bien</th><th>Norme</th><th>Nature</th><th className="right">PCG</th><th className="right">IFRS</th><th className="right">Écart</th><th>Statut</th><th>Action</th></tr></thead><tbody>
-          {ifrsAdjustments.map((entry: any) => <tr key={entry.id}><td>{assets.find((a: any) => a.id === entry.fixed_asset_id)?.name || entry.fixed_asset_id}</td><td>{entry.standard_reference}</td><td>{entry.adjustment_type}</td><td className="right">{money(Number(entry.statutory_carrying_amount), currency)}</td><td className="right">{money(Number(entry.ifrs_carrying_amount), currency)}</td><td className="right">{money(Number(entry.adjustment_amount), currency)}</td><td>{entry.status}</td><td>{entry.status === "draft" ? <form action={approveFixedAssetIfrsAdjustment}><input type="hidden" name="adjustment_id" value={entry.id}/><button className="button" type="submit">Approuver</button></form> : "—"}</td></tr>)}
+          {ifrsAdjustments.map((entry: any) => <tr key={entry.id}><td>{assets.find((a: any) => a.id === entry.fixed_asset_id)?.name || entry.fixed_asset_id}</td><td>{entry.standard_reference}</td><td>{entry.adjustment_type}</td><td className="right">{money(Number(entry.statutory_carrying_amount), currency)}</td><td className="right">{money(Number(entry.ifrs_carrying_amount), currency)}</td><td className="right">{money(Number(entry.adjustment_amount), currency)}</td><td>{entry.status}</td><td>{entry.status === "draft" ? <form action={approveFixedAssetIfrsAdjustment}><input type="hidden" name="adjustment_id" value={entry.id}/><button className="button" type="submit">Approuver</button></form> : entry.status === "approved" ? <form action={reverseFixedAssetIfrsAdjustment} className="form"><input type="hidden" name="adjustment_id" value={entry.id}/><input name="reason" minLength={10} required placeholder="Motif d'annulation"/><button className="button" type="submit">Contrepasser</button></form> : "Contrepassé"}</td></tr>)}
         </tbody></table></div>}
     </section>
     </>}
