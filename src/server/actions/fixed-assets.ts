@@ -10,7 +10,7 @@ const assetSchema = z.object({
   name: z.string().trim().min(2).max(180),
   category: z.string().trim().max(100).optional(),
   acquisition_date: z.string().date(),
-  in_service_date: z.string().date(),
+  in_service_date: z.string().date().optional(),
   acquisition_cost: z.coerce.number().finite().positive(),
   directly_attributable_cost: z.coerce.number().finite().nonnegative().default(0),
   residual_value: z.coerce.number().finite().nonnegative().default(0),
@@ -20,12 +20,12 @@ const assetSchema = z.object({
     pcg_acquisition_counterpart_account_code: z.string().trim().regex(/^(10|4|5|72)\d{0,4}$/),
   pcg_accumulated_depreciation_account_code: z.string().trim().optional(),
   pcg_depreciation_expense_account_code: z.string().trim().optional(),
-  pcg_impairment_account_code: z.string().trim().optional(),
-  pcg_impairment_expense_account_code: z.string().trim().optional(),
-  pcg_impairment_reversal_income_account_code: z.string().trim().optional(),
-  pcg_disposal_receivable_account_code: z.string().trim().optional(),
-  pcg_disposal_expense_account_code: z.string().trim().optional(),
-  pcg_disposal_income_account_code: z.string().trim().optional(),
+  pcg_impairment_account_code: z.string().trim().regex(/^29\d{0,4}$/),
+  pcg_impairment_expense_account_code: z.string().trim().regex(/^68\d{0,4}$/),
+  pcg_impairment_reversal_income_account_code: z.string().trim().regex(/^78\d{0,4}$/),
+  pcg_disposal_receivable_account_code: z.string().trim().regex(/^46\d{0,4}$/),
+  pcg_disposal_expense_account_code: z.string().trim().regex(/^65\d{0,4}$/),
+  pcg_disposal_income_account_code: z.string().trim().regex(/^75\d{0,4}$/),
   supplier_name: z.string().trim().max(180).optional(),
   invoice_reference: z.string().trim().max(100).optional(),
   serial_number: z.string().trim().max(120).optional(),
@@ -44,13 +44,28 @@ const assetSchema = z.object({
   for (const [field, code, pattern, message] of classRules) {
     if (code && !pattern.test(code)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message });
   }
-  if (value.depreciation_method === "straight_line" && /^(23|26|27)/.test(value.pcg_asset_account_code)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["depreciation_method"], message: "Les immobilisations en cours et financières ne sont pas amorties par le moteur linéaire. Utilise la méthode sans amortissement et traite séparément la mise en service ou la dépréciation." });
+  const assetFamily = value.pcg_asset_account_code.slice(0, 2);
+  const impairmentFamily: Record<string, string> = { "20": "290", "21": "291", "22": "292", "23": "293", "26": "296", "27": "297" };
+  if (!value.pcg_impairment_account_code.startsWith(impairmentFamily[assetFamily] || "invalid")) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pcg_impairment_account_code"], message: "Le compte 29 doit correspondre à la famille de l'immobilisation." });
+  }
+  const isWorkInProgress = value.pcg_asset_account_code.startsWith("23");
+  if (isWorkInProgress && value.in_service_date) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["in_service_date"], message: "Une immobilisation en cours ne reçoit sa date de mise en service qu'après son achèvement." });
+  }
+  if (isWorkInProgress && value.depreciation_method !== "none") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["depreciation_method"], message: "Une immobilisation en cours de classe 23 ne peut pas être amortie avant sa mise en service." });
+  }
+  if (!isWorkInProgress && !value.in_service_date) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["in_service_date"], message: "La date de mise en service est obligatoire hors compte 23." });
+  }
+  if (value.depreciation_method === "straight_line" && /^(211|23|26|27)/.test(value.pcg_asset_account_code)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["depreciation_method"], message: "Les terrains 211, immobilisations en cours 23 et immobilisations financières 26/27 ne sont pas amortis par le moteur linéaire." });
   }
   if (value.depreciation_method === "straight_line" && value.pcg_asset_account_code === "211") {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["depreciation_method"], message: "Les terrains (211) ne sont pas amortis par défaut. Les aménagements doivent être suivis dans leur compte distinct." });
   }
-  if (value.in_service_date < value.acquisition_date) {
+  if (value.in_service_date && value.in_service_date < value.acquisition_date) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["in_service_date"], message: "La mise en service ne peut pas précéder l'acquisition." });
   }
   if (value.residual_value > value.acquisition_cost + value.directly_attributable_cost) {
@@ -58,11 +73,16 @@ const assetSchema = z.object({
   }
   if (value.depreciation_method === "straight_line") {
     if (!value.useful_life_months) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["useful_life_months"], message: "La durée d'utilisation est obligatoire pour un bien amortissable." });
-    if (!/^28\d{0,4}$/.test(value.pcg_accumulated_depreciation_account_code || "")) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pcg_accumulated_depreciation_account_code"], message: "Renseigne un compte correcteur PCG de classe 28." });
+    const accumulatedPrefix: Record<string, string> = { "20": "280", "21": "281", "22": "282" };
+    if (!value.pcg_accumulated_depreciation_account_code?.startsWith(accumulatedPrefix[assetFamily] || "invalid")) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pcg_accumulated_depreciation_account_code"], message: "Le compte 28 doit correspondre à la famille de l'immobilisation." });
     }
     if (!/^681\d{0,4}$/.test(value.pcg_depreciation_expense_account_code || "")) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pcg_depreciation_expense_account_code"], message: "Renseigne un compte de dotation PCG de classe 68." });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pcg_depreciation_expense_account_code"], message: "Renseigne un compte de dotation PCG de classe 681." });
+    }
+  } else {
+    if (value.useful_life_months || value.pcg_accumulated_depreciation_account_code || value.pcg_depreciation_expense_account_code) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["depreciation_method"], message: "Une immobilisation sans amortissement ne doit pas recevoir de durée ni de comptes 28/68." });
     }
   }
 });
@@ -123,7 +143,7 @@ export async function createFixedAsset(formData: FormData) {
     name: value.name,
     category: value.category || null,
     acquisition_date: value.acquisition_date,
-    in_service_date: value.in_service_date,
+    in_service_date: value.in_service_date || null,
     acquisition_cost: value.acquisition_cost,
     directly_attributable_cost: value.directly_attributable_cost,
     residual_value: value.residual_value,
