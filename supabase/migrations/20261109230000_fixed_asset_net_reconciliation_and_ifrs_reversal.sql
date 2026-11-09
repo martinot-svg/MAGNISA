@@ -39,8 +39,8 @@ SELECT coalesce(r.organization_id,l.organization_id) AS organization_id,
   coalesce(r.register_credit,0)::numeric(20,2) AS register_credit,
   greatest(coalesce(l.ledger_net,0),0)::numeric(20,2) AS ledger_debit,
   greatest(-coalesce(l.ledger_net,0),0)::numeric(20,2) AS ledger_credit,
-  (coalesce(r.register_debit,0)-greatest(coalesce(l.ledger_net,0),0))::numeric(20,2) AS debit_difference,
-  (coalesce(r.register_credit,0)-greatest(-coalesce(l.ledger_net,0),0))::numeric(20,2) AS credit_difference,
+  (coalesce(r.register_debit,0)-greatest(coalesce(l.ledger_net,0),0))::numeric AS debit_difference,
+  (coalesce(r.register_credit,0)-greatest(-coalesce(l.ledger_net,0),0))::numeric AS credit_difference,
   CASE WHEN abs(coalesce(r.register_debit,0)-greatest(coalesce(l.ledger_net,0),0))<0.01
          AND abs(coalesce(r.register_credit,0)-greatest(-coalesce(l.ledger_net,0),0))<0.01
        THEN 'reconciled' ELSE 'difference' END AS reconciliation_status
