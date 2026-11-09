@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "supabase/migrations/**"
+      - "scripts/ci/check-production-migration-history.sh"
       - ".github/workflows/deploy-supabase-production.yml"
   workflow_dispatch:
     inputs:
@@ -36,6 +37,7 @@ jobs:
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       SUPABASE_PROJECT_REF: pmlzirobpdlzsrvtkvir
     steps:
       - name: Checkout main
@@ -46,6 +48,12 @@ jobs:
         run: |
           test -n "$SUPABASE_ACCESS_TOKEN" || (echo "::error::Secret SUPABASE_ACCESS_TOKEN manquant"; exit 1)
           test -n "$SUPABASE_DB_PASSWORD" || (echo "::error::Secret SUPABASE_DB_PASSWORD manquant"; exit 1)
+          test -n "$SUPABASE_DB_URL" || (echo "::error::Secret SUPABASE_DB_URL manquant"; exit 1)
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
 
       - name: Install pinned Supabase CLI
         run: npm install --global supabase@3.0.0
@@ -62,6 +70,10 @@ jobs:
       - name: Verify remote migration history
         if: steps.link_production.outcome == 'success'
         run: supabase migration list --remote
+
+      - name: Block unreviewed migration history drift
+        if: steps.link_production.outcome == 'success'
+        run: bash scripts/ci/check-production-migration-history.sh
 
   apply:
     name: Apply production migrations (explicit approval)
