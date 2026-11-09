@@ -44,6 +44,7 @@ jobs:
         run: npm install --global supabase@3.0.0
 
       - name: Link the production project
+        id: link_production
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
 
       - name: Show pending migrations without applying them
@@ -54,5 +55,5 @@ jobs:
         run: supabase db push --remote --yes
 
       - name: Verify remote migration history
-        if: always()
+        if: steps.link_production.outcome == 'success'
         run: supabase migration list --remote
