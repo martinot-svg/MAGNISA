@@ -133,23 +133,21 @@ $function$;
 
 -- Snapshot-less legacy overloads bypass the atomic fiscal snapshot contract.
 -- The application uses only the overload that requires p_fiscal_snapshot.
--- Older deployments may retain overloads that a clean replay no longer creates,
--- so revoke them only when present.
+-- Discover overloads by argument name so old schema variants are handled safely.
 DO $revoke$
 DECLARE
-  v_signature text;
   v_function regprocedure;
 BEGIN
-  FOREACH v_signature IN ARRAY ARRAY[
-    'public.create_payslip(uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric)',
-    'public.create_payslip(uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric)'
-  ]
+  FOR v_function IN
+    SELECT p.oid::regprocedure
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public'
+      AND p.proname='create_payslip'
+      AND NOT ('p_fiscal_snapshot'=ANY(coalesce(p.proargnames,ARRAY[]::text[])))
   LOOP
-    v_function := to_regprocedure(v_signature);
-    IF v_function IS NOT NULL THEN
-      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,anon,authenticated',v_function);
-      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role',v_function);
-    END IF;
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,anon,authenticated',v_function);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role',v_function);
   END LOOP;
 END;
 $revoke$;
