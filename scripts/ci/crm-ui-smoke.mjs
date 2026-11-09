@@ -113,15 +113,21 @@ try {
   await contributionRow.locator('select[name="stage_status"]').selectOption("in_progress");
   await contributionRow.locator('input[name="reason"]').fill("Progression enregistrée par le collaborateur.");
   await contributionRow.getByRole("button", { name: "Mettre à jour" }).click();
-  assert(await contributionRow.locator('select[name="stage_status"]').inputValue() === "in_progress", "The intervention stage update was not persisted.");
-  const persistedStage = await waitForRow(async () => admin.from("prospect_interventions")
-    .select("stage_status").eq("organization_id", membership.organization_id)
-    .eq("id", intervention.id).maybeSingle());
-  assert(persistedStage.stage_status === "in_progress", "The intervention stage update was not persisted.");
+  const persistedStage = await waitForRow(async () => {
+    const result = await admin.from("prospect_interventions")
+      .select("stage_status").eq("organization_id", membership.organization_id)
+      .eq("id", intervention.id).maybeSingle();
+    return result.data?.stage_status === "in_progress" ? result : { ...result, data: null };
+  });
+  assert(persistedStage.stage_status === "in_progress", "The intervention stage update was not persisted in Supabase.");
   const statusHistory = await waitForRow(async () => admin.from("prospect_intervention_history").select("id")
     .eq("organization_id", membership.organization_id).eq("intervention_id", intervention.id)
     .eq("action", "status_changed").maybeSingle());
   assert(!!statusHistory.id, "Stage transition history was not persisted.");
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const refreshedContributionRow = page.locator("tr").filter({ hasText: contributionDescription });
+  assert(await refreshedContributionRow.locator('select[name="stage_status"]').inputValue() === "in_progress",
+    "The intervention stage was not retained after a full page reload.");
   process.stdout.write("PASS CRM UI: prospect creation, intervention, beneficiary guard and stage history\n");
 
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
