@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/permissions";
 import { renderPdf } from "@/lib/pdf/document";
 import { buildMimeMessage, getGmailAccess, sendGmailRaw } from "@/lib/google/gmail";
 import { recordMailHistory } from "@/lib/magnimail/history";
+import { resolveOrganizationLogoUrl } from "@/lib/storage/organization-logo";
 
 function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -85,13 +86,14 @@ export async function POST(
       return NextResponse.json({ error: "Document introuvable." }, { status: 404 });
     }
 
+    const logoUrl = await resolveOrganizationLogoUrl(supabase, settings ?? {});
     const pdfBuffer = await renderPdf({
       type: isQuote ? "DEVIS" : "FACTURE",
       number: doc.number,
       company: settings?.trade_name || settings?.legal_name || org?.name || "Entreprise",
       slogan: settings?.slogan,
       companyAddress: settings?.address,
-      logoUrl: settings?.logo_url,
+      logoUrl,
       taxId: settings?.tax_id,
       statId: settings?.stat_id,
       registryId: settings?.registry_id,
