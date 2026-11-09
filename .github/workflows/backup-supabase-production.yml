@@ -2,6 +2,9 @@ name: Encrypted Supabase Production Backup Verification
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - ops/production-backup-execution
 
 permissions:
   contents: read
@@ -12,7 +15,7 @@ concurrency:
 
 jobs:
   backup-and-restore-test:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/ops/production-backup-execution'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
