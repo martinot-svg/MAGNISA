@@ -64,7 +64,7 @@ while IFS='|' read -r version name; do
   normalized="$(printf '%s' "$name" | sed -E 's/^[0-9]{14}_//; s/_[0-9]+$//')"
   matches="$(awk -F '|' -v n="$normalized" '$1==n {print $2 " " $3}' "$REMOTE_NORMALIZED")"
   if [ -n "$matches" ]; then
-    printf '%s %s => %s\\n' "$version" "$name" "$(printf '%s' "$matches" | tr '\\n' ';')"
+    printf '%s %s => %s\n' "$version" "$name" "$(printf '%s' "$matches" | tr '\n' ';')"
   fi
 done < "$LOCAL_ONLY_DETAILS" > "$ALIASES"
 
