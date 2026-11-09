@@ -19,7 +19,7 @@ INSERT INTO public.fixed_assets (
   (:'asset_id'::uuid,:'org_id'::uuid,'CI-IMM-POST-01','CI asset lifecycle','equipment','2026-01-01','2026-01-01',
    120000,0,0,24,'straight_line','215','404','281','681','291','681','781','462','652','752',0,0,120000,'active'),
   (:'component_parent_id'::uuid,:'org_id'::uuid,'CI-IMM-COMP-01','CI component parent','equipment','2026-01-01','2026-01-01',
-   100000,0,0,120,'straight_line','215','404','281','681','291','681','781','462','652','752',0,0,100000,'active');
+   100000,0,0,120,'straight_line','215','72','281','681','291','681','781','462','652','752',0,0,100000,'active');
 
 SELECT set_config('request.jwt.claim.sub', :'user_id', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
