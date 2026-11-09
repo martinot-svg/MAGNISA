@@ -42,6 +42,13 @@ const n=(v:any)=>Number(v||0);
 const round=(v:number)=>Math.round((v+Number.EPSILON)*100)/100;
 const cashCodes=/^(511|512|513|514|515|516|517|518|53|54|58)/;
 
+export function classifyCashFlowCounterpart(code:string):"operating"|"investing"|"financing"|null {
+  if(/^(2|404|405|462)/.test(code))return "investing";
+  if(/^(10|11|12|13|14|15|16|17)/.test(code))return "financing";
+  if(/^(3|4|6|7)/.test(code))return "operating";
+  return null;
+}
+
 export async function loadFiscalStatements(ctx:any, yearId:string):Promise<FiscalStatements>{
   await requirePermission(ctx,"accounting.view");
   const {supabase,organizationId}=ctx;
@@ -143,12 +150,6 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   for(const l of lines){const a=byEntry.get(l.journal_entry_id)||[];a.push(l);byEntry.set(l.journal_entry_id,a);}
   const flows={operating:{receipts:0,payments:0},investing:{receipts:0,payments:0},financing:{receipts:0,payments:0}};
   let openingCash=0,closingCash=0,unclassifiedCashFlowEntries=0;
-  const classifyCounterpart=(code:string):keyof typeof flows|null=>{
-    if(/^2/.test(code))return "investing";
-    if(/^(10|11|12|13|14|15|16|17)/.test(code))return "financing";
-    if(/^(3|4|6|7)/.test(code))return "operating";
-    return null;
-  };
   for(const l of lines){
     if(l.pcg_code&&cashCodes.test(l.pcg_code)){
       const v=n(l.debit)-n(l.credit);closingCash+=v;
@@ -163,7 +164,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
       unclassifiedCashFlowEntries++;
       continue;
     }
-    const bucket=classifyCounterpart(String(counterparts[0].pcg_code));
+    const bucket=classifyCashFlowCounterpart(String(counterparts[0].pcg_code));
     if(!bucket){unclassifiedCashFlowEntries++;continue;}
     const amount=n(cashLines[0].debit)-n(cashLines[0].credit);
     if(amount>=0)flows[bucket].receipts+=amount;
