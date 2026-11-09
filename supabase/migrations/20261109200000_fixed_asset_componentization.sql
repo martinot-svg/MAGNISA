@@ -73,7 +73,7 @@ BEGIN
 
   SELECT * INTO p FROM public.fixed_assets
   WHERE id=p_parent_asset AND organization_id=p_org FOR UPDATE;
-  IF NOT FOUND OR p.status<>'active' THEN
+  IF NOT FOUND OR p.status NOT IN ('active','fully_depreciated') THEN
     RAISE EXCEPTION 'Immobilisation mère inactive ou introuvable';
   END IF;
   IF p.component_reference='componentized_parent' OR EXISTS (
