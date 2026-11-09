@@ -59,13 +59,22 @@ jobs:
               print(f"SUPABASE_DB_URL={url}", file=env_file)
           PY
 
+      - name: Install PostgreSQL client for read-only migration inventory
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Prepare Production migration workdir without rewriting remote history
+        run: bash scripts/ci/prepare-production-migration-workdir.sh
+
       - name: Show pending migrations without applying them
         run: |
           echo "READ-ONLY PREFLIGHT: aucune migration ne sera appliquée par ce job."
+          cd "$MIGRATION_WORKDIR"
           supabase db push --db-url "$SUPABASE_DB_URL" --include-all --dry-run
 
       - name: Verify remote migration history
-        run: supabase migration list --db-url "$SUPABASE_DB_URL"
+        run: |
+          cd "$MIGRATION_WORKDIR"
+          supabase migration list --db-url "$SUPABASE_DB_URL"
 
   apply:
     name: Apply production migrations (explicit approval)
@@ -100,8 +109,18 @@ jobs:
               print(f"SUPABASE_DB_URL={url}", file=env_file)
           PY
 
+      - name: Install PostgreSQL client for migration inventory
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Prepare Production migration workdir without rewriting remote history
+        run: bash scripts/ci/prepare-production-migration-workdir.sh
+
       - name: Apply pending migrations
-        run: supabase db push --db-url "$SUPABASE_DB_URL" --include-all --yes
+        run: |
+          cd "$MIGRATION_WORKDIR"
+          supabase db push --db-url "$SUPABASE_DB_URL" --include-all --yes
 
       - name: Verify remote migration history
-        run: supabase migration list --db-url "$SUPABASE_DB_URL"
+        run: |
+          cd "$MIGRATION_WORKDIR"
+          supabase migration list --db-url "$SUPABASE_DB_URL"
