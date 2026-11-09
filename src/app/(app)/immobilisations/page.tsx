@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
 import {
   approveFixedAssetIfrsAdjustment,
+  componentizeFixedAsset,
   createFixedAsset,
   createFixedAssetIfrsAdjustment,
   disposeFixedAsset,
@@ -27,7 +28,7 @@ export default async function FixedAssets() {
     { data: ifrsAdjustments = [] },
   ] = await Promise.all([
     ctx.supabase.from("fixed_assets")
-      .select("id,asset_code,name,category,acquisition_date,in_service_date,acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,depreciation_method,pcg_asset_account_code,pcg_acquisition_counterpart_account_code,acquisition_journal_entry_id,legacy_accounting_origin,accumulated_depreciation,net_book_value,impairment_loss,status,magnisa_reference,location,custodian")
+      .select("id,asset_code,name,category,acquisition_date,in_service_date,acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,depreciation_method,pcg_asset_account_code,pcg_acquisition_counterpart_account_code,acquisition_journal_entry_id,legacy_accounting_origin,parent_asset_id,component_reference,accumulated_depreciation,net_book_value,impairment_loss,status,magnisa_reference,location,custodian")
       .eq("organization_id", ctx.organizationId)
       .order("acquisition_date", { ascending: false }),
     ctx.supabase.from("organizations").select("currency").eq("id", ctx.organizationId).single(),
@@ -105,7 +106,7 @@ export default async function FixedAssets() {
           const gross = Number(asset.acquisition_cost || 0) + Number(asset.directly_attributable_cost || 0);
           const life = Number(asset.useful_life_months || 0);
           return <tr key={asset.id}>
-            <td>{asset.asset_code || asset.magnisa_reference || "—"}</td><td>{asset.name}<div className="muted">{asset.category || "À préciser"}</div></td>
+            <td>{asset.asset_code || asset.magnisa_reference || "—"}</td><td>{asset.name}<div className="muted">{asset.parent_asset_id ? "Composant de " + (assets.find((p: any) => p.id === asset.parent_asset_id)?.name || "immobilisation mère") : asset.component_reference === "componentized_parent" ? "Regroupement de composants" : asset.category || "À préciser"}</div></td>
             <td>{asset.pcg_asset_account_code || "À mapper"}</td><td>{asset.in_service_date || asset.acquisition_date}</td>
             <td className="right">{money(gross, currency)}</td><td>{life > 0 ? `${life} mois` : "Non amortissable / à définir"}</td>
             <td className="right">{money(Number(asset.accumulated_depreciation || 0), currency)}</td>
@@ -175,6 +176,24 @@ export default async function FixedAssets() {
       </div>
     </section>
 
+
+    <section className="card section">
+      <h2>Ventilation par composants</h2>
+      <p className="muted">La ventilation conserve le coût brut, les amortissements et les dépréciations cumulés. Elle crée des fiches enfants dans le registre existant et une écriture de reclassement équilibrée. L’acquisition de la fiche mère doit être comptabilisée au préalable.</p>
+      <form action={componentizeFixedAsset} className="form">
+        <div className="grid3">
+          <div className="field"><label>Immobilisation mère</label><select name="parent_asset_id" required defaultValue=""><option value="" disabled>Choisir un bien non ventilé</option>{assets.filter((a: any) => !a.parent_asset_id && a.component_reference !== "componentized_parent" && !!a.acquisition_journal_entry_id).map((a: any) => <option key={a.id} value={a.id}>{a.asset_code || a.name} · {a.name}</option>)}</select></div>
+          <div className="field"><label>Date de ventilation</label><input name="event_date" type="date" required/></div>
+        </div>
+        <div className="field"><label>Justification et référence de l'étude des composants</label><textarea name="reason" minLength={10} required rows={2}/></div>
+        <div className="field"><label>Composants (JSON, 2 à 20 lignes)</label><textarea name="components_json" required rows={10} defaultValue={JSON.stringify([
+          {asset_code:"IMO-C1",name:"Composant principal",acquisition_cost:600000,directly_attributable_cost:0,residual_value:0,accumulated_depreciation:0,impairment_loss:0,useful_life_months:60,depreciation_method:"straight_line",in_service_date:"2026-01-01",pcg_asset_account_code:"215",pcg_accumulated_depreciation_account_code:"281",pcg_depreciation_expense_account_code:"681",pcg_impairment_account_code:"291",pcg_impairment_expense_account_code:"681",pcg_impairment_reversal_income_account_code:"781",pcg_disposal_receivable_account_code:"462",pcg_disposal_expense_account_code:"652",pcg_disposal_income_account_code:"752"},
+          {asset_code:"IMO-C2",name:"Composant secondaire",acquisition_cost:400000,directly_attributable_cost:0,residual_value:0,accumulated_depreciation:0,impairment_loss:0,useful_life_months:120,depreciation_method:"straight_line",in_service_date:"2026-01-01",pcg_asset_account_code:"215",pcg_accumulated_depreciation_account_code:"281",pcg_depreciation_expense_account_code:"681",pcg_impairment_account_code:"291",pcg_impairment_expense_account_code:"681",pcg_impairment_reversal_income_account_code:"781",pcg_disposal_receivable_account_code:"462",pcg_disposal_expense_account_code:"652",pcg_disposal_income_account_code:"752"}
+        ],null,2)}/></div>
+        <p className="muted">Les coûts bruts, valeurs résiduelles, amortissements et dépréciations des composants doivent chacun totaliser exactement les montants de la fiche mère. Adapte les codes PCG et les dates à chaque composant.</p>
+        <button className="button primary" type="submit">Ventiler et comptabiliser le reclassement</button>
+      </form>
+    </section>
     <section className="card section">
       <h2>Rapprochement IFRS distinct</h2>
       <p className="muted">Les ajustements sont conservés dans un sous-registre séparé. Leur approbation ne modifie ni la fiche statutaire PCG ni le grand livre PCG.</p>
