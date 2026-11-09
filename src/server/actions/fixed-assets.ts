@@ -397,3 +397,23 @@ export async function reverseFixedAssetDepreciation(formData: FormData) {
   revalidatePath("/comptabilite");
   return data;
 }
+
+
+export async function reverseFixedAssetIfrsAdjustment(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "accounting.manage");
+  const parsed = z.object({
+    adjustment_id: z.string().uuid(),
+    reason: z.string().trim().min(10).max(1000),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message || "Données de contrepassation IFRS invalides.");
+  const { data, error } = await ctx.supabase.rpc("magnisa_reverse_fixed_asset_ifrs_adjustment", {
+    p_org: ctx.organizationId,
+    p_adjustment: parsed.data.adjustment_id,
+    p_reason: parsed.data.reason,
+  });
+  if (error) throw new Error("Impossible de contrepasser l'ajustement IFRS : " + error.message);
+  revalidatePath("/immobilisations");
+  revalidatePath("/etats-financiers");
+  return data;
+}
