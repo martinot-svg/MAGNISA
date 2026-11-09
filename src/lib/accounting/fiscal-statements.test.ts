@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isFiscalStatementReady, type FiscalStatementReadinessInput } from "./fiscal-statements";
+import { classifyCashFlowCounterpart, isFiscalStatementReady, type FiscalStatementReadinessInput } from "./fiscal-statements";
 
 const valid: FiscalStatementReadinessInput = {
   isClosed:true,
@@ -31,5 +31,17 @@ describe("isFiscalStatementReady",()=>{
   });
   it("blocks finalization when the balance sheet does not balance",()=>{
     expect(isFiscalStatementReady({...valid,balanceDifference:1})).toBe(false);
+  });
+});
+
+describe("classifyCashFlowCounterpart",()=>{
+  it("classifies fixed-asset supplier and disposal receivable settlements as investing",()=>{
+    expect(classifyCashFlowCounterpart("404")).toBe("investing");
+    expect(classifyCashFlowCounterpart("405")).toBe("investing");
+    expect(classifyCashFlowCounterpart("462")).toBe("investing");
+  });
+  it("preserves operating and financing classifications for unrelated accounts",()=>{
+    expect(classifyCashFlowCounterpart("401")).toBe("operating");
+    expect(classifyCashFlowCounterpart("164")).toBe("financing");
   });
 });
