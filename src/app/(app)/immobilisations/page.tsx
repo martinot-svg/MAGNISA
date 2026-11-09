@@ -5,6 +5,7 @@ import { money } from "@/lib/money";
 import {
   approveFixedAssetIfrsAdjustment,
   componentizeFixedAsset,
+  commissionFixedAsset,
   createFixedAsset,
   createFixedAssetIfrsAdjustment,
   disposeFixedAsset,
@@ -28,6 +29,7 @@ export default async function FixedAssets() {
     { data: depreciationEntries = [] },
     { data: postedDepreciationEntries = [] },
     { data: impairmentEntries = [] },
+    { data: commissionings = [], error: commissioningError },
     { data: ifrsAdjustments = [] },
     { data: reconciliation = [], error: reconciliationError },
   ] = await Promise.all([
@@ -46,6 +48,9 @@ export default async function FixedAssets() {
     ctx.supabase.from("fixed_asset_impairments")
       .select("id,fixed_asset_id,event_date,amount,reason,event_type")
       .eq("organization_id", ctx.organizationId).eq("event_type", "impairment").order("event_date", { ascending: false }).limit(50),
+    ctx.supabase.from("fixed_asset_commissionings")
+      .select("id,fixed_asset_id,event_date,old_asset_account_code,new_asset_account_code,gross_cost_reclassified,impairment_reclassified,depreciation_method,useful_life_months,reason,journal_entry_id")
+      .eq("organization_id", ctx.organizationId).order("event_date", { ascending: false }).limit(50),
     ctx.supabase.from("fixed_asset_ifrs_adjustments")
       .select("id,fixed_asset_id,adjustment_date,adjustment_type,standard_reference,statutory_carrying_amount,ifrs_carrying_amount,adjustment_amount,reason,status")
       .eq("organization_id", ctx.organizationId).order("adjustment_date", { ascending: false }).limit(50),
@@ -55,10 +60,12 @@ export default async function FixedAssets() {
   ]);
   if (error) throw new Error("Impossible de charger le registre des immobilisations : " + error.message);
   if (reconciliationError) throw new Error("Impossible de charger le rapprochement registre / grand livre : " + reconciliationError.message);
+  if (commissioningError) throw new Error("Impossible de charger l’historique des mises en service : " + commissioningError.message);
   const currency = organization?.currency || "MGA";
   const totalCost = assets.reduce((sum: number, asset: any) => sum + Number(asset.acquisition_cost || 0) + Number(asset.directly_attributable_cost || 0), 0);
   const totalAccumulated = assets.reduce((sum: number, asset: any) => sum + Number(asset.accumulated_depreciation || 0), 0);
   const totalNet = assets.reduce((sum: number, asset: any) => sum + Number(asset.net_book_value || 0), 0);
+  const commissionableAssets = assets.filter((asset: any) => asset.status === "active" && asset.pcg_asset_account_code?.startsWith("23") && !asset.in_service_date);
   return <>
     <div className="pageHead">
       <div>
@@ -83,7 +90,7 @@ export default async function FixedAssets() {
           <div className="field"><label>Compte d'immobilisation PCG</label><input name="pcg_asset_account_code" required pattern="(20|21|22|23|26|27)[0-9]{0,4}" placeholder="218"/></div>
           <div className="field"><label>Contrepartie PCG (404, 512, 10x, 45x ou 72x)</label><input name="pcg_acquisition_counterpart_account_code" required placeholder="404"/></div>
           <div className="field"><label>Date d'acquisition</label><input name="acquisition_date" type="date" required/></div>
-          <div className="field"><label>Date de mise en service</label><input name="in_service_date" type="date" required/></div>
+          <div className="field"><label>Date de mise en service</label><input name="in_service_date" type="date"/><small className="muted">Laisse vide pour une immobilisation en cours de classe 23. Sa mise en service sera enregistrée séparément.</small></div>
           <div className="field"><label>Coût d'acquisition</label><input name="acquisition_cost" type="number" min="0.01" step="0.01" required/></div>
           <div className="field"><label>Coûts directement attribuables</label><input name="directly_attributable_cost" type="number" min="0" step="0.01" defaultValue="0"/></div>
           <div className="field"><label>Valeur résiduelle</label><input name="residual_value" type="number" min="0" step="0.01" defaultValue="0"/></div>
@@ -118,7 +125,7 @@ export default async function FixedAssets() {
           const life = Number(asset.useful_life_months || 0);
           return <tr key={asset.id}>
             <td>{asset.asset_code || asset.magnisa_reference || "—"}</td><td>{asset.name}<div className="muted">{asset.parent_asset_id ? "Composant de " + (assets.find((p: any) => p.id === asset.parent_asset_id)?.name || "immobilisation mère") : asset.component_reference === "componentized_parent" ? "Regroupement de composants" : asset.category || "À préciser"}</div></td>
-            <td>{asset.pcg_asset_account_code || "À mapper"}</td><td>{asset.in_service_date || asset.acquisition_date}</td>
+            <td>{asset.pcg_asset_account_code || "À mapper"}</td><td>{asset.in_service_date || (asset.pcg_asset_account_code?.startsWith("23") ? "En cours" : asset.acquisition_date)}</td>
             <td className="right">{money(gross, currency)}</td><td>{life > 0 ? `${life} mois` : "Non amortissable / à définir"}</td>
             <td className="right">{money(Number(asset.accumulated_depreciation || 0), currency)}</td>
             <td className="right">{money(Number(asset.impairment_loss || 0), currency)}</td>
@@ -146,6 +153,29 @@ export default async function FixedAssets() {
     </section>
 
     {canManage === true && <>
+    <section className="card section">
+      <h2>Mise en service des immobilisations en cours</h2>
+      <p className="muted">Les comptes 23 ne sont pas amortis avant l’achèvement. Cette opération reclassifie le coût vers le compte définitif, transfère les dépréciations existantes vers le compte 29 adapté et fixe la date de départ des amortissements.</p>
+      {canManage === true && <form action={commissionFixedAsset} className="form">
+        <div className="grid3">
+          <div className="field"><label>Immobilisation en cours</label><select name="asset_id" required defaultValue=""><option value="" disabled>Choisir un bien en compte 23</option>{commissionableAssets.map((a: any) => <option key={a.id} value={a.id}>{a.asset_code || a.name} · {a.name}</option>)}</select></div>
+          <div className="field"><label>Date effective de mise en service</label><input name="event_date" type="date" required/></div>
+          <div className="field"><label>Nouveau compte d’actif PCG</label><input name="new_asset_account_code" placeholder="215, 205, 221..." required/></div>
+          <div className="field"><label>Méthode après mise en service</label><select name="depreciation_method" defaultValue="straight_line"><option value="straight_line">Linéaire</option><option value="none">Sans amortissement</option></select></div>
+          <div className="field"><label>Durée d’utilisation (mois)</label><input name="useful_life_months" type="number" min="1" max="1200" placeholder="60"/></div>
+          <div className="field"><label>Compte 28 adapté</label><input name="pcg_accumulated_depreciation_account_code" placeholder="280, 281 ou 282"/></div>
+          <div className="field"><label>Compte de dotation 681</label><input name="pcg_depreciation_expense_account_code" placeholder="681"/></div>
+          <div className="field"><label>Compte 29 adapté</label><input name="pcg_impairment_account_code" placeholder="290, 291 ou 292" required/></div>
+          <div className="field"><label>Justification</label><input name="reason" minLength={10} required placeholder="Réception, procès-verbal, mise en exploitation..."/></div>
+        </div>
+        <button className="button" type="submit" disabled={!commissionableAssets.length}>Comptabiliser la mise en service</button>
+      </form>}
+      {!commissionableAssets.length && <p className="muted">Aucune immobilisation en cours à mettre en service actuellement.</p>}
+      {commissionings.length > 0 && <div className="tableWrap"><table><thead><tr><th>Date</th><th>Immobilisation</th><th>Reclassement PCG</th><th>Coût reclassé</th><th>Dépréciation transférée</th><th>Méthode / durée</th><th>Journal</th></tr></thead><tbody>
+        {commissionings.map((entry: any) => <tr key={entry.id}><td>{entry.event_date}</td><td>{assets.find((a: any) => a.id === entry.fixed_asset_id)?.name || entry.fixed_asset_id}</td><td>{entry.old_asset_account_code} → {entry.new_asset_account_code}</td><td>{money(Number(entry.gross_cost_reclassified), currency)}</td><td>{money(Number(entry.impairment_reclassified), currency)}</td><td>{entry.depreciation_method === "straight_line" ? `Linéaire · ${entry.useful_life_months} mois` : "Sans amortissement"}</td><td>{entry.journal_entry_id}</td></tr>)}
+      </tbody></table></div>}
+    </section>
+
     <section className="card section">
       <h2>Planifier et comptabiliser les dotations</h2>
       <p className="muted">La préparation calcule une dotation sans journal. La comptabilisation appelle le moteur central, contrôle la période, vérifie les comptes PCG et crée une écriture équilibrée, protégée contre les doublons.</p>
