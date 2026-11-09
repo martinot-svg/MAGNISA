@@ -62,6 +62,10 @@ jobs:
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/fixed-assets-accounting.sql
+      - name: Verify automatic PCG 581 mapping for internal transfer clearing
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/pcg-internal-transfer-581.sql
       - name: Verify collaborative prospect contribution security and automation
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
