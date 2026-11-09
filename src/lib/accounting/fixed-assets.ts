@@ -103,7 +103,7 @@ export function calculateStraightLineDepreciation(
   const openingNet = input.openingNetBookValue === undefined
     ? cents(gross - openingAccumulated - openingImpairment)
     : cents(input.openingNetBookValue);
-  if (openingNet < residual || openingNet > gross - openingAccumulated) {
+  if (openingNet < 0 || openingNet > gross - openingAccumulated) {
     throw new Error("La valeur nette comptable d'ouverture est incohérente.");
   }
   const elapsedBefore = elapsedMonthUnits(service, service, periodStart, input.usefulLifeMonths);
@@ -114,7 +114,7 @@ export function calculateStraightLineDepreciation(
     ? Math.min(remainingDepreciableAmount, remainingDepreciableAmount * periodUnits / remainingUnits)
     : 0);
   const closingAccumulated = cents(openingAccumulated + charge);
-  const closingNet = cents(Math.max(residual, openingNet - charge));
+  const closingNet = cents(Math.max(0, openingNet - charge));
   const activeStart = new Date(Math.max(periodStart.getTime(), service.getTime()));
   const daysDepreciated = Math.max(0, Math.floor((periodEndExclusive.getTime() - activeStart.getTime()) / DAY_MS));
 
