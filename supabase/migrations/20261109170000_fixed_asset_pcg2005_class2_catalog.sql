@@ -93,4 +93,4 @@ BEGIN
 END $$;
 
 COMMENT ON TABLE public.pcg2005_accounts IS
-  'PCG 2005 Madagascar account catalogue. Class 2 base accounts and relevant posting accounts are aligned to the official MEF/CSC recommended chart;
+  'PCG 2005 Madagascar account catalogue. Class 2 base accounts and relevant posting accounts are aligned to the official MEF/CSC recommended chart; permitted subdivisions remain entity-specific.';
