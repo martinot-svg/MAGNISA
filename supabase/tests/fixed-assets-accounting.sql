@@ -5,7 +5,7 @@ DECLARE
   v_required text[] := ARRAY[
     '20','203','204','205','207','208','21','211','212','213','215','218',
     '22','221','222','223','225','228','229','23','232','237','238',
-    '26','261','262','265','266','267','268','269',
+    '26','261','262','265','266','267','268','269','229',
     '27','271','272','273','274','275','276','277','279',
     '28','280','281','282','29','290','291','292','293','296','297',
     '404','462','652','681','752','781'
@@ -18,8 +18,14 @@ BEGIN
     END IF;
   END LOOP;
 
-  IF EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code IN ('675','775','6816','7816')) THEN
-    RAISE EXCEPTION 'Non-PCG2005 lifecycle draft accounts remain in the chart';
+  IF NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code='229' AND kind='liability') THEN
+    RAISE EXCEPTION 'PCG 229 rights of grantor must be classified as a liability';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code='72' AND kind='income') THEN
+    RAISE EXCEPTION 'PCG 72 production immobilisée must be available as an acquisition counterpart';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.fixed_assets WHERE pcg_asset_account_code LIKE '229%') THEN
+    RAISE EXCEPTION 'A fixed asset must not be mapped to PCG 229 rights of grantor';
   END IF;
 
   FOREACH v_table IN ARRAY ARRAY[
