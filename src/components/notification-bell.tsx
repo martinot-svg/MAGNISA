@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, ExternalLink } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { ensureRealtimeAuth } from "@/lib/notifications/realtime-auth";
 
 type NotificationRow = {
   id: string;
@@ -58,18 +59,55 @@ export function NotificationBell({ userId, organizationId, initialUnread = 0 }: 
   }
 
   useEffect(() => {
-    void refresh();
     const supabase = supabaseBrowser();
-    const channel = supabase
-      .channel(`notifications-${organizationId}-${userId}`)
-      .on("postgres_changes", {
-        event: "*",
-        schema: "public",
-        table: "notifications",
-        filter: `recipient_user_id=eq.${userId}`,
-      }, () => void refresh())
-      .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    let active = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let didRefresh = false;
+
+    const refreshOnce = () => {
+      if (didRefresh || !active) return;
+      didRefresh = true;
+      void refresh();
+    };
+
+    const subscribe = () => {
+      if (!active || channel) return;
+      channel = supabase
+        .channel(`notifications-${organizationId}-${userId}`)
+        .on("postgres_changes", {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `recipient_user_id=eq.${userId}`,
+        }, () => void refresh())
+        .subscribe();
+    };
+
+    const start = async () => {
+      const authenticated = await ensureRealtimeAuth(supabase);
+      if (!active || !authenticated) return;
+      subscribe();
+      refreshOnce();
+    };
+    void start();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) {
+        supabase.realtime.setAuth(session.access_token);
+        subscribe();
+        queueMicrotask(refreshOnce);
+      } else if (channel) {
+        const current = channel;
+        channel = null;
+        void supabase.removeChannel(current);
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+      if (channel) void supabase.removeChannel(channel);
+    };
   }, [organizationId, userId]);
 
   async function markRead(id: string) {
