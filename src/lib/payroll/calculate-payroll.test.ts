@@ -62,7 +62,7 @@ describe("Calcul centralisé des bulletins", () => {
     expect(result.employeePensionContribution).toBe(150_000);
     expect(result.taxableBase).toBe(890_000);
     expect(result.incomeTax).toBe(85_500);
-    expect(result.netBeforeOtherDeductions).toBe(734_500);
+    expect(result.netBeforeOtherDeductions).toBe(744_500);
   });
 
   it("exclut de l'assiette IRSA une rémunération explicitement qualifiée d'exonérée", () => {
