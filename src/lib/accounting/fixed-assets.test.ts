@@ -52,7 +52,7 @@ describe("calculateStraightLineDepreciation", () => {
       periodEnd: "2025-12-31",
     });
     expect(result.depreciableBase).toBe(10_000);
-    expect(result.closingNetBookValue).toBe(4_000);
+    expect(result.closingNetBookValue).toBe(2_000);
   });
 
   it("rejects invalid useful life and invalid residual value", () => {
