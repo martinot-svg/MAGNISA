@@ -56,10 +56,13 @@ if (employeeRows.error || employeeRows.data?.length !== 2) {
   throw employeeRows.error ?? new Error("Could not create payroll integration employees.");
 }
 
+const periodStart = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const periodEnd = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
 const legacyRun = await admin.from("payroll_runs").insert({
   organization_id: organizationId,
-  period_start: "2027-02-01",
-  period_end: "2027-02-28",
+  period_start: periodStart,
+  period_end: periodEnd,
   status: "draft",
   created_by: userId,
 }).select("id").single();
@@ -79,40 +82,60 @@ const legacyCreate = await user.rpc("create_payslip", {
   p_employer_social: 0,
   p_employer_health: 0,
 });
-assert(!!legacyCreate.error,
-  "Authenticated clients must not call snapshot-less legacy create_payslip overloads.");
+assert(legacyCreate.error?.code === "42501",
+  `Snapshot-less create_payslip must be denied by PostgreSQL privileges; received ${legacyCreate.error?.code ?? "no error"}: ${legacyCreate.error?.message ?? "none"}`);
 const legacySlips = await admin.from("payslips").select("id").eq("payroll_run_id", legacyRun.data.id);
 if (legacySlips.error) throw legacySlips.error;
 assert(legacySlips.data.length === 0, "Rejected legacy RPC must not create a snapshot-less payslip.");
 
 const run = await admin.from("payroll_runs").insert({
   organization_id: organizationId,
-  period_start: "2026-12-01",
-  period_end: "2026-12-31",
-  status: "validated",
+  period_start: periodStart,
+  period_end: periodEnd,
+  status: "draft",
   created_by: userId,
 }).select("id,status").single();
 if (run.error) throw run.error;
 
-const slips = await admin.from("payslips").insert(employeeRows.data.map(employee => ({
-  organization_id: organizationId,
-  payroll_run_id: run.data.id,
-  employee_id: employee.id,
-  base_salary: 100000,
-  gross_pay: 100000,
-  employee_social: 0,
-  employee_health: 0,
-  income_tax: 5000,
-  employer_social: 1000,
-  employer_health: 5000,
-  net_pay: 95000,
-  paid_amount: 0,
-  status: "validated",
-}))).select("id,employee_id");
-if (slips.error || slips.data?.length !== 2) {
-  throw slips.error ?? new Error("Could not create validated payroll integration payslips.");
+const fiscalSnapshot = {
+  schemaVersion: 1,
+  calculatedAt: new Date().toISOString(),
+  payrollRuleSet: { name: "CI payroll validated rule fixture" },
+  calculation: { taxableBase: 100000, taxableCompensation: 100000 },
+  overtime: {},
+};
+const slips = [];
+for (const employee of employeeRows.data) {
+  const createdSlip = await user.rpc("create_payslip", {
+    p_org: organizationId,
+    p_run: run.data.id,
+    p_employee: employee.id,
+    p_bonuses: 0,
+    p_overtime: 0,
+    p_other_earnings: 0,
+    p_employee_social: 0,
+    p_employee_health: 0,
+    p_income_tax: 5000,
+    p_advances_recovered: 0,
+    p_other_deductions: 0,
+    p_employer_social: 1000,
+    p_employer_health: 5000,
+    p_taxable_supplementary_pension: 0,
+    p_employee_supplementary_pension: 0,
+    p_taxable_compensation: 100000,
+    p_fiscal_snapshot: fiscalSnapshot,
+  });
+  if (createdSlip.error || !createdSlip.data) {
+    throw createdSlip.error ?? new Error("Snapshot-aware payslip creation returned no identifier.");
+  }
+  const validation = await user.rpc("validate_payslip", {
+    p_org: organizationId,
+    p_payslip: createdSlip.data,
+  });
+  if (validation.error) throw validation.error;
+  slips.push({ id: createdSlip.data, employee_id: employee.id });
 }
-
+assert(slips.length === 2, "Two validated payslips must be created through the authenticated payroll RPC.");
 const account = await admin.from("financial_accounts").insert({
   organization_id: organizationId,
   name: `CI payroll payment account ${suffix.slice(0, 8)}`,
@@ -135,7 +158,7 @@ const paymentArgs = (payslipId, amount, requestKey, reference) => ({
 
 const firstKey = crypto.randomUUID();
 const firstPayment = await rpc("lot2_record_payroll_payment_idempotent",
-  paymentArgs(slips.data[0].id, 95000, firstKey, `CI-PAY-${suffix}-A`));
+  paymentArgs(slips[0].id, 95000, firstKey, `CI-PAY-${suffix}-A`));
 const repeatedFirstPayment = await rpc("lot2_record_payroll_payment_idempotent",
   paymentArgs(slips.data[0].id, 95000, firstKey, `CI-PAY-${suffix}-A`));
 assert(firstPayment === repeatedFirstPayment, "Payroll payment idempotency must return the same payment id.");
@@ -147,7 +170,7 @@ assert(afterFirst.data.status === "partially_paid",
 
 const secondKey = crypto.randomUUID();
 await rpc("lot2_record_payroll_payment_idempotent",
-  paymentArgs(slips.data[1].id, 38000, secondKey, `CI-PAY-${suffix}-B1`));
+  paymentArgs(slips[1].id, 38000, secondKey, `CI-PAY-${suffix}-B1`));
 const afterPartial = await admin.from("payroll_runs").select("status").eq("id", run.data.id).single();
 if (afterPartial.error) throw afterPartial.error;
 assert(afterPartial.data.status === "partially_paid",
@@ -155,12 +178,12 @@ assert(afterPartial.data.status === "partially_paid",
 
 const thirdKey = crypto.randomUUID();
 await rpc("lot2_record_payroll_payment_idempotent",
-  paymentArgs(slips.data[1].id, 57000, thirdKey, `CI-PAY-${suffix}-B2`));
+  paymentArgs(slips[1].id, 57000, thirdKey, `CI-PAY-${suffix}-B2`));
 
 const [finalRun, finalSlips, finalPayments] = await Promise.all([
   admin.from("payroll_runs").select("status").eq("id", run.data.id).single(),
   admin.from("payslips").select("status,paid_amount").eq("payroll_run_id", run.data.id),
-  admin.from("payroll_payments").select("id,amount").in("payslip_id", slips.data.map(s => s.id)),
+  admin.from("payroll_payments").select("id,amount").in("payslip_id", slips.map(s => s.id)),
 ]);
 if (finalRun.error) throw finalRun.error;
 if (finalSlips.error) throw finalSlips.error;
