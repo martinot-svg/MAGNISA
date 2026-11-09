@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      SUPABASE_DB_PASSWORD: \${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_REF: pmlzirobpdlzsrvtkvir
     steps:
       - name: Checkout main
@@ -83,7 +83,7 @@ jobs:
     timeout-minutes: 20
     environment: production
     env:
-      SUPABASE_DB_PASSWORD: \${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
