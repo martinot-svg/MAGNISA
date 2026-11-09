@@ -1,10 +1,16 @@
 name: Deploy Supabase production migrations
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "supabase/migrations/**"
+      - ".github/workflows/deploy-supabase-production.yml"
   workflow_dispatch:
     inputs:
       confirm_production:
-        description: "Choisis APPLY pour appliquer les migrations en attente sur Supabase production"
+        description: "Choisis DRY_RUN pour contrôler les migrations ou APPLY pour les appliquer après validation"
         required: true
         type: choice
         options:
@@ -21,11 +27,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy-migrations:
-    if: github.ref == 'refs/heads/main' && (inputs.confirm_production == 'DRY_RUN' || inputs.confirm_production == 'APPLY')
+  dry-run:
+    name: Production migration preflight (read-only)
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.confirm_production == 'DRY_RUN' || inputs.confirm_production == 'APPLY')
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: production
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -48,12 +55,43 @@ jobs:
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
 
       - name: Show pending migrations without applying them
-        run: supabase db push --remote --dry-run
-
-      - name: Apply pending migrations
-        if: inputs.confirm_production == 'APPLY'
-        run: supabase db push --remote --yes
+        run: |
+          echo "READ-ONLY PREFLIGHT: aucune migration ne sera appliquée par ce job."
+          supabase db push --remote --dry-run
 
       - name: Verify remote migration history
         if: steps.link_production.outcome == 'success'
+        run: supabase migration list --remote
+
+  apply:
+    name: Apply production migrations (explicit approval)
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm_production == 'APPLY'
+    needs: dry-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: pmlzirobpdlzsrvtkvir
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Verify required credentials are configured
+        shell: bash
+        run: |
+          test -n "$SUPABASE_ACCESS_TOKEN" || (echo "::error::Secret SUPABASE_ACCESS_TOKEN manquant"; exit 1)
+          test -n "$SUPABASE_DB_PASSWORD" || (echo "::error::Secret SUPABASE_DB_PASSWORD manquant"; exit 1)
+
+      - name: Install pinned Supabase CLI
+        run: npm install --global supabase@3.0.0
+
+      - name: Link the production project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Apply pending migrations
+        run: supabase db push --remote --yes
+
+      - name: Verify remote migration history
         run: supabase migration list --remote
