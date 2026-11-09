@@ -97,7 +97,7 @@ jobs:
             postgres:17 psql \
               -h "$SUPABASE_DB_HOST" -p 5432 -U "$SUPABASE_DB_USER" -d postgres \
               -v ON_ERROR_STOP=1 -At \
-              -c "select format('select %L, count(*) from %I.%I;', table_schema || '.' || table_name, table_schema, table_name) from information_schema.tables where table_type='BASE TABLE' and table_schema in ('auth','cron','extensions','graphql','graphql_public','private','public','storage','supabase_migrations') order by table_schema, table_name;" \
+              -c "select format('select %L, count(*) from %I.%I;', table_schema || '.' || table_name, table_schema, table_name) from information_schema.tables where table_type='BASE TABLE' and table_schema in ('auth','extensions','graphql','graphql_public','private','public','storage','supabase_migrations') order by table_schema, table_name;" \
             > backup/counts.sql
           docker run --rm --network host -v "$PWD/backup:/backup" \
             -e PGPASSWORD="$SUPABASE_DB_PASSWORD" -e PGSSLMODE=require \
@@ -144,11 +144,13 @@ jobs:
 
           # Keep the local Supabase system database untouched. Restore the
           # production dump into a fresh database on the same PostgreSQL 17
-          # server. Keep the Realtime and Vault schemas in the encrypted dump, but exclude
-          # them from local replay: Realtime functions require the privileged
-          # log_min_messages setting, and Vault contains production secrets that must
-          # not be copied into a disposable CI database. Both are platform-managed,
-          # not application data.
+          # server. Keep Realtime, Vault and Cron in the encrypted dump, but
+          # exclude them from local replay: Realtime functions need a privileged
+          # log_min_messages setting, Vault contains production secrets, and the
+          # local stack does not provision the pg_cron schema. These are managed
+          # platform schemas, not application business data.
+          # The encrypted dump retains ownership and ACLs; local replay omits
+          # them because its postgres role cannot change other roles' defaults.
           # Storage binary objects are restored separately through the local
           # Storage API and verified by SHA-256.
           POSTGRES_CREATEDB=$(docker run --rm --network host postgres:17 \
@@ -175,13 +177,13 @@ jobs:
           }
 
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --clean --if-exists --exit-on-error \
+            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --clean --if-exists --exit-on-error \
               --section=pre-data /backup/magnisa-production.dump
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --exit-on-error \
+            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
               --section=data /backup/magnisa-production.dump
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --exit-on-error \
+            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
               --section=post-data /backup/magnisa-production.dump
 
           SUPABASE_URL="$LOCAL_API_URL" SUPABASE_SERVICE_ROLE_KEY="$LOCAL_SERVICE_ROLE_KEY" \
@@ -192,7 +194,7 @@ jobs:
             psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 -At -f /backup/counts.sql \
             > backup/restored-counts.tsv
           diff -u backup/production-counts.tsv backup/restored-counts.tsv
-          echo "Restore test passed: exact PostgreSQL row counts for application and restorable Supabase schemas, plus Storage binary SHA-256 hashes, match. The encrypted dump retains the platform-managed Realtime and Vault schemas."
+          echo "Restore test passed: exact PostgreSQL row counts for application and restorable Supabase schemas, plus Storage binary SHA-256 hashes, match. The encrypted dump retains the platform-managed Realtime, Vault and Cron schemas."
 
       - name: Package, encrypt, and verify the backup archive
         shell: bash
