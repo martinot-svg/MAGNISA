@@ -157,7 +157,7 @@ begin
   new.fiscal_snapshot:=coalesce(new.fiscal_snapshot,'{}'::jsonb);
   new.fiscal_snapshot:=jsonb_set(new.fiscal_snapshot,'{irsaDeductionAuthorization}',jsonb_build_object(
     'authorized',v_irsa_deduction_authorized,
-    'reference',case when v_irsa_deduction_authorized then v_authorization_reference else null end,
+    'reference',v_authorization_reference,
     'validFrom',v_authorized_from,
     'validTo',v_authorized_to,
     'legalReference','CGI Madagascar, article 01.03.11'
