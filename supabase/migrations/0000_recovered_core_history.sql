@@ -401,10 +401,8 @@ begin
     execute format('alter table public.%I enable row level security',t);
     execute format('drop policy if exists %I_select on public.%I',t,t);
     execute format('create policy %I_select on public.%I for select using(public.is_org_member(organization_id))',t,t);
-    execute format('drop policy if exists %I_insert on public.%I',t,t);
-    execute format('create policy %I_insert on public.%I for insert with check(public.is_org_member(organization_id))',t,t);
-    execute format('drop policy if exists %I_update on public.%I',t,t);
-    execute format('create policy %I_update on public.%I for update using(public.is_org_member(organization_id)) with check(public.is_org_member(organization_id))',t,t);
+    -- Writes are governed by explicit role/permission policies in later migrations.
+    -- Never grant generic organization-member INSERT/UPDATE access on financial or payroll tables.
   end loop;
 end $$;
 
