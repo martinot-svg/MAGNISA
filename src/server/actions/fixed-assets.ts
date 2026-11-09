@@ -19,6 +19,12 @@ const assetSchema = z.object({
   pcg_asset_account_code: z.string().trim().regex(/^(20|21|22|23|26|27)\d{0,4}$/),
   pcg_accumulated_depreciation_account_code: z.string().trim().optional(),
   pcg_depreciation_expense_account_code: z.string().trim().optional(),
+  pcg_impairment_account_code: z.string().trim().optional(),
+  pcg_impairment_expense_account_code: z.string().trim().optional(),
+  pcg_impairment_reversal_income_account_code: z.string().trim().optional(),
+  pcg_disposal_receivable_account_code: z.string().trim().optional(),
+  pcg_disposal_expense_account_code: z.string().trim().optional(),
+  pcg_disposal_income_account_code: z.string().trim().optional(),
   supplier_name: z.string().trim().max(180).optional(),
   invoice_reference: z.string().trim().max(100).optional(),
   serial_number: z.string().trim().max(120).optional(),
@@ -52,12 +58,17 @@ export async function createFixedAsset(formData: FormData) {
     throw new Error(issue?.message || "Les informations de l'immobilisation sont invalides.");
   }
   const value = parsed.data;
-  const requiredCodes = [
-    value.pcg_asset_account_code,
-    ...(value.depreciation_method === "straight_line"
-      ? [value.pcg_accumulated_depreciation_account_code, value.pcg_depreciation_expense_account_code]
-      : []),
+  const optionalCodes = [
+    value.pcg_accumulated_depreciation_account_code,
+    value.pcg_depreciation_expense_account_code,
+    value.pcg_impairment_account_code,
+    value.pcg_impairment_expense_account_code,
+    value.pcg_impairment_reversal_income_account_code,
+    value.pcg_disposal_receivable_account_code,
+    value.pcg_disposal_expense_account_code,
+    value.pcg_disposal_income_account_code,
   ].filter((code): code is string => !!code);
+  const requiredCodes = [value.pcg_asset_account_code, ...optionalCodes];
   const { data: pcgAccounts, error: pcgError } = await ctx.supabase
     .from("pcg2005_accounts").select("code,kind").in("code", requiredCodes);
   if (pcgError) throw new Error("Impossible de vérifier les comptes PCG.");
@@ -69,6 +80,19 @@ export async function createFixedAsset(formData: FormData) {
       (accountKinds.get(value.pcg_accumulated_depreciation_account_code || "") !== "asset" ||
        accountKinds.get(value.pcg_depreciation_expense_account_code || "") !== "expense")) {
     throw new Error("Les comptes d'amortissement ne correspondent pas au plan PCG chargé.");
+  }
+  const expectedKinds: Array<[string | undefined, string]> = [
+    [value.pcg_impairment_account_code, "asset"],
+    [value.pcg_impairment_expense_account_code, "expense"],
+    [value.pcg_impairment_reversal_income_account_code, "income"],
+    [value.pcg_disposal_receivable_account_code, "asset"],
+    [value.pcg_disposal_expense_account_code, "expense"],
+    [value.pcg_disposal_income_account_code, "income"],
+  ];
+  for (const [code, kind] of expectedKinds) {
+    if (code && accountKinds.get(code) !== kind) {
+      throw new Error(`Le compte PCG ${code} est absent ou son type ne correspond pas au rôle attendu.`);
+    }
   }
   const usefulLife = value.depreciation_method === "straight_line" ? Number(value.useful_life_months) : null;
   const gross = Math.round((value.acquisition_cost + value.directly_attributable_cost + Number.EPSILON) * 100) / 100;
@@ -87,6 +111,12 @@ export async function createFixedAsset(formData: FormData) {
     pcg_asset_account_code: value.pcg_asset_account_code,
     pcg_accumulated_depreciation_account_code: value.pcg_accumulated_depreciation_account_code || null,
     pcg_depreciation_expense_account_code: value.pcg_depreciation_expense_account_code || null,
+    pcg_impairment_account_code: value.pcg_impairment_account_code || null,
+    pcg_impairment_expense_account_code: value.pcg_impairment_expense_account_code || null,
+    pcg_impairment_reversal_income_account_code: value.pcg_impairment_reversal_income_account_code || null,
+    pcg_disposal_receivable_account_code: value.pcg_disposal_receivable_account_code || null,
+    pcg_disposal_expense_account_code: value.pcg_disposal_expense_account_code || null,
+    pcg_disposal_income_account_code: value.pcg_disposal_income_account_code || null,
     supplier_name: value.supplier_name || null,
     invoice_reference: value.invoice_reference || null,
     serial_number: value.serial_number || null,
