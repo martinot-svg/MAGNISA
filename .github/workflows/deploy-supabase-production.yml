@@ -97,7 +97,7 @@ jobs:
           password = quote(os.environ["SUPABASE_DB_PASSWORD"], safe="")
           url = f"postgresql://postgres.pmlzirobpdlzsrvtkvir:{password}@aws-1-us-west-2.pooler.supabase.com:5432/postgres?sslmode=require"
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
-              env_file.write(f"SUPABASE_DB_URL={url}\\n")
+              print(f"SUPABASE_DB_URL={url}", file=env_file)
           PY
 
       - name: Apply pending migrations
