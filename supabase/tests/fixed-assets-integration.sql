@@ -46,6 +46,7 @@ DECLARE
   v_commissioning_id uuid;
   v_commissioning_journal uuid;
   v_wip_depreciation_entry uuid;
+  v_wip_depreciation_journal uuid;
   v_acquisition_journal uuid;
   v_depreciation_entry uuid;
   v_depreciation_journal uuid;
@@ -77,12 +78,24 @@ BEGIN
   -- Class-23 work in progress remains non-depreciable until commissioning.
   v_wip_acquisition_journal := public.magnisa_post_fixed_asset_acquisition(v_org,v_wip);
   IF v_wip_acquisition_journal IS NULL THEN RAISE EXCEPTION 'WIP acquisition journal was not posted'; END IF;
+  IF (SELECT coalesce(sum(debit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_wip_acquisition_journal AND account_key='PCG:232')<>100000
+     OR (SELECT coalesce(sum(credit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_wip_acquisition_journal AND account_key='PCG:404')<>100000 THEN
+    RAISE EXCEPTION 'WIP acquisition must debit PCG 232 and credit PCG 404 for 100000 MGA';
+  END IF;
   v_wip_impairment_id := public.magnisa_record_fixed_asset_impairment(
     v_org,v_wip,'2026-06-30',90000,'CI WIP impairment supported by recoverable amount evidence'
   );
   SELECT journal_entry_id INTO v_wip_impairment_journal
   FROM public.fixed_asset_impairments WHERE id=v_wip_impairment_id;
   IF v_wip_impairment_journal IS NULL THEN RAISE EXCEPTION 'WIP impairment journal was not posted'; END IF;
+  IF (SELECT coalesce(sum(debit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_wip_impairment_journal AND account_key='PCG:681')<>10000
+     OR (SELECT coalesce(sum(credit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_wip_impairment_journal AND account_key='PCG:293')<>10000 THEN
+    RAISE EXCEPTION 'WIP impairment must debit PCG 681 and credit PCG 293 for 10000 MGA';
+  END IF;
 
   BEGIN
     PERFORM public.magnisa_plan_fixed_asset_depreciation(v_org,v_wip,'2026-01-01','2026-06-30');
@@ -104,6 +117,16 @@ BEGIN
       AND pcg_impairment_account_code='291' AND impairment_loss=10000
       AND net_book_value=90000
   ) THEN RAISE EXCEPTION 'WIP commissioning did not reclassify the register and preserve impairment'; END IF;
+  IF (SELECT coalesce(sum(debit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_commissioning_journal AND account_key='PCG:215')<>100000
+     OR (SELECT coalesce(sum(credit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_commissioning_journal AND account_key='PCG:232')<>100000
+     OR (SELECT coalesce(sum(debit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_commissioning_journal AND account_key='PCG:293')<>10000
+     OR (SELECT coalesce(sum(credit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_commissioning_journal AND account_key='PCG:291')<>10000 THEN
+    RAISE EXCEPTION 'WIP commissioning journal must reclassify 232 to 215 and 293 to 291 at exact carrying amounts';
+  END IF;
   BEGIN
     PERFORM public.magnisa_commission_fixed_asset(
       v_org,v_wip,'2026-07-01','215','straight_line',24,'281','681','291',
@@ -122,10 +145,23 @@ BEGIN
   v_wip_depreciation_entry := public.magnisa_plan_fixed_asset_depreciation(
     v_org,v_wip,'2026-07-01','2026-12-31'
   );
-  IF NOT EXISTS (
-    SELECT 1 FROM public.fixed_asset_depreciation_entries
-    WHERE id=v_wip_depreciation_entry AND depreciation_charge>0
-  ) THEN RAISE EXCEPTION 'WIP depreciation did not start after commissioning'; END IF;
+  SELECT depreciation_charge INTO v_balance FROM public.fixed_asset_depreciation_entries
+  WHERE id=v_wip_depreciation_entry;
+  IF v_balance<>22500 THEN
+    RAISE EXCEPTION 'WIP depreciation must be 22500 MGA for six months after 2026-07-01; got %',v_balance;
+  END IF;
+  v_wip_depreciation_journal := public.magnisa_post_fixed_asset_depreciation(v_org,v_wip_depreciation_entry);
+  IF public.magnisa_post_fixed_asset_depreciation(v_org,v_wip_depreciation_entry)<>v_wip_depreciation_journal THEN
+    RAISE EXCEPTION 'WIP depreciation posting is not idempotent';
+  END IF;
+  IF (SELECT coalesce(sum(debit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_wip_depreciation_journal AND account_key='PCG:681')<>22500
+     OR (SELECT coalesce(sum(credit),0) FROM public.journal_entry_lines
+      WHERE organization_id=v_org AND journal_entry_id=v_wip_depreciation_journal AND account_key='PCG:281')<>22500
+     OR NOT EXISTS (SELECT 1 FROM public.fixed_assets
+       WHERE id=v_wip AND accumulated_depreciation=22500 AND impairment_loss=10000 AND net_book_value=67500) THEN
+    RAISE EXCEPTION 'Post-commissioning depreciation journal or register balance is inconsistent';
+  END IF;
 
   -- Acquisition posting is idempotent and creates one balanced PCG journal.
   v_acquisition_journal := public.magnisa_post_fixed_asset_acquisition(v_org,v_asset);
@@ -179,7 +215,7 @@ BEGIN
 
   -- Transfer is traceable and updates the existing register row.
   v_transfer_id := public.magnisa_transfer_fixed_asset(
-    v_org,v_asset,'2026-12-31','CI Site B','CI Custodian','CI test location and custody transfer'
+    v_org,v_asset,'2027-12-31','CI Site B','CI Custodian','CI test location and custody transfer'
   );
   IF NOT EXISTS (SELECT 1 FROM public.fixed_assets WHERE id=v_asset AND location='CI Site B' AND custodian='CI Custodian') THEN
     RAISE EXCEPTION 'Asset transfer did not update the register';
@@ -187,7 +223,7 @@ BEGIN
 
   -- Disposal derecognizes the asset and posts proceeds plus the loss.
   v_disposal_id := public.magnisa_dispose_fixed_asset(
-    v_org,v_asset,'2026-12-31',100000,'CI test disposal with documented proceeds'
+    v_org,v_asset,'2027-12-31',100000,'CI test disposal with documented proceeds'
   );
   SELECT journal_entry_id INTO v_disposal_journal
   FROM public.fixed_asset_disposals WHERE id=v_disposal_id;
@@ -252,7 +288,7 @@ BEGIN
     v_impairment_journal,v_post_impairment_journal,v_post_impairment_reversal_journal,
     v_impairment_reversal_journal,v_disposal_journal,
     v_component_acquisition_journal,v_componentization_journal,
-    v_wip_acquisition_journal,v_wip_impairment_journal,v_commissioning_journal
+    v_wip_acquisition_journal,v_wip_impairment_journal,v_commissioning_journal,v_wip_depreciation_journal
   ] LOOP
     SELECT coalesce(sum(debit),0),coalesce(sum(credit),0)
       INTO v_debit,v_credit
@@ -266,8 +302,8 @@ BEGIN
   -- The net register-to-ledger balance for the component asset account must reconcile.
   SELECT count(*) INTO v_count
   FROM public.fixed_asset_register_reconciliation
-  WHERE organization_id=v_org AND account_code='215' AND reconciliation_status='reconciled';
-  IF v_count=0 THEN RAISE EXCEPTION 'Fixed asset register does not reconcile to the PCG ledger'; END IF;
+  WHERE organization_id=v_org AND account_code IN ('215','281','291') AND reconciliation_status='reconciled';
+  IF v_count<>3 THEN RAISE EXCEPTION 'Fixed asset gross cost, depreciation and impairment balances do not reconcile to the PCG ledger'; END IF;
 END $$;
 
 RESET ROLE;
