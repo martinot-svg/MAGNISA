@@ -6,7 +6,8 @@ import { EmptyState } from "@/components/empty-state";
 import { FormDialog } from "@/components/form-dialog";
 import { convertProspectToCustomer, createProspect } from "@/server/actions/commissions";
 
-export default async function ProspectsPage() {
+export default async function ProspectsPage({ searchParams }: { searchParams: Promise<{ conversion?: string }> }) {
+  const params = await searchParams;
   const ctx = await requireOrganization();
   const [canViewSales,canContribute,canConvert,canManageCollaborativeSettings] = await Promise.all([
     hasPermission(ctx,"sales.view"),
@@ -50,6 +51,7 @@ export default async function ProspectsPage() {
         </FormDialog>}
       </div>
     </div>
+    {params.conversion === "duplicate" && <p role="alert" className="muted">Conversion impossible : un client actif possède déjà cet e-mail ou ce numéro. Vérifie le client existant avant de poursuivre.</p>}
     <div className="section">
       {!prospects.length ? <EmptyState title="Aucun prospect" description="Crée un prospect réel pour démarrer le suivi commercial."/> :
       <div className="tableWrap"><table><thead><tr><th>Prospect</th><th>Statut</th><th>Contact</th><th>Source</th><th>Conversion</th><th>Action</th></tr></thead><tbody>
