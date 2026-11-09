@@ -21,7 +21,7 @@ INSERT INTO public.fixed_assets (
    120000,0,0,24,'straight_line','215','404','281','681','291','681','781','462','652','752',0,0,120000,'active'),
   (:'component_parent_id'::uuid,:'org_id'::uuid,'CI-IMM-COMP-01','CI component parent','equipment','2026-01-01','2026-01-01',
    100000,0,0,120,'straight_line','215','72','281','681','291','681','781','462','652','752',0,0,100000,'active'),
-  (:'wip_asset_id'::uuid,:'org_id'::uuid,'CI-IMM-WIP-01','CI work in progress','construction','2026-01-01',NULL,
+  (:'wip_asset_id'::uuid,:'org_id'::uuid,'CI-IMM-WIP-01','CI work in progress','construction','2026-01-01','2026-01-01',
    100000,0,0,NULL,'none','232','404',NULL,NULL,'293','681','781','462','652','752',0,0,100000,'active');
 
 SELECT set_config('request.jwt.claim.sub', :'user_id', true);
@@ -71,6 +71,9 @@ DECLARE
   v_count integer;
   v_journal uuid;
 BEGIN
+  IF (SELECT in_service_date FROM public.fixed_assets WHERE id=v_wip) IS NOT NULL THEN
+    RAISE EXCEPTION 'WIP asset must not inherit acquisition date as commissioning date';
+  END IF;
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Authenticated test JWT is missing'; END IF;
   IF NOT public.is_org_member(v_org) THEN RAISE EXCEPTION 'Test user is not an active organization member'; END IF;
 
