@@ -9,6 +9,7 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  const [date,setDate]=useState(new Date().toISOString().slice(0,10));
  const [gross,setGross]=useState("1000000");
  const [dependants,setDependants]=useState("0");
+ const [irsaDeductionAuthorized,setIrsaDeductionAuthorized]=useState(false);
  const [confirm,setConfirm]=useState(false);
  const applicable=rules.filter(r=>r.effective_from<=date&&(!r.effective_to||r.effective_to>=date)).sort((a,b)=>b.effective_from.localeCompare(a.effective_from))[0];
  const money=(v:number)=>formatDocumentAmount(v,{currency});
@@ -19,12 +20,14 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  const configured=!!applicable&&applicable.status==="validated"&&applicable.cnaps_monthly_ceiling!==null&&applicable.health_monthly_ceiling!==null&&applicable.rounding_policy==="floor_100"&&Array.isArray(applicable.irsa_brackets)&&applicable.irsa_brackets.length>0;
  let baseCnaps=0,baseHealth=0,social=0,health=0,patronCnaps=0,patronHealth=0,patronFmfp=0,employer=0,taxable=0;
  let tax:number|null=null;
+ let deductibleHealth=0,deductiblePension=0;
  let error="";
  if(configured&&valid&&validDependants&&applicable){
    try {
      const calculation=calculatePayrollAmounts({
        gross:brut,
        dependants:people,
+       irsaDeductionAuthorized,
        rule:{
          cnaps_employee_rate:Number(applicable.cnaps_employee_rate),
          cnaps_employer_rate:Number(applicable.cnaps_employer_rate),
@@ -49,6 +52,8 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
      patronFmfp=calculation.employerFmfp;
      employer=patronCnaps+patronHealth+patronFmfp;
      taxable=calculation.taxableBase;
+     deductibleHealth=calculation.deductibleHealth;
+     deductiblePension=calculation.deductiblePension;
      tax=calculation.incomeTax;
    } catch (cause) {
      error=cause instanceof Error?cause.message:"Calcul de paie invalide.";
@@ -61,6 +66,7 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  <div className="field"><label>Date de paie</label><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
  <div className="field"><label>Brut de simulation (Ar)</label><input type="number" min="0" value={gross} onChange={e=>setGross(e.target.value)}/></div>
  <div className="field"><label>Personnes à charge IRSA (simulation)</label><input type="number" min="0" max="30" step="1" value={dependants} onChange={e=>setDependants(e.target.value)}/></div>
+ <div className="field"><label style={{display:"flex",alignItems:"center",gap:8}}><input type="checkbox" checked={irsaDeductionAuthorized} onChange={e=>setIrsaDeductionAuthorized(e.target.checked)} style={{width:"auto"}}/>Notification écrite DGI valide</label><small className="muted">Sans notification écrite couvrant la période, les cotisations santé et retraite restent retenues mais ne réduisent pas l'assiette IRSA.</small></div>
  </div>
  {!valid&&<p className="error">Saisissez un montant brut positif ou nul.</p>}
  {!validDependants&&<p className="error">Nombre de personnes à charge invalide.</p>}
@@ -73,6 +79,8 @@ export function PayrollRulePreview({rules,currency,companyName,defaultSmie}:{rul
  <p>Retenue CNaPS salarié : <strong>{fmt(social)}</strong></p>
  <p>Assiette santé SMIE : <strong>{fmt(baseHealth)}</strong></p>
  <p>SMIE partenaire de {companyName} : <strong>{applicable.smie_partner_name||defaultSmie||"Non renseignée"}</strong></p><p>{applicable.smie_partner_name||defaultSmie||"SMIE"} salarié : <strong>{fmt(health)}</strong></p>
+ <p>Déduction santé IRSA : <strong>{fmt(deductibleHealth)}</strong></p>
+ <p>Déduction retraite IRSA : <strong>{fmt(deductiblePension)}</strong></p>
  <p>Base imposable IRSA arrondie : <strong>{configured?fmt(taxable):"Non calculée"}</strong></p>
  <p>IRSA estimé : <strong>{tax!==null?fmt(tax):"Non calculé"}</strong></p>
  {error&&<p className="error">{error}</p>}

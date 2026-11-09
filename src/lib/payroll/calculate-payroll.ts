@@ -28,7 +28,9 @@ export type PayrollCalculation = {
   employerFmfp: number;
   taxableBase: number;
   taxableCompensation: number;
+  deductibleHealth: number;
   deductiblePension: number;
+  irsaDeductionAuthorized: boolean;
   incomeTax: number;
   taxableSupplementaryPension: number;
   netBeforeOtherDeductions: number;
@@ -50,6 +52,7 @@ export function calculatePayrollAmounts(input: {
   rule: PayrollCalculationRule;
   taxableSupplementaryPension?: number;
   additionalEmployeePensionContribution?: number;
+  irsaDeductionAuthorized?: boolean;
 }): PayrollCalculation {
   const { gross, dependants, rule } = input;
   const taxableCompensation = input.taxableCompensation ?? gross;
@@ -98,12 +101,17 @@ export function calculatePayrollAmounts(input: {
     rule.health_employer_rate,
   );
   const employeeSocial = roundMoney(cnapsBase * rule.cnaps_employee_rate);
+  const irsaDeductionAuthorized = input.irsaDeductionAuthorized === true;
 
-  // Le plafond de déduction santé IRSA est versionné dans le référentiel applicable à la période.
-  // La retenue santé réelle reste intégralement due, même si elle dépasse ce plafond.
-  const deductibleHealth = Math.min(health.employee, roundMoney(gross * rule.irsa_health_deduction_rate));
-  // Article 01.03.09, 1° : employee pension contributions are deductible up to 10% of gross remuneration subject to withholding.
-  const deductiblePension = Math.min(employeeSocial + additionalEmployeePensionContribution, roundMoney(gross * rule.irsa_pension_deduction_rate));
+  // CGI, article 01.03.11 : les déductions de l'article 01.03.09 nécessitent une notification écrite valide.
+  // Les cotisations réelles restent dues ; seule leur déductibilité de l'assiette IRSA est conditionnée.
+  const deductibleHealth = irsaDeductionAuthorized
+    ? Math.min(health.employee, roundMoney(gross * rule.irsa_health_deduction_rate))
+    : 0;
+  // Article 01.03.09 : cotisations retraite déductibles dans la limite du taux réglementaire, si autorisées.
+  const deductiblePension = irsaDeductionAuthorized
+    ? Math.min(employeeSocial + additionalEmployeePensionContribution, roundMoney(gross * rule.irsa_pension_deduction_rate))
+    : 0;
 
   const irsa = calculateIrsa({
     taxableIncome: Math.max(0, taxableCompensation + taxableSupplementaryPension - deductiblePension - deductibleHealth),
@@ -133,7 +141,9 @@ export function calculatePayrollAmounts(input: {
     employerFmfp,
     taxableBase: irsa.taxableBase,
     taxableCompensation,
+    deductibleHealth,
     deductiblePension,
+    irsaDeductionAuthorized,
     incomeTax: irsa.tax,
     taxableSupplementaryPension,
     netBeforeOtherDeductions,

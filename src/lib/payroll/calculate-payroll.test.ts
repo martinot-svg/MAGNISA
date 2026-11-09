@@ -20,7 +20,7 @@ const rule: PayrollCalculationRule = {
 
 describe("Calcul centralisé des bulletins", () => {
   it("calcule une paie à partir d'un référentiel versionné", () => {
-    const result = calculatePayrollAmounts({ gross: 1_000_000, dependants: 0, rule });
+    const result = calculatePayrollAmounts({ gross: 1_000_000, dependants: 0, rule, irsaDeductionAuthorized: true });
     expect(result.cnapsBase).toBe(1_000_000);
     expect(result.healthBase).toBe(1_000_000);
     expect(result.employeeSocial).toBe(10_000);
@@ -34,11 +34,21 @@ describe("Calcul centralisé des bulletins", () => {
     expect(result.employerCost).toBe(1_190_000);
   });
 
+  it("n'applique aucune déduction IRSA sans notification écrite valide", () => {
+    const result = calculatePayrollAmounts({ gross: 1_000_000, dependants: 0, rule });
+    expect(result.irsaDeductionAuthorized).toBe(false);
+    expect(result.deductibleHealth).toBe(0);
+    expect(result.deductiblePension).toBe(0);
+    expect(result.taxableBase).toBe(1_000_000);
+    expect(result.incomeTax).toBe(107_500);
+  });
+
   it("plafonne à 2 % du brut la déduction IRSA de la cotisation santé", () => {
     const result = calculatePayrollAmounts({
       gross: 1_000_000,
       dependants: 0,
       rule: { ...rule, health_employee_rate: 0.03 },
+      irsaDeductionAuthorized: true,
     });
     expect(result.employeeSocial).toBe(10_000);
     expect(result.employeeHealth).toBe(30_000);
@@ -49,7 +59,7 @@ describe("Calcul centralisé des bulletins", () => {
   });
 
   it.each([0.015, 0.005])("utilise le plafond santé IRSA versionné à %s", (rate) => {
-    const result = calculatePayrollAmounts({ gross: 1_000_000, dependants: 0, rule: { ...rule, health_employee_rate: 0.03, irsa_health_deduction_rate: rate } });
+    const result = calculatePayrollAmounts({ gross: 1_000_000, dependants: 0, rule: { ...rule, health_employee_rate: 0.03, irsa_health_deduction_rate: rate }, irsaDeductionAuthorized: true });
     const deductible = Math.min(30_000, Math.round(1_000_000 * rate * 100) / 100);
     expect(result.taxableBase).toBe(Math.floor((1_000_000 - 10_000 - deductible) / 100) * 100);
   });
@@ -60,6 +70,7 @@ describe("Calcul centralisé des bulletins", () => {
       taxableCompensation: 700_000,
       dependants: 0,
       rule,
+      irsaDeductionAuthorized: true,
     });
     expect(result.gross).toBe(1_000_000);
     expect(result.taxableCompensation).toBe(700_000);
@@ -75,6 +86,7 @@ describe("Calcul centralisé des bulletins", () => {
       taxableSupplementaryPension: 100_000,
       dependants: 0,
       rule,
+      irsaDeductionAuthorized: true,
     });
     expect(result.taxableSupplementaryPension).toBe(100_000);
     expect(result.taxableBase).toBe(1_080_000);
@@ -94,7 +106,7 @@ describe("Calcul centralisé des bulletins", () => {
 
   it("plafonne la déduction des cotisations de retraite à 10 % du brut", () => {
     const result = calculatePayrollAmounts({
-      gross: 1_000_000, dependants: 0, rule: { ...rule, cnaps_employee_rate: 0.15 },
+      gross: 1_000_000, dependants: 0, rule: { ...rule, cnaps_employee_rate: 0.15 }, irsaDeductionAuthorized: true,
     });
     expect(result.employeeSocial).toBe(150_000);
     expect(result.deductiblePension).toBe(100_000);
@@ -105,6 +117,7 @@ describe("Calcul centralisé des bulletins", () => {
     const result = calculatePayrollAmounts({
       gross: 1_000_000, dependants: 0, rule,
       additionalEmployeePensionContribution: 50_000,
+      irsaDeductionAuthorized: true,
     });
     expect(result.deductiblePension).toBe(60_000);
     expect(result.netBeforeOtherDeductions).toBe(836_500);
@@ -132,11 +145,13 @@ describe("Calcul centralisé des bulletins", () => {
     const result = calculatePayrollAmounts({
       gross: 1_000_000, dependants: 2,
       rule: { ...rule, irsa_dependant_reduction: 3_500, irsa_dependant_threshold: 900_000 },
+      irsaDeductionAuthorized: true,
     });
     expect(result.incomeTax).toBe(96_500);
     const belowThreshold = calculatePayrollAmounts({
       gross: 800_000, dependants: 2,
       rule: { ...rule, irsa_dependant_reduction: 3_500, irsa_dependant_threshold: 900_000 },
+      irsaDeductionAuthorized: true,
     });
     expect(belowThreshold.incomeTax).toBe(64_300);
   });
