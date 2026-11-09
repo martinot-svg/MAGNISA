@@ -110,6 +110,8 @@ jobs:
       - name: Exercise fixed-asset accounting workflows with authenticated user
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/fixed-assets-integration.sql
+      - name: Test fixed-asset register and reconciliation RLS
+        run: node scripts/ci/fixed-assets-rls-integration.mjs
       - name: Test collaborative CRM RPCs, commission splits and tenant isolation
         run: node scripts/ci/crm-collaboration-integration.mjs
       - name: Verify snapshot-aware payslip RPC privileges
