@@ -15,7 +15,7 @@ BEGIN
     FROM pg_policies
     WHERE schemaname='public'
       AND tablename='fixed_assets'
-      AND cmd IN ('SELECT','INSERT','UPDATE')
+      AND cmd IN ('SELECT','INSERT','UPDATE','ALL')
   LOOP
     EXECUTE format('DROP POLICY %I ON public.fixed_assets',p.policyname);
   END LOOP;
