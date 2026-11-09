@@ -138,4 +138,33 @@ assert(finalPayments.data.length === 3, "Idempotent retry must not create a dupl
 assert(finalPayments.data.reduce((sum, payment) => sum + Number(payment.amount), 0) === 200000,
   "Payroll payments must reconcile to the total net payable.");
 
-process.stdout.write("PASS payroll payment integration: partial/full run status, multiple payslips and idempotency\n");
+const cancelledRun = await admin.from("payroll_runs").insert({
+  organization_id: organizationId,
+  period_start: "2027-01-01",
+  period_end: "2027-01-31",
+  status: "cancelled",
+  created_by: userId,
+}).select("id").single();
+if (cancelledRun.error) throw cancelledRun.error;
+const cancelledSlip = await admin.from("payslips").insert({
+  organization_id: organizationId,
+  payroll_run_id: cancelledRun.data.id,
+  employee_id: employeeRows.data[0].id,
+  base_salary: 100000,
+  gross_pay: 100000,
+  net_pay: 100000,
+  paid_amount: 0,
+  status: "validated",
+}).select("id").single();
+if (cancelledSlip.error) throw cancelledSlip.error;
+const cancelledAttempt = await user.rpc("lot2_record_payroll_payment_idempotent", paymentArgs(
+  cancelledSlip.data.id, 100000, crypto.randomUUID(), `CI-PAY-CANCELLED-${suffix}`,
+));
+assert(!!cancelledAttempt.error && cancelledAttempt.error.message.includes("annulé"),
+  "Payments against cancelled payroll runs must be rejected.");
+const cancelledPaymentRows = await admin.from("payroll_payments").select("id")
+  .eq("payslip_id", cancelledSlip.data.id);
+if (cancelledPaymentRows.error) throw cancelledPaymentRows.error;
+assert(cancelledPaymentRows.data.length === 0, "Cancelled payroll run must not create a payment.");
+
+process.stdout.write("PASS payroll payment integration: partial/full run status, multiple payslips, idempotency and cancelled-run guard\\n");
