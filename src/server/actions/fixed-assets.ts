@@ -16,7 +16,7 @@ const assetSchema = z.object({
   residual_value: z.coerce.number().finite().nonnegative().default(0),
   useful_life_months: z.preprocess((value) => value === "" || value == null ? undefined : value, z.coerce.number().int().positive().optional()),
   depreciation_method: z.enum(["straight_line", "none"]),
-  pcg_asset_account_code: z.string().trim().regex(/^(20|21|22|23|26|27)\\d{0,4}$/),
+  pcg_asset_account_code: z.string().trim().regex(/^(20|21|22|23|26|27)\d{0,4}$/),
   pcg_accumulated_depreciation_account_code: z.string().trim().optional(),
   pcg_depreciation_expense_account_code: z.string().trim().optional(),
   supplier_name: z.string().trim().max(180).optional(),
@@ -34,10 +34,10 @@ const assetSchema = z.object({
   }
   if (value.depreciation_method === "straight_line") {
     if (!value.useful_life_months) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["useful_life_months"], message: "La durée d'utilisation est obligatoire pour un bien amortissable." });
-    if (!/^28\\d{0,4}$/.test(value.pcg_accumulated_depreciation_account_code || "")) {
+    if (!/^28\d{0,4}$/.test(value.pcg_accumulated_depreciation_account_code || "")) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pcg_accumulated_depreciation_account_code"], message: "Renseigne un compte correcteur PCG de classe 28." });
     }
-    if (!/^681\\d{0,4}$/.test(value.pcg_depreciation_expense_account_code || "")) {
+    if (!/^681\d{0,4}$/.test(value.pcg_depreciation_expense_account_code || "")) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pcg_depreciation_expense_account_code"], message: "Renseigne un compte de dotation PCG de classe 68." });
     }
   }
