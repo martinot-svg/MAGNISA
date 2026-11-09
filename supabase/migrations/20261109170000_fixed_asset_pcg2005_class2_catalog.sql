@@ -54,6 +54,7 @@ INSERT INTO public.pcg2005_accounts(code,label,kind) VALUES
  ('297','Pertes de valeur sur autres immobilisations financières','asset'),
  ('72','Production immobilisée','income'),
  ('404','Fournisseurs d’immobilisations','liability'),
+ ('405','Fournisseurs d’immobilisations effets à payer','liability'),
  ('462','Créances sur cessions d’immobilisations','asset'),
  ('652','Moins-values sur cessions d’actifs non courants','expense'),
  ('681','Dotations aux amortissements, provisions et pertes de valeur des actifs non courants','expense'),
