@@ -164,9 +164,11 @@ async function createPayslip(fd: FormData) {
     ctx.supabase.from("employees").select("base_salary,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from,irsa_deduction_authorized_to").eq("organization_id",ctx.organizationId).eq("id",employeeId).single(),
   ]);
   if(runError||employeeError||!run||!employee)throw new Error("Salarié ou période introuvable.");
-  const {data:rules,error:ruleError}=await ctx.supabase.from("payroll_rule_sets").select("*").eq("organization_id",ctx.organizationId).eq("status","validated").lte("effective_from",run.period_end).order("effective_from",{ascending:false});
+  // The query explicitly selects both date columns; keep their database shape explicit here.
+  const payrollPeriod = run as { period_start: string; period_end: string };
+  const {data:rules,error:ruleError}=await ctx.supabase.from("payroll_rule_sets").select("*").eq("organization_id",ctx.organizationId).eq("status","validated").lte("effective_from",payrollPeriod.period_end).order("effective_from",{ascending:false});
   if(ruleError)throw new Error(ruleError.message);
-  const applicable=(rules||[]).filter((r:any)=>!r.effective_to||r.effective_to>=run.period_end);
+  const applicable=(rules||[]).filter((r:any)=>!r.effective_to||r.effective_to>=payrollPeriod.period_end);
   if(applicable.length!==1)throw new Error("Le calcul automatique exige un unique référentiel réglementaire validé pour cette période. Consulte Paramètres de paie - Madagascar.");
   const rule=applicable[0];
   if(rule.rounding_policy!=="floor_100"||!Array.isArray(rule.irsa_brackets)||rule.irsa_brackets.length===0||rule.cnaps_monthly_ceiling==null||rule.health_monthly_ceiling==null)throw new Error("Référentiel incomplet : l'IRSA, les arrondis et les plafonds doivent être contrôlés avant calcul.");
@@ -178,7 +180,7 @@ async function createPayslip(fd: FormData) {
     const value=Number(rule[key]);
     if (!Number.isFinite(value) || value < 0 || (key.endsWith("_rate") && value > 1)) throw new Error("Paramètre réglementaire invalide : "+key);
   }
-  const irsaDeductionAuthorized=Boolean(employee.irsa_deduction_authorized&&employee.irsa_deduction_authorization_reference&&(!employee.irsa_deduction_authorized_from||employee.irsa_deduction_authorized_from<=run.period_start)&&(!employee.irsa_deduction_authorized_to||employee.irsa_deduction_authorized_to>=run.period_end));
+  const irsaDeductionAuthorized=Boolean(employee.irsa_deduction_authorized&&employee.irsa_deduction_authorization_reference&&(!employee.irsa_deduction_authorized_from||employee.irsa_deduction_authorized_from<=payrollPeriod.period_start)&&(!employee.irsa_deduction_authorized_to||employee.irsa_deduction_authorized_to>=payrollPeriod.period_end));
   const calculation = calculatePayrollAmounts({
     gross,
     taxableSupplementaryPension: amounts.taxable_supplementary_pension,
