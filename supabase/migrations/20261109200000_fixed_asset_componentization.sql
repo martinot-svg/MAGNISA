@@ -52,6 +52,11 @@ DECLARE
   v_accum_account text;
   v_expense_account text;
   v_impairment_account text;
+  v_impairment_expense_account text;
+  v_impairment_reversal_account text;
+  v_disposal_receivable_account text;
+  v_disposal_expense_account text;
+  v_disposal_income_account text;
   v_kind text;
   v_count integer := 0;
   v_currency text;
@@ -99,7 +104,12 @@ BEGIN
     v_asset_account := trim(coalesce(c->>'pcg_asset_account_code',''));
     v_accum_account := nullif(trim(coalesce(c->>'pcg_accumulated_depreciation_account_code','')),'');
     v_expense_account := nullif(trim(coalesce(c->>'pcg_depreciation_expense_account_code','')),'');
-    v_impairment_account := nullif(trim(coalesce(c->>'pcg_impairment_account_code','')),'');
+    v_impairment_account := coalesce(nullif(trim(coalesce(c->>'pcg_impairment_account_code','')),''),p.pcg_impairment_account_code);
+    v_impairment_expense_account := coalesce(nullif(trim(coalesce(c->>'pcg_impairment_expense_account_code','')),''),p.pcg_impairment_expense_account_code);
+    v_impairment_reversal_account := coalesce(nullif(trim(coalesce(c->>'pcg_impairment_reversal_income_account_code','')),''),p.pcg_impairment_reversal_income_account_code);
+    v_disposal_receivable_account := coalesce(nullif(trim(coalesce(c->>'pcg_disposal_receivable_account_code','')),''),p.pcg_disposal_receivable_account_code);
+    v_disposal_expense_account := coalesce(nullif(trim(coalesce(c->>'pcg_disposal_expense_account_code','')),''),p.pcg_disposal_expense_account_code);
+    v_disposal_income_account := coalesce(nullif(trim(coalesce(c->>'pcg_disposal_income_account_code','')),''),p.pcg_disposal_income_account_code);
     IF v_code='' OR v_name='' OR v_cost<=0 OR v_direct<0 OR v_component_residual<0
       OR v_component_accum<0 OR v_component_impair<0 OR v_component_accum+v_component_impair>v_cost+v_direct
       OR v_component_residual>v_cost+v_direct OR v_method NOT IN ('straight_line','none')
@@ -117,8 +127,586 @@ BEGIN
     IF v_component_accum>0 AND (v_accum_account IS NULL OR v_accum_account !~ '^28[0-9]{0,4}$') THEN
       RAISE EXCEPTION 'Composant % : compte 28 invalide',v_count;
     END IF;
-    IF v_component_impair>0 AND (v_impairment_account IS NULL OR v_impairment_account !~ '^29[0-9]{0,4}$') THEN
-      RAISE EXCEPTION 'Composant % : compte 29 invalide',v_count;
+    IF v_impairment_account IS NULL OR v_impairment_account !~ '^29[0-9]{0,4}
+    IF v_method='straight_line' THEN
+      IF NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_accum_account AND kind='asset')
+        OR NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_expense_account AND kind='expense') THEN
+        RAISE EXCEPTION 'Composant % : comptes d’amortissement absents du PCG',v_count;
+      END IF;
+    END IF;
+    IF v_component_accum>0 AND NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_accum_account AND kind='asset') THEN
+      RAISE EXCEPTION 'Composant % : compte d’amortissements cumulés absent du PCG',v_count;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_impairment_account AND kind='asset')
+      OR NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_impairment_expense_account AND kind='expense')
+      OR NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_impairment_reversal_account AND kind='income')
+      OR NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_disposal_receivable_account AND kind='asset')
+      OR NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_disposal_expense_account AND kind='expense')
+      OR NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_disposal_income_account AND kind='income') THEN
+      RAISE EXCEPTION 'Composant % : un compte de dépréciation ou de sortie est absent du PCG',v_count;
+    END IF;
+
+    INSERT INTO public.fixed_assets(
+      organization_id,asset_code,name,category,acquisition_date,in_service_date,
+      acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,
+      depreciation_method,pcg_asset_account_code,pcg_accumulated_depreciation_account_code,
+      pcg_depreciation_expense_account_code,pcg_impairment_account_code,
+      pcg_impairment_expense_account_code,pcg_impairment_reversal_income_account_code,
+      pcg_disposal_receivable_account_code,pcg_disposal_expense_account_code,pcg_disposal_income_account_code,
+      accumulated_depreciation,impairment_loss,net_book_value,status,parent_asset_id,
+      component_reference,legacy_accounting_origin,supplier_name,invoice_reference,
+      created_at,updated_at
+    ) VALUES (
+      p_org,v_code,v_name,coalesce(nullif(c->>'category',''),p.category),p.acquisition_date,v_service_date,
+      v_cost,v_direct,v_component_residual,v_life,v_method,v_asset_account,v_accum_account,
+      v_expense_account,v_impairment_account,v_impairment_expense_account,v_impairment_reversal_account,
+      v_disposal_receivable_account,v_disposal_expense_account,v_disposal_income_account,
+      v_component_accum,v_component_impair,
+      round(v_cost+v_direct-v_component_accum-v_component_impair,2),'active',p_parent_asset,
+      v_code,true,p.supplier_name,p.invoice_reference,now(),now()
+    ) RETURNING id INTO v_component_id;
+
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',v_asset_account,'debit',round(v_cost+v_direct,2),'credit',0
+    ));
+    IF v_component_accum>0 THEN
+      v_lines := v_lines||jsonb_build_array(
+        jsonb_build_object('account_kind','pcg','pcg_code',v_accum_account,'debit',0,'credit',v_component_accum)
+      );
+    END IF;
+    IF v_component_impair>0 THEN
+      v_lines := v_lines||jsonb_build_array(
+        jsonb_build_object('account_kind','pcg','pcg_code',v_impairment_account,'debit',0,'credit',v_component_impair)
+      );
+    END IF;
+  END LOOP;
+
+  IF round((SELECT coalesce(sum((x->>'acquisition_cost')::numeric+coalesce((x->>'directly_attributable_cost')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_gross THEN
+    RAISE EXCEPTION 'La somme des coûts des composants doit être égale au coût brut de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'accumulated_depreciation')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_accum THEN
+    RAISE EXCEPTION 'La somme des amortissements composants doit être égale au cumul de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'impairment_loss')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_impair THEN
+    RAISE EXCEPTION 'La somme des dépréciations composants doit être égale au cumul de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'residual_value')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_residual THEN
+    RAISE EXCEPTION 'La somme des valeurs résiduelles composants doit être égale à celle de l’immobilisation mère';
+  END IF;
+  IF v_accum>0 THEN
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',p.pcg_accumulated_depreciation_account_code,'debit',v_accum,'credit',0
+    ));
+  END IF;
+  IF v_impair>0 THEN
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',p.pcg_impairment_account_code,'debit',v_impair,'credit',0
+    ));
+  END IF;
+
+  v_journal := public.magnisa_post_journal(p_org,p_event_date,'COMP-IMM-'||left(p.id::text,12),
+    'Ventilation par composants - '||p.name,'fixed_asset_componentization',p.id,v_lines);
+  INSERT INTO public.fixed_asset_componentizations(
+    organization_id,parent_asset_id,component_count,gross_cost_reclassified,
+    accumulated_depreciation_reclassified,impairment_reclassified,event_date,reason,journal_entry_id,created_by
+  ) VALUES(p_org,p_parent_asset,v_count,v_gross,v_accum,v_impair,p_event_date,trim(p_reason),v_journal,auth.uid())
+  RETURNING id INTO v_event_id;
+  UPDATE public.fixed_assets SET acquisition_cost=0,directly_attributable_cost=0,
+    residual_value=0,useful_life_months=NULL,depreciation_method='none',
+    accumulated_depreciation=0,impairment_loss=0,net_book_value=0,
+    component_reference='componentized_parent',updated_at=now()
+  WHERE id=p_parent_asset AND organization_id=p_org;
+  PERFORM public.audit_event(p_org,'fixed_asset.componentized','fixed_asset',p_parent_asset,
+    jsonb_build_object('gross_cost',v_gross,'accumulated_depreciation',v_accum,'impairment_loss',v_impair),
+    jsonb_build_object('componentization_id',v_event_id,'journal_entry_id',v_journal,'component_count',v_count));
+  RETURN v_event_id;
+END $$;
+
+REVOKE ALL ON FUNCTION public.magnisa_componentize_fixed_asset(uuid,uuid,date,jsonb,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.magnisa_componentize_fixed_asset(uuid,uuid,date,jsonb,text) TO authenticated;
+
+      OR v_impairment_expense_account IS NULL OR v_impairment_expense_account !~ '^68[0-9]{0,4}
+    IF v_method='straight_line' THEN
+      IF NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_accum_account AND kind='asset')
+        OR NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_expense_account AND kind='expense') THEN
+        RAISE EXCEPTION 'Composant % : comptes d’amortissement absents du PCG',v_count;
+      END IF;
+    END IF;
+    IF v_component_accum>0 AND NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_accum_account AND kind='asset') THEN
+      RAISE EXCEPTION 'Composant % : compte d’amortissements cumulés absent du PCG',v_count;
+    END IF;
+    IF v_component_impair>0 AND NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_impairment_account AND kind='asset') THEN
+      RAISE EXCEPTION 'Composant % : compte de dépréciation absent du PCG',v_count;
+    END IF;
+
+    INSERT INTO public.fixed_assets(
+      organization_id,asset_code,name,category,acquisition_date,in_service_date,
+      acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,
+      depreciation_method,pcg_asset_account_code,pcg_accumulated_depreciation_account_code,
+      pcg_depreciation_expense_account_code,pcg_impairment_account_code,
+      accumulated_depreciation,impairment_loss,net_book_value,status,parent_asset_id,
+      component_reference,legacy_accounting_origin,supplier_name,invoice_reference,
+      created_at,updated_at
+    ) VALUES (
+      p_org,v_code,v_name,coalesce(nullif(c->>'category',''),p.category),p.acquisition_date,v_service_date,
+      v_cost,v_direct,v_component_residual,v_life,v_method,v_asset_account,v_accum_account,
+      v_expense_account,v_impairment_account,v_component_accum,v_component_impair,
+      round(v_cost+v_direct-v_component_accum-v_component_impair,2),'active',p_parent_asset,
+      v_code,true,p.supplier_name,p.invoice_reference,now(),now()
+    ) RETURNING id INTO v_component_id;
+
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',v_asset_account,'debit',round(v_cost+v_direct,2),'credit',0
+    ));
+    IF v_component_accum>0 THEN
+      v_lines := v_lines||jsonb_build_array(
+        jsonb_build_object('account_kind','pcg','pcg_code',p.pcg_accumulated_depreciation_account_code,'debit',v_component_accum,'credit',0),
+        jsonb_build_object('account_kind','pcg','pcg_code',v_accum_account,'debit',0,'credit',v_component_accum)
+      );
+    END IF;
+    IF v_component_impair>0 THEN
+      v_lines := v_lines||jsonb_build_array(
+        jsonb_build_object('account_kind','pcg','pcg_code',p.pcg_impairment_account_code,'debit',v_component_impair,'credit',0),
+        jsonb_build_object('account_kind','pcg','pcg_code',v_impairment_account,'debit',0,'credit',v_component_impair)
+      );
+    END IF;
+  END LOOP;
+
+  IF round((SELECT coalesce(sum((x->>'acquisition_cost')::numeric+coalesce((x->>'directly_attributable_cost')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_gross THEN
+    RAISE EXCEPTION 'La somme des coûts des composants doit être égale au coût brut de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'accumulated_depreciation')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_accum THEN
+    RAISE EXCEPTION 'La somme des amortissements composants doit être égale au cumul de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'impairment_loss')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_impair THEN
+    RAISE EXCEPTION 'La somme des dépréciations composants doit être égale au cumul de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'residual_value')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_residual THEN
+    RAISE EXCEPTION 'La somme des valeurs résiduelles composants doit être égale à celle de l’immobilisation mère';
+  END IF;
+  IF v_accum>0 THEN
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',p.pcg_accumulated_depreciation_account_code,'debit',v_accum,'credit',0
+    ));
+  END IF;
+  IF v_impair>0 THEN
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',p.pcg_impairment_account_code,'debit',v_impair,'credit',0
+    ));
+  END IF;
+
+  v_journal := public.magnisa_post_journal(p_org,p_event_date,'COMP-IMM-'||left(p.id::text,12),
+    'Ventilation par composants - '||p.name,'fixed_asset_componentization',p.id,v_lines);
+  INSERT INTO public.fixed_asset_componentizations(
+    organization_id,parent_asset_id,component_count,gross_cost_reclassified,
+    accumulated_depreciation_reclassified,impairment_reclassified,event_date,reason,journal_entry_id,created_by
+  ) VALUES(p_org,p_parent_asset,v_count,v_gross,v_accum,v_impair,p_event_date,trim(p_reason),v_journal,auth.uid())
+  RETURNING id INTO v_event_id;
+  UPDATE public.fixed_assets SET acquisition_cost=0,directly_attributable_cost=0,
+    residual_value=0,useful_life_months=NULL,depreciation_method='none',
+    accumulated_depreciation=0,impairment_loss=0,net_book_value=0,
+    component_reference='componentized_parent',updated_at=now()
+  WHERE id=p_parent_asset AND organization_id=p_org;
+  PERFORM public.audit_event(p_org,'fixed_asset.componentized','fixed_asset',p_parent_asset,
+    jsonb_build_object('gross_cost',v_gross,'accumulated_depreciation',v_accum,'impairment_loss',v_impair),
+    jsonb_build_object('componentization_id',v_event_id,'journal_entry_id',v_journal,'component_count',v_count));
+  RETURN v_event_id;
+END $$;
+
+REVOKE ALL ON FUNCTION public.magnisa_componentize_fixed_asset(uuid,uuid,date,jsonb,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.magnisa_componentize_fixed_asset(uuid,uuid,date,jsonb,text) TO authenticated;
+
+      OR v_impairment_reversal_account IS NULL OR v_impairment_reversal_account !~ '^78[0-9]{0,4}
+    IF v_method='straight_line' THEN
+      IF NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_accum_account AND kind='asset')
+        OR NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_expense_account AND kind='expense') THEN
+        RAISE EXCEPTION 'Composant % : comptes d’amortissement absents du PCG',v_count;
+      END IF;
+    END IF;
+    IF v_component_accum>0 AND NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_accum_account AND kind='asset') THEN
+      RAISE EXCEPTION 'Composant % : compte d’amortissements cumulés absent du PCG',v_count;
+    END IF;
+    IF v_component_impair>0 AND NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_impairment_account AND kind='asset') THEN
+      RAISE EXCEPTION 'Composant % : compte de dépréciation absent du PCG',v_count;
+    END IF;
+
+    INSERT INTO public.fixed_assets(
+      organization_id,asset_code,name,category,acquisition_date,in_service_date,
+      acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,
+      depreciation_method,pcg_asset_account_code,pcg_accumulated_depreciation_account_code,
+      pcg_depreciation_expense_account_code,pcg_impairment_account_code,
+      accumulated_depreciation,impairment_loss,net_book_value,status,parent_asset_id,
+      component_reference,legacy_accounting_origin,supplier_name,invoice_reference,
+      created_at,updated_at
+    ) VALUES (
+      p_org,v_code,v_name,coalesce(nullif(c->>'category',''),p.category),p.acquisition_date,v_service_date,
+      v_cost,v_direct,v_component_residual,v_life,v_method,v_asset_account,v_accum_account,
+      v_expense_account,v_impairment_account,v_component_accum,v_component_impair,
+      round(v_cost+v_direct-v_component_accum-v_component_impair,2),'active',p_parent_asset,
+      v_code,true,p.supplier_name,p.invoice_reference,now(),now()
+    ) RETURNING id INTO v_component_id;
+
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',v_asset_account,'debit',round(v_cost+v_direct,2),'credit',0
+    ));
+    IF v_component_accum>0 THEN
+      v_lines := v_lines||jsonb_build_array(
+        jsonb_build_object('account_kind','pcg','pcg_code',p.pcg_accumulated_depreciation_account_code,'debit',v_component_accum,'credit',0),
+        jsonb_build_object('account_kind','pcg','pcg_code',v_accum_account,'debit',0,'credit',v_component_accum)
+      );
+    END IF;
+    IF v_component_impair>0 THEN
+      v_lines := v_lines||jsonb_build_array(
+        jsonb_build_object('account_kind','pcg','pcg_code',p.pcg_impairment_account_code,'debit',v_component_impair,'credit',0),
+        jsonb_build_object('account_kind','pcg','pcg_code',v_impairment_account,'debit',0,'credit',v_component_impair)
+      );
+    END IF;
+  END LOOP;
+
+  IF round((SELECT coalesce(sum((x->>'acquisition_cost')::numeric+coalesce((x->>'directly_attributable_cost')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_gross THEN
+    RAISE EXCEPTION 'La somme des coûts des composants doit être égale au coût brut de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'accumulated_depreciation')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_accum THEN
+    RAISE EXCEPTION 'La somme des amortissements composants doit être égale au cumul de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'impairment_loss')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_impair THEN
+    RAISE EXCEPTION 'La somme des dépréciations composants doit être égale au cumul de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'residual_value')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_residual THEN
+    RAISE EXCEPTION 'La somme des valeurs résiduelles composants doit être égale à celle de l’immobilisation mère';
+  END IF;
+  IF v_accum>0 THEN
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',p.pcg_accumulated_depreciation_account_code,'debit',v_accum,'credit',0
+    ));
+  END IF;
+  IF v_impair>0 THEN
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',p.pcg_impairment_account_code,'debit',v_impair,'credit',0
+    ));
+  END IF;
+
+  v_journal := public.magnisa_post_journal(p_org,p_event_date,'COMP-IMM-'||left(p.id::text,12),
+    'Ventilation par composants - '||p.name,'fixed_asset_componentization',p.id,v_lines);
+  INSERT INTO public.fixed_asset_componentizations(
+    organization_id,parent_asset_id,component_count,gross_cost_reclassified,
+    accumulated_depreciation_reclassified,impairment_reclassified,event_date,reason,journal_entry_id,created_by
+  ) VALUES(p_org,p_parent_asset,v_count,v_gross,v_accum,v_impair,p_event_date,trim(p_reason),v_journal,auth.uid())
+  RETURNING id INTO v_event_id;
+  UPDATE public.fixed_assets SET acquisition_cost=0,directly_attributable_cost=0,
+    residual_value=0,useful_life_months=NULL,depreciation_method='none',
+    accumulated_depreciation=0,impairment_loss=0,net_book_value=0,
+    component_reference='componentized_parent',updated_at=now()
+  WHERE id=p_parent_asset AND organization_id=p_org;
+  PERFORM public.audit_event(p_org,'fixed_asset.componentized','fixed_asset',p_parent_asset,
+    jsonb_build_object('gross_cost',v_gross,'accumulated_depreciation',v_accum,'impairment_loss',v_impair),
+    jsonb_build_object('componentization_id',v_event_id,'journal_entry_id',v_journal,'component_count',v_count));
+  RETURN v_event_id;
+END $$;
+
+REVOKE ALL ON FUNCTION public.magnisa_componentize_fixed_asset(uuid,uuid,date,jsonb,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.magnisa_componentize_fixed_asset(uuid,uuid,date,jsonb,text) TO authenticated;
+ THEN
+      RAISE EXCEPTION 'Composant % : comptes 29, 68 et 78 nécessaires au suivi des dépréciations',v_count;
+    END IF;
+    IF v_disposal_receivable_account IS NULL OR v_disposal_receivable_account !~ '^46[0-9]{0,4}
+    IF v_method='straight_line' THEN
+      IF NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_accum_account AND kind='asset')
+        OR NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_expense_account AND kind='expense') THEN
+        RAISE EXCEPTION 'Composant % : comptes d’amortissement absents du PCG',v_count;
+      END IF;
+    END IF;
+    IF v_component_accum>0 AND NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_accum_account AND kind='asset') THEN
+      RAISE EXCEPTION 'Composant % : compte d’amortissements cumulés absent du PCG',v_count;
+    END IF;
+    IF v_component_impair>0 AND NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_impairment_account AND kind='asset') THEN
+      RAISE EXCEPTION 'Composant % : compte de dépréciation absent du PCG',v_count;
+    END IF;
+
+    INSERT INTO public.fixed_assets(
+      organization_id,asset_code,name,category,acquisition_date,in_service_date,
+      acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,
+      depreciation_method,pcg_asset_account_code,pcg_accumulated_depreciation_account_code,
+      pcg_depreciation_expense_account_code,pcg_impairment_account_code,
+      accumulated_depreciation,impairment_loss,net_book_value,status,parent_asset_id,
+      component_reference,legacy_accounting_origin,supplier_name,invoice_reference,
+      created_at,updated_at
+    ) VALUES (
+      p_org,v_code,v_name,coalesce(nullif(c->>'category',''),p.category),p.acquisition_date,v_service_date,
+      v_cost,v_direct,v_component_residual,v_life,v_method,v_asset_account,v_accum_account,
+      v_expense_account,v_impairment_account,v_component_accum,v_component_impair,
+      round(v_cost+v_direct-v_component_accum-v_component_impair,2),'active',p_parent_asset,
+      v_code,true,p.supplier_name,p.invoice_reference,now(),now()
+    ) RETURNING id INTO v_component_id;
+
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',v_asset_account,'debit',round(v_cost+v_direct,2),'credit',0
+    ));
+    IF v_component_accum>0 THEN
+      v_lines := v_lines||jsonb_build_array(
+        jsonb_build_object('account_kind','pcg','pcg_code',p.pcg_accumulated_depreciation_account_code,'debit',v_component_accum,'credit',0),
+        jsonb_build_object('account_kind','pcg','pcg_code',v_accum_account,'debit',0,'credit',v_component_accum)
+      );
+    END IF;
+    IF v_component_impair>0 THEN
+      v_lines := v_lines||jsonb_build_array(
+        jsonb_build_object('account_kind','pcg','pcg_code',p.pcg_impairment_account_code,'debit',v_component_impair,'credit',0),
+        jsonb_build_object('account_kind','pcg','pcg_code',v_impairment_account,'debit',0,'credit',v_component_impair)
+      );
+    END IF;
+  END LOOP;
+
+  IF round((SELECT coalesce(sum((x->>'acquisition_cost')::numeric+coalesce((x->>'directly_attributable_cost')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_gross THEN
+    RAISE EXCEPTION 'La somme des coûts des composants doit être égale au coût brut de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'accumulated_depreciation')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_accum THEN
+    RAISE EXCEPTION 'La somme des amortissements composants doit être égale au cumul de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'impairment_loss')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_impair THEN
+    RAISE EXCEPTION 'La somme des dépréciations composants doit être égale au cumul de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'residual_value')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_residual THEN
+    RAISE EXCEPTION 'La somme des valeurs résiduelles composants doit être égale à celle de l’immobilisation mère';
+  END IF;
+  IF v_accum>0 THEN
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',p.pcg_accumulated_depreciation_account_code,'debit',v_accum,'credit',0
+    ));
+  END IF;
+  IF v_impair>0 THEN
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',p.pcg_impairment_account_code,'debit',v_impair,'credit',0
+    ));
+  END IF;
+
+  v_journal := public.magnisa_post_journal(p_org,p_event_date,'COMP-IMM-'||left(p.id::text,12),
+    'Ventilation par composants - '||p.name,'fixed_asset_componentization',p.id,v_lines);
+  INSERT INTO public.fixed_asset_componentizations(
+    organization_id,parent_asset_id,component_count,gross_cost_reclassified,
+    accumulated_depreciation_reclassified,impairment_reclassified,event_date,reason,journal_entry_id,created_by
+  ) VALUES(p_org,p_parent_asset,v_count,v_gross,v_accum,v_impair,p_event_date,trim(p_reason),v_journal,auth.uid())
+  RETURNING id INTO v_event_id;
+  UPDATE public.fixed_assets SET acquisition_cost=0,directly_attributable_cost=0,
+    residual_value=0,useful_life_months=NULL,depreciation_method='none',
+    accumulated_depreciation=0,impairment_loss=0,net_book_value=0,
+    component_reference='componentized_parent',updated_at=now()
+  WHERE id=p_parent_asset AND organization_id=p_org;
+  PERFORM public.audit_event(p_org,'fixed_asset.componentized','fixed_asset',p_parent_asset,
+    jsonb_build_object('gross_cost',v_gross,'accumulated_depreciation',v_accum,'impairment_loss',v_impair),
+    jsonb_build_object('componentization_id',v_event_id,'journal_entry_id',v_journal,'component_count',v_count));
+  RETURN v_event_id;
+END $$;
+
+REVOKE ALL ON FUNCTION public.magnisa_componentize_fixed_asset(uuid,uuid,date,jsonb,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.magnisa_componentize_fixed_asset(uuid,uuid,date,jsonb,text) TO authenticated;
+
+      OR v_disposal_expense_account IS NULL OR v_disposal_expense_account !~ '^65[0-9]{0,4}
+    IF v_method='straight_line' THEN
+      IF NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_accum_account AND kind='asset')
+        OR NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_expense_account AND kind='expense') THEN
+        RAISE EXCEPTION 'Composant % : comptes d’amortissement absents du PCG',v_count;
+      END IF;
+    END IF;
+    IF v_component_accum>0 AND NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_accum_account AND kind='asset') THEN
+      RAISE EXCEPTION 'Composant % : compte d’amortissements cumulés absent du PCG',v_count;
+    END IF;
+    IF v_component_impair>0 AND NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_impairment_account AND kind='asset') THEN
+      RAISE EXCEPTION 'Composant % : compte de dépréciation absent du PCG',v_count;
+    END IF;
+
+    INSERT INTO public.fixed_assets(
+      organization_id,asset_code,name,category,acquisition_date,in_service_date,
+      acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,
+      depreciation_method,pcg_asset_account_code,pcg_accumulated_depreciation_account_code,
+      pcg_depreciation_expense_account_code,pcg_impairment_account_code,
+      accumulated_depreciation,impairment_loss,net_book_value,status,parent_asset_id,
+      component_reference,legacy_accounting_origin,supplier_name,invoice_reference,
+      created_at,updated_at
+    ) VALUES (
+      p_org,v_code,v_name,coalesce(nullif(c->>'category',''),p.category),p.acquisition_date,v_service_date,
+      v_cost,v_direct,v_component_residual,v_life,v_method,v_asset_account,v_accum_account,
+      v_expense_account,v_impairment_account,v_component_accum,v_component_impair,
+      round(v_cost+v_direct-v_component_accum-v_component_impair,2),'active',p_parent_asset,
+      v_code,true,p.supplier_name,p.invoice_reference,now(),now()
+    ) RETURNING id INTO v_component_id;
+
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',v_asset_account,'debit',round(v_cost+v_direct,2),'credit',0
+    ));
+    IF v_component_accum>0 THEN
+      v_lines := v_lines||jsonb_build_array(
+        jsonb_build_object('account_kind','pcg','pcg_code',p.pcg_accumulated_depreciation_account_code,'debit',v_component_accum,'credit',0),
+        jsonb_build_object('account_kind','pcg','pcg_code',v_accum_account,'debit',0,'credit',v_component_accum)
+      );
+    END IF;
+    IF v_component_impair>0 THEN
+      v_lines := v_lines||jsonb_build_array(
+        jsonb_build_object('account_kind','pcg','pcg_code',p.pcg_impairment_account_code,'debit',v_component_impair,'credit',0),
+        jsonb_build_object('account_kind','pcg','pcg_code',v_impairment_account,'debit',0,'credit',v_component_impair)
+      );
+    END IF;
+  END LOOP;
+
+  IF round((SELECT coalesce(sum((x->>'acquisition_cost')::numeric+coalesce((x->>'directly_attributable_cost')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_gross THEN
+    RAISE EXCEPTION 'La somme des coûts des composants doit être égale au coût brut de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'accumulated_depreciation')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_accum THEN
+    RAISE EXCEPTION 'La somme des amortissements composants doit être égale au cumul de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'impairment_loss')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_impair THEN
+    RAISE EXCEPTION 'La somme des dépréciations composants doit être égale au cumul de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'residual_value')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_residual THEN
+    RAISE EXCEPTION 'La somme des valeurs résiduelles composants doit être égale à celle de l’immobilisation mère';
+  END IF;
+  IF v_accum>0 THEN
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',p.pcg_accumulated_depreciation_account_code,'debit',v_accum,'credit',0
+    ));
+  END IF;
+  IF v_impair>0 THEN
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',p.pcg_impairment_account_code,'debit',v_impair,'credit',0
+    ));
+  END IF;
+
+  v_journal := public.magnisa_post_journal(p_org,p_event_date,'COMP-IMM-'||left(p.id::text,12),
+    'Ventilation par composants - '||p.name,'fixed_asset_componentization',p.id,v_lines);
+  INSERT INTO public.fixed_asset_componentizations(
+    organization_id,parent_asset_id,component_count,gross_cost_reclassified,
+    accumulated_depreciation_reclassified,impairment_reclassified,event_date,reason,journal_entry_id,created_by
+  ) VALUES(p_org,p_parent_asset,v_count,v_gross,v_accum,v_impair,p_event_date,trim(p_reason),v_journal,auth.uid())
+  RETURNING id INTO v_event_id;
+  UPDATE public.fixed_assets SET acquisition_cost=0,directly_attributable_cost=0,
+    residual_value=0,useful_life_months=NULL,depreciation_method='none',
+    accumulated_depreciation=0,impairment_loss=0,net_book_value=0,
+    component_reference='componentized_parent',updated_at=now()
+  WHERE id=p_parent_asset AND organization_id=p_org;
+  PERFORM public.audit_event(p_org,'fixed_asset.componentized','fixed_asset',p_parent_asset,
+    jsonb_build_object('gross_cost',v_gross,'accumulated_depreciation',v_accum,'impairment_loss',v_impair),
+    jsonb_build_object('componentization_id',v_event_id,'journal_entry_id',v_journal,'component_count',v_count));
+  RETURN v_event_id;
+END $$;
+
+REVOKE ALL ON FUNCTION public.magnisa_componentize_fixed_asset(uuid,uuid,date,jsonb,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.magnisa_componentize_fixed_asset(uuid,uuid,date,jsonb,text) TO authenticated;
+
+      OR v_disposal_income_account IS NULL OR v_disposal_income_account !~ '^75[0-9]{0,4}
+    IF v_method='straight_line' THEN
+      IF NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_accum_account AND kind='asset')
+        OR NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_expense_account AND kind='expense') THEN
+        RAISE EXCEPTION 'Composant % : comptes d’amortissement absents du PCG',v_count;
+      END IF;
+    END IF;
+    IF v_component_accum>0 AND NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_accum_account AND kind='asset') THEN
+      RAISE EXCEPTION 'Composant % : compte d’amortissements cumulés absent du PCG',v_count;
+    END IF;
+    IF v_component_impair>0 AND NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_impairment_account AND kind='asset') THEN
+      RAISE EXCEPTION 'Composant % : compte de dépréciation absent du PCG',v_count;
+    END IF;
+
+    INSERT INTO public.fixed_assets(
+      organization_id,asset_code,name,category,acquisition_date,in_service_date,
+      acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,
+      depreciation_method,pcg_asset_account_code,pcg_accumulated_depreciation_account_code,
+      pcg_depreciation_expense_account_code,pcg_impairment_account_code,
+      accumulated_depreciation,impairment_loss,net_book_value,status,parent_asset_id,
+      component_reference,legacy_accounting_origin,supplier_name,invoice_reference,
+      created_at,updated_at
+    ) VALUES (
+      p_org,v_code,v_name,coalesce(nullif(c->>'category',''),p.category),p.acquisition_date,v_service_date,
+      v_cost,v_direct,v_component_residual,v_life,v_method,v_asset_account,v_accum_account,
+      v_expense_account,v_impairment_account,v_component_accum,v_component_impair,
+      round(v_cost+v_direct-v_component_accum-v_component_impair,2),'active',p_parent_asset,
+      v_code,true,p.supplier_name,p.invoice_reference,now(),now()
+    ) RETURNING id INTO v_component_id;
+
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',v_asset_account,'debit',round(v_cost+v_direct,2),'credit',0
+    ));
+    IF v_component_accum>0 THEN
+      v_lines := v_lines||jsonb_build_array(
+        jsonb_build_object('account_kind','pcg','pcg_code',p.pcg_accumulated_depreciation_account_code,'debit',v_component_accum,'credit',0),
+        jsonb_build_object('account_kind','pcg','pcg_code',v_accum_account,'debit',0,'credit',v_component_accum)
+      );
+    END IF;
+    IF v_component_impair>0 THEN
+      v_lines := v_lines||jsonb_build_array(
+        jsonb_build_object('account_kind','pcg','pcg_code',p.pcg_impairment_account_code,'debit',v_component_impair,'credit',0),
+        jsonb_build_object('account_kind','pcg','pcg_code',v_impairment_account,'debit',0,'credit',v_component_impair)
+      );
+    END IF;
+  END LOOP;
+
+  IF round((SELECT coalesce(sum((x->>'acquisition_cost')::numeric+coalesce((x->>'directly_attributable_cost')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_gross THEN
+    RAISE EXCEPTION 'La somme des coûts des composants doit être égale au coût brut de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'accumulated_depreciation')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_accum THEN
+    RAISE EXCEPTION 'La somme des amortissements composants doit être égale au cumul de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'impairment_loss')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_impair THEN
+    RAISE EXCEPTION 'La somme des dépréciations composants doit être égale au cumul de l’immobilisation mère';
+  END IF;
+  IF round((SELECT coalesce(sum(coalesce((x->>'residual_value')::numeric,0)),0)
+    FROM jsonb_array_elements(p_components) x),2)<>v_residual THEN
+    RAISE EXCEPTION 'La somme des valeurs résiduelles composants doit être égale à celle de l’immobilisation mère';
+  END IF;
+  IF v_accum>0 THEN
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',p.pcg_accumulated_depreciation_account_code,'debit',v_accum,'credit',0
+    ));
+  END IF;
+  IF v_impair>0 THEN
+    v_lines := v_lines||jsonb_build_array(jsonb_build_object(
+      'account_kind','pcg','pcg_code',p.pcg_impairment_account_code,'debit',v_impair,'credit',0
+    ));
+  END IF;
+
+  v_journal := public.magnisa_post_journal(p_org,p_event_date,'COMP-IMM-'||left(p.id::text,12),
+    'Ventilation par composants - '||p.name,'fixed_asset_componentization',p.id,v_lines);
+  INSERT INTO public.fixed_asset_componentizations(
+    organization_id,parent_asset_id,component_count,gross_cost_reclassified,
+    accumulated_depreciation_reclassified,impairment_reclassified,event_date,reason,journal_entry_id,created_by
+  ) VALUES(p_org,p_parent_asset,v_count,v_gross,v_accum,v_impair,p_event_date,trim(p_reason),v_journal,auth.uid())
+  RETURNING id INTO v_event_id;
+  UPDATE public.fixed_assets SET acquisition_cost=0,directly_attributable_cost=0,
+    residual_value=0,useful_life_months=NULL,depreciation_method='none',
+    accumulated_depreciation=0,impairment_loss=0,net_book_value=0,
+    component_reference='componentized_parent',updated_at=now()
+  WHERE id=p_parent_asset AND organization_id=p_org;
+  PERFORM public.audit_event(p_org,'fixed_asset.componentized','fixed_asset',p_parent_asset,
+    jsonb_build_object('gross_cost',v_gross,'accumulated_depreciation',v_accum,'impairment_loss',v_impair),
+    jsonb_build_object('componentization_id',v_event_id,'journal_entry_id',v_journal,'component_count',v_count));
+  RETURN v_event_id;
+END $$;
+
+REVOKE ALL ON FUNCTION public.magnisa_componentize_fixed_asset(uuid,uuid,date,jsonb,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.magnisa_componentize_fixed_asset(uuid,uuid,date,jsonb,text) TO authenticated;
+ THEN
+      RAISE EXCEPTION 'Composant % : comptes 46, 65 et 75 nécessaires à la sortie',v_count;
     END IF;
     IF v_method='straight_line' THEN
       IF NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code=v_accum_account AND kind='asset')
