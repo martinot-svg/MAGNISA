@@ -81,7 +81,7 @@ export default async function FixedAssets() {
           <div className="field"><label>Désignation</label><input name="name" required maxLength={180}/></div>
           <div className="field"><label>Catégorie</label><input name="category" maxLength={100} placeholder="Matériel informatique, véhicule..."/></div>
           <div className="field"><label>Compte d'immobilisation PCG</label><input name="pcg_asset_account_code" required pattern="(20|21|22|23|26|27)[0-9]{0,4}" placeholder="218"/></div>
-          <div className="field"><label>Contrepartie d'acquisition (404 ou 512)</label><input name="pcg_acquisition_counterpart_account_code" required placeholder="404"/></div>
+          <div className="field"><label>Contrepartie PCG (404, 512, 10x, 45x ou 72x)</label><input name="pcg_acquisition_counterpart_account_code" required placeholder="404"/></div>
           <div className="field"><label>Date d'acquisition</label><input name="acquisition_date" type="date" required/></div>
           <div className="field"><label>Date de mise en service</label><input name="in_service_date" type="date" required/></div>
           <div className="field"><label>Coût d'acquisition</label><input name="acquisition_cost" type="number" min="0.01" step="0.01" required/></div>
