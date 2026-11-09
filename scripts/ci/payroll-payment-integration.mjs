@@ -56,8 +56,34 @@ if (employeeRows.error || employeeRows.data?.length !== 2) {
   throw employeeRows.error ?? new Error("Could not create payroll integration employees.");
 }
 
-const periodStart = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-const periodEnd = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+// Select a free period instead of colliding with the other payroll CI fixtures
+// or a previous run when this integration test is retried.
+const existingRuns = await admin.from("payroll_runs")
+  .select("period_start,period_end").eq("organization_id", organizationId);
+if (existingRuns.error) throw existingRuns.error;
+const usedPeriods = new Set(
+  (existingRuns.data ?? []).map(row => `${row.period_start}|${row.period_end}`)
+);
+const dateAtOffset = days => {
+  const date = new Date();
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+let periodStart;
+let periodEnd;
+for (let offset = 3; offset < 1000; offset += 1) {
+  const candidateStart = dateAtOffset(offset);
+  const candidateEnd = dateAtOffset(offset + 1);
+  if (!usedPeriods.has(`${candidateStart}|${candidateEnd}`)) {
+    periodStart = candidateStart;
+    periodEnd = candidateEnd;
+    break;
+  }
+}
+if (!periodStart || !periodEnd) {
+  throw new Error("Could not find an unused payroll period for the integration test.");
+}
 
 const legacyRun = await admin.from("payroll_runs").insert({
   organization_id: organizationId,
@@ -88,14 +114,8 @@ const legacySlips = await admin.from("payslips").select("id").eq("payroll_run_id
 if (legacySlips.error) throw legacySlips.error;
 assert(legacySlips.data.length === 0, "Rejected legacy RPC must not create a snapshot-less payslip.");
 
-const run = await admin.from("payroll_runs").insert({
-  organization_id: organizationId,
-  period_start: periodStart,
-  period_end: periodEnd,
-  status: "draft",
-  created_by: userId,
-}).select("id,status").single();
-if (run.error) throw run.error;
+// Reuse the same draft run after the intentionally rejected legacy RPC.
+const run = { data: { id: legacyRun.data.id, status: "draft" } };
 
 const fiscalSnapshot = {
   schemaVersion: 1,
