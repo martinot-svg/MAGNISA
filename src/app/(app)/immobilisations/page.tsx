@@ -94,7 +94,7 @@ export default async function FixedAssets() {
         <div className="field"><label>Notes et justificatifs</label><textarea name="notes" rows={3} maxLength={2000}/></div>
         <button className="button primary" type="submit">Enregistrer la fiche</button>
       </form>
-    </section>}
+    </section></>}
     <section className="card section">
       <h2>Registre des immobilisations</h2>
       <p className="muted">La valeur nette affichée provient du registre. Les dotations ne seront considérées comme comptabilisées qu'après génération et validation d'une écriture équilibrée.</p>
@@ -104,7 +104,6 @@ export default async function FixedAssets() {
         </tr></thead><tbody>{assets.map((asset: any) => {
           const gross = Number(asset.acquisition_cost || 0) + Number(asset.directly_attributable_cost || 0);
           const life = Number(asset.useful_life_months || 0);
-          const monthly = life > 0 ? Math.max(0, gross - Number(asset.residual_value || 0)) / life : null;
           return <tr key={asset.id}>
             <td>{asset.asset_code || asset.magnisa_reference || "—"}</td><td>{asset.name}<div className="muted">{asset.category || "À préciser"}</div></td>
             <td>{asset.pcg_asset_account_code || "À mapper"}</td><td>{asset.in_service_date || asset.acquisition_date}</td>
@@ -112,11 +111,12 @@ export default async function FixedAssets() {
             <td className="right">{money(Number(asset.accumulated_depreciation || 0), currency)}</td>
             <td className="right">{money(Number(asset.impairment_loss || 0), currency)}</td>
             <td className="right">{money(Number(asset.net_book_value || 0), currency)}</td><td>{asset.status}</td>
-            <td>{asset.acquisition_journal_entry_id ? "Comptabilisée" : <form action={postFixedAssetAcquisition}><input type="hidden" name="asset_id" value={asset.id}/><button className="button" type="submit">Comptabiliser</button></form>}</td>
+            <td>{asset.acquisition_journal_entry_id ? "Comptabilisée" : canManage === true ? <form action={postFixedAssetAcquisition}><input type="hidden" name="asset_id" value={asset.id}/><button className="button" type="submit">Comptabiliser</button></form> : "En attente"}</td>
           </tr>;
         })}</tbody></table></div>}
     </section>
 
+    {canManage === true && <>
     <section className="card section">
       <h2>Planifier et comptabiliser les dotations</h2>
       <p className="muted">La préparation calcule une dotation sans journal. La comptabilisation appelle le moteur central, contrôle la période, vérifie les comptes PCG et crée une écriture équilibrée, protégée contre les doublons.</p>
