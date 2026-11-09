@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "\${BASH_SOURCE[0]}")/../.." && pwd)"
-MIGRATIONS_DIR="\${MIGRATIONS_DIR:-$ROOT/supabase/migrations}"
-ALLOWLIST="\${ALLOWLIST:-$MIGRATIONS_DIR/production-pending-allowlist.txt}"
-RECONCILIATION_FILE="\${RECONCILIATION_FILE:-$MIGRATIONS_DIR/production-history-reconciliation.tsv}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+MIGRATIONS_DIR="${MIGRATIONS_DIR:-$ROOT/supabase/migrations}"
+ALLOWLIST="${ALLOWLIST:-$MIGRATIONS_DIR/production-pending-allowlist.txt}"
+RECONCILIATION_FILE="${RECONCILIATION_FILE:-$MIGRATIONS_DIR/production-history-reconciliation.tsv}"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -22,10 +22,10 @@ UNMAPPED="$TMP_DIR/unmapped.txt"
 USED_MAP="$TMP_DIR/used-map.txt"
 ALLOW="$TMP_DIR/allow.txt"
 
-if [[ -n "\${REMOTE_LEDGER_FILE:-}" ]]; then
+if [[ -n "${REMOTE_LEDGER_FILE:-}" ]]; then
   cp "$REMOTE_LEDGER_FILE" "$REMOTE"
 else
-  : "\${SUPABASE_DB_URL:?SUPABASE_DB_URL is required for the read-only migration ledger check}"
+  : "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required for the read-only migration ledger check}"
   psql "$SUPABASE_DB_URL" -X -qAt -F '|' \
     -c "select version::text, name from supabase_migrations.schema_migrations order by version" > "$REMOTE"
 fi
@@ -34,9 +34,9 @@ fi
 LEGACY_COUNT=0
 for file in "$MIGRATIONS_DIR"/*.sql; do
   [[ -f "$file" ]] || continue
-  filename="\${file##*/}"
+  filename="${file##*/}"
   if [[ "$filename" =~ ^([0-9]{14})_(.+)\.sql$ ]]; then
-    printf '%s|%s|%s\n' "\${BASH_REMATCH[1]}" "\${BASH_REMATCH[2]}" "$filename" >> "$LOCAL"
+    printf '%s|%s|%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "$filename" >> "$LOCAL"
   else
     LEGACY_COUNT=$((LEGACY_COUNT + 1))
     printf 'Historical non-versioned file excluded from direct deployment: %s\n' "$filename"
@@ -131,7 +131,7 @@ while IFS='|' read -r version remote_name; do
   [[ -n "$version" ]] || continue
   local_row="$(awk -F '|' -v v="$version" '$1==v {print $2}' "$LOCAL")"
   if [[ -z "$local_row" || "$local_row" != "$remote_name" ]]; then
-    grep -Fxq "$version" "$USED_MAP" || printf '%s remote=%s local=%s\n' "$version" "$remote_name" "\${local_row:-ABSENT}" >> "$UNMAPPED"
+    grep -Fxq "$version" "$USED_MAP" || printf '%s remote=%s local=%s\n' "$version" "$remote_name" "${local_row:-ABSENT}" >> "$UNMAPPED"
   fi
 done < "$REMOTE"
 
