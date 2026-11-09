@@ -82,13 +82,12 @@ const findFreePeriod = (startOffset) => {
   }
   throw new Error("Could not find an unused payroll period for the integration test.");
 };
-const { start: legacyPeriodStart, end: legacyPeriodEnd } = findFreePeriod(3);
-const { start: periodStart, end: periodEnd } = findFreePeriod(5);
+const { start: periodStart, end: periodEnd } = findFreePeriod(3);
 
 const legacyRun = await admin.from("payroll_runs").insert({
   organization_id: organizationId,
-  period_start: legacyPeriodStart,
-  period_end: legacyPeriodEnd,
+  period_start: periodStart,
+  period_end: periodEnd,
   status: "draft",
   created_by: userId,
 }).select("id").single();
