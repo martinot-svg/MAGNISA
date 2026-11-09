@@ -11,7 +11,7 @@ export type StraightLineDepreciationInput = {
 export type StraightLineDepreciationResult = {
   depreciableBase: number;
   usefulLifeEndDate: string;
-  totalUsefulLifeDays: number;
+  totalUsefulLifeMonths: number;
   daysDepreciatedInPeriod: number;
   openingAccumulatedDepreciation: number;
   depreciationCharge: number;
@@ -35,26 +35,37 @@ function iso(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function addMonthsClamped(date: Date, months: number): Date {
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth();
-  const day = date.getUTCDate();
-  const targetFirst = new Date(Date.UTC(year, month + months, 1));
+function addMonthsClamped(anchor: Date, months: number): Date {
+  const targetFirst = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + months, 1));
   const lastDay = new Date(Date.UTC(targetFirst.getUTCFullYear(), targetFirst.getUTCMonth() + 1, 0)).getUTCDate();
-  return new Date(Date.UTC(targetFirst.getUTCFullYear(), targetFirst.getUTCMonth(), Math.min(day, lastDay)));
+  return new Date(Date.UTC(targetFirst.getUTCFullYear(), targetFirst.getUTCMonth(), Math.min(anchor.getUTCDate(), lastDay)));
 }
 
-function cumulativeAt(base: number, start: Date, endExclusive: Date, totalDays: number): number {
-  const elapsed = Math.max(0, Math.min(totalDays, Math.floor((endExclusive.getTime() - start.getTime()) / DAY_MS)));
-  if (elapsed >= totalDays) return cents(base);
-  return cents(base * elapsed / totalDays);
+function cumulativeAt(base: number, service: Date, endExclusive: Date, usefulLifeMonths: number): number {
+  if (endExclusive <= service) return 0;
+  let elapsedMonths = 0;
+  for (let month = 0; month < usefulLifeMonths; month += 1) {
+    const monthStart = addMonthsClamped(service, month);
+    const monthEnd = addMonthsClamped(service, month + 1);
+    if (endExclusive >= monthEnd) {
+      elapsedMonths += 1;
+      continue;
+    }
+    if (endExclusive > monthStart) {
+      const segmentDays = (monthEnd.getTime() - monthStart.getTime()) / DAY_MS;
+      const elapsedDays = (endExclusive.getTime() - monthStart.getTime()) / DAY_MS;
+      elapsedMonths += elapsedDays / segmentDays;
+    }
+    break;
+  }
+  return cents(base * Math.min(usefulLifeMonths, elapsedMonths) / usefulLifeMonths);
 }
 
 /**
- * Computes a calendar-day straight-line schedule for review.
+ * Computes a monthly straight-line schedule with day-prorata for incomplete months.
  * The service start date is included; the useful-life end date is exclusive.
  * This is a calculation engine only: it does not post a journal entry.
- * Confirm the entity's PCG policy (including prorata convention) before statutory posting.
+ * Confirm the entity's statutory PCG policy and prorata convention before posting.
  */
 export function calculateStraightLineDepreciation(
   input: StraightLineDepreciationInput,
@@ -78,23 +89,21 @@ export function calculateStraightLineDepreciation(
   if (residual > gross) throw new Error("La valeur résiduelle ne peut pas dépasser le coût amortissable brut.");
   const base = cents(gross - residual);
   const usefulLifeEnd = addMonthsClamped(service, input.usefulLifeMonths);
-  const totalDays = Math.floor((usefulLifeEnd.getTime() - service.getTime()) / DAY_MS);
-  if (totalDays <= 0) throw new Error("La durée d'utilisation calculée est invalide.");
+  if (usefulLifeEnd <= service) throw new Error("La durée d'utilisation calculée est invalide.");
 
   const periodEndExclusive = new Date(Math.min(periodEnd.getTime() + DAY_MS, usefulLifeEnd.getTime()));
-  const openingCutoff = new Date(Math.max(periodStart.getTime(), service.getTime()));
-  const openingAccumulated = openingCutoff <= service
-    ? 0
-    : cumulativeAt(base, service, openingCutoff, totalDays);
-  const closingAccumulated = cumulativeAt(base, service, periodEndExclusive, totalDays);
+  const openingAccumulated = cumulativeAt(base, service, periodStart, input.usefulLifeMonths);
+  const closingAccumulated = cumulativeAt(base, service, periodEndExclusive, input.usefulLifeMonths);
   const charge = cents(Math.max(0, closingAccumulated - openingAccumulated));
   const closingNet = cents(Math.max(residual, gross - closingAccumulated));
+  const activeStart = new Date(Math.max(periodStart.getTime(), service.getTime()));
+  const daysDepreciated = Math.max(0, Math.floor((periodEndExclusive.getTime() - activeStart.getTime()) / DAY_MS));
 
   return {
     depreciableBase: base,
     usefulLifeEndDate: iso(usefulLifeEnd),
-    totalUsefulLifeDays: totalDays,
-    daysDepreciatedInPeriod: Math.max(0, Math.floor((periodEndExclusive.getTime() - Math.max(periodStart.getTime(), service.getTime())) / DAY_MS)),
+    totalUsefulLifeMonths: input.usefulLifeMonths,
+    daysDepreciatedInPeriod: daysDepreciated,
     openingAccumulatedDepreciation: openingAccumulated,
     depreciationCharge: charge,
     closingAccumulatedDepreciation: closingAccumulated,
