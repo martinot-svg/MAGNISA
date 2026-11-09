@@ -96,10 +96,13 @@ export function NotificationBell({ userId, organizationId, initialUnread = 0 }: 
         supabase.realtime.setAuth(session.access_token);
         subscribe();
         queueMicrotask(refreshOnce);
-      } else if (channel) {
-        const current = channel;
-        channel = null;
-        void supabase.removeChannel(current);
+      } else {
+        didRefresh = false;
+        if (channel) {
+          const current = channel;
+          channel = null;
+          void supabase.removeChannel(current);
+        }
       }
     });
 
