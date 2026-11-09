@@ -43,7 +43,7 @@ process.stdout.write("DIRECT USER JWT MEMBERSHIPS " + JSON.stringify({
   jwt_role: jwtClaims.role,
   count: directMemberships?.length ?? 0,
   query_error: directMembershipError?.code ?? "none",
-}) + "\\n");
+}) + "\n");
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
 };
@@ -55,21 +55,7 @@ const getRule = async (id) => {
 };
 const historySection = (page) => page.getByRole("dialog").locator("div.section.card")
   .filter({ has: page.getByRole("heading", { name: "Historique des règles" }) });
-const openHistory = async (page) => {
-  const button = page.getByRole("button", { name: "Historique des règles" });
-  const dialog = page.getByRole("dialog");
-  await button.waitFor({ state: "visible" });
-  await button.click();
-  try {
-    await dialog.waitFor({ state: "visible", timeout: 2000 });
-  } catch {
-    await page.waitForTimeout(750);
-    await button.click();
-    await dialog.waitFor({ state: "visible", timeout: 10000 });
-  }
-  await dialog.getByRole("heading", { name: "Historique des règles" }).first().waitFor({ timeout: 10000 });
-};
-const ruleRow = (page, name) => historySection(page).locator("tbody tr").filter({ hasText: name });
+const ruleRow = (page, name) => page.getByRole("dialog").locator("tbody tr").filter({ hasText: name });
 const openRuleActions = async (page, name) => {
   const row = ruleRow(page, name);
   await row.locator("details > summary").click();
@@ -87,14 +73,29 @@ const clickAction = async (page, button) => {
     button.click(),
   ]);
 };
+const openHistory = async (page) => {
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+  const button = page.getByRole("button", { name: "Historique des règles" });
+  await button.waitFor({ state: "visible" });
+  await page.waitForTimeout(1200);
+  await button.click();
+  await page.waitForFunction(() =>
+    document.querySelector('button[aria-haspopup="dialog"][aria-expanded="true"]') !== null,
+    null,
+    { timeout: 10000 },
+  );
+  await page.getByRole("dialog").waitFor({ state: "visible", timeout: 10000 });
+  await page.getByRole("heading", { name: "Historique des règles" }).first().waitFor({ state: "visible", timeout: 10000 });
+};
+
 const resetPage = async (page) => {
   const response = await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
   try {
     await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor({ timeout: 15000 });
     await openHistory(page);
   } catch (error) {
-    process.stdout.write("RESET PAGE URL " + page.url() + " STATUS " + response?.status() + "\\n");
-    process.stdout.write("RESET PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\\n");
+    process.stdout.write("RESET PAGE URL " + page.url() + " STATUS " + response?.status() + "\n");
+    process.stdout.write("RESET PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\n");
     throw error;
   }
 };
@@ -115,14 +116,15 @@ try {
   const membershipCheck = await admin.from("organization_members")
     .select("organization_id,role,status").eq("user_id", process.env.TEST_USER_ID);
   if (membershipCheck.error) throw membershipCheck.error;
-  process.stdout.write("TEST USER MEMBERSHIPS " + JSON.stringify(membershipCheck.data) + "\\n");
+  process.stdout.write("TEST USER MEMBERSHIPS " + JSON.stringify(membershipCheck.data) + "\n");
 
   const payrollResponse = await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
   try {
     await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor({ timeout: 15000 });
+    await openHistory(page);
   } catch (error) {
-    process.stdout.write("PAYROLL PAGE URL " + page.url() + " STATUS " + payrollResponse?.status() + "\\n");
-    process.stdout.write("PAYROLL PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\\n");
+    process.stdout.write("PAYROLL PAGE URL " + page.url() + " STATUS " + payrollResponse?.status() + "\n");
+    process.stdout.write("PAYROLL PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\n");
     throw error;
   }
   await openHistory(page);

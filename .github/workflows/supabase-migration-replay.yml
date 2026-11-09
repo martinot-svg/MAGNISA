@@ -62,6 +62,10 @@ jobs:
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/fixed-assets-accounting.sql
+      - name: Verify collaborative prospect contribution security and automation
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/prospect-collaboration.sql
       - name: Node 22
         uses: actions/setup-node@v4
         with:
@@ -91,7 +95,10 @@ jobs:
       - name: Exercise fixed-asset accounting workflows with authenticated user
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/fixed-assets-integration.sql
+      - name: Test collaborative CRM RPCs, commission splits and tenant isolation
+        run: node scripts/ci/crm-collaboration-integration.mjs
       - name: Start MAGNISA locally
+        id: app_server
         run: |
           npm run dev -- --hostname 127.0.0.1 > /tmp/magnisa-next.log 2>&1 &
           echo $! > /tmp/magnisa-next.pid
@@ -103,6 +110,9 @@ jobs:
           exit 1
       - name: Test authenticated payroll and fixed-asset UI actions
         run: node scripts/ci/payroll-ui-smoke.mjs
+      - name: Test authenticated CRM UI actions
+        if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
+        run: node scripts/ci/crm-ui-smoke.mjs
       - name: Stop MAGNISA local server
         if: always()
         run: |
