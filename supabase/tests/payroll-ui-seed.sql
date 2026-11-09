@@ -27,8 +27,6 @@ SELECT set_config(
   jsonb_build_object('sub', :'user_id'::uuid, 'role', 'authenticated')::text,
   true
 );
-SELECT set_config('app.payroll_rule_activation', 'on', true);
-
 INSERT INTO public.payroll_rule_sets (
   id, organization_id, name, effective_from, effective_to, status,
   cnaps_employee_rate, cnaps_employer_rate,
@@ -55,14 +53,11 @@ INSERT INTO public.payroll_rule_sets (
    0, 0.01, 0, 0.05, 0.01, 1000000, 1000000,
    '[{"up_to":50000,"rate":0},{"rate":0.1}]'::jsonb, 0, 'floor_100', 'TEST ONLY');
 
--- Keep the three validated versions non-overlapping: history, current, then scheduled future.
-UPDATE public.payroll_rule_sets
-   SET effective_to = current_date + 9
- WHERE id = :'current_id'::uuid;
-
-UPDATE public.payroll_rule_sets
-   SET status = 'validated', reviewed_by = :'user_id'::uuid, reviewed_at = now()
- WHERE id IN (:'history_id'::uuid, :'current_id'::uuid, :'future_id'::uuid);
+-- Activate history and current through the same audited RPC used by the UI.
+-- Leave the scheduled future version as draft so the UI smoke test exercises
+-- the real activation path and the RPC closes the current rule atomically.
+SELECT public.activate_payroll_rule(:'org_id'::uuid, :'history_id'::uuid);
+SELECT public.activate_payroll_rule(:'org_id'::uuid, :'current_id'::uuid);
 
 
 -- Assert that the authenticated role can read its own active membership.
