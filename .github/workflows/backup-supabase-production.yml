@@ -51,7 +51,7 @@ jobs:
           host = os.environ["SUPABASE_DB_HOST"]
           url = f"postgresql://{user}:{password}@{host}:5432/postgres"
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
-              env_file.write(f"SUPABASE_DB_URL={url}\\n")
+              env_file.write("SUPABASE_DB_URL=" + url + chr(10))
           PY
 
       - name: Inspect database version, Auth, Storage and business data without modifying Production
@@ -59,30 +59,30 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p backup
-          docker run --rm --network host \\
-            -e PGPASSWORD="$SUPABASE_DB_PASSWORD" -e PGSSLMODE=require \\
-            postgres:17 psql \\
-              -h "$SUPABASE_DB_HOST" -p 5432 -U "$SUPABASE_DB_USER" -d postgres \\
-              -v ON_ERROR_STOP=1 -At -F '|' \\
-              -c "select current_setting('server_version'), (select count(*) from auth.users), (select count(*) from storage.buckets), (select count(*) from storage.objects), (select count(*) from public.prospects), (select count(*) from public.financial_accounts), (select count(*) from public.prospect_interventions);" \\
+          docker run --rm --network host \
+            -e PGPASSWORD="$SUPABASE_DB_PASSWORD" -e PGSSLMODE=require \
+            postgres:17 psql \
+              -h "$SUPABASE_DB_HOST" -p 5432 -U "$SUPABASE_DB_USER" -d postgres \
+              -v ON_ERROR_STOP=1 -At -F '|' \
+              -c "select current_setting('server_version'), (select count(*) from auth.users), (select count(*) from storage.buckets), (select count(*) from storage.objects), (select count(*) from public.prospects), (select count(*) from public.financial_accounts), (select count(*) from public.prospect_interventions);" \
             > backup/production-summary.tsv
           STORAGE_OBJECTS=$(cut -d '|' -f 4 backup/production-summary.tsv)
           if [ "$STORAGE_OBJECTS" != "0" ]; then
             echo "::error::Storage contains binary objects. Export those files separately before treating this as a complete backup."
             exit 1
           fi
-          docker run --rm --network host \\
-            -e PGPASSWORD="$SUPABASE_DB_PASSWORD" -e PGSSLMODE=require \\
-            postgres:17 psql \\
-              -h "$SUPABASE_DB_HOST" -p 5432 -U "$SUPABASE_DB_USER" -d postgres \\
-              -v ON_ERROR_STOP=1 -At \\
-              -c "select format('select %L, count(*) from %I.%I;', table_schema || '.' || table_name, table_schema, table_name) from information_schema.tables where table_type='BASE TABLE' and table_schema in ('auth','cron','extensions','graphql','graphql_public','private','public','realtime','storage','supabase_migrations','vault') order by table_schema, table_name;" \\
+          docker run --rm --network host \
+            -e PGPASSWORD="$SUPABASE_DB_PASSWORD" -e PGSSLMODE=require \
+            postgres:17 psql \
+              -h "$SUPABASE_DB_HOST" -p 5432 -U "$SUPABASE_DB_USER" -d postgres \
+              -v ON_ERROR_STOP=1 -At \
+              -c "select format('select %L, count(*) from %I.%I;', table_schema || '.' || table_name, table_schema, table_name) from information_schema.tables where table_type='BASE TABLE' and table_schema in ('auth','cron','extensions','graphql','graphql_public','private','public','realtime','storage','supabase_migrations','vault') order by table_schema, table_name;" \
             > backup/counts.sql
-          docker run --rm --network host -v "$PWD/backup:/backup" \\
-            -e PGPASSWORD="$SUPABASE_DB_PASSWORD" -e PGSSLMODE=require \\
-            postgres:17 psql \\
-              -h "$SUPABASE_DB_HOST" -p 5432 -U "$SUPABASE_DB_USER" -d postgres \\
-              -v ON_ERROR_STOP=1 -At -f /backup/counts.sql \\
+          docker run --rm --network host -v "$PWD/backup:/backup" \
+            -e PGPASSWORD="$SUPABASE_DB_PASSWORD" -e PGSSLMODE=require \
+            postgres:17 psql \
+              -h "$SUPABASE_DB_HOST" -p 5432 -U "$SUPABASE_DB_USER" -d postgres \
+              -v ON_ERROR_STOP=1 -At -f /backup/counts.sql \
             > backup/production-counts.tsv
           echo "Production schema inventory and exact row counts recorded; Storage binary object count is zero."
 
@@ -96,15 +96,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm --network host \\
-            -e PGPASSWORD="$SUPABASE_DB_PASSWORD" -e PGSSLMODE=require \\
-            -v "$PWD/backup:/backup" \\
-            postgres:17 pg_dump \\
-              -h "$SUPABASE_DB_HOST" -p 5432 -U "$SUPABASE_DB_USER" -d postgres \\
-              --format=custom --no-owner \\
-              --schema=auth --schema=cron --schema=extensions --schema=graphql \\
-              --schema=graphql_public --schema=private --schema=public --schema=realtime \\
-              --schema=storage --schema=supabase_migrations --schema=vault \\
+          docker run --rm --network host \
+            -e PGPASSWORD="$SUPABASE_DB_PASSWORD" -e PGSSLMODE=require \
+            -v "$PWD/backup:/backup" \
+            postgres:17 pg_dump \
+              -h "$SUPABASE_DB_HOST" -p 5432 -U "$SUPABASE_DB_USER" -d postgres \
+              --format=custom --no-owner \
+              --schema=auth --schema=cron --schema=extensions --schema=graphql \
+              --schema=graphql_public --schema=private --schema=public --schema=realtime \
+              --schema=storage --schema=supabase_migrations --schema=vault \
               --file=/backup/magnisa-production.dump
 
       - name: Restore the backup on an isolated PostgreSQL 17 Supabase stack
@@ -114,13 +114,13 @@ jobs:
           supabase start -x studio,edge-runtime,logflare,vector,analytics
           LOCAL_DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           test -n "$LOCAL_DB_URL"
-          docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \\
+          docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
             psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -f /backup/roles.sql
-          docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \\
-            pg_restore --dbname="$LOCAL_DB_URL" --no-owner --clean --if-exists --exit-on-error \\
+          docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
+            pg_restore --dbname="$LOCAL_DB_URL" --no-owner --clean --if-exists --exit-on-error \
               /backup/magnisa-production.dump
-          docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \\
-            psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -At -f /backup/counts.sql \\
+          docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
+            psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -At -f /backup/counts.sql \
             > backup/restored-counts.tsv
           diff -u backup/production-counts.tsv backup/restored-counts.tsv
           echo "Restore test passed: exact row counts match for every table in the exported schemas."
@@ -130,11 +130,11 @@ jobs:
         run: |
           set -euo pipefail
           tar -czf backup/magnisa-production.tar.gz -C backup production-summary.tsv production-counts.tsv restored-counts.tsv roles.sql magnisa-production.dump
-          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 \\
-            -pass env:SUPABASE_DB_PASSWORD \\
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 \
+            -pass env:SUPABASE_DB_PASSWORD \
             -in backup/magnisa-production.tar.gz -out backup/magnisa-production.tar.gz.enc
-          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \\
-            -pass env:SUPABASE_DB_PASSWORD \\
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+            -pass env:SUPABASE_DB_PASSWORD \
             -in backup/magnisa-production.tar.gz.enc -out backup/verified-decryption.tar.gz
           cmp backup/magnisa-production.tar.gz backup/verified-decryption.tar.gz
           sha256sum backup/magnisa-production.tar.gz.enc | awk '{print $1}' > backup/magnisa-production.tar.gz.enc.sha256
