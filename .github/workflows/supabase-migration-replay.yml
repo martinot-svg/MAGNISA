@@ -85,7 +85,9 @@ jobs:
           echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000" >> "$GITHUB_ENV"
           echo "TEST_EMAIL=payroll-ui-smoke@magnisa.test" >> "$GITHUB_ENV"
-          echo "TEST_PASSWORD=Magnisa-UI-Smoke-2026!" >> "$GITHUB_ENV"
+          TEST_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$TEST_PASSWORD"
+          echo "TEST_PASSWORD=$TEST_PASSWORD" >> "$GITHUB_ENV"
       - name: Create authenticated local test user
         id: ui_user
         run: node scripts/ci/create-payroll-ui-user.mjs

@@ -22,7 +22,7 @@ INSERT INTO public.fixed_assets (
   (:'component_parent_id'::uuid,:'org_id'::uuid,'CI-IMM-COMP-01','CI component parent','equipment','2026-01-01','2026-01-01',
    100000,0,0,120,'straight_line','215','72','281','681','291','681','781','462','652','752',0,0,100000,'active'),
   (:'wip_asset_id'::uuid,:'org_id'::uuid,'CI-IMM-WIP-01','CI work in progress','construction','2026-01-01',NULL,
-   100000,0,0,NULL,'none','231','404',NULL,NULL,'293','681','781','462','652','752',0,0,100000,'active');
+   100000,0,0,NULL,'none','232','404',NULL,NULL,'293','681','781','462','652','752',0,0,100000,'active');
 
 SELECT set_config('request.jwt.claim.sub', :'user_id', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
@@ -78,7 +78,7 @@ BEGIN
   v_wip_acquisition_journal := public.magnisa_post_fixed_asset_acquisition(v_org,v_wip);
   IF v_wip_acquisition_journal IS NULL THEN RAISE EXCEPTION 'WIP acquisition journal was not posted'; END IF;
   v_wip_impairment_id := public.magnisa_record_fixed_asset_impairment(
-    v_org,v_wip,'2026-06-30',10000,'CI WIP impairment supported by recoverable amount evidence'
+    v_org,v_wip,'2026-06-30',90000,'CI WIP impairment supported by recoverable amount evidence'
   );
   SELECT journal_entry_id INTO v_wip_impairment_journal
   FROM public.fixed_asset_impairments WHERE id=v_wip_impairment_id;
