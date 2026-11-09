@@ -2,6 +2,11 @@ name: Encrypted Supabase Production Backup Verification
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/class2-pcg232-integration-fixture
+    paths:
+      - .github/workflows/backup-supabase-production.yml
 
 permissions:
   contents: read
@@ -12,7 +17,7 @@ concurrency:
 
 jobs:
   backup-and-restore-test:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/fix/class2-pcg232-integration-fixture')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
@@ -129,9 +134,9 @@ jobs:
           set -euo pipefail
           supabase start -x studio,edge-runtime,logflare,vector,analytics
           LOCAL_ENV=$(supabase status -o env)
-          LOCAL_DB_URL=$(printf '%s\n' "$LOCAL_ENV" | sed -n 's/^DB_URL=//p' | tr -d '"')
-          LOCAL_API_URL=$(printf '%s\n' "$LOCAL_ENV" | sed -n 's/^API_URL=//p' | tr -d '"')
-          LOCAL_SERVICE_ROLE_KEY=$(printf '%s\n' "$LOCAL_ENV" | sed -n 's/^SERVICE_ROLE_KEY=//p' | tr -d '"')
+          LOCAL_DB_URL=$(printf '%s\\n' "$LOCAL_ENV" | sed -n 's/^DB_URL=//p' | tr -d '"')
+          LOCAL_API_URL=$(printf '%s\\n' "$LOCAL_ENV" | sed -n 's/^API_URL=//p' | tr -d '"')
+          LOCAL_SERVICE_ROLE_KEY=$(printf '%s\\n' "$LOCAL_ENV" | sed -n 's/^SERVICE_ROLE_KEY=//p' | tr -d '"')
           test -n "$LOCAL_DB_URL" && test -n "$LOCAL_API_URL" && test -n "$LOCAL_SERVICE_ROLE_KEY"
           echo "::add-mask::$LOCAL_SERVICE_ROLE_KEY"
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
