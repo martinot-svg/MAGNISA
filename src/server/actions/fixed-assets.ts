@@ -368,3 +368,26 @@ export async function componentizeFixedAsset(formData: FormData) {
   revalidatePath("/comptabilite");
   return data;
 }
+
+
+export async function reverseFixedAssetDepreciation(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "accounting.manage");
+  const parsed = z.object({
+    depreciation_entry_id: z.string().uuid(),
+    reversal_date: z.string().date(),
+    reason: z.string().trim().min(10).max(1000),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message || "Données de contrepassation invalides.");
+  const { data, error } = await ctx.supabase.rpc("magnisa_reverse_fixed_asset_depreciation", {
+    p_org: ctx.organizationId,
+    p_depreciation_entry: parsed.data.depreciation_entry_id,
+    p_reversal_date: parsed.data.reversal_date,
+    p_reason: parsed.data.reason,
+  });
+  if (error) throw new Error("Impossible de contrepasser la dotation : " + error.message);
+  revalidatePath("/immobilisations");
+  revalidatePath("/etats-financiers");
+  revalidatePath("/comptabilite");
+  return data;
+}
