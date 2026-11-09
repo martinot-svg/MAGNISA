@@ -138,4 +138,20 @@ describe("calculateStraightLineDepreciation", () => {
     expect(result.closingNetBookValue).toBe(0);
   });
 
+  it("does not restore residual value when an impairment reduced carrying value below it", () => {
+    const result = calculateStraightLineDepreciation({
+      acquisitionCost: 1_200,
+      residualValue: 200,
+      usefulLifeMonths: 12,
+      inServiceDate: "2025-01-01",
+      periodStart: "2025-07-01",
+      periodEnd: "2025-12-31",
+      openingAccumulatedDepreciation: 600,
+      openingImpairmentLoss: 400,
+      openingNetBookValue: 200,
+    });
+    expect(result.depreciationCharge).toBe(0);
+    expect(result.closingNetBookValue).toBe(200);
+  });
+
 });
