@@ -104,3 +104,171 @@ export async function createFixedAsset(formData: FormData) {
   revalidatePath("/immobilisations");
   revalidatePath("/etats-financiers");
 }
+
+
+const depreciationPlanSchema = z.object({
+  asset_id: z.string().uuid(),
+  period_start: z.string().date(),
+  period_end: z.string().date(),
+}).refine((v) => v.period_end >= v.period_start, { message: "La fin de période doit suivre le début." });
+
+export async function planFixedAssetDepreciation(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "accounting.manage");
+  const parsed = depreciationPlanSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message || "Période invalide.");
+  const { data, error } = await ctx.supabase.rpc("magnisa_plan_fixed_asset_depreciation", {
+    p_org: ctx.organizationId,
+    p_asset: parsed.data.asset_id,
+    p_period_start: parsed.data.period_start,
+    p_period_end: parsed.data.period_end,
+  });
+  if (error) throw new Error("Impossible de préparer la dotation : " + error.message);
+  revalidatePath("/immobilisations");
+  return data;
+}
+
+export async function postFixedAssetDepreciation(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "accounting.manage");
+  const parsed = z.string().uuid().safeParse(formData.get("depreciation_entry_id"));
+  if (!parsed.success) throw new Error("Plan de dotation invalide.");
+  const { data, error } = await ctx.supabase.rpc("magnisa_post_fixed_asset_depreciation", {
+    p_org: ctx.organizationId,
+    p_depreciation_entry: parsed.data,
+  });
+  if (error) throw new Error("Impossible de comptabiliser la dotation : " + error.message);
+  revalidatePath("/immobilisations");
+  revalidatePath("/etats-financiers");
+  revalidatePath("/comptabilite");
+  return data;
+}
+
+const impairmentSchema = z.object({
+  asset_id: z.string().uuid(),
+  event_date: z.string().date(),
+  recoverable_amount: z.coerce.number().finite().nonnegative(),
+  reason: z.string().trim().min(10).max(1000),
+});
+
+export async function recordFixedAssetImpairment(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "accounting.manage");
+  const parsed = impairmentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message || "Données de dépréciation invalides.");
+  const { data, error } = await ctx.supabase.rpc("magnisa_record_fixed_asset_impairment", {
+    p_org: ctx.organizationId, p_asset: parsed.data.asset_id, p_date: parsed.data.event_date,
+    p_recoverable_amount: parsed.data.recoverable_amount, p_reason: parsed.data.reason,
+  });
+  if (error) throw new Error("Impossible de comptabiliser la dépréciation : " + error.message);
+  revalidatePath("/immobilisations");
+  revalidatePath("/etats-financiers");
+  return data;
+}
+
+const impairmentReversalSchema = z.object({
+  impairment_id: z.string().uuid(),
+  event_date: z.string().date(),
+  reason: z.string().trim().min(10).max(1000),
+});
+
+export async function reverseFixedAssetImpairment(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "accounting.manage");
+  const parsed = impairmentReversalSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message || "Données de reprise invalides.");
+  const { data, error } = await ctx.supabase.rpc("magnisa_reverse_fixed_asset_impairment", {
+    p_org: ctx.organizationId, p_impairment: parsed.data.impairment_id,
+    p_date: parsed.data.event_date, p_reason: parsed.data.reason,
+  });
+  if (error) throw new Error("Impossible de comptabiliser la reprise : " + error.message);
+  revalidatePath("/immobilisations");
+  revalidatePath("/etats-financiers");
+  return data;
+}
+
+const disposalSchema = z.object({
+  asset_id: z.string().uuid(),
+  disposal_date: z.string().date(),
+  proceeds: z.coerce.number().finite().nonnegative(),
+  reason: z.string().trim().min(5).max(1000),
+});
+
+export async function disposeFixedAsset(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "accounting.manage");
+  const parsed = disposalSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message || "Données de sortie invalides.");
+  const { data, error } = await ctx.supabase.rpc("magnisa_dispose_fixed_asset", {
+    p_org: ctx.organizationId, p_asset: parsed.data.asset_id,
+    p_date: parsed.data.disposal_date, p_proceeds: parsed.data.proceeds, p_reason: parsed.data.reason,
+  });
+  if (error) throw new Error("Impossible de comptabiliser la sortie : " + error.message);
+  revalidatePath("/immobilisations");
+  revalidatePath("/etats-financiers");
+  revalidatePath("/comptabilite");
+  return data;
+}
+
+const transferSchema = z.object({
+  asset_id: z.string().uuid(),
+  transfer_date: z.string().date(),
+  new_location: z.string().trim().max(180).optional(),
+  new_custodian: z.string().trim().max(180).optional(),
+  reason: z.string().trim().min(3).max(500),
+});
+
+export async function transferFixedAsset(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "accounting.manage");
+  const parsed = transferSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message || "Données de transfert invalides.");
+  const { data, error } = await ctx.supabase.rpc("magnisa_transfer_fixed_asset", {
+    p_org: ctx.organizationId, p_asset: parsed.data.asset_id, p_date: parsed.data.transfer_date,
+    p_new_location: parsed.data.new_location || null, p_new_custodian: parsed.data.new_custodian || null,
+    p_reason: parsed.data.reason,
+  });
+  if (error) throw new Error("Impossible d'enregistrer le transfert : " + error.message);
+  revalidatePath("/immobilisations");
+  return data;
+}
+
+const ifrsAdjustmentSchema = z.object({
+  asset_id: z.string().uuid(),
+  adjustment_date: z.string().date(),
+  standard_reference: z.string().trim().min(2).max(40).default("IAS 16"),
+  adjustment_type: z.enum(["componentization", "useful_life", "residual_value", "revaluation", "impairment", "derecognition", "other"]),
+  statutory_carrying_amount: z.coerce.number().finite().nonnegative(),
+  ifrs_carrying_amount: z.coerce.number().finite().nonnegative(),
+  reason: z.string().trim().min(10).max(1500),
+  supporting_reference: z.string().trim().max(180).optional(),
+});
+
+export async function createFixedAssetIfrsAdjustment(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "accounting.manage");
+  const parsed = ifrsAdjustmentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message || "Ajustement IFRS invalide.");
+  const { data, error } = await ctx.supabase.from("fixed_asset_ifrs_adjustments").insert({
+    organization_id: ctx.organizationId,
+    ...parsed.data,
+    status: "draft",
+    created_by: ctx.user.id,
+  }).select("id").single();
+  if (error) throw new Error("Impossible d'enregistrer l'ajustement IFRS : " + error.message);
+  revalidatePath("/immobilisations");
+  return data.id;
+}
+
+export async function approveFixedAssetIfrsAdjustment(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "accounting.manage");
+  const parsed = z.string().uuid().safeParse(formData.get("adjustment_id"));
+  if (!parsed.success) throw new Error("Ajustement IFRS invalide.");
+  const { data, error } = await ctx.supabase.rpc("magnisa_approve_fixed_asset_ifrs_adjustment", {
+    p_org: ctx.organizationId, p_adjustment: parsed.data,
+  });
+  if (error) throw new Error("Impossible d'approuver l'ajustement IFRS : " + error.message);
+  revalidatePath("/immobilisations");
+  return data;
+}
