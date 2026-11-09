@@ -17,7 +17,6 @@ run_guard() {
 
 # Exact match, one historical baseline file, and one explicitly allowlisted pending migration.
 mkdir -p "$TMP/exact"
-: > "$TMP/exact/0000_recovered_core_history.sql"
 : > "$TMP/exact/20261101000000_exact.sql"
 : > "$TMP/exact/20261102000000_pending.sql"
 printf '20261102000000\n' > "$TMP/allow"
@@ -25,6 +24,15 @@ printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_
 printf '20261101000000|exact\n' > "$TMP/remote"
 run_guard "$TMP/exact" "$TMP/allow" "$TMP/map" "$TMP/remote" > "$TMP/exact.log" || fail "exact-match fixture should pass"
 grep -q 'Migration ledger preflight passed' "$TMP/exact.log" || fail "success message missing"
+
+# Supabase CLI treats non-14-digit SQL files as executable migrations; never silently ignore them.
+mkdir -p "$TMP/legacy"
+cp "$TMP/exact/20261101000000_exact.sql" "$TMP/legacy/"
+: > "$TMP/legacy/0000_recovered_core_history.sql"
+if run_guard "$TMP/legacy" "$TMP/allow" "$TMP/map" "$TMP/remote" > "$TMP/legacy.log" 2>&1; then
+  fail "unversioned migration file unexpectedly passed"
+fi
+grep -q 'Unversioned SQL files remain in supabase/migrations' "$TMP/legacy.log" || fail "unversioned migration failure reason missing"
 
 # A remote-only version must fail closed without a provenance mapping.
 printf '20261001000000|historic_remote\n20261101000000|exact\n' > "$TMP/remote-missing"
