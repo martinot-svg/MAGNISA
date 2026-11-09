@@ -77,7 +77,8 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fixed_assets_pcg_class_families_chk') THEN
     ALTER TABLE public.fixed_assets ADD CONSTRAINT fixed_assets_pcg_class_families_chk CHECK (
-      (pcg_asset_account_code IS NULL OR (pcg_asset_account_code ~ '^(20|21|22|23|26|27)[0-9]{0,4}$' AND pcg_asset_account_code !~ '^229'))
+      (pcg_asset_account_code IS NULL OR pcg_asset_account_code ~ '^(20|21|22|23|26|27)[0-9]{0,4}$')
+      AND (pcg_asset_account_code IS NULL OR pcg_asset_account_code NOT LIKE '229%')
       AND (pcg_acquisition_counterpart_account_code IS NULL OR pcg_acquisition_counterpart_account_code ~ '^(10|4|5|72)[0-9]{0,4}$')
       AND (pcg_accumulated_depreciation_account_code IS NULL OR pcg_accumulated_depreciation_account_code ~ '^28[0-9]{0,4}$')
       AND (pcg_depreciation_expense_account_code IS NULL OR pcg_depreciation_expense_account_code ~ '^68[0-9]{0,4}$')
