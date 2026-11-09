@@ -30,6 +30,7 @@ jobs:
   dry-run:
     name: Production migration preflight (read-only)
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.confirm_production == 'DRY_RUN' || inputs.confirm_production == 'APPLY')
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
