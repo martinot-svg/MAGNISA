@@ -78,7 +78,7 @@ BEGIN
   v_wip_acquisition_journal := public.magnisa_post_fixed_asset_acquisition(v_org,v_wip);
   IF v_wip_acquisition_journal IS NULL THEN RAISE EXCEPTION 'WIP acquisition journal was not posted'; END IF;
   v_wip_impairment_id := public.magnisa_record_fixed_asset_impairment(
-    v_org,v_wip,'2026-06-30',10000,'CI WIP impairment supported by recoverable amount evidence'
+    v_org,v_wip,'2026-06-30',90000,'CI WIP impairment supported by recoverable amount evidence'
   );
   SELECT journal_entry_id INTO v_wip_impairment_journal
   FROM public.fixed_asset_impairments WHERE id=v_wip_impairment_id;
