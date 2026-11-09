@@ -59,6 +59,30 @@ BEGIN
     RAISE EXCEPTION 'Posting-origin guards are missing';
   END IF;
 
+
+  IF abs(public.magnisa_fixed_asset_month_units(
+      DATE '2025-01-01',DATE '2025-07-01',DATE '2026-01-01',12
+    )-6)>0.000001 THEN
+    RAISE EXCEPTION 'Prospective depreciation month units are incorrect';
+  END IF;
+  IF public.magnisa_fixed_asset_period_charge(
+      300,0,DATE '2025-01-01',12,DATE '2025-07-01',DATE '2025-12-31'
+    )<>300 THEN
+    RAISE EXCEPTION 'Post-impairment depreciation must allocate the revised carrying amount over remaining useful life';
+  END IF;
+  IF public.magnisa_fixed_asset_period_charge(
+      150,200,DATE '2025-01-01',12,DATE '2025-07-01',DATE '2025-12-31'
+    )<>0 THEN
+    RAISE EXCEPTION 'Depreciation must not restore an impaired carrying amount below residual value';
+  END IF;
+  IF position('opening_net_book_value' IN pg_get_functiondef(
+      'public.magnisa_plan_fixed_asset_depreciation(uuid,uuid,date,date)'::regprocedure
+    ))=0 OR position('magnisa_fixed_asset_period_charge' IN pg_get_functiondef(
+      'public.magnisa_plan_fixed_asset_depreciation(uuid,uuid,date,date)'::regprocedure
+    ))=0 THEN
+    RAISE EXCEPTION 'Depreciation planning does not use the prospective post-impairment basis';
+  END IF;
+
   IF NOT EXISTS (SELECT 1 FROM pg_views WHERE schemaname='public' AND viewname='fixed_asset_register_reconciliation') THEN
     RAISE EXCEPTION 'Register-to-ledger reconciliation view is missing';
   END IF;
