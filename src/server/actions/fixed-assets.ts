@@ -52,6 +52,24 @@ export async function createFixedAsset(formData: FormData) {
     throw new Error(issue?.message || "Les informations de l'immobilisation sont invalides.");
   }
   const value = parsed.data;
+  const requiredCodes = [
+    value.pcg_asset_account_code,
+    ...(value.depreciation_method === "straight_line"
+      ? [value.pcg_accumulated_depreciation_account_code, value.pcg_depreciation_expense_account_code]
+      : []),
+  ].filter((code): code is string => !!code);
+  const { data: pcgAccounts, error: pcgError } = await ctx.supabase
+    .from("pcg2005_accounts").select("code,kind").in("code", requiredCodes);
+  if (pcgError) throw new Error("Impossible de vérifier les comptes PCG.");
+  const accountKinds = new Map((pcgAccounts || []).map((account: { code: string; kind: string }) => [account.code, account.kind]));
+  if (accountKinds.get(value.pcg_asset_account_code) !== "asset") {
+    throw new Error("Le compte d'immobilisation n'existe pas dans le plan PCG ou n'est pas classé à l'actif.");
+  }
+  if (value.depreciation_method === "straight_line" &&
+      (accountKinds.get(value.pcg_accumulated_depreciation_account_code || "") !== "asset" ||
+       accountKinds.get(value.pcg_depreciation_expense_account_code || "") !== "expense")) {
+    throw new Error("Les comptes d'amortissement ne correspondent pas au plan PCG chargé.");
+  }
   const usefulLife = value.depreciation_method === "straight_line" ? Number(value.useful_life_months) : null;
   const gross = Math.round((value.acquisition_cost + value.directly_attributable_cost + Number.EPSILON) * 100) / 100;
   const { error } = await ctx.supabase.from("fixed_assets").insert({
