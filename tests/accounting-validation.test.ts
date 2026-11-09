@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assertExpenseNature, assertFeeBearer, expenseInputSchema, supplierPaymentInputSchema } from "../src/server/accounting-validation";
+import { suggestPcgCode } from "../src/lib/accounting/pcg-mapping";
 
 const uuid = "00000000-0000-4000-8000-000000000001";
 const expense = { description: "Abonnement logiciel", amount: "1000", expense_date: "2026-10-22", financial_account_id: uuid, category: "604", expense_nature: "expense", supplier_id: "", document_reference: "FAC-1", useful_life_months: "", fee_amount: "100", fee_company_amount: "100", fee_client_amount: "0", fee_bearer: "company", idempotency_key: uuid };
@@ -18,4 +19,7 @@ describe("MAGNISA accounting input contract", () => {
   it("rejects invalid supplier payment methods", () => expect(supplierPaymentInputSchema.safeParse({ ...payment, method: "crypto" }).success).toBe(false));
   it("rejects non-positive expense amounts", () => expect(expenseInputSchema.safeParse({ ...expense, amount: "0" }).success).toBe(false));
   it("rejects malformed idempotency keys", () => expect(expenseInputSchema.safeParse({ ...expense, idempotency_key: "bad" }).success).toBe(false));
+  it("does not infer fixed-asset accounts from computer descriptions", () => expect(suggestPcgCode("Ordinateur portable", "EXPENSE:acquisition")).toBe(""));
+  it("does not infer fixed-asset accounts from generic supplier expenses", () => expect(suggestPcgCode("Achats et sous-traitance", "EXPENSE:SUPPLIER")).toBe(""));
+  it("keeps the narrow MVola suspense-account suggestion", () => expect(suggestPcgCode("Frais MVola à reclasser", "471")).toBe("471"));
 });
