@@ -88,6 +88,9 @@ jobs:
       - name: Seed isolated payroll test organization
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/payroll-ui-seed.sql
+      - name: Exercise fixed-asset accounting workflows with authenticated user
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/fixed-assets-integration.sql
       - name: Start MAGNISA locally
         run: |
           npm run dev -- --hostname 127.0.0.1 > /tmp/magnisa-next.log 2>&1 &
