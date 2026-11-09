@@ -120,7 +120,23 @@ begin
 
   v_social:=round(least(new.gross_pay,v_rule.cnaps_monthly_ceiling)*v_rule.cnaps_employee_rate,2);
   v_health:=round(least(new.gross_pay,v_rule.health_monthly_ceiling)*v_rule.health_employee_rate,2);
-  v_deductible_health:=case when coalesce(v_deduction_authorized,false)
+
+  select irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,
+         irsa_deduction_authorized_from,irsa_deduction_authorized_to
+    into v_dependants,v_deduction_authorized,v_deduction_reference,v_deduction_from,v_deduction_to
+    from public.employees where id=new.employee_id and organization_id=new.organization_id;
+
+  v_deduction_authorized:=coalesce(v_deduction_authorized,false)
+    and nullif(trim(coalesce(v_deduction_reference,'')),'') is not null
+    and v_deduction_from is not null
+    and v_deduction_from<=v_period_start
+    and (v_deduction_to is null or v_deduction_to>=v_period);
+  new.irsa_deduction_authorized:=v_deduction_authorized;
+  new.irsa_deduction_authorization_reference:=v_deduction_reference;
+  new.irsa_deduction_authorized_from:=v_deduction_from;
+  new.irsa_deduction_authorized_to:=v_deduction_to;
+
+  v_deductible_health:=case when v_deduction_authorized
     then least(v_health,round(new.gross_pay*v_rule.irsa_health_deduction_rate,2)) else 0 end;
   v_deductible_pension:=case when coalesce(v_deduction_authorized,false)
     then least(v_social+coalesce(new.employee_supplementary_pension,0),
@@ -129,7 +145,7 @@ begin
   v_emp_health:=round(least(new.gross_pay,v_rule.health_monthly_ceiling)*v_rule.health_employer_rate,2);
 
   -- New bulletins use the amount computed by the effective-dated component classifier.
-  -- Historical/direct RPC inserts without the new field retain the previous gross-base behavior.
+  -- Historical/direct RPC inserts without a classified amount retain the previous gross-base behavior.
   v_taxable:=floor(greatest(0,coalesce(new.taxable_compensation,new.gross_pay)
     +coalesce(new.taxable_supplementary_pension,0)-v_deductible_pension-v_deductible_health)/100)*100;
 
@@ -152,20 +168,6 @@ begin
   if v_taxable=0 then v_tax:=0;
   else v_tax:=greatest(coalesce(v_rule.irsa_minimum,0),round(v_tax,2)); end if;
 
-  select irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,
-         irsa_deduction_authorized_from,irsa_deduction_authorized_to
-    into v_dependants,v_deduction_authorized,v_deduction_reference,v_deduction_from,v_deduction_to
-    from public.employees where id=new.employee_id and organization_id=new.organization_id;
-
-  v_deduction_authorized:=coalesce(v_deduction_authorized,false)
-    and nullif(trim(coalesce(v_deduction_reference,'')),'') is not null
-    and v_deduction_from is not null
-    and v_deduction_from<=v_period_start
-    and (v_deduction_to is null or v_deduction_to>=v_period);
-  new.irsa_deduction_authorized:=v_deduction_authorized;
-  new.irsa_deduction_authorization_reference:=v_deduction_reference;
-  new.irsa_deduction_authorized_from:=v_deduction_from;
-  new.irsa_deduction_authorized_to:=v_deduction_to;
   if v_dependants is null or v_dependants<0 or v_dependants>30 then
     raise exception 'Nombre de personnes à charge IRSA invalide';
   end if;
