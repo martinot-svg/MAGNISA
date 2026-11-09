@@ -94,7 +94,7 @@ export default async function FixedAssets() {
           <div className="field"><label>Coût d'acquisition</label><input name="acquisition_cost" type="number" min="0.01" step="0.01" required/></div>
           <div className="field"><label>Coûts directement attribuables</label><input name="directly_attributable_cost" type="number" min="0" step="0.01" defaultValue="0"/></div>
           <div className="field"><label>Valeur résiduelle</label><input name="residual_value" type="number" min="0" step="0.01" defaultValue="0"/></div>
-          <div className="field"><label>Méthode d'amortissement</label><select name="depreciation_method" defaultValue="straight_line"><option value="straight_line">Linéaire</option><option value="none">Non amortissable</option></select></div>
+          <div className="field"><label>Méthode d'amortissement</label><select name="depreciation_method" defaultValue="straight_line"><option value="straight_line">Linéaire</option><option value="none">Non amortissable</option></select></div><small className="muted">Pour un compte 23 (immobilisation en cours), sélectionne Non amortissable. La durée et le départ des amortissements seront définis lors de la mise en service.</small>
           <div className="field"><label>Durée d'utilisation (mois)</label><input name="useful_life_months" type="number" min="1" step="1" placeholder="60"/></div>
           <div className="field"><label>Compte amortissements (28)</label><input name="pcg_accumulated_depreciation_account_code" placeholder="281"/></div>
           <div className="field"><label>Compte dotations amortissements (68)</label><input name="pcg_depreciation_expense_account_code" placeholder="681"/></div>
