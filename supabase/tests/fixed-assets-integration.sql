@@ -279,6 +279,11 @@ BEGIN
     RAISE EXCEPTION 'Transfer history must preserve its date, destination and custodian';
   END IF;
 
+  IF position('652 et 752' IN pg_get_functiondef('public.magnisa_dispose_fixed_asset(uuid,uuid,date,numeric,text)'::regprocedure))=0
+     OR position('675 et 775' IN pg_get_functiondef('public.magnisa_dispose_fixed_asset(uuid,uuid,date,numeric,text)'::regprocedure))>0 THEN
+    RAISE EXCEPTION 'Fixed asset disposal validation must refer to PCG 652 and 752, not legacy 675 and 775';
+  END IF;
+
   -- Disposal derecognizes the asset and posts proceeds plus the loss.
   v_disposal_id := public.magnisa_dispose_fixed_asset(
     v_org,v_asset,'2027-12-31',100000,'CI test disposal with documented proceeds'
