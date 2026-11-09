@@ -2,6 +2,9 @@ export type StraightLineDepreciationInput = {
   acquisitionCost: number;
   directlyAttributableCost?: number;
   residualValue?: number;
+  openingAccumulatedDepreciation?: number;
+  openingImpairmentLoss?: number;
+  openingNetBookValue?: number;
   usefulLifeMonths: number;
   inServiceDate: string;
   periodStart: string;
@@ -41,24 +44,22 @@ function addMonthsClamped(anchor: Date, months: number): Date {
   return new Date(Date.UTC(targetFirst.getUTCFullYear(), targetFirst.getUTCMonth(), Math.min(anchor.getUTCDate(), lastDay)));
 }
 
-function cumulativeAt(base: number, service: Date, endExclusive: Date, usefulLifeMonths: number): number {
-  if (endExclusive <= service) return 0;
+function elapsedMonthUnits(service: Date, start: Date, endExclusive: Date, usefulLifeMonths: number): number {
+  if (endExclusive <= start) return 0;
   let elapsedMonths = 0;
   for (let month = 0; month < usefulLifeMonths; month += 1) {
     const monthStart = addMonthsClamped(service, month);
     const monthEnd = addMonthsClamped(service, month + 1);
-    if (endExclusive >= monthEnd) {
-      elapsedMonths += 1;
-      continue;
-    }
-    if (endExclusive > monthStart) {
+    const overlapStart = new Date(Math.max(start.getTime(), monthStart.getTime()));
+    const overlapEnd = new Date(Math.min(endExclusive.getTime(), monthEnd.getTime()));
+    if (overlapEnd > overlapStart) {
       const segmentDays = (monthEnd.getTime() - monthStart.getTime()) / DAY_MS;
-      const elapsedDays = (endExclusive.getTime() - monthStart.getTime()) / DAY_MS;
+      const elapsedDays = (overlapEnd.getTime() - overlapStart.getTime()) / DAY_MS;
       elapsedMonths += elapsedDays / segmentDays;
     }
-    break;
+    if (monthEnd >= endExclusive) break;
   }
-  return cents(base * Math.min(usefulLifeMonths, elapsedMonths) / usefulLifeMonths);
+  return Math.min(usefulLifeMonths, elapsedMonths);
 }
 
 /**
@@ -91,10 +92,29 @@ export function calculateStraightLineDepreciation(
   if (usefulLifeEnd <= service) throw new Error("La durée d'utilisation calculée est invalide.");
 
   const periodEndExclusive = new Date(Math.min(periodEnd.getTime() + DAY_MS, usefulLifeEnd.getTime()));
-  const openingAccumulated = cumulativeAt(base, service, periodStart, input.usefulLifeMonths);
-  const closingAccumulated = cumulativeAt(base, service, periodEndExclusive, input.usefulLifeMonths);
-  const charge = cents(Math.max(0, closingAccumulated - openingAccumulated));
-  const closingNet = cents(Math.max(residual, gross - closingAccumulated));
+  const openingAccumulated = input.openingAccumulatedDepreciation === undefined
+    ? cents(base * elapsedMonthUnits(service, service, periodStart, input.usefulLifeMonths) / input.usefulLifeMonths)
+    : cents(input.openingAccumulatedDepreciation);
+  const openingImpairment = input.openingImpairmentLoss ?? 0;
+  if (!Number.isFinite(openingImpairment) || openingImpairment < 0 || openingAccumulated < 0 ||
+      openingAccumulated + openingImpairment > gross) {
+    throw new Error("Les amortissements et dépréciations d'ouverture sont invalides.");
+  }
+  const openingNet = input.openingNetBookValue === undefined
+    ? cents(gross - openingAccumulated - openingImpairment)
+    : cents(input.openingNetBookValue);
+  if (openingNet < residual || openingNet > gross - openingAccumulated) {
+    throw new Error("La valeur nette comptable d'ouverture est incohérente.");
+  }
+  const elapsedBefore = elapsedMonthUnits(service, service, periodStart, input.usefulLifeMonths);
+  const remainingUnits = Math.max(0, input.usefulLifeMonths - elapsedBefore);
+  const periodUnits = elapsedMonthUnits(service, new Date(Math.max(periodStart.getTime(), service.getTime())), periodEndExclusive, input.usefulLifeMonths);
+  const remainingDepreciableAmount = Math.max(0, openingNet - residual);
+  const charge = cents(remainingUnits > 0
+    ? Math.min(remainingDepreciableAmount, remainingDepreciableAmount * periodUnits / remainingUnits)
+    : 0);
+  const closingAccumulated = cents(openingAccumulated + charge);
+  const closingNet = cents(Math.max(residual, openingNet - charge));
   const activeStart = new Date(Math.max(periodStart.getTime(), service.getTime()));
   const daysDepreciated = Math.max(0, Math.floor((periodEndExclusive.getTime() - activeStart.getTime()) / DAY_MS));
 
