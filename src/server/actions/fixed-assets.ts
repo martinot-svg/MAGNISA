@@ -17,7 +17,7 @@ const assetSchema = z.object({
   useful_life_months: z.preprocess((value) => value === "" || value == null ? undefined : value, z.coerce.number().int().positive().optional()),
   depreciation_method: z.enum(["straight_line", "none"]),
   pcg_asset_account_code: z.string().trim().regex(/^(20|21|22|23|26|27)\d{0,4}$/),
-  pcg_acquisition_counterpart_account_code: z.string().trim().min(3).max(6),
+  pcg_acquisition_counterpart_account_code: z.string().trim().regex(/^(10|4|5|72)\\d{0,4}$/),
   pcg_accumulated_depreciation_account_code: z.string().trim().optional(),
   pcg_depreciation_expense_account_code: z.string().trim().optional(),
   pcg_impairment_account_code: z.string().trim().optional(),
@@ -94,8 +94,8 @@ export async function createFixedAsset(formData: FormData) {
   if (accountKinds.get(value.pcg_asset_account_code) !== "asset") {
     throw new Error("Le compte d'immobilisation n'existe pas dans le plan PCG ou n'est pas classé à l'actif.");
   }
-  if (!["asset", "liability"].includes(accountKinds.get(value.pcg_acquisition_counterpart_account_code) || "")) {
-    throw new Error("La contrepartie d'acquisition doit être un compte de fournisseur ou de trésorerie du plan PCG.");
+  if (!["asset", "liability", "equity", "income"].includes(accountKinds.get(value.pcg_acquisition_counterpart_account_code) || "")) {
+    throw new Error("La contrepartie doit être un compte PCG autorisé : fournisseur, trésorerie, capital, associé ou production immobilisée.");
   }
   if (value.depreciation_method === "straight_line" &&
       (accountKinds.get(value.pcg_accumulated_depreciation_account_code || "") !== "asset" ||
