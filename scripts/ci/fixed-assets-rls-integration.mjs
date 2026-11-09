@@ -62,7 +62,8 @@ if (ownerReconciliation.data.length === 0) {
 
 const viewerEmail = `fixed-asset-viewer-${suffix}@magnisa.test`;
 // Supabase Auth enforces a 72-byte password ceiling. Use a high-entropy,
-// fixed-length credential instead of concatenating multiple UUIDs.
+// fixed-length credential instead of concatenating multiple UUIDs. This PR
+// depends on the payroll branch for replay; keep the fixture independently bounded.
 const viewerPassword = `Vw-${randomBytes(16).toString("hex")}!a9`;
 if (Buffer.byteLength(viewerPassword, "utf8") > 72) {
   throw new Error("Generated fixed-asset viewer password exceeds Supabase Auth password length limit.");
