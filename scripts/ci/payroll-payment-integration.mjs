@@ -151,7 +151,7 @@ const paymentArgs = (payslipId, amount, requestKey, reference) => ({
   p_account: account.data.id,
   p_amount: amount,
   p_method: "bank_transfer",
-  p_date: "2026-12-31",
+  p_date: periodEnd,
   p_reference: reference,
   p_request_key: requestKey,
 });
@@ -160,7 +160,7 @@ const firstKey = crypto.randomUUID();
 const firstPayment = await rpc("lot2_record_payroll_payment_idempotent",
   paymentArgs(slips[0].id, 95000, firstKey, `CI-PAY-${suffix}-A`));
 const repeatedFirstPayment = await rpc("lot2_record_payroll_payment_idempotent",
-  paymentArgs(slips.data[0].id, 95000, firstKey, `CI-PAY-${suffix}-A`));
+  paymentArgs(slips[0].id, 95000, firstKey, `CI-PAY-${suffix}-A`));
 assert(firstPayment === repeatedFirstPayment, "Payroll payment idempotency must return the same payment id.");
 
 const afterFirst = await admin.from("payroll_runs").select("status").eq("id", run.data.id).single();
@@ -195,33 +195,18 @@ assert(finalPayments.data.length === 3, "Idempotent retry must not create a dupl
 assert(finalPayments.data.reduce((sum, payment) => sum + Number(payment.amount), 0) === 190000,
   "Payroll payments must reconcile to the total net payable.");
 
-const cancelledRun = await admin.from("payroll_runs").insert({
-  organization_id: organizationId,
-  period_start: "2027-01-01",
-  period_end: "2027-01-31",
-  status: "cancelled",
-  created_by: userId,
-}).select("id").single();
+const cancelledRun = await admin.from("payroll_runs")
+  .update({ status: "cancelled" }).eq("id", run.data.id).eq("organization_id", organizationId)
+  .select("id").single();
 if (cancelledRun.error) throw cancelledRun.error;
-const cancelledSlip = await admin.from("payslips").insert({
-  organization_id: organizationId,
-  payroll_run_id: cancelledRun.data.id,
-  employee_id: employeeRows.data[0].id,
-  base_salary: 100000,
-  gross_pay: 100000,
-  net_pay: 100000,
-  paid_amount: 0,
-  status: "validated",
-}).select("id").single();
-if (cancelledSlip.error) throw cancelledSlip.error;
 const cancelledAttempt = await user.rpc("lot2_record_payroll_payment_idempotent", paymentArgs(
-  cancelledSlip.data.id, 100000, crypto.randomUUID(), `CI-PAY-CANCELLED-${suffix}`,
+  slips[0].id, 1, crypto.randomUUID(), `CI-PAY-CANCELLED-${suffix}`,
 ));
 assert(!!cancelledAttempt.error && cancelledAttempt.error.message.includes("annulé"),
   "Payments against cancelled payroll runs must be rejected.");
 const cancelledPaymentRows = await admin.from("payroll_payments").select("id")
-  .eq("payslip_id", cancelledSlip.data.id);
+  .eq("payslip_id", slips[0].id);
 if (cancelledPaymentRows.error) throw cancelledPaymentRows.error;
-assert(cancelledPaymentRows.data.length === 0, "Cancelled payroll run must not create a payment.");
+assert(cancelledPaymentRows.data.length === 1, "Cancelled payroll run must not create an additional payment.");
 
 process.stdout.write("PASS payroll payment integration: partial/full run status, multiple payslips, idempotency and cancelled-run guard\\n");
