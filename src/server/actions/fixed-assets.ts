@@ -33,12 +33,12 @@ const assetSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
 }).superRefine((value, ctx) => {
   const classRules: Array<[string, string | undefined, RegExp, string]> = [
-    ["pcg_impairment_account_code", value.pcg_impairment_account_code, /^29\\d{0,4}$/, "Le compte de dépréciation doit appartenir à la classe 29."],
-    ["pcg_impairment_expense_account_code", value.pcg_impairment_expense_account_code, /^68\\d{0,4}$/, "Le compte de dotation pour dépréciation doit appartenir à la classe 68."],
-    ["pcg_impairment_reversal_income_account_code", value.pcg_impairment_reversal_income_account_code, /^78\\d{0,4}$/, "Le compte de reprise doit appartenir à la classe 78."],
-    ["pcg_disposal_receivable_account_code", value.pcg_disposal_receivable_account_code, /^46\\d{0,4}$/, "Le compte de créance de cession doit appartenir à la classe 46."],
-    ["pcg_disposal_expense_account_code", value.pcg_disposal_expense_account_code, /^65\\d{0,4}$/, "Le compte de moins-value doit appartenir à la classe 65."],
-    ["pcg_disposal_income_account_code", value.pcg_disposal_income_account_code, /^75\\d{0,4}$/, "Le compte de plus-value doit appartenir à la classe 75."],
+    ["pcg_impairment_account_code", value.pcg_impairment_account_code, /^29\d{0,4}$/, "Le compte de dépréciation doit appartenir à la classe 29."],
+    ["pcg_impairment_expense_account_code", value.pcg_impairment_expense_account_code, /^68\d{0,4}$/, "Le compte de dotation pour dépréciation doit appartenir à la classe 68."],
+    ["pcg_impairment_reversal_income_account_code", value.pcg_impairment_reversal_income_account_code, /^78\d{0,4}$/, "Le compte de reprise doit appartenir à la classe 78."],
+    ["pcg_disposal_receivable_account_code", value.pcg_disposal_receivable_account_code, /^46\d{0,4}$/, "Le compte de créance de cession doit appartenir à la classe 46."],
+    ["pcg_disposal_expense_account_code", value.pcg_disposal_expense_account_code, /^65\d{0,4}$/, "Le compte de moins-value doit appartenir à la classe 65."],
+    ["pcg_disposal_income_account_code", value.pcg_disposal_income_account_code, /^75\d{0,4}$/, "Le compte de plus-value doit appartenir à la classe 75."],
   ];
   for (const [field, code, pattern, message] of classRules) {
     if (code && !pattern.test(code)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message });
