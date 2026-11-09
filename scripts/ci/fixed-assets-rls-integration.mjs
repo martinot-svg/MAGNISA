@@ -60,7 +60,9 @@ if (ownerReconciliation.data.length === 0) {
 }
 
 const viewerEmail = `fixed-asset-viewer-${suffix}@magnisa.test`;
-const viewerPassword = `Viewer-${suffix}-${crypto.randomUUID()}!Aa9`;
+// Supabase Auth enforces a 72-byte password ceiling. Use a high-entropy,
+// fixed-length credential instead of concatenating multiple UUIDs.
+const viewerPassword = `Vw-${crypto.randomBytes(16).toString("hex")}!a9`;
 const created = await admin.auth.admin.createUser({
   email: viewerEmail,
   password: viewerPassword,
@@ -112,4 +114,4 @@ assertDenied(
   "Anonymous fixed_asset_register_reconciliation SELECT",
 );
 
-process.stdout.write("PASS fixed-asset RLS: accounting.view allowed; employee and anonymous reads denied; reconciliation view respects invoker RLS\n");
+process.stdout.write("PASS fixed-asset RLS: accounting.view allowed; employee and anonymous reads denied; reconciliation view respects invoker RLS\\n");
