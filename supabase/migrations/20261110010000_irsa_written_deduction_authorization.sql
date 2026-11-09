@@ -29,7 +29,6 @@ BEGIN
           nullif(trim(coalesce(irsa_deduction_authorization_reference,'')),'') IS NOT NULL
           AND irsa_deduction_authorized_from IS NOT NULL
           AND length(irsa_deduction_authorization_reference)<=200
-          AND length(irsa_deduction_authorization_reference)<=200
           AND (irsa_deduction_authorized_to IS NULL
             OR irsa_deduction_authorized_to >= irsa_deduction_authorized_from)
         )
@@ -47,6 +46,7 @@ BEGIN
         NOT irsa_deduction_authorized OR (
           nullif(trim(coalesce(irsa_deduction_authorization_reference,'')),'') IS NOT NULL
           AND irsa_deduction_authorized_from IS NOT NULL
+          AND length(irsa_deduction_authorization_reference)<=200
           AND (irsa_deduction_authorized_to IS NULL
             OR irsa_deduction_authorized_to >= irsa_deduction_authorized_from)
         )
