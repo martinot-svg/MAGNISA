@@ -37,6 +37,9 @@ jobs:
       - name: Validate production migration guard script syntax
         run: bash -n scripts/ci/check-production-migration-history.sh
 
+      - name: Test production migration history reconciliation fixtures
+        run: bash tests/ci/check-production-migration-history.test.sh
+
       - name: Dependency audit report
         run: |
           npm audit --json > npm-audit.json || true
