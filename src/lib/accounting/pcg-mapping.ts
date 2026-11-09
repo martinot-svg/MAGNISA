@@ -11,6 +11,7 @@ export function isPcgMappingAllowed(accountKey: string, pcgKind: string): boolea
 
 export function suggestPcgCode(accountLabel: string, accountKey: string): string {
   const value = `${accountLabel} ${accountKey}`.toLowerCase();
+  if (/^TRANSIT:/.test(accountKey.trim()) || /fonds en transit/.test(value)) return "581";
   if (/(remboursement.*mvola|frais.*mvola.*reclasser)/.test(value)) return "471";
   return "";
 }
