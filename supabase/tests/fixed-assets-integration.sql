@@ -17,7 +17,7 @@ INSERT INTO public.fixed_assets (
   accumulated_depreciation,impairment_loss,net_book_value,status
 ) VALUES
   (:'asset_id'::uuid,:'org_id'::uuid,'CI-IMM-POST-01','CI asset lifecycle','equipment','2026-01-01','2026-01-01',
-   120000,0,0,12,'straight_line','215','404','281','681','291','681','781','462','652','752',0,0,120000,'active'),
+   120000,0,0,24,'straight_line','215','404','281','681','291','681','781','462','652','752',0,0,120000,'active'),
   (:'component_parent_id'::uuid,:'org_id'::uuid,'CI-IMM-COMP-01','CI component parent','equipment','2026-01-01','2026-01-01',
    100000,0,0,120,'straight_line','215','404','281','681','291','681','781','462','652','752',0,0,100000,'active');
 
@@ -43,6 +43,9 @@ DECLARE
   v_impairment_id uuid;
   v_impairment_journal uuid;
   v_impairment_reversal_id uuid;
+  v_post_impairment_entry uuid;
+  v_post_impairment_journal uuid;
+  v_post_impairment_reversal_journal uuid;
   v_impairment_reversal_journal uuid;
   v_transfer_id uuid;
   v_disposal_id uuid;
@@ -91,8 +94,21 @@ BEGIN
   SELECT journal_entry_id INTO v_impairment_journal
   FROM public.fixed_asset_impairments WHERE id=v_impairment_id;
   IF v_impairment_journal IS NULL THEN RAISE EXCEPTION 'Impairment journal was not posted'; END IF;
+  -- Future depreciation must use the impaired carrying amount over the remaining useful life.
+  v_post_impairment_entry := public.magnisa_plan_fixed_asset_depreciation(
+    v_org,v_asset,'2027-01-01','2027-12-31'
+  );
+  SELECT depreciation_charge INTO v_balance
+  FROM public.fixed_asset_depreciation_entries WHERE id=v_post_impairment_entry;
+  IF v_balance<>90000 THEN
+    RAISE EXCEPTION 'Post-impairment depreciation should be 90000 over the remaining useful life; got %',v_balance;
+  END IF;
+  v_post_impairment_journal := public.magnisa_post_fixed_asset_depreciation(v_org,v_post_impairment_entry);
+  v_post_impairment_reversal_journal := public.magnisa_reverse_fixed_asset_depreciation(
+    v_org,v_post_impairment_entry,'2027-12-31','CI test reversal of prospective post-impairment depreciation'
+  );
   v_impairment_reversal_id := public.magnisa_reverse_fixed_asset_impairment(
-    v_org,v_impairment_id,'2026-12-31','CI test reversal of impairment after recovery'
+    v_org,v_impairment_id,'2027-12-31','CI test reversal of impairment after recovery'
   );
   SELECT journal_entry_id INTO v_impairment_reversal_journal
   FROM public.fixed_asset_impairments WHERE id=v_impairment_reversal_id;
@@ -170,7 +186,8 @@ BEGIN
   -- Every journal created by the tested workflows must balance debit and credit.
   FOREACH v_journal IN ARRAY ARRAY[
     v_acquisition_journal,v_depreciation_journal,v_depreciation_reversal_journal,
-    v_impairment_journal,v_impairment_reversal_journal,v_disposal_journal,
+    v_impairment_journal,v_post_impairment_journal,v_post_impairment_reversal_journal,
+    v_impairment_reversal_journal,v_disposal_journal,
     v_component_acquisition_journal,v_componentization_journal
   ] LOOP
     SELECT coalesce(sum(debit),0),coalesce(sum(credit),0)
