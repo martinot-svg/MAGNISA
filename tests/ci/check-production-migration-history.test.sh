@@ -40,7 +40,7 @@ sha="$(sha256sum "$TMP/renamed/20261101000000_local_name.sql" | awk '{print $1}'
 printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\n20261101000000|remote_name|20261101000000_local_name.sql|renamed|https://github.com/example/repo/commit/abc123|%s\n' "$sha" > "$TMP/renamed-map"
 printf '20261101000000|remote_name\n' > "$TMP/renamed-remote"
 : > "$TMP/empty-allow"
-run_guard "$TMP/renamed" "$TMP/empty-allow" "$TMP/renamed-map" "$TMP/renamed-remote" > "$TMP/renamed.log" || fail "checksum-verified rename fixture should pass"
+run_guard "$TMP/renamed" "$TMP/empty-allow" "$TMP/renamed-map" "$TMP/renamed-remote" > "$TMP/renamed.log" 2>&1 || { cat "$TMP/renamed.log"; fail "checksum-verified rename fixture should pass"; }
 
 # A checksum mismatch must fail closed.
 sed 's/[0-9a-f]\{64\}$/0000000000000000000000000000000000000000000000000000000000000000/' "$TMP/renamed-map" > "$TMP/bad-map"
