@@ -22,6 +22,28 @@ const membership = await admin.from("organization_members")
   .select("organization_id").eq("user_id", userId).eq("status", "active").single();
 if (membership.error) throw membership.error;
 const organizationId = membership.data.organization_id;
+const suffix = crypto.randomUUID();
+const testAsset = await admin.from("fixed_assets").insert({
+  organization_id: organizationId,
+  asset_code: `CI-RLS-${suffix.slice(0, 8)}`,
+  name: "CI fixed-asset RLS fixture",
+  category: "equipment",
+  acquisition_date: "2026-01-01",
+  in_service_date: "2026-01-01",
+  acquisition_cost: 120000,
+  directly_attributable_cost: 0,
+  residual_value: 0,
+  useful_life_months: 24,
+  depreciation_method: "straight_line",
+  pcg_asset_account_code: "215",
+  pcg_accumulated_depreciation_account_code: "281",
+  pcg_depreciation_expense_account_code: "681",
+  accumulated_depreciation: 0,
+  impairment_loss: 0,
+  net_book_value: 120000,
+  status: "active",
+}).select("id").single();
+if (testAsset.error) throw testAsset.error;
 
 const ownerAssets = await owner.from("fixed_assets").select("id")
   .eq("organization_id", organizationId).limit(10);
@@ -37,7 +59,6 @@ if (ownerReconciliation.data.length === 0) {
   throw new Error("An owner with accounting.view must be able to read the fixed-asset reconciliation view.");
 }
 
-const suffix = crypto.randomUUID();
 const viewerEmail = `fixed-asset-viewer-${suffix}@magnisa.test`;
 const viewerPassword = `Viewer-${suffix}-${crypto.randomUUID()}!Aa9`;
 const created = await admin.auth.admin.createUser({
