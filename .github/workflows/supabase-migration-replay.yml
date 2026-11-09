@@ -101,6 +101,8 @@ jobs:
         run: node scripts/ci/crm-collaboration-integration.mjs
       - name: Test payroll payment lifecycle and idempotency
         run: node scripts/ci/payroll-payment-integration.mjs
+      - name: Verify snapshot-aware payslip RPC privileges
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/payroll-snapshot-security.sql
       - name: Start MAGNISA locally
         id: app_server
         run: |
