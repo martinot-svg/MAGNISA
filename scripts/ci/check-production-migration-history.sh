@@ -52,7 +52,7 @@ awk -F '|' 'NR==FNR {pending[$1]=1; next} ($1 in pending) {print}' "$LOCAL_ONLY"
 
 awk -F '|' '
   function normalize(name) {
-    sub(/^[0-9]{14}_/, "", name)
+    sub(/^[0-9]+_/, "", name)
     sub(/_[0-9]+$/, "", name)
     return name
   }
