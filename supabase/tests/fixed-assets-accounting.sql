@@ -95,6 +95,9 @@ BEGIN
   IF position('PCG:%' IN pg_get_viewdef('public.pcg2005_journal_lines'::regclass,true))=0 THEN
     RAISE EXCEPTION 'Direct PCG journal keys are not mapped into the PCG trial balance';
   END IF;
+  IF position('22[0-8]' IN pg_get_viewdef('public.fixed_asset_register_reconciliation'::regclass,true))=0 THEN
+    RAISE EXCEPTION 'Fixed asset reconciliation must exclude PCG 229 rights of grantor';
+  END IF;
   IF position('ledger_net' IN pg_get_viewdef('public.fixed_asset_register_reconciliation'::regclass,true))=0 THEN
     RAISE EXCEPTION 'Fixed asset reconciliation must compare net ledger balances';
   END IF;
