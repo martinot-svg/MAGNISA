@@ -32,7 +32,7 @@ export default async function FixedAssets() {
       <section className="card"><div className="muted">Valeur brute enregistrée</div><div className="metric">{money(totalCost, currency)}</div></section>
       <section className="card"><div className="muted">Valeur nette enregistrée</div><div className="metric">{money(totalNet, currency)}</div><div className="muted">Amortissements cumulés : {money(totalAccumulated, currency)}</div></section>
     </div>
-    {canManage?.data === true && <section className="card section">
+    {canManage === true && <section className="card section">
       <h2>Enregistrer une immobilisation</h2>
       <p className="muted">Cette opération crée la fiche du registre. Elle ne comptabilise pas l'acquisition et ne génère pas encore de dotation automatique.</p>
       <form action={createFixedAsset} className="form">
