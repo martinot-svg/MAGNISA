@@ -442,12 +442,12 @@ export async function reverseFixedAssetIfrsAdjustment(formData: FormData) {
 const commissioningSchema = z.object({
   asset_id: z.string().uuid(),
   event_date: z.string().date(),
-  new_asset_account_code: z.string().trim().regex(/^(20|21|22[0-8])\\d{0,4}$/),
+  new_asset_account_code: z.string().trim().regex(/^(20|21|22[0-8])\d{0,4}$/),
   depreciation_method: z.enum(["straight_line", "none"]),
   useful_life_months: z.preprocess((value) => value === "" || value == null ? undefined : value, z.coerce.number().int().positive().optional()),
   pcg_accumulated_depreciation_account_code: z.string().trim().optional(),
   pcg_depreciation_expense_account_code: z.string().trim().optional(),
-  pcg_impairment_account_code: z.string().trim().regex(/^29\\d{0,4}$/),
+  pcg_impairment_account_code: z.string().trim().regex(/^29\d{0,4}$/),
   reason: z.string().trim().min(10).max(1500),
 }).superRefine((value, ctx) => {
   const family = value.new_asset_account_code.slice(0, 2);
@@ -466,7 +466,7 @@ const commissioningSchema = z.object({
     if (!value.pcg_accumulated_depreciation_account_code?.startsWith(accumulatedPrefix[family] || "invalid")) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pcg_accumulated_depreciation_account_code"], message: "Le compte 28 doit correspondre à la famille du nouvel actif." });
     }
-    if (!/^681\\d{0,4}$/.test(value.pcg_depreciation_expense_account_code || "")) {
+    if (!/^681\d{0,4}$/.test(value.pcg_depreciation_expense_account_code || "")) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pcg_depreciation_expense_account_code"], message: "Renseigne un compte 681." });
     }
   } else if (value.useful_life_months || value.pcg_accumulated_depreciation_account_code || value.pcg_depreciation_expense_account_code) {
