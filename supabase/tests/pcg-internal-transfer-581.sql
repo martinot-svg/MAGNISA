@@ -30,7 +30,7 @@ SELECT set_config(
 
 DO $test$
 DECLARE
-  v_org uuid := (SELECT id FROM public.organizations WHERE name='PCG 581 mapping regression test' ORDER BY created_at DESC LIMIT 1);
+  v_org uuid := (SELECT organization_id FROM public.organization_members WHERE user_id=auth.uid() AND status='active' ORDER BY created_at LIMIT 1);
   v_entry uuid := gen_random_uuid();
   v_transit_key text := 'TRANSIT:' || gen_random_uuid()::text;
   v_code text;
