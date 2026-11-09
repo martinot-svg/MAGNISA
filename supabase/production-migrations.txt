@@ -1,0 +1,8 @@
+# Explicit production migration allowlist.
+# These are the only local migrations absent from the current Production ledger.
+# Update this manifest whenever a new production migration is ready to deploy.
+supabase/migrations/20261107170000_irsa_deduction_notification_authorization.sql
+supabase/migrations/20261109170000_fixed_asset_rls_and_wip_service_date.sql
+supabase/migrations/20261109290000_payroll_run_status_after_payment.sql
+supabase/migrations/20261109300000_map_internal_transfer_clearing_to_pcg_581.sql
+supabase/migrations/20261110000000_pcg_mapping_view_integrity.sql
