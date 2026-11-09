@@ -54,13 +54,14 @@ jobs:
             postgres:17 psql \
               -h "db.$SUPABASE_PROJECT_REF.supabase.co" -p 5432 -U postgres -d postgres \
               -v ON_ERROR_STOP=1 -At -F '|' \
-              -c "select current_setting('server_version'), (select count(*) from auth.users), (select count(*) from storage.buckets), (select count(*) from storage.objects), (select count(*) from public.prospects), (select count(*) from public.financial_accounts);" \
+              -c "select current_setting('server_version'), (select count(*) from auth.users), (select count(*) from storage.buckets), (select count(*) from storage.objects), (select count(*) from public.prospects), (select count(*) from public.financial_accounts), (select count(*) from public.prospect_interventions);" \
             > backup/production-manifest.tsv
           STORAGE_OBJECTS=$(cut -d '|' -f 4 backup/production-manifest.tsv)
           if [ "$STORAGE_OBJECTS" != "0" ]; then
             echo "::error::Storage contains files; a separate binary export is required before this backup can be called complete."
             exit 1
           fi
+          cut -d '|' -f 2-7 backup/production-manifest.tsv > backup/production-counts.tsv
           echo "Backup scope: all non-system PostgreSQL schemas; Auth users and Storage metadata included; Storage binary object count is zero."
 
       - name: Export custom database roles
@@ -98,10 +99,8 @@ jobs:
             -v ON_ERROR_STOP=1 -At -F '|' \
             -c "select (select count(*) from auth.users), (select count(*) from storage.buckets), (select count(*) from storage.objects), (select count(*) from public.prospects), (select count(*) from public.financial_accounts), (select count(*) from public.prospect_interventions);" \
             > backup/restored-manifest.tsv
-          diff -u backup/production-manifest.tsv <(awk -F '|' '{print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6}' backup/restored-manifest.tsv) || true
-          echo "Restore test completed; source and restored counts are recorded in the encrypted archive."
-        env:
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          diff -u backup/production-counts.tsv backup/restored-manifest.tsv
+          echo "Restore test passed; source and restored counts match."
 
       - name: Package, encrypt and verify the archive
         shell: bash
@@ -115,7 +114,7 @@ jobs:
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
             -pass env:SUPABASE_DB_PASSWORD \
             -in backup/magnisa-production.tar.gz.enc -out backup/verified-decryption.tar.gz
-          sha256sum -c backup/archive.sha256 --ignore-missing
+          sha256sum -c backup/archive.sha256
           cmp backup/magnisa-production.tar.gz backup/verified-decryption.tar.gz
           rm -f backup/magnisa-production.tar.gz backup/verified-decryption.tar.gz backup/magnisa-production.dump backup/roles.sql
           echo "Encrypted archive created and decryption checksum verified."
