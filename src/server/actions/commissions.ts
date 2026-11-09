@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, hasPermission } from "@/lib/permissions";
@@ -61,7 +62,12 @@ export async function convertProspectToCustomer(formData: FormData) {
     p_org: ctx.organizationId,
     p_prospect: prospectId,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.message.includes("Un client actif possède déjà cet e-mail ou ce numéro")) {
+      redirect("/prospects?conversion=duplicate");
+    }
+    throw new Error(error.message);
+  }
   revalidatePath("/prospects");
   revalidatePath("/clients");
   revalidatePath("/commissions");
