@@ -73,7 +73,7 @@ BEGIN
   SELECT kind INTO v_kind FROM public.pcg2005_accounts WHERE code=a.pcg_asset_account_code;
   IF v_kind IS DISTINCT FROM 'asset' THEN RAISE EXCEPTION 'Compte d’actif PCG invalide'; END IF;
   SELECT kind INTO v_kind FROM public.pcg2005_accounts WHERE code=a.pcg_acquisition_counterpart_account_code;
-  IF coalesce(v_kind,'') NOT IN ('liability','asset') THEN RAISE EXCEPTION 'La contrepartie doit être un compte fournisseur ou de trésorerie'; END IF;
+  IF coalesce(v_kind,'') NOT IN ('liability','asset','equity','income') THEN RAISE EXCEPTION 'La contrepartie PCG doit être un compte autorisé de tiers, trésorerie, capitaux propres ou production immobilisée'; END IF;
   v_amount := round(a.acquisition_cost+coalesce(a.directly_attributable_cost,0),2);
   IF v_amount<=0 THEN RAISE EXCEPTION 'Le coût immobilisable doit être positif'; END IF;
   v_lines := jsonb_build_array(
