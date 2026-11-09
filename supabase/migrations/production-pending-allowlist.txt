@@ -1,0 +1,7 @@
+# New migrations reviewed for the next controlled production migration window.
+# Add a version only after its SQL and rollback/backup implications have been reviewed.
+20261107170000
+20261109170000
+20261109290000
+20261109300000
+20261110000000
