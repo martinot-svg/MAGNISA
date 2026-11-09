@@ -260,7 +260,7 @@ BEGIN
   PERFORM public.magnisa_assert_accounting_period_open(p_org,d.period_end);
   SELECT * INTO a FROM public.fixed_assets
   WHERE id=d.fixed_asset_id AND organization_id=p_org FOR UPDATE;
-  IF NOT FOUND OR a.status<>'active' THEN RAISE EXCEPTION 'Immobilisation inactive ou introuvable'; END IF;
+  IF NOT FOUND OR a.status NOT IN ('active','fully_depreciated') THEN RAISE EXCEPTION 'Immobilisation inactive ou introuvable'; END IF;
   IF a.pcg_accumulated_depreciation_account_code IS NULL OR a.pcg_depreciation_expense_account_code IS NULL THEN
     RAISE EXCEPTION 'Comptes PCG 28 et 68 non configurés sur la fiche';
   END IF;
