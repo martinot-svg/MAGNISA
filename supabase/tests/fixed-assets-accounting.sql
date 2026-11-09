@@ -43,6 +43,7 @@ BEGIN
   IF NOT has_function_privilege('authenticated','public.magnisa_plan_fixed_asset_depreciation(uuid,uuid,date,date)','EXECUTE')
      OR NOT has_function_privilege('authenticated','public.magnisa_post_fixed_asset_depreciation(uuid,uuid)','EXECUTE')
      OR NOT has_function_privilege('authenticated','public.magnisa_post_fixed_asset_acquisition(uuid,uuid)','EXECUTE')
+     OR NOT has_function_privilege('authenticated','public.magnisa_reverse_fixed_asset_depreciation(uuid,uuid,date,text)','EXECUTE')
      OR NOT has_function_privilege('authenticated','public.magnisa_record_fixed_asset_impairment(uuid,uuid,date,numeric,text)','EXECUTE')
      OR NOT has_function_privilege('authenticated','public.magnisa_dispose_fixed_asset(uuid,uuid,date,numeric,text)','EXECUTE')
      OR NOT has_function_privilege('authenticated','public.magnisa_transfer_fixed_asset(uuid,uuid,date,text,text,text)','EXECUTE')
@@ -59,5 +60,8 @@ BEGIN
 
   IF NOT EXISTS (SELECT 1 FROM pg_views WHERE schemaname='public' AND viewname='fixed_asset_register_reconciliation') THEN
     RAISE EXCEPTION 'Register-to-ledger reconciliation view is missing';
+  END IF;
+  IF position('PCG:%' IN pg_get_viewdef('public.pcg2005_journal_lines'::regclass,true))=0 THEN
+    RAISE EXCEPTION 'Direct PCG journal keys are not mapped into the PCG trial balance';
   END IF;
 END $$;
