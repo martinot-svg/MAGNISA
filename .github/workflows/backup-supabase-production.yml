@@ -44,6 +44,11 @@ jobs:
           node-version: 22
       - name: Install production Node dependencies for Storage export/restore
         run: npm ci --omit=dev --ignore-scripts
+      - name: Check Storage backup scripts
+        run: |
+          node --check scripts/backup/export-supabase-storage.mjs
+          node --check scripts/backup/restore-supabase-storage.mjs
+          node --check scripts/backup/verify-supabase-storage.mjs
 
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v3
