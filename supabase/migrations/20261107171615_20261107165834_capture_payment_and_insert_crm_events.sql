@@ -1,0 +1,4 @@
+-- No-op reconciliation migration.
+-- The CRM event-capture migration was already recorded as 20261107165834.
+-- A second idempotent execution was recorded by the Supabase migration runner as 20261107171615.
+-- This file preserves the remote migration ledger without replaying the same DDL twice.
