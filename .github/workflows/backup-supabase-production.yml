@@ -175,13 +175,13 @@ jobs:
           }
 
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --exclude-schema=realtime --exclude-schema=vault --clean --if-exists --exit-on-error \
+            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --clean --if-exists --exit-on-error \
               --section=pre-data /backup/magnisa-production.dump
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --exclude-schema=realtime --exclude-schema=vault --exit-on-error \
+            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --exit-on-error \
               --section=data /backup/magnisa-production.dump
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --exclude-schema=realtime --exclude-schema=vault --exit-on-error \
+            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --exit-on-error \
               --section=post-data /backup/magnisa-production.dump
 
           SUPABASE_URL="$LOCAL_API_URL" SUPABASE_SERVICE_ROLE_KEY="$LOCAL_SERVICE_ROLE_KEY" \
