@@ -19,7 +19,7 @@ INSERT INTO public.pcg2005_accounts(code,label,kind) VALUES
  ('223','Constructions en concession','asset'),
  ('225','Installations techniques en concession','asset'),
  ('228','Autres immobilisations corporelles en concession','asset'),
- ('229','Droits du concédant','asset'),
+ ('229','Droits du concédant','liability'),
  ('23','Immobilisations en cours','asset'),
  ('232','Immobilisations corporelles en cours','asset'),
  ('237','Immobilisations incorporelles en cours','asset'),
@@ -52,6 +52,7 @@ INSERT INTO public.pcg2005_accounts(code,label,kind) VALUES
  ('293','Pertes de valeur sur immobilisations en cours','asset'),
  ('296','Pertes de valeur sur participations et créances rattachées à des participations','asset'),
  ('297','Pertes de valeur sur autres immobilisations financières','asset'),
+ ('72','Production immobilisée','income'),
  ('404','Fournisseurs d’immobilisations','liability'),
  ('462','Créances sur cessions d’immobilisations','asset'),
  ('652','Moins-values sur cessions d’actifs non courants','expense'),
@@ -72,7 +73,54 @@ DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fixed_assets_pcg_class_families_chk') THEN
     ALTER TABLE public.fixed_assets ADD CONSTRAINT fixed_assets_pcg_class_families_chk CHECK (
-      (pcg_asset_account_code IS NULL OR pcg_asset_account_code ~ '^(20|21|22|23|26|27)[0-9]{0,4}$')
+      (pcg_asset_account_code IS NULL OR (pcg_asset_account_code ~ '^(20|21|22|23|26|27)[0-9]{0,4}
+      AND (pcg_acquisition_counterpart_account_code IS NULL OR pcg_acquisition_counterpart_account_code ~ '^(10|4|5|72)[0-9]{0,4}
+      AND (pcg_accumulated_depreciation_account_code IS NULL OR pcg_accumulated_depreciation_account_code ~ '^28[0-9]{0,4}$')
+      AND (pcg_depreciation_expense_account_code IS NULL OR pcg_depreciation_expense_account_code ~ '^68[0-9]{0,4}$')
+      AND (pcg_impairment_account_code IS NULL OR pcg_impairment_account_code ~ '^29[0-9]{0,4}$')
+      AND (pcg_impairment_expense_account_code IS NULL OR pcg_impairment_expense_account_code ~ '^68[0-9]{0,4}$')
+      AND (pcg_impairment_reversal_income_account_code IS NULL OR pcg_impairment_reversal_income_account_code ~ '^78[0-9]{0,4}$')
+      AND (pcg_disposal_receivable_account_code IS NULL OR pcg_disposal_receivable_account_code ~ '^46[0-9]{0,4}$')
+      AND (pcg_disposal_expense_account_code IS NULL OR pcg_disposal_expense_account_code ~ '^65[0-9]{0,4}$')
+      AND (pcg_disposal_income_account_code IS NULL OR pcg_disposal_income_account_code ~ '^75[0-9]{0,4}$')
+    );
+  END IF;
+END $$;
+
+COMMENT ON TABLE public.pcg2005_accounts IS
+  'PCG 2005 Madagascar account catalogue. Class 2 base accounts and relevant posting accounts are aligned to the official MEF/CSC recommended chart; permitted subdivisions remain entity-specific.';
+ AND pcg_asset_account_code !~ '^229'))
+      AND (pcg_acquisition_counterpart_account_code IS NULL OR pcg_acquisition_counterpart_account_code ~ '^[45][0-9]{0,5}$')
+      AND (pcg_accumulated_depreciation_account_code IS NULL OR pcg_accumulated_depreciation_account_code ~ '^28[0-9]{0,4}$')
+      AND (pcg_depreciation_expense_account_code IS NULL OR pcg_depreciation_expense_account_code ~ '^68[0-9]{0,4}$')
+      AND (pcg_impairment_account_code IS NULL OR pcg_impairment_account_code ~ '^29[0-9]{0,4}$')
+      AND (pcg_impairment_expense_account_code IS NULL OR pcg_impairment_expense_account_code ~ '^68[0-9]{0,4}$')
+      AND (pcg_impairment_reversal_income_account_code IS NULL OR pcg_impairment_reversal_income_account_code ~ '^78[0-9]{0,4}$')
+      AND (pcg_disposal_receivable_account_code IS NULL OR pcg_disposal_receivable_account_code ~ '^46[0-9]{0,4}$')
+      AND (pcg_disposal_expense_account_code IS NULL OR pcg_disposal_expense_account_code ~ '^65[0-9]{0,4}$')
+      AND (pcg_disposal_income_account_code IS NULL OR pcg_disposal_income_account_code ~ '^75[0-9]{0,4}$')
+    );
+  END IF;
+END $$;
+
+COMMENT ON TABLE public.pcg2005_accounts IS
+  'PCG 2005 Madagascar account catalogue. Class 2 base accounts and relevant posting accounts are aligned to the official MEF/CSC recommended chart; permitted subdivisions remain entity-specific.';
+)
+      AND (pcg_accumulated_depreciation_account_code IS NULL OR pcg_accumulated_depreciation_account_code ~ '^28[0-9]{0,4}$')
+      AND (pcg_depreciation_expense_account_code IS NULL OR pcg_depreciation_expense_account_code ~ '^68[0-9]{0,4}$')
+      AND (pcg_impairment_account_code IS NULL OR pcg_impairment_account_code ~ '^29[0-9]{0,4}$')
+      AND (pcg_impairment_expense_account_code IS NULL OR pcg_impairment_expense_account_code ~ '^68[0-9]{0,4}$')
+      AND (pcg_impairment_reversal_income_account_code IS NULL OR pcg_impairment_reversal_income_account_code ~ '^78[0-9]{0,4}$')
+      AND (pcg_disposal_receivable_account_code IS NULL OR pcg_disposal_receivable_account_code ~ '^46[0-9]{0,4}$')
+      AND (pcg_disposal_expense_account_code IS NULL OR pcg_disposal_expense_account_code ~ '^65[0-9]{0,4}$')
+      AND (pcg_disposal_income_account_code IS NULL OR pcg_disposal_income_account_code ~ '^75[0-9]{0,4}$')
+    );
+  END IF;
+END $$;
+
+COMMENT ON TABLE public.pcg2005_accounts IS
+  'PCG 2005 Madagascar account catalogue. Class 2 base accounts and relevant posting accounts are aligned to the official MEF/CSC recommended chart; permitted subdivisions remain entity-specific.';
+ AND pcg_asset_account_code !~ '^229'))
       AND (pcg_acquisition_counterpart_account_code IS NULL OR pcg_acquisition_counterpart_account_code ~ '^[45][0-9]{0,5}$')
       AND (pcg_accumulated_depreciation_account_code IS NULL OR pcg_accumulated_depreciation_account_code ~ '^28[0-9]{0,4}$')
       AND (pcg_depreciation_expense_account_code IS NULL OR pcg_depreciation_expense_account_code ~ '^68[0-9]{0,4}$')
