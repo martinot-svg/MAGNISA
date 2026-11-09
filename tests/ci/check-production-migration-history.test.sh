@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "\${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GUARD="$ROOT/scripts/ci/check-production-migration-history.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
