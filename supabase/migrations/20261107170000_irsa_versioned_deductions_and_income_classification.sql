@@ -484,6 +484,7 @@ declare
   v_employee public.employees%rowtype;
   v_run public.payroll_runs%rowtype;
   v_id uuid;
+  v_payslip public.payslips%rowtype;
   v_gross numeric;
   v_net numeric;
 begin
@@ -565,7 +566,8 @@ begin
     coalesce(p_employer_social,0),coalesce(p_employer_health,0),
     v_gross,v_net,0,'calculated'
   )
-  returning id into v_id;
+  returning * into v_payslip;
+  v_id := v_payslip.id;
 
   update public.payroll_runs r
   set
