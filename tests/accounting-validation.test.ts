@@ -21,6 +21,7 @@ describe("MAGNISA accounting input contract", () => {
   it("rejects malformed idempotency keys", () => expect(expenseInputSchema.safeParse({ ...expense, idempotency_key: "bad" }).success).toBe(false));
   it("does not infer fixed-asset accounts from computer descriptions", () => expect(suggestPcgCode("Ordinateur portable", "EXPENSE:acquisition")).toBe(""));
   it("does not infer fixed-asset accounts from generic supplier expenses", () => expect(suggestPcgCode("Achats et sous-traitance", "EXPENSE:SUPPLIER")).toBe(""));
+  it("suggests PCG 581 for explicitly identified transit accounts", () => expect(suggestPcgCode("Fonds en transit", "TRANSIT:transfer-id")).toBe("581"));
   it("keeps the narrow MVola suspense-account suggestion", () => expect(suggestPcgCode("Frais MVola à reclasser", "471")).toBe("471"));
   it("rejects generic expense mappings to fixed-asset accounts", () => expect(isPcgMappingAllowed("EXPENSE:acquisition", "asset")).toBe(false));
   it("rejects generic expense mappings to equity accounts", () => expect(isPcgMappingAllowed("EXPENSE:transport", "equity")).toBe(false));
