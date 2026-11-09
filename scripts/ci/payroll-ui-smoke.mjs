@@ -43,7 +43,7 @@ process.stdout.write("DIRECT USER JWT MEMBERSHIPS " + JSON.stringify({
   jwt_role: jwtClaims.role,
   count: directMemberships?.length ?? 0,
   query_error: directMembershipError?.code ?? "none",
-}) + "\\n");
+}) + "\n");
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
 };
@@ -53,6 +53,8 @@ const getRule = async (id) => {
   if (error) throw error;
   return data;
 };
+const historySection = (page) => page.getByRole("dialog").locator("div.section.card")
+  .filter({ has: page.getByRole("heading", { name: "Historique des règles" }) });
 const ruleRow = (page, name) => page.getByRole("dialog").locator("tbody tr").filter({ hasText: name });
 const openRuleActions = async (page, name) => {
   const row = ruleRow(page, name);
@@ -92,8 +94,8 @@ const resetPage = async (page) => {
     await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor({ timeout: 15000 });
     await openHistory(page);
   } catch (error) {
-    process.stdout.write("RESET PAGE URL " + page.url() + " STATUS " + response?.status() + "\\n");
-    process.stdout.write("RESET PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\\n");
+    process.stdout.write("RESET PAGE URL " + page.url() + " STATUS " + response?.status() + "\n");
+    process.stdout.write("RESET PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\n");
     throw error;
   }
 };
@@ -114,17 +116,18 @@ try {
   const membershipCheck = await admin.from("organization_members")
     .select("organization_id,role,status").eq("user_id", process.env.TEST_USER_ID);
   if (membershipCheck.error) throw membershipCheck.error;
-  process.stdout.write("TEST USER MEMBERSHIPS " + JSON.stringify(membershipCheck.data) + "\\n");
+  process.stdout.write("TEST USER MEMBERSHIPS " + JSON.stringify(membershipCheck.data) + "\n");
 
   const payrollResponse = await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
   try {
     await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor({ timeout: 15000 });
     await openHistory(page);
   } catch (error) {
-    process.stdout.write("PAYROLL PAGE URL " + page.url() + " STATUS " + payrollResponse?.status() + "\\n");
-    process.stdout.write("PAYROLL PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\\n");
+    process.stdout.write("PAYROLL PAGE URL " + page.url() + " STATUS " + payrollResponse?.status() + "\n");
+    process.stdout.write("PAYROLL PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\n");
     throw error;
   }
+  await openHistory(page);
   await ruleRow(page, "UI TEST historical").waitFor();
 
   let row = await openRuleActions(page, "UI TEST historical");
@@ -175,6 +178,22 @@ try {
   const previous = await getRule(ids.current);
   assert(previous.status === "archived", "Previous rule was not closed by valid activation.");
   process.stdout.write("PASS UI: valid rule activation and previous-period closure\n");
+
+  const fixedAssetsResponse = await page.goto(`${baseUrl}/immobilisations`, { waitUntil: "domcontentloaded" });
+  assert(fixedAssetsResponse?.ok(), `Fixed-assets route returned ${fixedAssetsResponse?.status()}`);
+  await page.getByRole("heading", { name: "Registre des immobilisations" }).waitFor({ timeout: 15000 });
+  await page.getByRole("heading", { name: "Planifier et comptabiliser les dotations" }).waitFor({ timeout: 10000 });
+  await page.getByRole("heading", { name: "Mise en service des immobilisations en cours" }).waitFor({ timeout: 10000 });
+  await page.getByRole("heading", { name: "Ventilation par composants" }).waitFor({ timeout: 10000 });
+  await page.getByRole("heading", { name: "Rapprochement IFRS distinct" }).waitFor({ timeout: 10000 });
+  const fixedAssetRead = await authenticatedClient.from("fixed_assets").select("id").limit(1);
+  if (fixedAssetRead.error) throw fixedAssetRead.error;
+  const depreciationRead = await authenticatedClient.from("fixed_asset_depreciation_entries").select("id").limit(1);
+  if (depreciationRead.error) throw depreciationRead.error;
+  const depreciationWrite = await authenticatedClient.from("fixed_asset_depreciation_entries").insert({});
+  assert(depreciationWrite.error?.code === "42501", `Authenticated user must not write depreciation schedules directly; received ${depreciationWrite.error?.code ?? "no error"}`);
+  process.stdout.write("PASS UI: authenticated fixed-assets register, depreciation, component and IFRS sections\n");
+  process.stdout.write("PASS RLS: authenticated read allowed and direct depreciation write denied\n");
 
   assert(pageErrors.length === 0, `Browser page errors: ${pageErrors.join(" | ")}`);
   process.stdout.write("PASS UI: no uncaught browser page errors\n");
