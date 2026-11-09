@@ -130,7 +130,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tar -czf backup/magnisa-production.tar.gz -C backup production-summary.tsv production-counts.tsv restored-counts.tsv roles.sql magnisa-production.dump
+          tar -czf backup/magnisa-production.tar.gz -C backup production-summary.tsv production-counts.tsv restored-counts.tsv roles.sql magnisa-production.dump -C "$GITHUB_WORKSPACE" supabase/functions
           PASSPHRASE_FILE=$(mktemp)
           chmod 600 "$PASSPHRASE_FILE"
           trap 'rm -f "$PASSPHRASE_FILE"' EXIT
