@@ -127,7 +127,6 @@ try {
     process.stdout.write("PAYROLL PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\n");
     throw error;
   }
-  await openHistory(page);
   await ruleRow(page, "UI TEST historical").waitFor();
 
   let row = await openRuleActions(page, "UI TEST historical");
