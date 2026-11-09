@@ -20,7 +20,7 @@ const rule: PayrollCalculationRule = {
 
 describe("Calcul centralisé des bulletins", () => {
   it("calcule une paie à partir d'un référentiel versionné", () => {
-    const result = calculatePayrollAmounts({ gross: 1_000_000, dependants: 0, rule });
+    const result = calculatePayrollAmounts({ deductionsAuthorized: true, gross: 1_000_000, dependants: 0, rule });
     expect(result.cnapsBase).toBe(1_000_000);
     expect(result.healthBase).toBe(1_000_000);
     expect(result.employeeSocial).toBe(10_000);
@@ -34,8 +34,17 @@ describe("Calcul centralisé des bulletins", () => {
     expect(result.employerCost).toBe(1_190_000);
   });
 
+  it("n'applique aucune déduction santé ou retraite sans notification écrite", () => {
+    const result = calculatePayrollAmounts({ gross: 1_000_000, dependants: 0, rule });
+    expect(result.employeeSocial).toBe(10_000);
+    expect(result.employeeHealth).toBe(10_000);
+    expect(result.deductiblePension).toBe(0);
+    expect(result.taxableBase).toBe(1_000_000);
+    expect(result.incomeTax).toBe(107_500);
+  });
+
   it("plafonne à 2 % du brut la déduction IRSA de la cotisation santé", () => {
-    const result = calculatePayrollAmounts({
+    const result = calculatePayrollAmounts({ deductionsAuthorized: true,
       gross: 1_000_000,
       dependants: 0,
       rule: { ...rule, health_employee_rate: 0.03 },
@@ -49,13 +58,13 @@ describe("Calcul centralisé des bulletins", () => {
   });
 
   it.each([0.015, 0.005])("utilise le plafond santé IRSA versionné à %s", (rate) => {
-    const result = calculatePayrollAmounts({ gross: 1_000_000, dependants: 0, rule: { ...rule, health_employee_rate: 0.03, irsa_health_deduction_rate: rate } });
+    const result = calculatePayrollAmounts({ deductionsAuthorized: true, gross: 1_000_000, dependants: 0, rule: { ...rule, health_employee_rate: 0.03, irsa_health_deduction_rate: rate } });
     const deductible = Math.min(30_000, Math.round(1_000_000 * rate * 100) / 100);
     expect(result.taxableBase).toBe(Math.floor((1_000_000 - 10_000 - deductible) / 100) * 100);
   });
 
   it("calcule l'IRSA sur la rémunération classifiée et non sur le brut global", () => {
-    const result = calculatePayrollAmounts({
+    const result = calculatePayrollAmounts({ deductionsAuthorized: true,
       gross: 1_000_000,
       taxableCompensation: 700_000,
       dependants: 0,
@@ -70,7 +79,7 @@ describe("Calcul centralisé des bulletins", () => {
   });
 
   it("intègre la retraite complémentaire patronale à l'assiette IRSA sans la payer en net", () => {
-    const result = calculatePayrollAmounts({
+    const result = calculatePayrollAmounts({ deductionsAuthorized: true,
       gross: 1_000_000,
       taxableSupplementaryPension: 100_000,
       dependants: 0,
@@ -84,7 +93,7 @@ describe("Calcul centralisé des bulletins", () => {
   });
 
   it("rejette un versement patronal de retraite complémentaire invalide", () => {
-    expect(() => calculatePayrollAmounts({
+    expect(() => calculatePayrollAmounts({ deductionsAuthorized: true,
       gross: 500_000,
       taxableSupplementaryPension: -1,
       dependants: 0,
@@ -93,7 +102,7 @@ describe("Calcul centralisé des bulletins", () => {
   });
 
   it("plafonne la déduction des cotisations de retraite à 10 % du brut", () => {
-    const result = calculatePayrollAmounts({
+    const result = calculatePayrollAmounts({ deductionsAuthorized: true,
       gross: 1_000_000, dependants: 0, rule: { ...rule, cnaps_employee_rate: 0.15 },
     });
     expect(result.employeeSocial).toBe(150_000);
@@ -102,7 +111,7 @@ describe("Calcul centralisé des bulletins", () => {
   });
 
   it("intègre une cotisation salariale complémentaire dans la limite fiscale sans double déduction", () => {
-    const result = calculatePayrollAmounts({
+    const result = calculatePayrollAmounts({ deductionsAuthorized: true,
       gross: 1_000_000, dependants: 0, rule,
       additionalEmployeePensionContribution: 50_000,
     });
@@ -111,7 +120,7 @@ describe("Calcul centralisé des bulletins", () => {
   });
 
   it("plafonne séparément les assiettes CNaPS et SMIE selon le référentiel", () => {
-    const result = calculatePayrollAmounts({ gross: 3_000_000, dependants: 0, rule });
+    const result = calculatePayrollAmounts({ deductionsAuthorized: true, gross: 3_000_000, dependants: 0, rule });
     expect(result.cnapsBase).toBe(2_400_000);
     expect(result.healthBase).toBe(1_600_000);
     expect(result.employeeSocial).toBe(24_000);
@@ -122,19 +131,19 @@ describe("Calcul centralisé des bulletins", () => {
   it.each([350_000, 350_100, 400_000, 400_100, 500_000, 500_100, 600_000, 600_100, 4_000_000, 4_000_100])(
     "calcule sans exception aux seuils IRSA (%i Ar)",
     (gross) => {
-      const result = calculatePayrollAmounts({ gross, dependants: 0, rule });
+      const result = calculatePayrollAmounts({ deductionsAuthorized: true, gross, dependants: 0, rule });
       expect(Number.isFinite(result.incomeTax)).toBe(true);
       expect(result.incomeTax).toBeGreaterThanOrEqual(3_000);
     },
   );
 
   it("utilise la réduction et le seuil personnes à charge du référentiel", () => {
-    const result = calculatePayrollAmounts({
+    const result = calculatePayrollAmounts({ deductionsAuthorized: true,
       gross: 1_000_000, dependants: 2,
       rule: { ...rule, irsa_dependant_reduction: 3_500, irsa_dependant_threshold: 900_000 },
     });
     expect(result.incomeTax).toBe(96_500);
-    const belowThreshold = calculatePayrollAmounts({
+    const belowThreshold = calculatePayrollAmounts({ deductionsAuthorized: true,
       gross: 800_000, dependants: 2,
       rule: { ...rule, irsa_dependant_reduction: 3_500, irsa_dependant_threshold: 900_000 },
     });
@@ -142,22 +151,22 @@ describe("Calcul centralisé des bulletins", () => {
   });
 
   it("retourne zéro d'impôt pour un brut nul", () => {
-    const result = calculatePayrollAmounts({ gross: 0, dependants: 0, rule });
+    const result = calculatePayrollAmounts({ deductionsAuthorized: true, gross: 0, dependants: 0, rule });
     expect(result.taxableBase).toBe(0);
     expect(result.incomeTax).toBe(0);
     expect(result.netBeforeOtherDeductions).toBe(0);
   });
 
   it("rejette les taux et plafonds incohérents", () => {
-    expect(() => calculatePayrollAmounts({
+    expect(() => calculatePayrollAmounts({ deductionsAuthorized: true,
       gross: 500_000,
       dependants: 0,
       rule: { ...rule, health_employee_rate: 1.2 },
     })).toThrow(/Taux/);
-    expect(() => calculatePayrollAmounts({ gross: 500_000, dependants: 0, rule: { ...rule, irsa_health_deduction_rate: 1.2 } })).toThrow(/Taux/);
-    expect(() => calculatePayrollAmounts({ gross: 500_000, dependants: 0, rule: { ...rule, irsa_health_deduction_rate: 0.03 } })).toThrow(/2 %/);
-    expect(() => calculatePayrollAmounts({ gross: 500_000, dependants: 0, rule: { ...rule, irsa_pension_deduction_rate: 0.11 } })).toThrow(/10 %/);
-    expect(() => calculatePayrollAmounts({
+    expect(() => calculatePayrollAmounts({ deductionsAuthorized: true, gross: 500_000, dependants: 0, rule: { ...rule, irsa_health_deduction_rate: 1.2 } })).toThrow(/Taux/);
+    expect(() => calculatePayrollAmounts({ deductionsAuthorized: true, gross: 500_000, dependants: 0, rule: { ...rule, irsa_health_deduction_rate: 0.03 } })).toThrow(/2 %/);
+    expect(() => calculatePayrollAmounts({ deductionsAuthorized: true, gross: 500_000, dependants: 0, rule: { ...rule, irsa_pension_deduction_rate: 0.11 } })).toThrow(/10 %/);
+    expect(() => calculatePayrollAmounts({ deductionsAuthorized: true,
       gross: 500_000,
       dependants: 0,
       rule: { ...rule, cnaps_monthly_ceiling: 0 },
@@ -165,6 +174,6 @@ describe("Calcul centralisé des bulletins", () => {
   });
 
   it("rejette un nombre de personnes à charge non entier", () => {
-    expect(() => calculatePayrollAmounts({ gross: 500_000, dependants: 1.5, rule })).toThrow();
+    expect(() => calculatePayrollAmounts({ deductionsAuthorized: true, gross: 500_000, dependants: 1.5, rule })).toThrow();
   });
 });
