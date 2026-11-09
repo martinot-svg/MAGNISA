@@ -49,6 +49,7 @@ if [[ ! -s "$LOCAL" ]]; then
   exit 1
 fi
 
+sort -t '|' -k1,1 -o "$REMOTE" "$REMOTE"
 awk -F '|' 'NF != 2 || $1 !~ /^[0-9]{14}$/ || $2 == "" {print "Invalid remote ledger row at line " NR ": " $0; bad=1} END {exit bad}' "$REMOTE"
 cut -d '|' -f1 "$LOCAL" | sort > "$LOCAL_VERSIONS"
 cut -d '|' -f1 "$REMOTE" | sort > "$REMOTE_VERSIONS"
@@ -95,7 +96,7 @@ if [[ -f "$RECONCILIATION_FILE" ]]; then
     }
     END {exit bad}
   ' "$RECONCILIATION_FILE"
-  grep -v '^[[:space:]]*#' "$RECONCILIATION_FILE" | cut -d '|' -f1 | sort | uniq -d > "$TMP_DIR/duplicate-map" || true
+  awk -F '|' '$1 !~ /^[[:space:]]*#/ && NF {print $1}' "$RECONCILIATION_FILE" | sort | uniq -d > "$TMP_DIR/duplicate-map"
   if [[ -s "$TMP_DIR/duplicate-map" ]]; then
     echo "::error::Duplicate remote versions in reconciliation manifest:"
     cat "$TMP_DIR/duplicate-map"
