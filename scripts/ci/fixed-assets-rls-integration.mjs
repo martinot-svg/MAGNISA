@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -62,7 +63,7 @@ if (ownerReconciliation.data.length === 0) {
 const viewerEmail = `fixed-asset-viewer-${suffix}@magnisa.test`;
 // Supabase Auth enforces a 72-byte password ceiling. Use a high-entropy,
 // fixed-length credential instead of concatenating multiple UUIDs.
-const viewerPassword = `Vw-${crypto.randomBytes(16).toString("hex")}!a9`;
+const viewerPassword = `Vw-${randomBytes(16).toString("hex")}!a9`;
 const created = await admin.auth.admin.createUser({
   email: viewerEmail,
   password: viewerPassword,
