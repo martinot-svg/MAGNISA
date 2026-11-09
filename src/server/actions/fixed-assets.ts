@@ -333,3 +333,37 @@ export async function postFixedAssetAcquisition(formData: FormData) {
   revalidatePath("/comptabilite");
   return data;
 }
+
+
+export async function componentizeFixedAsset(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "accounting.manage");
+  const parsed = z.object({
+    parent_asset_id: z.string().uuid(),
+    event_date: z.string().date(),
+    reason: z.string().trim().min(10).max(1500),
+    components_json: z.string().trim().min(2).max(30000),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message || "Données de ventilation invalides.");
+  let components: unknown;
+  try {
+    components = JSON.parse(parsed.data.components_json);
+  } catch {
+    throw new Error("Le détail des composants doit être un JSON valide.");
+  }
+  if (!Array.isArray(components) || components.length < 2 || components.length > 20) {
+    throw new Error("La ventilation doit contenir entre 2 et 20 composants.");
+  }
+  const { data, error } = await ctx.supabase.rpc("magnisa_componentize_fixed_asset", {
+    p_org: ctx.organizationId,
+    p_parent_asset: parsed.data.parent_asset_id,
+    p_event_date: parsed.data.event_date,
+    p_components: components,
+    p_reason: parsed.data.reason,
+  });
+  if (error) throw new Error("Impossible de ventiler l'immobilisation : " + error.message);
+  revalidatePath("/immobilisations");
+  revalidatePath("/etats-financiers");
+  revalidatePath("/comptabilite");
+  return data;
+}
