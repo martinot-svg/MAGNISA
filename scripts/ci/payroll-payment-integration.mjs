@@ -56,6 +56,35 @@ if (employeeRows.error || employeeRows.data?.length !== 2) {
   throw employeeRows.error ?? new Error("Could not create payroll integration employees.");
 }
 
+const legacyRun = await admin.from("payroll_runs").insert({
+  organization_id: organizationId,
+  period_start: "2027-02-01",
+  period_end: "2027-02-28",
+  status: "draft",
+  created_by: userId,
+}).select("id").single();
+if (legacyRun.error) throw legacyRun.error;
+const legacyCreate = await user.rpc("create_payslip", {
+  p_org: organizationId,
+  p_run: legacyRun.data.id,
+  p_employee: employeeRows.data[0].id,
+  p_bonuses: 0,
+  p_overtime: 0,
+  p_other_earnings: 0,
+  p_employee_social: 0,
+  p_employee_health: 0,
+  p_income_tax: 0,
+  p_advances_recovered: 0,
+  p_other_deductions: 0,
+  p_employer_social: 0,
+  p_employer_health: 0,
+});
+assert(!!legacyCreate.error && ["42501", "PGRST202"].includes(legacyCreate.error.code),
+  "Authenticated clients must not call snapshot-less legacy create_payslip overloads.");
+const legacySlips = await admin.from("payslips").select("id").eq("payroll_run_id", legacyRun.data.id);
+if (legacySlips.error) throw legacySlips.error;
+assert(legacySlips.data.length === 0, "Rejected legacy RPC must not create a snapshot-less payslip.");
+
 const run = await admin.from("payroll_runs").insert({
   organization_id: organizationId,
   period_start: "2026-12-01",
