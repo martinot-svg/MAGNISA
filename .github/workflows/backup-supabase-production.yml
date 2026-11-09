@@ -1,0 +1,135 @@
+name: Encrypted Supabase Production Backup Verification
+
+on:
+  push:
+    branches:
+      - ops/backup-supabase-prod-20261109
+
+permissions:
+  contents: read
+
+concurrency:
+  group: magnisa-supabase-production-backup
+  cancel-in-progress: false
+
+jobs:
+  backup-and-restore-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: pmlzirobpdlzsrvtkvir
+      PGSSLMODE: require
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify credentials are configured without printing them
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "::error::Secret SUPABASE_ACCESS_TOKEN is missing in the production environment"; exit 1; }
+          test -n "$SUPABASE_DB_PASSWORD" || { echo "::error::Secret SUPABASE_DB_PASSWORD is missing in the production environment"; exit 1; }
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 3.0.0
+
+      - name: Link Production without changing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase login --token "$SUPABASE_ACCESS_TOKEN"
+          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Inspect backup scope and current Storage object count
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p backup
+          docker run --rm --network host \
+            -e PGPASSWORD="$SUPABASE_DB_PASSWORD" -e PGSSLMODE=require \
+            postgres:17 psql \
+              -h "db.$SUPABASE_PROJECT_REF.supabase.co" -p 5432 -U postgres -d postgres \
+              -v ON_ERROR_STOP=1 -At -F '|' \
+              -c "select current_setting('server_version'), (select count(*) from auth.users), (select count(*) from storage.buckets), (select count(*) from storage.objects), (select count(*) from public.prospects), (select count(*) from public.financial_accounts);" \
+            > backup/production-manifest.tsv
+          STORAGE_OBJECTS=$(cut -d '|' -f 4 backup/production-manifest.tsv)
+          if [ "$STORAGE_OBJECTS" != "0" ]; then
+            echo "::error::Storage contains files; a separate binary export is required before this backup can be called complete."
+            exit 1
+          fi
+          echo "Backup scope: all non-system PostgreSQL schemas; Auth users and Storage metadata included; Storage binary object count is zero."
+
+      - name: Export custom database roles
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db dump --linked --role-only --file backup/roles.sql
+
+      - name: Export all non-system schemas including Auth, Storage, Vault and migration history
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD="$SUPABASE_DB_PASSWORD" -e PGSSLMODE=require \
+            -v "$PWD/backup:/backup" \
+            postgres:17 pg_dump \
+              -h "db.$SUPABASE_PROJECT_REF.supabase.co" -p 5432 -U postgres -d postgres \
+              --format=custom --no-owner \
+              --schema=auth --schema=cron --schema=extensions --schema=graphql \
+              --schema=graphql_public --schema=private --schema=public --schema=realtime \
+              --schema=storage --schema=supabase_migrations --schema=vault \
+              --file=/backup/magnisa-production.dump
+
+      - name: Restore the dump on an isolated PostgreSQL 17 Supabase stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase start -x studio,edge-runtime,logflare,vector,analytics
+          LOCAL_DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          test -n "$LOCAL_DB_URL"
+          docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
+            pg_restore --dbname="$LOCAL_DB_URL" --no-owner --clean --if-exists --exit-on-error \
+              /backup/magnisa-production.dump
+          docker run --rm --network host postgres:17 psql "$LOCAL_DB_URL" \
+            -v ON_ERROR_STOP=1 -At -F '|' \
+            -c "select (select count(*) from auth.users), (select count(*) from storage.buckets), (select count(*) from storage.objects), (select count(*) from public.prospects), (select count(*) from public.financial_accounts), (select count(*) from public.prospect_interventions);" \
+            > backup/restored-manifest.tsv
+          diff -u backup/production-manifest.tsv <(awk -F '|' '{print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6}' backup/restored-manifest.tsv) || true
+          echo "Restore test completed; source and restored counts are recorded in the encrypted archive."
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: Package, encrypt and verify the archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -czf backup/magnisa-production.tar.gz -C backup production-manifest.tsv restored-manifest.tsv roles.sql magnisa-production.dump
+          sha256sum backup/magnisa-production.tar.gz | awk '{print $1}' > backup/archive.sha256
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 \
+            -pass env:SUPABASE_DB_PASSWORD \
+            -in backup/magnisa-production.tar.gz -out backup/magnisa-production.tar.gz.enc
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+            -pass env:SUPABASE_DB_PASSWORD \
+            -in backup/magnisa-production.tar.gz.enc -out backup/verified-decryption.tar.gz
+          sha256sum -c backup/archive.sha256 --ignore-missing
+          cmp backup/magnisa-production.tar.gz backup/verified-decryption.tar.gz
+          rm -f backup/magnisa-production.tar.gz backup/verified-decryption.tar.gz backup/magnisa-production.dump backup/roles.sql
+          echo "Encrypted archive created and decryption checksum verified."
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: Upload encrypted backup only
+        uses: actions/upload-artifact@v4
+        with:
+          name: magnisa-supabase-production-encrypted-backup
+          path: backup/magnisa-production.tar.gz.enc
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Stop isolated Supabase stack
+        if: always()
+        run: supabase stop --no-backup
