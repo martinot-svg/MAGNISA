@@ -17,6 +17,35 @@ begin
   select relrowsecurity into v_rls from pg_class where oid='public.prospect_intervention_type_settings'::regclass;
   if not v_rls then raise exception 'RLS must be enabled on intervention type settings'; end if;
 
+  if exists (
+    select 1 from pg_policies
+    where schemaname='public'
+      and (tablename,policyname) in (
+        ('prospect_interventions','prospect_interventions_select'),
+        ('prospect_intervention_history','prospect_intervention_history_select'),
+        ('prospect_contributors','prospect_contributors_select'),
+        ('commission_allocations','commission_allocations_select'),
+        ('commission_calculations','commission_calculations_select'),
+        ('commission_payments','commission_payments_select'),
+        ('commission_policies','commission_policies_select')
+      )
+      and coalesce(qual,'') not like '%is_org_member%'
+  ) or (
+    select count(*) from pg_policies
+    where schemaname='public'
+      and (tablename,policyname) in (
+        ('prospect_interventions','prospect_interventions_select'),
+        ('prospect_intervention_history','prospect_intervention_history_select'),
+        ('prospect_contributors','prospect_contributors_select'),
+        ('commission_allocations','commission_allocations_select'),
+        ('commission_calculations','commission_calculations_select'),
+        ('commission_payments','commission_payments_select'),
+        ('commission_policies','commission_policies_select')
+      )
+  ) <> 7 then
+    raise exception 'Collaborative self-read policies must require active organization membership';
+  end if;
+
   if has_table_privilege('anon','public.prospect_interventions','SELECT')
      or has_table_privilege('anon','public.prospect_interventions','INSERT')
      or has_table_privilege('anon','public.prospect_intervention_history','SELECT')
