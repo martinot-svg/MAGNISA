@@ -100,7 +100,7 @@ jobs:
               -h "$SUPABASE_DB_HOST" -p 5432 -U "$SUPABASE_DB_USER" -d postgres \
               -v ON_ERROR_STOP=1 -At -f /backup/counts.sql \
             > backup/production-counts.tsv
-          echo "Production schema inventory and exact row counts recorded; Storage binary object count is zero."
+          echo "Production schema inventory, exact row counts, and Storage binary object inventory recorded and cross-checked against the Storage API."
 
       - name: Export custom database roles using the official Supabase CLI
         shell: bash
