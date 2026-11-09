@@ -53,8 +53,22 @@ const getRule = async (id) => {
   if (error) throw error;
   return data;
 };
-const historySection = (page) => page.locator("div.section.card")
+const historySection = (page) => page.getByRole("dialog").locator("div.section.card")
   .filter({ has: page.getByRole("heading", { name: "Historique des règles" }) });
+const openHistory = async (page) => {
+  const button = page.getByRole("button", { name: "Historique des règles" });
+  const dialog = page.getByRole("dialog");
+  await button.waitFor({ state: "visible" });
+  await button.click();
+  try {
+    await dialog.waitFor({ state: "visible", timeout: 2000 });
+  } catch {
+    await page.waitForTimeout(750);
+    await button.click();
+    await dialog.waitFor({ state: "visible", timeout: 10000 });
+  }
+  await dialog.getByRole("heading", { name: "Historique des règles" }).waitFor({ timeout: 10000 });
+};
 const ruleRow = (page, name) => historySection(page).locator("tbody tr").filter({ hasText: name });
 const openRuleActions = async (page, name) => {
   const row = ruleRow(page, name);
@@ -77,8 +91,7 @@ const resetPage = async (page) => {
   const response = await page.goto(`${baseUrl}/paie/parametres`, { waitUntil: "domcontentloaded" });
   try {
     await page.getByRole("heading", { name: /Paramètres de paie/ }).waitFor({ timeout: 15000 });
-    await page.getByRole("button", { name: "Historique des règles" }).click();
-    await page.getByRole("heading", { name: "Historique des règles" }).waitFor({ timeout: 10000 });
+    await openHistory(page);
   } catch (error) {
     process.stdout.write("RESET PAGE URL " + page.url() + " STATUS " + response?.status() + "\\n");
     process.stdout.write("RESET PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\\n");
@@ -112,8 +125,7 @@ try {
     process.stdout.write("PAYROLL PAGE BODY " + (await page.locator("body").innerText()).slice(0, 3000) + "\\n");
     throw error;
   }
-  await page.getByRole("button", { name: "Historique des règles" }).click();
-  await page.getByRole("heading", { name: "Historique des règles" }).waitFor({ timeout: 10000 });
+  await openHistory(page);
   await ruleRow(page, "UI TEST historical").waitFor();
 
   let row = await openRuleActions(page, "UI TEST historical");
