@@ -3,16 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
-
-function suggestPcgCode(accountLabel: string, accountKey: string): string {
-  const value = `${accountLabel} ${accountKey}`
-    .toLowerCase();
-  // Suggestion prudente : le matériel informatique durable relève généralement des immobilisations.
-  // La validation reste explicite dans le formulaire d'imputation.
-  if (/(ordinateur|matériel informatique|materiel informatique|équipement informatique|equipement informatique|matériel numérique|materiel numerique)/.test(value)) return "218";
-  if (/(remboursement.*mvola|frais.*mvola.*reclasser)/.test(value)) return "471";
-  return "";
-}
+import { isPcgMappingAllowed, suggestPcgCode } from "@/lib/accounting/pcg-mapping";
 
 async function assignAccountMapping(formData: FormData) {
   "use server";
@@ -24,10 +15,13 @@ async function assignAccountMapping(formData: FormData) {
   const [{ data: existing, error: lineError }, { data: account, error: accountError }] = await Promise.all([
     ctx.supabase.from("journal_entry_lines").select("id")
       .eq("organization_id", ctx.organizationId).eq("account_key", legacy).limit(1),
-    ctx.supabase.from("pcg2005_accounts").select("code").eq("code", code).maybeSingle(),
+    ctx.supabase.from("pcg2005_accounts").select("code,kind").eq("code", code).maybeSingle(),
   ]);
   if (lineError || accountError || !existing?.length || !account) {
     throw new Error("Compte source ou compte PCG introuvable pour cette entreprise.");
+  }
+  if (!isPcgMappingAllowed(legacy, account.kind)) {
+    throw new Error("Une dépense historique ne peut pas être imputée à un compte d’immobilisation, de passif ou de capitaux propres par une correspondance générique. Utilise le parcours d’immobilisation avec ses justificatifs.");
   }
   const { error } = await ctx.supabase.from("pcg2005_account_mappings").upsert({
     organization_id: ctx.organizationId,

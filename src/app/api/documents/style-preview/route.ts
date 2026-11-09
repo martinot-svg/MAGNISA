@@ -5,6 +5,7 @@ import {Document,Page,Text,View,Image,renderToBuffer} from "@react-pdf/renderer"
 import {requireOrganization} from "@/lib/current-org";
 import {requirePermission} from "@/lib/permissions";
 import {readDocumentThemeForm} from "@/lib/document-theme";
+import {resolveOrganizationLogoUrl} from "@/lib/storage/organization-logo";
 
 export async function POST(request:Request){
  try{
@@ -14,12 +15,13 @@ export async function POST(request:Request){
   const form=await request.formData();
   const theme=readDocumentThemeForm(form);
   const {data:org}=await ctx.supabase.from("organizations").select("name").eq("id",ctx.organizationId).single();
-  const {data:settings}=await ctx.supabase.from("company_settings").select("trade_name,legal_name,logo_url,address,phone,email,website,tax_id,stat_id,registry_id").eq("organization_id",ctx.organizationId).maybeSingle();
+  const {data:settings}=await ctx.supabase.from("company_settings").select("trade_name,legal_name,logo_url,logo_storage_path,address,phone,email,website,tax_id,stat_id,registry_id").eq("organization_id",ctx.organizationId).maybeSingle();
   const company=settings?.trade_name||settings?.legal_name||org?.name||"Entreprise non renseignée";
+  const logoUrl=await resolveOrganizationLogoUrl(ctx.supabase,settings||{});
   const h=React.createElement;
   const text=(value:string,style?:Record<string,unknown>)=>h(Text,{style},value);
   const pdf=await renderToBuffer(h(Document,null,h(Page,{size:"A4",style:{padding:theme.pageMargin,fontFamily:theme.fontFamily,fontSize:11,color:theme.textColor,backgroundColor:theme.backgroundColor}},
-   ...(settings?.logo_url?[h(Image,{src:settings.logo_url,style:{width:theme.logoWidth,height:48,objectFit:"contain",alignSelf:theme.logoPosition==="center"?"center":theme.logoPosition==="right"?"flex-end":"flex-start",marginBottom:8}})]:[]),
+   ...(logoUrl?[h(Image,{src:logoUrl,style:{width:theme.logoWidth,height:48,objectFit:"contain",alignSelf:theme.logoPosition==="center"?"center":theme.logoPosition==="right"?"flex-end":"flex-start",marginBottom:8}})]:[]),
    text(company,{fontSize:20,fontWeight:700,color:theme.headingColor,marginBottom:6}),
    ...(settings?.address?[text(settings.address,{fontSize:9,marginBottom:3})]:[]),
    ...([settings?.phone,settings?.email,settings?.website].filter(Boolean).length?[text([settings?.phone,settings?.email,settings?.website].filter(Boolean).join(" | "),{fontSize:8,marginBottom:5})]:[]),

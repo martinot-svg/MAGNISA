@@ -2,6 +2,11 @@ name: Encrypted Supabase Production Backup Verification
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/backup-supabase-production.yml
 
 permissions:
   contents: read
@@ -12,7 +17,7 @@ concurrency:
 
 jobs:
   backup-and-restore-test:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
@@ -22,7 +27,7 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       SUPABASE_URL: https://pmlzirobpdlzsrvtkvir.supabase.co
       SUPABASE_PROJECT_REF: pmlzirobpdlzsrvtkvir
-      SUPABASE_DB_HOST: aws-0-us-west-2.pooler.supabase.com
+      SUPABASE_DB_HOST: aws-1-us-west-2.pooler.supabase.com
       SUPABASE_DB_USER: postgres.pmlzirobpdlzsrvtkvir
       PGSSLMODE: require
     steps:
