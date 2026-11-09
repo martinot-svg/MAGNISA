@@ -70,7 +70,7 @@ begin
   update public.payroll_rule_sets set status='validated' where id=v_rule;
 
   insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from,irsa_deduction_authorized_to)
-  values(v_employee,v_org,'Test','Payroll',1000000,'active',0,true,'TEST-IRSA-NOTIF-001',current_date-1,(current_date+interval '1 month')::date);
+  values(v_employee,v_org,'Test','Payroll',1000000,'active',0,true,'TEST-IRSA-NOTIF-001',date_trunc('month',current_date)::date,(date_trunc('month',current_date)+interval '1 month - 1 day')::date);
 
   insert into public.payroll_runs(id,organization_id,period_start,period_end,status,created_by)
   values(v_run,v_org,date_trunc('month',current_date)::date,(date_trunc('month',current_date)+interval '1 month - 1 day')::date,'draft',v_owner);
@@ -110,7 +110,7 @@ begin
 
   -- Versioned dependant reduction: two dependants, custom Ar 3,500 reduction above Ar 900,000.
   insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from,irsa_deduction_authorized_to)
-  values(gen_random_uuid(),v_org,'Test','Dependants above threshold',1000000,'active',2,true,'TEST-IRSA-NOTIF-001',current_date-1,(current_date+interval '1 month')::date);
+  values(gen_random_uuid(),v_org,'Test','Dependants above threshold',1000000,'active',2,true,'TEST-IRSA-NOTIF-001',date_trunc('month',current_date)::date,(date_trunc('month',current_date)+interval '1 month - 1 day')::date);
   -- Reuse the generated employee ID without touching any existing production employee.
   select id into v_employee_pension from public.employees
    where organization_id=v_org and first_name='Test' and last_name='Dependants above threshold';
@@ -125,7 +125,7 @@ begin
 
   -- Below the configured threshold, no dependant reduction is allowed.
   insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from,irsa_deduction_authorized_to)
-  values(gen_random_uuid(),v_org,'Test','Dependants below threshold',800000,'active',2,true,'TEST-IRSA-NOTIF-001',current_date-1,(current_date+interval '1 month')::date);
+  values(gen_random_uuid(),v_org,'Test','Dependants below threshold',800000,'active',2,true,'TEST-IRSA-NOTIF-001',date_trunc('month',current_date)::date,(date_trunc('month',current_date)+interval '1 month - 1 day')::date);
   select id into v_employee_pension from public.employees
    where organization_id=v_org and first_name='Test' and last_name='Dependants below threshold';
   perform public.create_payslip(
@@ -183,7 +183,7 @@ begin
   -- Use a fresh UUID: v_employee_pension was assigned to the dependant-threshold fixture above.
   v_employee_pension := gen_random_uuid();
   insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from,irsa_deduction_authorized_to)
-  values(v_employee_pension,v_org,'Test','Employee pension',1000000,'active',0,true,'TEST-IRSA-NOTIF-001',current_date-1,(current_date+interval '1 month')::date);
+  values(v_employee_pension,v_org,'Test','Employee pension',1000000,'active',0,true,'TEST-IRSA-NOTIF-001',date_trunc('month',current_date)::date,(date_trunc('month',current_date)+interval '1 month - 1 day')::date);
 
   -- Employee-funded supplementary pension is deducted from net and from IRSA base within the 10% cap.
   v_payslip_employee_pension := public.create_payslip(
@@ -239,7 +239,7 @@ begin
     'overtime',jsonb_build_object('totalHours',0,'exemptHours',0),
     'irsaDeductionAuthorization',jsonb_build_object(
       'authorized',true,'reference','TEST-IRSA-NOTIF-001',
-      'validFrom',current_date-1,'validTo',(current_date+interval '1 month')::date,
+      'validFrom',date_trunc('month',current_date)::date,'validTo',(date_trunc('month',current_date)+interval '1 month - 1 day')::date,
       'legalReference','CGI Madagascar, article 01.03.11'
     ),
     'calculation',jsonb_build_object(
@@ -248,7 +248,7 @@ begin
     )
   );
   insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from,irsa_deduction_authorized_to)
-  values(v_classified_employee,v_org,'Test','Classified base',1000000,'active',0,true,'TEST-IRSA-NOTIF-001',current_date-1,(current_date+interval '1 month')::date);
+  values(v_classified_employee,v_org,'Test','Classified base',1000000,'active',0,true,'TEST-IRSA-NOTIF-001',date_trunc('month',current_date)::date,(date_trunc('month',current_date)+interval '1 month - 1 day')::date);
   v_classified_payslip := public.create_payslip(
     p_org=>v_org,p_run=>v_run,p_employee=>v_classified_employee,
     p_bonuses=>0,p_overtime=>0,p_other_earnings=>0,
@@ -297,7 +297,7 @@ begin
   insert into public.employees(id,organization_id,first_name,last_name,base_salary,status,irsa_dependants,
     irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from,irsa_deduction_authorized_to)
   values(v_employee_expired,v_org,'Test','Expired IRSA notification',1000000,'active',0,
-    true,'TEST-IRSA-EXPIRED-001',current_date-interval '2 months',current_date-1);
+    true,'TEST-IRSA-EXPIRED-001',(current_date-interval '2 months')::date,current_date-1);
   v_payslip_expired := public.create_payslip(
     p_org=>v_org,p_run=>v_run,p_employee=>v_employee_expired,
     p_bonuses=>0,p_overtime=>0,p_other_earnings=>0,
