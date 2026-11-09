@@ -105,6 +105,7 @@ DROP POLICY IF EXISTS audit_logs_select ON public.audit_logs;
 DROP POLICY IF EXISTS "User can read own profile" ON public.profiles;
 DROP POLICY IF EXISTS prospects_commissions_select ON public.prospects;
 DROP POLICY IF EXISTS prospects_select ON public.prospects;
+DROP POLICY IF EXISTS prospects_authorized_select ON public.prospects;
 
 CREATE POLICY prospects_authorized_select
   ON public.prospects FOR SELECT TO authenticated
