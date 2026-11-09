@@ -23,7 +23,7 @@ const cents = (value: number) => Math.round((value + Number.EPSILON) * 100) / 10
 const DAY_MS = 86_400_000;
 
 function parseDate(value: string, field: string): Date {
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) throw new Error(`Date invalide : ${field}.`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(`Date invalide : ${field}.`);
   const date = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
     throw new Error(`Date invalide : ${field}.`);
