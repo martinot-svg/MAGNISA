@@ -77,14 +77,14 @@ export default async function FixedAssets() {
           <div className="field"><label>Valeur résiduelle</label><input name="residual_value" type="number" min="0" step="0.01" defaultValue="0"/></div>
           <div className="field"><label>Méthode d'amortissement</label><select name="depreciation_method" defaultValue="straight_line"><option value="straight_line">Linéaire</option><option value="none">Non amortissable</option></select></div>
           <div className="field"><label>Durée d'utilisation (mois)</label><input name="useful_life_months" type="number" min="1" step="1" placeholder="60"/></div>
-          <div className="field"><label>Compte amortissements (28)</label><input name="pcg_accumulated_depreciation_account_code" placeholder="28183"/></div>
+          <div className="field"><label>Compte amortissements (28)</label><input name="pcg_accumulated_depreciation_account_code" placeholder="281"/></div>
           <div className="field"><label>Compte dotations amortissements (68)</label><input name="pcg_depreciation_expense_account_code" placeholder="681"/></div>
-          <div className="field"><label>Compte dépréciations cumulées (29)</label><input name="pcg_impairment_account_code" placeholder="29"/></div>
-          <div className="field"><label>Compte dotation dépréciation (68)</label><input name="pcg_impairment_expense_account_code" placeholder="6816"/></div>
-          <div className="field"><label>Compte reprise dépréciation (78)</label><input name="pcg_impairment_reversal_income_account_code" placeholder="7816"/></div>
+          <div className="field"><label>Compte dépréciations cumulées (29)</label><input name="pcg_impairment_account_code" placeholder="291"/></div>
+          <div className="field"><label>Compte dotation dépréciation (68)</label><input name="pcg_impairment_expense_account_code" placeholder="681"/></div>
+          <div className="field"><label>Compte reprise dépréciation (78)</label><input name="pcg_impairment_reversal_income_account_code" placeholder="781"/></div>
           <div className="field"><label>Compte créance de cession (46)</label><input name="pcg_disposal_receivable_account_code" placeholder="462"/></div>
-          <div className="field"><label>Compte valeur comptable cédée (675)</label><input name="pcg_disposal_expense_account_code" placeholder="675"/></div>
-          <div className="field"><label>Compte produit de cession (775)</label><input name="pcg_disposal_income_account_code" placeholder="775"/></div>
+          <div className="field"><label>Compte moins-value de cession (652)</label><input name="pcg_disposal_expense_account_code" placeholder="652"/></div>
+          <div className="field"><label>Compte plus-value de cession (752)</label><input name="pcg_disposal_income_account_code" placeholder="752"/></div>
           <div className="field"><label>Fournisseur</label><input name="supplier_name" maxLength={180}/></div>
           <div className="field"><label>Référence facture</label><input name="invoice_reference" maxLength={100}/></div>
           <div className="field"><label>Numéro de série</label><input name="serial_number" maxLength={120}/></div>
