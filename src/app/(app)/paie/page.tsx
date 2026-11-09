@@ -54,7 +54,22 @@ async function updateEmployeeDependants(fd: FormData) {
   const id=String(fd.get("employee_id")||"");
   const count=Number(fd.get("irsa_dependants"));
   if (!id || !Number.isInteger(count) || count<0 || count>30) throw new Error("Nombre de personnes à charge invalide.");
-  const {error}=await ctx.supabase.from("employees").update({irsa_dependants:count}).eq("organization_id",ctx.organizationId).eq("id",id);
+  const authorized=fd.get("irsa_deduction_authorized")==="on";
+  const reference=String(fd.get("irsa_deduction_authorization_reference")||"").trim();
+  const from=String(fd.get("irsa_deduction_authorized_from")||"");
+  const to=String(fd.get("irsa_deduction_authorized_to")||"")||null;
+  const datePattern=/^\\d{4}-\\d{2}-\\d{2}$/;
+  if(authorized&&(!reference||reference.length>200||!datePattern.test(from))) {
+    throw new Error("Une autorisation écrite IRSA exige une référence et une date de prise d'effet.");
+  }
+  if(to&&(!datePattern.test(to)||!from||to<from)) throw new Error("La période de validité de l'autorisation IRSA est invalide.");
+  const {error}=await ctx.supabase.from("employees").update({
+    irsa_dependants:count,
+    irsa_deduction_authorized:authorized,
+    irsa_deduction_authorization_reference:authorized?reference:null,
+    irsa_deduction_authorized_from:authorized?from:null,
+    irsa_deduction_authorized_to:authorized?to:null,
+  }).eq("organization_id",ctx.organizationId).eq("id",id);
   if(error) throw new Error(error.message);
   revalidatePath("/paie");
 }
@@ -149,7 +164,7 @@ async function createPayslip(fd: FormData) {
   const employeeId=String(fd.get("employee_id")||"");
   const [{data:run,error:runError},{data:employee,error:employeeError}]=await Promise.all([
     ctx.supabase.from("payroll_runs").select("period_start,period_end").eq("organization_id",ctx.organizationId).eq("id",runId).single(),
-    ctx.supabase.from("employees").select("base_salary,irsa_dependants").eq("organization_id",ctx.organizationId).eq("id",employeeId).single(),
+    ctx.supabase.from("employees").select("base_salary,irsa_dependants,irsa_deduction_authorized,irsa_deduction_authorization_reference,irsa_deduction_authorized_from,irsa_deduction_authorized_to").eq("organization_id",ctx.organizationId).eq("id",employeeId).single(),
   ]);
   if(runError||employeeError||!run||!employee)throw new Error("Salarié ou période introuvable.");
   const {data:rules,error:ruleError}=await ctx.supabase.from("payroll_rule_sets").select("*").eq("organization_id",ctx.organizationId).eq("status","validated").lte("effective_from",run.period_end).order("effective_from",{ascending:false});
@@ -237,7 +252,16 @@ async function createPayslip(fd: FormData) {
     const value=Number(rule[key]);
     if (!Number.isFinite(value) || value < 0 || (key.endsWith("_rate") && value > 1)) throw new Error("Paramètre réglementaire invalide : "+key);
   }
+  const authorizationReference=String(employee.irsa_deduction_authorization_reference||"").trim();
+  const authorizationFrom=String(employee.irsa_deduction_authorized_from||"");
+  const authorizationTo=String(employee.irsa_deduction_authorized_to||"");
+  const deductionsAuthorized=employee.irsa_deduction_authorized===true
+    && authorizationReference.length>0
+    && /^\\d{4}-\\d{2}-\\d{2}$/.test(authorizationFrom)
+    && authorizationFrom<=String(run.period_start)
+    && (!authorizationTo||authorizationTo>=String(run.period_end));
   const calculation = calculatePayrollAmounts({
+    deductionsAuthorized,
     gross,
     taxableCompensation: taxableCashCompensation,
     taxableSupplementaryPension: amounts.taxable_supplementary_pension,
@@ -271,7 +295,7 @@ async function createPayslip(fd: FormData) {
     calculatedAt:new Date().toISOString(),
     periodEnd:String(run.period_end),
     payrollRuleSet:{id:rule.id,name:rule.name,effectiveFrom:rule.effective_from,effectiveTo:rule.effective_to,legalReference:rule.legal_reference,roundingPolicy:rule.rounding_policy,irsaBrackets:rule.irsa_brackets,irsaMinimum:rule.irsa_minimum,dependantReduction:rule.irsa_dependant_reduction,dependantThreshold:rule.irsa_dependant_threshold,healthDeductionRate:rule.irsa_health_deduction_rate,pensionDeductionRate:rule.irsa_pension_deduction_rate,compensationRules:[...legalRules,...configuredCompensationRules],overtimePremiumRules:rule.overtime_premium_rules||[]},
-    employee:{id:employeeId,baseSalary,dependants:Number(employee.irsa_dependants)},
+    employee:{id:employeeId,baseSalary,dependants:Number(employee.irsa_dependants),irsaDeductionAuthorization:{declared:employee.irsa_deduction_authorized===true,activeForPeriod:deductionsAuthorized,reference:authorizationReference||null,validFrom:authorizationFrom||null,validTo:authorizationTo||null}},
     compensation:classified,
     overtime:{totalHours:overtimeHours,hourlyRate:overtimeHourlyRate,premiumRate:overtimePremiumPercent/100,additionalPremiums:overtimeAdditionalPremiums,isCadre:overtimeIsCadre,timeRecordReconciled:overtimeRecordReconciled,recordReference:overtimeRecordReference,category:overtimeCategory,priorMonthHours, ...overtimeTax},
     calculation:{gross:calculation.gross,taxableBase:calculation.taxableBase,taxableCompensation:calculation.taxableCompensation,employeeSocial:calculation.employeeSocial,employeeHealth:calculation.employeeHealth,deductiblePension:calculation.deductiblePension,incomeTax:calculation.incomeTax,employerSocial:calculation.employerSocial,employerHealth:calculation.employerHealth,employerFmfp:calculation.employerFmfp,netBeforeOtherDeductions:calculation.netBeforeOtherDeductions,employerCost:calculation.employerCost},
@@ -435,7 +459,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
         <div className="tableWrap"><table><thead><tr><th>Salarié</th><th>Réf. MAGNISA</th><th>Matricule saisi</th><th>Poste</th><th>Statut</th><th>Gestion</th></tr></thead><tbody>
           {employees.map((e:any)=><tr key={e.id}><td><strong>{e.first_name} {e.last_name}</strong></td><td><code>{e.magnisa_reference||"-"}</code></td><td>{e.employee_number||"Non renseigné"}</td><td>{e.job_title||"Non renseigné"}</td><td>{e.status==="active"?"Actif":e.status}</td><td>
             <FormDialog title={`IRSA - ${e.first_name} ${e.last_name}`} buttonLabel="Modifier IRSA"><div className="field"><p className="muted">Salaire de base : {money(e.base_salary,c)}. Personnes à charge : {e.irsa_dependants??0}.</p>
-              <form action={updateEmployeeDependants} className="form"><input type="hidden" name="employee_id" value={e.id}/><label>Personnes à charge IRSA éligibles</label><input aria-label={`Personnes à charge de ${e.first_name} ${e.last_name}`} type="number" name="irsa_dependants" min="0" max="30" step="1" defaultValue={e.irsa_dependants??0} required/><button className="button">Enregistrer</button></form>
+              <form action={updateEmployeeDependants} className="form"><input type="hidden" name="employee_id" value={e.id}/><label>Personnes à charge IRSA éligibles</label><input aria-label={`Personnes à charge de ${e.first_name} ${e.last_name}`} type="number" name="irsa_dependants" min="0" max="30" step="1" defaultValue={e.irsa_dependants??0} required/><label><input type="checkbox" name="irsa_deduction_authorized" defaultChecked={e.irsa_deduction_authorized===true}/> Notification écrite autorisant les déductions IRSA reçue</label><label>Référence de la notification écrite</label><input name="irsa_deduction_authorization_reference" maxLength={200} defaultValue={e.irsa_deduction_authorization_reference??""}/><label>Valable à partir du</label><input type="date" name="irsa_deduction_authorized_from" defaultValue={e.irsa_deduction_authorized_from??""}/><label>Valable jusqu’au (facultatif)</label><input type="date" name="irsa_deduction_authorized_to" defaultValue={e.irsa_deduction_authorized_to??""}/><small>Sans notification écrite valide sur toute la période de paie, les cotisations santé et retraite ne réduisent pas l’assiette IRSA. Conserve la pièce justificative dans le dossier du salarié.</small><button className="button">Enregistrer</button></form>
             </div></FormDialog>
           </td></tr>)}
         </tbody></table></div>}
