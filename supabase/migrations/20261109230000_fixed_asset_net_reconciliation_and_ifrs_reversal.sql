@@ -30,7 +30,7 @@ ledger_totals AS (
   SELECT organization_id,pcg_code AS account_code,
     sum(debit-credit)::numeric(20,2) AS ledger_net
   FROM public.pcg2005_journal_lines
-  WHERE status='posted' AND pcg_code ~ '^(2|28|29)'
+  WHERE status='posted' AND pcg_code ~ '^(20|21|22[0-8]|23|26|27|28|29)'
   GROUP BY organization_id,pcg_code
 )
 SELECT coalesce(r.organization_id,l.organization_id) AS organization_id,
