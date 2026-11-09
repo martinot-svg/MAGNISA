@@ -67,7 +67,7 @@ const openHistory = async (page) => {
     await button.click();
     await dialog.waitFor({ state: "visible", timeout: 10000 });
   }
-  await dialog.getByRole("heading", { name: "Historique des règles" }).waitFor({ timeout: 10000 });
+  await dialog.getByRole("heading", { name: "Historique des règles" }).first().waitFor({ timeout: 10000 });
 };
 const ruleRow = (page, name) => historySection(page).locator("tbody tr").filter({ hasText: name });
 const openRuleActions = async (page, name) => {
