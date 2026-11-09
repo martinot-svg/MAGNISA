@@ -62,7 +62,7 @@ jobs:
       - name: Show pending migrations without applying them
         run: |
           echo "READ-ONLY PREFLIGHT: aucune migration ne sera appliquée par ce job."
-          supabase db push --db-url "$SUPABASE_DB_URL" --dry-run
+          supabase db push --db-url "$SUPABASE_DB_URL" --include-all --dry-run
 
       - name: Verify remote migration history
         run: supabase migration list --db-url "$SUPABASE_DB_URL"
@@ -101,7 +101,7 @@ jobs:
           PY
 
       - name: Apply pending migrations
-        run: supabase db push --db-url "$SUPABASE_DB_URL" --yes
+        run: supabase db push --db-url "$SUPABASE_DB_URL" --include-all --yes
 
       - name: Verify remote migration history
         run: supabase migration list --db-url "$SUPABASE_DB_URL"
