@@ -152,6 +152,23 @@ BEGIN
 END;
 $revoke$;
 
+-- Explicitly cover the deployed legacy identities, including the default-heavy 14-argument overload.
+REVOKE ALL ON FUNCTION public.create_payslip(
+  uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric
+) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.create_payslip(
+  uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric
+) TO service_role;
+
+REVOKE ALL ON FUNCTION public.create_payslip(
+  uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric
+) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.create_payslip(
+  uuid,uuid,uuid,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric
+) TO service_role;
+
+NOTIFY pgrst,'reload schema';
+
 -- Repair derived run statuses already inconsistent with their payslip payment states.
 -- Amounts, payslips, payments, financial transactions and journal entries are untouched.
 WITH run_payment_state AS (
