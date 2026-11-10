@@ -72,7 +72,7 @@ for version in "${ALLOWED_VERSIONS[@]}"; do
     # The CLI cannot push a reviewed subset while the historic production
     # ledger contains remote-only versions. Execute one allowlisted file per
     # transaction and record that exact version in the same transaction.
-    tag="$magnisa_migration_${version}$"
+    tag="\$magnisa_migration_${version}\$"
     if grep -Fq "$tag" "$file"; then
       echo "::error::Migration contains reserved SQL quote delimiter $tag"
       exit 1
