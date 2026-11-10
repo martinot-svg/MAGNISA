@@ -115,7 +115,7 @@ ON CONFLICT (code) DO NOTHING;
 -- These PCG accounts can carry either a debit asset balance or a credit liability balance.
 UPDATE public.pcg2005_accounts
 SET kind='clearing'
-WHERE code IN ('422','442','443','445','451','456','458','467')
+WHERE code IN ('422','442','443','445','451','455','456','458','467')
   AND kind IS DISTINCT FROM 'clearing';
 
 CREATE TABLE IF NOT EXISTS public.pcg2005_balance_sheet_rules (
@@ -234,13 +234,13 @@ UPDATE public.pcg2005_balance_sheet_rules
 SET section='current_assets',
     line_key=CASE
       WHEN account_code IN ('442','443','445') THEN 'tax_and_public_authority_balances'
-      WHEN account_code IN ('422','451','456','458','467') THEN 'other_receivables_and_payables'
+      WHEN account_code IN ('422','451','455','456','458','467') THEN 'other_receivables_and_payables'
       ELSE line_key
     END,
     normal_side='debit',
     requires_maturity=true,
     contra_asset=false
-WHERE account_code IN ('422','442','443','445','451','456','458','467');
+WHERE account_code IN ('422','442','443','445','451','455','456','458','467');
 
 -- Class 5: financial assets and cash. Internal transfers are never presented as cash.
 INSERT INTO public.pcg2005_balance_sheet_rules(account_code,section,line_key,normal_side,contra_asset)
