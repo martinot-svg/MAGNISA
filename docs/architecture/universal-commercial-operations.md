@@ -57,7 +57,20 @@ The post_goods_receipt workflow is atomic and retry-safe. It checks organization
 
 The receipt workflow intentionally does not create a journal. The supplier invoice and versioned PCG posting engine remain responsible for accounting recognition. A purchase order or physical receipt must not be mistaken for a supplier invoice, expense or inventory journal without the organization's configured inventory method and tax evidence.
 
-The catalogue and stock overview are available at /articles behind the optional inventory feature. Item creation and stock-location management use inventory.manage; read access uses inventory.view. This page displays quantities only and does not claim inventory valuation.\n\n## Deliberately not included in this slice
+The catalogue and stock overview are available at /articles behind the optional inventory feature. Item creation and stock-location management use inventory.manage; read access uses inventory.view. This page displays quantities only and does not claim inventory valuation.\n\n## Operational stock subledger increment
+
+The next migration, `20261110140000_stock_reservations_deliveries_transfers.sql`, extends the existing ledger rather than introducing a second stock system:
+
+- `stock_reservations` records customer-order reservations separately from physical movements. `stock_available` reports physical quantity, active reserved quantity and available quantity. Reservation RPCs serialize competing reservations using a transaction-scoped advisory lock and prevent reserving more than either available stock or the undelivered order-line balance.
+- `sales_deliveries` and `sales_delivery_lines` record partial or full dispatches. The delivery RPC validates order-line identity, quantity remaining, location and optional reservation; then atomically records the negative stock movement and fulfils the reservation. Delivery does not issue an invoice.
+- `stock_transfers` and `stock_transfer_lines` record inter-location transfers. Each transfer produces paired immutable `transfer_out` and `transfer_in` movements in the same transaction. Transfers cannot consume reserved stock.
+- All operation RPCs use organization membership and the existing permission checks, are idempotent by request key and reject reuse of a key with a different payload.
+- The customer-order page now supports adding a tracked catalogue item to an existing confirmed order, reserving it, and recording partial deliveries. The `/mouvements-stock` screen displays stock availability, active reservations, movements and transfers, and exposes the transfer workflow.
+- The order item-line RPC preserves a line's item classification and price/tax snapshot and refuses additions after invoice or delivery activity has begun.
+
+The operational ledger still does not generate accounting entries. It also does not yet implement supplier returns, customer returns/credit notes, delivery cancellation/reversal, inventory valuation (CUMP/FIFO), or a complete mixed merchandise/service invoice workflow. These remain release blockers; do not infer completion from the availability and delivery screens.
+
+## Deliberately not included in this slice
 
 - Serial-number capture.
 - Stock issues, customer deliveries, returns, transfers and adjustments.
