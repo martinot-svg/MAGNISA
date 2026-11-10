@@ -46,8 +46,7 @@ CREATE TABLE public.stock_return_lines(
  UNIQUE(organization_id,return_id,source_line_type,source_line_id),
  FOREIGN KEY(return_id,organization_id) REFERENCES public.stock_returns(id,organization_id) ON DELETE RESTRICT,
  FOREIGN KEY(item_id,organization_id) REFERENCES public.catalog_items(id,organization_id) ON DELETE RESTRICT,
- FOREIGN KEY(stock_location_id,organization_id) REFERENCES public.stock_locations(id,organization_id) ON DELETE RESTRICT,
- 
+ FOREIGN KEY(stock_location_id,organization_id) REFERENCES public.stock_locations(id,organization_id) ON DELETE RESTRICT
 );
 CREATE TABLE public.stock_adjustments(
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
