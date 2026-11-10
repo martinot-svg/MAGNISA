@@ -166,6 +166,21 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     const v=aggregate.get(l.pcg_code)||{debit:0,credit:0,kind:a.kind,label:a.label};
     v.debit+=n(l.debit);v.credit+=n(l.credit);aggregate.set(l.pcg_code,v);
   }
+  const sourceEntriesByCode=new Map<string,BalanceSheetLedgerLine["sourceEntries"]>();
+  const sourceEntryCountsByCode=new Map<string,number>();
+  for(const ledgerLine of lines){
+    const code=String(ledgerLine.pcg_code||"");
+    if(!code)continue;
+    sourceEntryCountsByCode.set(code,(sourceEntryCountsByCode.get(code)||0)+1);
+    const entries=sourceEntriesByCode.get(code)||[];
+    entries.push({
+      entryId:String(ledgerLine.journal_entry_id),
+      reference:ledgerLine.reference?String(ledgerLine.reference):null,
+      sourceType:ledgerLine.source_type?String(ledgerLine.source_type):null,
+      lineId:String(ledgerLine.line_id),
+    });
+    sourceEntriesByCode.set(code,entries);
+  }
   const make=(kind:string,source=aggregate)=>[...new Set([...source.keys(),...priorBalances.keys()])]
     .map(code=>{
       const current=source.get(code);
@@ -174,9 +189,12 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
       const v=current||{debit:0,credit:0,kind,label:account.label};
       const prior=priorBalances.get(code)||{debit:0,credit:0};
       const debitNormal=kind==="asset"||kind==="expense"||kind==="clearing";
+      const sourceEntries=sourceEntriesByCode.get(code)||[];
       return {code,label:v.label,debit:round(v.debit),credit:round(v.credit),
         balance:round(debitNormal?v.debit-v.credit:v.credit-v.debit),
-        comparativeBalance:round(debitNormal?prior.debit-prior.credit:prior.credit-prior.debit)};
+        comparativeBalance:round(debitNormal?prior.debit-prior.credit:prior.credit-prior.debit),
+        sourceEntries:sourceEntries.slice(0,100),
+        sourceEntryCount:sourceEntryCountsByCode.get(code)||0};
     })
     .filter((x):x is NonNullable<typeof x>=>!!x&&(Math.abs(x.balance)>=0.005||Math.abs(x.comparativeBalance)>=0.005))
     .sort((a,b)=>a.code.localeCompare(b.code));
