@@ -1,6 +1,6 @@
 import { requireOrganization } from "@/lib/current-org";
 import { requirePermission } from "@/lib/permissions";
-import { buildAssetPresentation, classifyReceivableMaturity, type AssetPresentation, type BalanceSheetLedgerLine, type BalanceSheetRule } from "./balance-sheet-presentation";
+import { buildAssetPresentation, classifyReceivableMaturity, matchesStatementAccountKind, type AssetPresentation, type BalanceSheetLedgerLine, type BalanceSheetRule } from "./balance-sheet-presentation";
 
 export type StatementLine = { code: string; label: string; debit: number; credit: number; balance: number; comparativeBalance: number };
 export type FiscalStatements = {
@@ -151,7 +151,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     .map(code=>{
       const current=source.get(code);
       const account:any=accountMap.get(code);
-      if(!account||account.kind!==kind)return null;
+      if(!account||!matchesStatementAccountKind(code,String(account.kind),kind))return null;
       const v=current||{debit:0,credit:0,kind,label:account.label};
       const prior=priorBalances.get(code)||{debit:0,credit:0};
       const debitNormal=kind==="asset"||kind==="expense"||kind==="clearing";
@@ -280,7 +280,6 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   ];
   const presentationLines:BalanceSheetLedgerLine[]=[
     ...assets.filter(x=>x.code!=="411"&&!/^3/.test(x.code)),
-    ...clearing.filter(x=>x.balance<0),
     ...receivableLines,
     ...stockPresentationLines,
     ...fixedAssetGapLines,
