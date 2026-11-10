@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS public.inventory_count_lines (
     FOREIGN KEY (count_id,organization_id)
     REFERENCES public.inventory_counts(id,organization_id) ON DELETE CASCADE,
   CONSTRAINT inventory_count_lines_stock_account_check
-    CHECK (account_code ~ '^(31|32|33|34|35|36|37|38)'),
+    CHECK (account_code ~ '^(31|32|33|34|35|37|38)'),
   CONSTRAINT inventory_count_lines_impairment_account_check
     CHECK (impairment_account_code IS NULL OR impairment_account_code ~ '^39(1|2|3|4|5|7|8)$'),
   CONSTRAINT inventory_count_lines_impairment_required_check
@@ -354,7 +354,7 @@ BEGIN
     SELECT pcg_code AS account_code,COALESCE(sum(debit-credit),0)::numeric AS amount
     FROM public.pcg2005_journal_lines
     WHERE organization_id=p_organization_id AND status='posted'
-      AND entry_date<=p_period_end AND pcg_code ~ '^(31|32|33|34|35|36|37|38)'
+      AND entry_date<=p_period_end AND pcg_code ~ '^(31|32|33|34|35|37|38)'
     GROUP BY pcg_code
   ),
   gross_gaps AS (
