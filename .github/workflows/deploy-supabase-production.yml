@@ -164,6 +164,37 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'Unbalanced posted journal entry detected';
             END IF;
+            IF abs(COALESCE((
+              SELECT sum(debit-credit)
+              FROM public.pcg2005_journal_lines
+              WHERE status='posted'
+                AND source_type IN ('internal_transfer_debit','internal_transfer_credit')
+                AND account_key LIKE 'TRANSIT:%'
+                AND pcg_code='581'
+            ),0)) >= 0.01 THEN
+              RAISE EXCEPTION 'The four internal-transfer clearing lines do not net to zero on PCG 581';
+            END IF;
+            IF EXISTS (
+              SELECT sp.id
+              FROM public.supplier_payments sp
+              LEFT JOIN public.journal_entries je
+                ON je.source_id=sp.id AND je.source_type='supplier_payment'
+              GROUP BY sp.id,sp.amount
+              HAVING count(je.id)<>1
+                OR abs(COALESCE(max(je.total_debit),0)-sp.amount)>=0.01
+                OR abs(COALESCE(max(je.total_credit),0)-sp.amount)>=0.01
+            ) THEN
+              RAISE EXCEPTION 'Supplier payment does not have exactly one balanced journal entry';
+            END IF;
+            IF EXISTS (
+              SELECT si.id
+              FROM public.supplier_invoices si
+              LEFT JOIN public.supplier_payments sp ON sp.supplier_invoice_id=si.id
+              GROUP BY si.id,si.paid_amount
+              HAVING abs(si.paid_amount-COALESCE(sum(sp.amount),0))>=0.01
+            ) THEN
+              RAISE EXCEPTION 'Supplier invoice paid amount does not reconcile to its payment rows';
+            END IF;
             IF EXISTS (
               SELECT 1 FROM public.pcg2005_journal_lines
               WHERE source_type IN ('internal_transfer_debit','internal_transfer_credit')
