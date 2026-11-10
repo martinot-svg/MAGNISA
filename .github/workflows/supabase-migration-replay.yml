@@ -118,6 +118,10 @@ jobs:
       - name: Exercise authenticated stock reservation, delivery, transfer and tenant isolation
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/stock-operations-integration.sql
+      - name: Seed isolated stock data for concurrent reservation test
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/stock-reservation-concurrency-seed.sql
+      - name: Exercise two concurrent authenticated PostgreSQL reservations
+        run: node scripts/ci/stock-reservation-concurrency.mjs
       - name: Exercise fixed-asset accounting workflows with authenticated user
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/fixed-assets-integration.sql
