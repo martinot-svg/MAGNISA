@@ -346,6 +346,9 @@ BEGIN
   SELECT * INTO v_order FROM public.purchase_orders
    WHERE id=v_line.purchase_order_id AND organization_id=p_org;
   IF NOT FOUND THEN RAISE EXCEPTION 'Commande de mandat introuvable.'; END IF;
+  IF v_line.quantity_received<=0 OR abs(v_line.line_total-p_amount)>0.01 THEN
+    RAISE EXCEPTION 'Le débours doit correspondre au coût exact de la ligne mandatée effectivement reçue.';
+  END IF;
   IF v_line.mandate_supplier_document_reference<>trim(p_supplier_document_reference) THEN
     RAISE EXCEPTION 'La référence de la pièce fournisseur doit correspondre à celle du mandat validé.';
   END IF;
