@@ -110,13 +110,13 @@ BEGIN
    d:=COALESCE((r->>'discount_pct')::numeric,0);tax_rate:=s.tax_rate;
    v_description:=s.name;v_unit:=s.unit;v_item:=NULL;
    IF v_order_line_id IS NOT NULL THEN
-    SELECT ol.tax_rate,ol.description,ol.unit INTO tax_rate,v_description,v_unit FROM public.order_lines ol
-    WHERE ol.id=v_order_line_id AND ol.organization_id=p_org AND ol.order_id=p_order AND ol.service_id=s.id;
+    SELECT source_line.tax_rate,source_line.description,source_line.unit INTO tax_rate,v_description,v_unit FROM public.order_lines source_line
+    WHERE source_line.id=v_order_line_id AND source_line.organization_id=p_org AND source_line.order_id=p_order AND source_line.service_id=s.id;
    END IF;
   ELSE
-   SELECT ol.unit_price,ol.discount_pct,ol.tax_rate,ol.description,ol.unit,ol.item_id
+   SELECT source_line.unit_price,source_line.discount_pct,source_line.tax_rate,source_line.description,source_line.unit,source_line.item_id
     INTO unit_price,d,tax_rate,v_description,v_unit,v_item
-   FROM public.order_lines ol WHERE ol.id=v_order_line_id AND ol.organization_id=p_org AND ol.order_id=p_order;
+   FROM public.order_lines source_line WHERE source_line.id=v_order_line_id AND source_line.organization_id=p_org AND source_line.order_id=p_order;
   END IF;
   gross:=round(q*unit_price,2);disc:=round(gross*d/100,2);taxable:=gross-disc;
   tax:=round(taxable*tax_rate/100,2);total:=taxable+tax;
