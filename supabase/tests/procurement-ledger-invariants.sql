@@ -120,8 +120,8 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='supplier_invoice_matches_invoice_order_uidx') THEN
     RAISE EXCEPTION 'Supplier invoice matching must support multiple purchase orders';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code='467' AND kind='asset')
-     OR NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code='4456' AND kind='asset') THEN
+  IF NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code='467')
+     OR NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code='4456') THEN
     RAISE EXCEPTION 'Customer mandate clearing or recoverable supplier VAT PCG accounts are missing';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='supplier_invoices' AND column_name='tax_treatment')
