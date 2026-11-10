@@ -4,6 +4,7 @@ import { loadFiscalStatements } from "@/lib/accounting/fiscal-statements";
 import { money } from "@/lib/money";
 import { revalidatePath } from "next/cache";
 import { EmptyState } from "@/components/empty-state";
+import { formatDateDisplay } from "@/lib/date-format";
 
 async function saveFiscalNotes(formData:FormData){
  "use server";
@@ -32,9 +33,9 @@ export default async function Statements({searchParams}:{searchParams:Promise<{y
   </div>
   <section className="card section">
    <form method="get" className="form"><div className="field"><label>Exercice comptable</label><select name="year" defaultValue={selected.id}>
-    {(years||[]).map((y:any)=><option key={y.id} value={y.id}>{y.label} • {y.period_start} au {y.period_end} • {y.status==="closed"?"Clôturé":"Ouvert"}</option>)}
+    {(years||[]).map((y:any)=><option key={y.id} value={y.id}>{y.label} • {formatDateDisplay(y.period_start)} au {formatDateDisplay(y.period_end)} • {y.status==="closed"?"Clôturé":"Ouvert"}</option>)}
    </select></div><button className="button">Afficher l'exercice</button></form>
-   <p className="muted">Entreprise : {s.organization?.trade_name||s.organization?.legal_name||s.organization?.name||"Entreprise"} • Devise : {s.currency} • Période : {s.year.period_start} au {s.year.period_end} • Comparatif : {s.priorYearLabel||"Aucun exercice antérieur disponible"}</p>
+   <p className="muted">Entreprise : {s.organization?.trade_name||s.organization?.legal_name||s.organization?.name||"Entreprise"} • Devise : {s.currency} • Période : {formatDateDisplay(s.year.period_start)} au {formatDateDisplay(s.year.period_end)} • Comparatif : {s.priorYearLabel||"Aucun exercice antérieur disponible"}</p>
    <p><strong>{s.controls.ready?"États contrôlés":"PROJET / NON VALIDÉ"}</strong> • Exercice clôturé : {s.controls.isClosed?"Oui":"Non"} • Comptes non imputés : {s.controls.unmapped} • Écritures déséquilibrées : {s.controls.unbalancedEntries} • Écart de bilan : {fmt(s.totals.balanceDifference)} • Flux non classés : {s.controls.unclassifiedCashFlowEntries} • Écart de rapprochement de trésorerie : {fmt(s.controls.cashFlowReconciliationDifference)} • Annexe renseignée : {s.controls.notesReady?"Oui":"Non"} • Rapprochement flux opérationnel / résultat avant impôt : {s.controls.operatingCashFlowReconciliationReady?"Validé":"À construire"} • Présentation PCG complète : {s.controls.pcgPresentationReady?"Validée":"À compléter"}</p>
    {!s.controls.ready&&<p role="alert">Les documents exportés portent le statut PROJET / NON VALIDÉ. Les rapprochements du tableau des flux et les ventilations PCG du bilan et du compte de résultat restent à compléter avant tout arrêté définitif.</p>}
   </section>
