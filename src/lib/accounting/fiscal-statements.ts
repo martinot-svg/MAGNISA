@@ -47,6 +47,17 @@ const n=(v:any)=>Number(v||0);
 const round=(v:number)=>Math.round((v+Number.EPSILON)*100)/100;
 const cashCodes=/^(511|512|513|514|515|517|518|53|54|58)/;
 
+export function isLoanRepaymentEffectiveAtDate(
+  status: string,
+  paymentDate: string,
+  reversedAt: string | null | undefined,
+  periodEnd: string,
+): boolean {
+  if (paymentDate > periodEnd) return false;
+  if (status === "posted") return true;
+  return status === "reversed" && !!reversedAt && reversedAt.slice(0, 10) > periodEnd;
+}
+
 export function classifyCashFlowCounterpart(code:string):"operating"|"investing"|"financing"|null {
   if(/^(2|404|405|462)/.test(code))return "investing";
   if(/^(10|11|12|13|14|15|16|17|516)/.test(code))return "financing";
@@ -474,7 +485,12 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
       passifBlockingIssues.push("Remboursement d’emprunt "+String(repayment.id)+" annulé sans historique d’effet vérifiable.");
       continue;
     }
-    if(status==="reversed"&&(!reversedAt||reversedAt<=String(year.period_end)))continue;
+    if(!isLoanRepaymentEffectiveAtDate(status,String(repayment.payment_date),reversedAt,String(year.period_end))){
+      if(!["draft","pending","reversed"].includes(status)){
+        passifBlockingIssues.push("Statut historique non reconnu pour le remboursement d’emprunt "+String(repayment.id)+".");
+      }
+      continue;
+    }
     const list=repaymentsByLoan.get(repayment.loan_id)||[];
     list.push(repayment);repaymentsByLoan.set(repayment.loan_id,list);
     if(repayment.installment_id){
