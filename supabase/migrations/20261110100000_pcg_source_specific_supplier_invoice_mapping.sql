@@ -1,4 +1,5 @@
 -- Source-specific PCG 2005 classification from supplier-invoice records, with evidence gaps retained.
+-- Production-only source rows are optional during clean schema replay; the restored-snapshot release test asserts their exact presence and mappings.
 -- The generic EXPENSE:SUPPLIER mapping must not classify every supplier invoice as an asset.
 
 INSERT INTO public.pcg2005_accounts(code,label,kind)
