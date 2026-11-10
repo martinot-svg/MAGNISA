@@ -385,6 +385,8 @@ BEGIN
       AND mapping_status='manuel'
       AND mapping_evidence_status='record_only'
       AND mapping_requires_attachment
+      AND mapping_requires_asset_register
+      AND mapping_requires_useful_life
   ) <> 2 THEN
     RAISE EXCEPTION 'Computer acquisitions DEP-00003 and DEP-00004 are not mapped provisionally to PCG 218 with evidence flags';
   END IF;
