@@ -4,6 +4,16 @@
 ALTER TABLE public.purchase_order_lines
   ADD COLUMN IF NOT EXISTS discount_amount numeric(18,2) NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS additional_cost_amount numeric(18,2) NOT NULL DEFAULT 0;
+DO $purchase_cost_constraints$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.purchase_order_lines'::regclass AND conname='purchase_order_lines_discount_nonnegative') THEN
+    ALTER TABLE public.purchase_order_lines ADD CONSTRAINT purchase_order_lines_discount_nonnegative CHECK (discount_amount>=0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.purchase_order_lines'::regclass AND conname='purchase_order_lines_additional_cost_nonnegative') THEN
+    ALTER TABLE public.purchase_order_lines ADD CONSTRAINT purchase_order_lines_additional_cost_nonnegative CHECK (additional_cost_amount>=0);
+  END IF;
+END
+$purchase_cost_constraints$;
 
 ALTER TABLE public.supplier_invoices
   ADD COLUMN IF NOT EXISTS tax_treatment text NOT NULL DEFAULT 'not_applicable',
@@ -310,9 +320,9 @@ ALTER TABLE public.customer_mandate_disbursements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customer_mandate_reimbursements ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.customer_mandate_disbursements,public.customer_mandate_reimbursements FROM PUBLIC,anon;
 CREATE POLICY customer_mandate_disbursements_org_read ON public.customer_mandate_disbursements
-  FOR SELECT TO authenticated USING (public.is_org_member(organization_id));
+  FOR SELECT TO authenticated USING (public.has_org_permission(organization_id,'suppliers.view'));
 CREATE POLICY customer_mandate_reimbursements_org_read ON public.customer_mandate_reimbursements
-  FOR SELECT TO authenticated USING (public.is_org_member(organization_id));
+  FOR SELECT TO authenticated USING (public.has_org_permission(organization_id,'suppliers.view'));
 GRANT SELECT ON public.customer_mandate_disbursements,public.customer_mandate_reimbursements TO authenticated;
 GRANT ALL ON public.customer_mandate_disbursements,public.customer_mandate_reimbursements TO service_role;
 
