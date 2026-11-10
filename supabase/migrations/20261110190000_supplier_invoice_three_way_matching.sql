@@ -1,6 +1,8 @@
 -- Supplier invoice three-way matching: supplier invoice -> purchase order -> posted goods receipts.
 -- Additive and forward-only. No production data is modified by this repository change.
 
+CREATE UNIQUE INDEX IF NOT EXISTS supplier_invoices_id_org_uidx ON public.supplier_invoices(id,organization_id);
+
 CREATE TABLE IF NOT EXISTS public.supplier_invoice_matches (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
