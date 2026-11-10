@@ -53,6 +53,14 @@ export interface CommercialClassification {
   requiresEvidence: string[];
   reviewReasons: string[];
 }
+const hasValidMandateEvidence = (mandate?: MandateEvidence): boolean =>
+  Boolean(
+    mandate?.mandateConfirmed &&
+    mandate.supplierDocumentNamesCustomer &&
+    !mandate.companyBearsGoodsRisk &&
+    mandate.exactCostSupported,
+  );
+
 const review = (reason: string): CommercialClassification => ({
   treatment: "manual_accounting_review",
   requiresStockMovement: false,
@@ -70,15 +78,14 @@ export function classifyCommercialLine(input: CommercialLineInput): CommercialCl
     case "merchandise":
       if (input.capacity === "agent" || input.goodsOwner === "customer") return review("A merchandise sale conflicts with an agent role or customer ownership; classify the legal transaction first.");
       if (input.capacity === "unknown" || input.goodsOwner === "unknown" || !input.capacity || !input.goodsOwner) return review("The seller capacity or ownership of the goods is not established.");
+      if (input.purchaseDestination !== "resale") return review("A merchandise sale requires evidence that the goods were acquired for resale.");
       return { treatment: "merchandise_sale_and_stock", requiresStockMovement: true, revenueNature: "merchandise",
         requiresThirdPartyReconciliation: false, requiresEvidence: ["supplier_invoice", "goods_receipt", "customer_delivery_or_transfer"], reviewReasons: [] };
-    case "third_party_purchase": {
-      const m = input.mandate;
-      if (!m || !m.mandateConfirmed || !m.supplierDocumentNamesCustomer || m.companyBearsGoodsRisk || !m.exactCostSupported)
+    case "third_party_purchase":
+      if (!hasValidMandateEvidence(input.mandate))
         return review("The documented mandate, supplier document in the customer's name, absence of company goods risk and exact-cost evidence must all be present.");
       return { treatment: "third_party_clearing", requiresStockMovement: false, revenueNature: "none",
         requiresThirdPartyReconciliation: true, requiresEvidence: ["customer_mandate", "supplier_document_in_customer_name", "proof_of_customer_funds", "supplier_payment_proof", "exact_cost_reconciliation"], reviewReasons: [] };
-    }
     case "customer_supplied":
       if (input.customerRetainsOwnership !== true || input.goodsOwner !== "customer") return review("Customer-supplied goods require confirmation that the customer retains ownership.");
       return { treatment: "customer_owned_no_goods_posting", requiresStockMovement: false, revenueNature: "none",
@@ -109,7 +116,7 @@ export function classifyCommercialLine(input: CommercialLineInput): CommercialCl
       return { treatment: "guarantee_tracking", requiresStockMovement: false, revenueNature: "none",
         requiresThirdPartyReconciliation: false, requiresEvidence: ["warranty_or_guarantee_terms", "delivery_record", "claim_or_expiry_record"], reviewReasons: [] };
     case "reimbursable_disbursement":
-      if (input.reimbursementIsExact === true && input.capacity === "agent")
+      if (input.reimbursementIsExact === true && input.capacity === "agent" && hasValidMandateEvidence(input.mandate))
         return { treatment: "reimbursable_third_party_clearing", requiresStockMovement: false, revenueNature: "none",
           requiresThirdPartyReconciliation: true, requiresEvidence: ["customer_authorization", "third_party_receipt", "exact_reimbursement_reconciliation"], reviewReasons: [] };
       if (input.separatelyPricedServiceFee === true)
