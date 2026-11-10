@@ -21,7 +21,7 @@ BEGIN
   SELECT pg_get_functiondef('public.reconcile_supplier_invoice_to_receipts(uuid,uuid,uuid,jsonb,text)'::regprocedure) INTO v_def;
   IF position('assert_org_access' in v_def)=0 OR position('assert_org_permission' in v_def)=0
      OR position('FOR UPDATE' in v_def)=0 OR position('quantity_invoiced' in v_def)=0
-     OR position('matched_subtotal' in v_def)=0 OR position('variance_reason' in v_def)=0 THEN
+     OR position('line_subtotal' in v_def)=0 OR position('variance_reason' in v_def)=0 THEN
     RAISE EXCEPTION 'Supplier invoice matching controls are incomplete';
   END IF;
   IF has_function_privilege('anon','public.reconcile_supplier_invoice_to_receipts(uuid,uuid,uuid,jsonb,text)','EXECUTE')
