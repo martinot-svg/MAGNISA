@@ -20,6 +20,13 @@ on:
           - DRY_RUN
           - APPLY
         default: NO
+  workflow_run:
+    workflows:
+      - Encrypted Supabase Production Backup Verification
+    types:
+      - completed
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -32,15 +39,17 @@ concurrency:
 jobs:
   dry-run:
     name: Production migration preflight (read-only)
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.confirm_production == 'DRY_RUN' || inputs.confirm_production == 'APPLY')
+    if: (github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.confirm_production == 'DRY_RUN' || inputs.confirm_production == 'APPLY')) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
-      - name: Checkout main
+      - name: Checkout exact release commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Verify required credential
         shell: bash
@@ -78,7 +87,7 @@ jobs:
 
   apply:
     name: Apply production migrations (explicit approval)
-    if: github.event_name == 'workflow_dispatch' && inputs.confirm_production == 'APPLY'
+    if: (github.event_name == 'workflow_dispatch' && inputs.confirm_production == 'APPLY') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     needs: dry-run
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -86,8 +95,10 @@ jobs:
     env:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
-      - name: Checkout main
+      - name: Checkout exact release commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Verify required credential
         shell: bash
@@ -123,9 +134,14 @@ jobs:
               status: "success",
               per_page: 10
             });
-            const backupRun = runs.data.workflow_runs.find(run =>
-              run.head_sha === context.sha && run.conclusion === "success"
-            );
+            const releaseSha = context.eventName === "workflow_run"
+              ? context.payload.workflow_run.head_sha
+              : context.sha;
+            const backupRun = context.eventName === "workflow_run"
+              ? context.payload.workflow_run
+              : runs.data.workflow_runs.find(run =>
+                  run.head_sha === releaseSha && run.conclusion === "success"
+                );
             if (!backupRun) {
               core.setFailed("Aucune sauvegarde vérifiée pour le commit exact en cours de déploiement.");
               return;
