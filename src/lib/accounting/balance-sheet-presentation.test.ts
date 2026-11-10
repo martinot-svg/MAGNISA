@@ -17,7 +17,7 @@ const rule = (
 describe("buildAssetPresentation", () => {
   it("separates fixed assets and subtracts accumulated depreciation and impairment", () => {
     const result = buildAssetPresentation(
-      [line("213", 1_000_000), line("281", 250_000, 0), line("291", 50_000, 0)],
+      [line("213", 1_000_000), line("281", 0, 250_000), line("291", 0, 50_000)],
       [
         rule("213", "non_current_assets", "tangible_assets_gross"),
         rule("281", "non_current_assets", "accumulated_depreciation", { normal_side: "credit", contra_asset: true }),
