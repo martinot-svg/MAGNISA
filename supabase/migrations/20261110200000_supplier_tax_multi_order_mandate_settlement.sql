@@ -41,12 +41,15 @@ ON CONFLICT (code) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION public.record_supplier_invoice_with_tax(
   p_org uuid,p_supplier uuid,p_supplier_number text,p_invoice_date date,p_due_date date,
-  p_subtotal numeric,p_tax_total numeric,p_tax_treatment text,p_tax_document_reference text,p_notes text,p_reconciliation_scope text
+  p_subtotal numeric,p_tax_total numeric,p_tax_treatment text,p_tax_document_reference text,
+  p_notes text,p_reconciliation_scope text
 ) RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $function$
 DECLARE
   v_invoice uuid;
   v_entry uuid;
+  v_supplier_name text;
+  v_ref text;
   v_total numeric(18,2);
 BEGIN
   PERFORM public.assert_org_access(p_org);
@@ -63,48 +66,63 @@ BEGIN
   IF p_tax_treatment='recoverable' AND (p_tax_total<=0 OR nullif(trim(coalesce(p_tax_document_reference,'')),'') IS NULL) THEN
     RAISE EXCEPTION 'La TVA déductible exige un montant et une référence de justificatif fournisseur.';
   END IF;
+  IF p_reconciliation_scope NOT IN ('goods_procurement','service_or_other') THEN
+    RAISE EXCEPTION 'Nature de facture fournisseur invalide.';
+  END IF;
+  IF p_invoice_date IS NULL OR (p_due_date IS NOT NULL AND p_due_date<p_invoice_date) THEN
+    RAISE EXCEPTION 'Date ou échéance de facture invalide.';
+  END IF;
   v_total:=round(p_subtotal+p_tax_total,2);
   IF v_total<=0 THEN RAISE EXCEPTION 'Le total de la facture doit être positif.'; END IF;
+  v_ref:=nullif(trim(coalesce(p_supplier_number,'')),'');
+  IF v_ref IS NULL THEN RAISE EXCEPTION 'Numéro de facture fournisseur requis.'; END IF;
+  SELECT name INTO v_supplier_name FROM public.suppliers
+   WHERE id=p_supplier AND organization_id=p_org AND is_active FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Fournisseur introuvable ou inactif.'; END IF;
 
-  IF p_reconciliation_scope NOT IN ('goods_procurement','service_or_other') THEN RAISE EXCEPTION 'Nature de facture fournisseur invalide.'; END IF;
-  v_invoice:=public.record_supplier_invoice_with_scope(
-    p_org,p_supplier,p_supplier_number,p_invoice_date,p_due_date,v_total,p_notes,p_reconciliation_scope
-  );
-  UPDATE public.supplier_invoices
-    SET subtotal=round(p_subtotal,2),tax_total=round(p_tax_total,2),
-        tax_treatment=p_tax_treatment,
-        tax_document_reference=nullif(trim(coalesce(p_tax_document_reference,'')),''),
-        updated_at=now()
-  WHERE id=v_invoice AND organization_id=p_org;
+  INSERT INTO public.supplier_invoices(
+    organization_id,supplier_id,supplier_number,invoice_date,due_date,subtotal,tax_total,total,
+    paid_amount,balance_due,status,notes,created_by,reconciliation_scope,tax_treatment,tax_document_reference
+  ) VALUES(
+    p_org,p_supplier,v_ref,p_invoice_date,p_due_date,round(p_subtotal,2),round(p_tax_total,2),v_total,
+    0,v_total,'validated',nullif(trim(coalesce(p_notes,'')),''),auth.uid(),
+    p_reconciliation_scope,p_tax_treatment,nullif(trim(coalesce(p_tax_document_reference,'')),'')
+  ) RETURNING id INTO v_invoice;
+
+  INSERT INTO public.journal_entries(
+    organization_id,entry_date,reference,description,source_type,source_id,total_debit,total_credit
+  ) VALUES(
+    p_org,p_invoice_date,'FOUR-'||v_ref,
+    'Facture fournisseur '||v_supplier_name||' — '||v_ref,
+    'supplier_invoice',v_invoice,v_total,v_total
+  ) RETURNING id INTO v_entry;
 
   IF p_tax_treatment='recoverable' THEN
-    SELECT id INTO v_entry FROM public.journal_entries
-     WHERE organization_id=p_org AND source_type='supplier_invoice' AND source_id=v_invoice
-     ORDER BY created_at DESC LIMIT 1 FOR UPDATE;
-    IF v_entry IS NULL THEN RAISE EXCEPTION 'Écriture comptable de facture fournisseur introuvable.'; END IF;
-    UPDATE public.journal_entry_lines
-       SET debit=round(p_subtotal,2)
-     WHERE organization_id=p_org AND journal_entry_id=v_entry
-       AND account_key='EXPENSE:SUPPLIER' AND debit>0;
-    IF NOT FOUND THEN RAISE EXCEPTION 'Ligne d''achat fournisseur introuvable pour ventiler la TVA.'; END IF;
     INSERT INTO public.journal_entry_lines(
       organization_id,journal_entry_id,account_key,account_label,debit,credit
-    ) VALUES(
-      p_org,v_entry,'TAX:SUPPLIER_INPUT','TVA déductible sur factures fournisseurs',round(p_tax_total,2),0
-    );
+    ) VALUES
+      (p_org,v_entry,'EXPENSE:SUPPLIER','Achats et sous-traitance',round(p_subtotal,2),0),
+      (p_org,v_entry,'TAX:SUPPLIER_INPUT','TVA déductible sur factures fournisseurs',round(p_tax_total,2),0),
+      (p_org,v_entry,'AP','Dettes fournisseurs',0,v_total);
     INSERT INTO public.pcg2005_supplier_invoice_mappings(
       organization_id,supplier_invoice_id,account_key,pcg_code,rationale,evidence_status,requires_attachment
     ) VALUES(
       p_org,v_invoice,'TAX:SUPPLIER_INPUT','4456',
-      'TVA déclarée déductible sur facture fournisseur ; référence du justificatif conservée dans la fiche de facture.',
+      'TVA déclarée déductible sur facture fournisseur ; la pièce justificative originale doit être archivée.',
       'record_only',true
-    ) ON CONFLICT (organization_id,supplier_invoice_id,account_key) DO UPDATE
-      SET pcg_code='4456',rationale=EXCLUDED.rationale,evidence_status='record_only',requires_attachment=true;
+    ) ON CONFLICT (organization_id,supplier_invoice_id,account_key) DO NOTHING;
+  ELSE
+    INSERT INTO public.journal_entry_lines(
+      organization_id,journal_entry_id,account_key,account_label,debit,credit
+    ) VALUES
+      (p_org,v_entry,'EXPENSE:SUPPLIER','Achats et sous-traitance',v_total,0),
+      (p_org,v_entry,'AP','Dettes fournisseurs',0,v_total);
   END IF;
 
-  PERFORM public.audit_event(p_org,'supplier_invoice.tax_split_recorded','supplier_invoice',v_invoice,NULL,
-    jsonb_build_object('subtotal',p_subtotal,'tax_total',p_tax_total,'total',v_total,
-      'tax_treatment',p_tax_treatment,'tax_document_reference',p_tax_document_reference));
+  PERFORM public.audit_event(p_org,'supplier_invoice.validated','supplier_invoice',v_invoice,NULL,
+    jsonb_build_object('supplier_id',p_supplier,'supplier_number',v_ref,'subtotal',p_subtotal,
+      'tax_total',p_tax_total,'total',v_total,'tax_treatment',p_tax_treatment,
+      'reconciliation_scope',p_reconciliation_scope,'journal_entry_id',v_entry));
   RETURN v_invoice;
 END;
 $function$;
