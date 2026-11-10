@@ -18,6 +18,7 @@ NAME_MISMATCH="$TMP_DIR/name-mismatch.txt"
 DUPLICATE_LOCAL="$TMP_DIR/duplicate-local.txt"
 DUPLICATE_REMOTE="$TMP_DIR/duplicate-remote.txt"
 UNEXPECTED="$TMP_DIR/unexpected.txt"
+OUT_OF_ORDER="$TMP_DIR/out-of-order.txt"
 UNMAPPED="$TMP_DIR/unmapped.txt"
 USED_MAP="$TMP_DIR/used-map.txt"
 ALLOW="$TMP_DIR/allow.txt"
@@ -132,9 +133,14 @@ done < "$RECONCILIATION_FILE"
 awk -F '|' 'FILENAME==ARGV[1] {mapped[$1]=1; next} !($3 in mapped) {print $1}' \
   "$TMP_DIR/mapped-local-files" "$LOCAL" | sort > "$LOCAL_VERSIONS"
 comm -23 "$LOCAL_VERSIONS" "$REMOTE_VERSIONS" > "$LOCAL_ONLY"
+REMOTE_MAX_VERSION="$(tail -n 1 "$REMOTE_VERSIONS" 2>/dev/null || true)"
 : > "$UNEXPECTED"
+: > "$OUT_OF_ORDER"
 while IFS= read -r version; do
   [[ -n "$version" ]] || continue
+  if [[ -n "$REMOTE_MAX_VERSION" && "$version" < "$REMOTE_MAX_VERSION" ]]; then
+    printf '%s\n' "$version" >> "$OUT_OF_ORDER"
+  fi
   grep -Fxq "$version" "$ALLOW" || printf '%s\n' "$version" >> "$UNEXPECTED"
 done < "$LOCAL_ONLY"
 
@@ -159,6 +165,7 @@ echo "Historical non-versioned SQL files (excluded from direct deployment): $LEG
 echo "Local versions not recorded remotely: $(wc -l < "$LOCAL_ONLY" | tr -d ' ')"
 echo "Allowlisted pending local versions: $(comm -12 "$LOCAL_ONLY" "$ALLOW" | wc -l | tr -d ' ')"
 echo "Unreviewed pending local versions: $(wc -l < "$UNEXPECTED" | tr -d ' ')"
+echo "Out-of-order local versions older than the remote ledger head: $(wc -l < "$OUT_OF_ORDER" | tr -d ' ')"
 echo "Remote versions without a verified local representation: $(wc -l < "$UNMAPPED" | tr -d ' ')"
 echo "Same-version name mismatches: $(wc -l < "$NAME_MISMATCH" | tr -d ' ')"
 echo "Verified reconciliation manifest entries: $(wc -l < "$USED_MAP" | tr -d ' ')"
@@ -169,6 +176,13 @@ if [[ -s "$UNEXPECTED" ]]; then
     grep -F "$version|" "$LOCAL" || true
   done < "$UNEXPECTED"
 fi
+if [[ -s "$OUT_OF_ORDER" ]]; then
+  echo "::error::Pending local migrations older than the latest remote version cannot be applied chronologically:"
+  while IFS= read -r version; do
+    grep -F "$version|" "$LOCAL" || true
+  done < "$OUT_OF_ORDER"
+  echo "::error::Create and validate a forward-only compatibility migration after the remote ledger head; do not apply historical files out of order."
+fi
 if [[ -s "$UNMAPPED" ]]; then
   echo "::error::Remote migration history is not represented by local SQL or a checksum-verified reconciliation entry:"
   cat "$UNMAPPED"
@@ -178,7 +192,7 @@ if [[ -s "$NAME_MISMATCH" ]]; then
   cat "$NAME_MISMATCH"
 fi
 
-if [[ -s "$UNEXPECTED" || -s "$UNMAPPED" || -s "$NAME_MISMATCH" ]]; then
+if [[ -s "$UNEXPECTED" || -s "$OUT_OF_ORDER" || -s "$UNMAPPED" || -s "$NAME_MISMATCH" ]]; then
   echo "::error::Production migration history is not reconciled. APPLY is blocked."
   exit 1
 fi
