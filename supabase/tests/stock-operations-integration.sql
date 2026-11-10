@@ -267,9 +267,9 @@ BEGIN
      AND total_debit=165 AND total_credit=165 AND status='posted') THEN
    RAISE EXCEPTION 'Supplier invoice VAT posting is not balanced and posted';
  END IF;
-END $;
+END $$;
 
-END $;
+END $$;
 
 DO $$
 DECLARE
@@ -490,6 +490,6 @@ BEGIN
  -- Tenant isolation: authenticated user has no membership in the other organization.
  SELECT count(*) INTO v_count FROM public.stock_movements WHERE organization_id='e2000000-0000-4000-8000-000000000001';
  IF v_count<>0 THEN RAISE EXCEPTION 'Stock ledger leaked rows across organizations'; END IF;
-END $;
+END $$;
 
 ROLLBACK;
