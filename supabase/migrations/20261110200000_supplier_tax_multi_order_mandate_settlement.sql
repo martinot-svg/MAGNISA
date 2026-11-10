@@ -49,6 +49,7 @@ DECLARE
   v_invoice uuid;
   v_entry uuid;
   v_supplier_name text;
+  v_existing public.supplier_invoices%rowtype;
   v_ref text;
   v_total numeric(18,2);
 BEGIN
@@ -80,6 +81,18 @@ BEGIN
   SELECT name INTO v_supplier_name FROM public.suppliers
    WHERE id=p_supplier AND organization_id=p_org AND is_active FOR SHARE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Fournisseur introuvable ou inactif.'; END IF;
+  SELECT * INTO v_existing FROM public.supplier_invoices
+   WHERE organization_id=p_org AND supplier_id=p_supplier AND supplier_number=v_ref FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.invoice_date=p_invoice_date AND v_existing.due_date IS NOT DISTINCT FROM p_due_date
+       AND v_existing.subtotal=round(p_subtotal,2) AND v_existing.tax_total=round(p_tax_total,2)
+       AND v_existing.tax_treatment=p_tax_treatment
+       AND coalesce(v_existing.tax_document_reference,'')=coalesce(nullif(trim(p_tax_document_reference),''),'')
+       AND v_existing.reconciliation_scope=p_reconciliation_scope THEN
+      RETURN v_existing.id;
+    END IF;
+    RAISE EXCEPTION 'Ce numéro de facture fournisseur existe déjà avec des données différentes.';
+  END IF;
 
   INSERT INTO public.supplier_invoices(
     organization_id,supplier_id,supplier_number,invoice_date,due_date,subtotal,tax_total,total,
@@ -383,7 +396,19 @@ BEGIN
   END IF;
   SELECT * INTO v_line FROM public.purchase_order_lines
    WHERE id=p_purchase_order_line AND organization_id=p_org FOR UPDATE;
-  IF NOT FOUND OR v_line.purchase_purpose<>'customer_mandate'
+  IF NOT FOUND THEN RAISE EXCEPTION 'Ligne de commande de mandat introuvable.'; END IF;
+  SELECT * INTO v_existing FROM public.customer_mandate_disbursements
+   WHERE organization_id=p_org AND request_key=p_request_key FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.purchase_order_line_id=p_purchase_order_line
+       AND v_existing.supplier_document_reference=trim(p_supplier_document_reference)
+       AND v_existing.amount=p_amount AND v_existing.financial_account_id=p_account
+       AND v_existing.disbursed_at=p_disbursed_at AND v_existing.document_date=p_document_date THEN
+      RETURN v_existing.id;
+    END IF;
+    RAISE EXCEPTION 'Clé de demande déjà utilisée pour un autre débours.';
+  END IF;
+  IF v_line.purchase_purpose<>'customer_mandate'
      OR NOT v_line.mandate_confirmed OR NOT v_line.supplier_document_names_customer
      OR v_line.company_bears_goods_risk OR NOT v_line.exact_cost_supported
      OR nullif(trim(v_line.mandate_supplier_document_reference),'') IS NULL THEN
@@ -477,6 +502,16 @@ BEGIN
   SELECT * INTO v_disbursement FROM public.customer_mandate_disbursements
    WHERE id=p_disbursement AND organization_id=p_org FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Débours de mandat introuvable.'; END IF;
+  SELECT * INTO v_existing FROM public.customer_mandate_reimbursements
+   WHERE organization_id=p_org AND request_key=p_request_key FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.disbursement_id=p_disbursement AND v_existing.financial_account_id=p_account
+       AND v_existing.amount=p_amount AND v_existing.reimbursement_date=p_date
+       AND coalesce(v_existing.reference,'')=coalesce(nullif(trim(p_reference),''),'REMB-MANDAT-'||upper(substr(replace(p_request_key::text,'-',''),1,12))) THEN
+      RETURN v_existing.id;
+    END IF;
+    RAISE EXCEPTION 'Clé de demande déjà utilisée pour un autre remboursement.';
+  END IF;
   SELECT coalesce(sum(amount),0) INTO v_reimbursed FROM public.customer_mandate_reimbursements
    WHERE organization_id=p_org AND disbursement_id=p_disbursement;
   IF p_amount>v_disbursement.amount-v_reimbursed+0.00000001 THEN
