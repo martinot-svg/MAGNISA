@@ -119,6 +119,7 @@ const labels: Record<string, string> = {
   non_current_borrowings: "Emprunts et dettes financières non courants",
   participation_debts: "Dettes rattachées aux participations",
   suppliers_and_attached: "Fournisseurs et comptes rattachés",
+  customer_advances_received: "Avances et acomptes reçus des clients",
   employee_payables: "Dettes envers le personnel",
   social_payables: "Dettes envers les organismes sociaux",
   tax_payables: "Dettes fiscales",
