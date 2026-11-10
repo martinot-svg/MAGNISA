@@ -307,6 +307,10 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   const sum=(xs:StatementLine[])=>round(xs.reduce((s,x)=>s+x.balance,0));
   const totalAssets=sum(assets),totalLiabilities=sum(liabilities),totalEquity=sum(equity);
   const profit=round(sum(income)-sum(expenses));
+  const currentResultAlreadyPosted=equity.some((line:any)=>
+    (line.code==="120"||line.code==="129")&&Math.abs(line.balance)>=0.005
+  );
+  const includeCurrentYearResult=year.status!=="closed"&&!currentResultAlreadyPosted;
 
   const passifBlockingIssues:string[]=[];
   if(!passifRulesAvailable)passifBlockingIssues.push("Référentiel de présentation du passif PCG 2005 indisponible.");
@@ -499,7 +503,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     }
   }
   const currentYearResultLine:BalanceSheetLedgerLine[]=
-    year.status!=="closed"&&Math.abs(profit)>=0.005
+    includeCurrentYearResult&&Math.abs(profit)>=0.005
       ? [{code:"__CURRENT_YEAR_RESULT__",label:"Résultat de l’exercice",debit:Math.max(-profit,0),credit:Math.max(profit,0),balance:profit}]
       : [];
   const currentYearResultRule:PassifRule[]=[{
@@ -521,8 +525,8 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     passifBlockingIssues,
   );
   const passifPresentationReady=passifRulesAvailable&&passifPresentation.ready
-    &&Math.abs(passifPresentation.totals.passif-(totalEquity+totalLiabilities+(year.status==="closed"?0:profit)))<0.01;
-  const balanceDifference=round(totalAssets-totalLiabilities-totalEquity-(year.status==="closed"?0:profit));
+    &&Math.abs(passifPresentation.totals.passif-(totalEquity+totalLiabilities+(includeCurrentYearResult?profit:0)))<0.01;
+  const balanceDifference=round(totalAssets-totalLiabilities-totalEquity-(includeCurrentYearResult?profit:0));
   const equityCodes=new Set<string>((accounts||[]).filter((a:any)=>a.kind==="equity").map((a:any)=>String(a.code)));
   const equityChanges=[...equityCodes].map(code=>{
     const a:any=accountMap.get(code);
