@@ -167,3 +167,19 @@ describe("buildAssetPresentation", () => {
     expect(result.ready).toBe(true);
   });
 });
+
+describe("matchesStatementAccountKind", () => {
+  it.each(["422", "442", "443", "445", "451", "456", "458", "467"])(
+    "splits debit and credit balance account %s through the clearing bucket",
+    (code) => {
+      expect(matchesStatementAccountKind(code, "asset", "clearing")).toBe(true);
+      expect(matchesStatementAccountKind(code, "liability", "clearing")).toBe(true);
+      expect(matchesStatementAccountKind(code, "asset", "asset")).toBe(false);
+      expect(matchesStatementAccountKind(code, "liability", "liability")).toBe(false);
+    },
+  );
+  it("keeps ordinary account kinds unchanged", () => {
+    expect(matchesStatementAccountKind("411", "asset", "asset")).toBe(true);
+    expect(matchesStatementAccountKind("401", "liability", "liability")).toBe(true);
+  });
+});
