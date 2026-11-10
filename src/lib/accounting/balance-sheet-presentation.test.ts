@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAssetPresentation, classifyReceivableMaturity, matchesStatementAccountKind, type BalanceSheetLedgerLine, type BalanceSheetRule } from "./balance-sheet-presentation";
+import { buildAssetPresentation, buildPassifPresentation, classifyReceivableMaturity, matchesStatementAccountKind, type BalanceSheetLedgerLine, type BalanceSheetRule, type PassifRule } from "./balance-sheet-presentation";
 
 const line = (code: string, debit: number, credit = 0): BalanceSheetLedgerLine => ({
   code, label: code, debit, credit, balance: debit - credit,
@@ -181,5 +181,75 @@ describe("matchesStatementAccountKind", () => {
   it("keeps ordinary account kinds unchanged", () => {
     expect(matchesStatementAccountKind("411", "asset", "asset")).toBe(true);
     expect(matchesStatementAccountKind("401", "liability", "liability")).toBe(true);
+  });
+});
+
+
+describe("buildPassifPresentation", () => {
+  const passifRule = (
+    account_code: string,
+    section: PassifRule["section"],
+    line_key: string,
+    options: Partial<PassifRule> = {},
+  ): PassifRule => ({
+    account_code, section, line_key, normal_side: "credit",
+    requires_maturity: false, contra_equity: false, ...options,
+  });
+
+  it("builds equity, non-current and current liabilities independently", () => {
+    const result = buildPassifPresentation(
+      [line("101", 0, 1000), line("164", 0, 700), line("401", 0, 300)],
+      [
+        passifRule("101", "equity", "equity_capital"),
+        passifRule("164", "non_current_liabilities", "non_current_borrowings"),
+        passifRule("401", "current_liabilities", "suppliers_and_attached"),
+      ],
+    );
+    expect(result.totals).toMatchObject({
+      equity: 1000, nonCurrentLiabilities: 700, currentLiabilities: 300,
+      maturityPending: 0, liabilities: 1000, passif: 2000,
+    });
+    expect(result.ready).toBe(true);
+  });
+
+  it("treats debit-side equity deductions as negative equity", () => {
+    const result = buildPassifPresentation(
+      [line("109", 250, 0)],
+      [passifRule("109", "equity", "equity_capital", {normal_side:"debit",contra_equity:true})],
+    );
+    expect(result.totals.equity).toBe(-250);
+    expect(result.ready).toBe(true);
+  });
+
+  it("blocks liabilities without required contractual maturity", () => {
+    const result = buildPassifPresentation(
+      [line("164", 0, 900)],
+      [passifRule("164", "non_current_liabilities", "non_current_borrowings", {requires_maturity:true})],
+    );
+    expect(result.totals.maturityPending).toBe(900);
+    expect(result.ready).toBe(false);
+  });
+
+  it("splits loan principal by current and non-current maturity", () => {
+    const result = buildPassifPresentation(
+      [
+        {...line("164", 0, 400), maturity:"current"},
+        {...line("164", 0, 600), maturity:"non_current"},
+      ],
+      [passifRule("164", "non_current_liabilities", "non_current_borrowings", {requires_maturity:true})],
+    );
+    expect(result.totals.currentLiabilities).toBe(400);
+    expect(result.totals.nonCurrentLiabilities).toBe(600);
+    expect(result.ready).toBe(true);
+  });
+
+  it("does not hide unmapped passif accounts or review balances", () => {
+    const result = buildPassifPresentation(
+      [line("471", 0, 50), line("999", 0, 20)],
+      [passifRule("471", "review", "suspense_and_transitory")],
+    );
+    expect(result.reviewRequired).toHaveLength(1);
+    expect(result.unmapped).toHaveLength(1);
+    expect(result.ready).toBe(false);
   });
 });
