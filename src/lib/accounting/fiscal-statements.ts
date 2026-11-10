@@ -506,6 +506,95 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   }
 
   // Reconstruct each loan at the fiscal closing date, never from today's outstanding_principal.
+  // Tax and social obligations are accepted only when their as-of balance is provable.
+  // The current obligation schema has no payment date; partially/fully paid records
+  // therefore block historical reconstruction rather than being backdated by guess.
+  const taxSocialPassifLines:BalanceSheetLedgerLine[]=[];
+  const taxSocialPassifRules:PassifRule[]=[];
+  const taxSocialAccountCodes=new Set<string>();
+  const taxSocialReconciliationLines:BalanceSheetLedgerLine[]=[];
+  const taxSocialReconciliationRules:PassifRule[]=[];
+  const [{data:taxObligations,error:taxObligationsError},{data:socialObligations,error:socialObligationsError}]=await Promise.all([
+    supabase.from("tax_obligations")
+      .select("id,obligation_type,period_start,period_end,due_date,amount,paid_amount,status,magnisa_reference")
+      .eq("organization_id",organizationId).lte("period_end",year.period_end),
+    supabase.from("social_obligations")
+      .select("id,organization_name,period_start,period_end,due_date,amount,paid_amount,status,magnisa_reference")
+      .eq("organization_id",organizationId).lte("period_end",year.period_end),
+  ]);
+  if(taxObligationsError)passifBlockingIssues.push("Registre des obligations fiscales indisponible : "+taxObligationsError.message);
+  if(socialObligationsError)passifBlockingIssues.push("Registre des obligations sociales indisponible : "+socialObligationsError.message);
+  const obligationsByAccount=new Map<string,any[]>();
+  const ambiguousObligationAccounts=new Set<string>();
+  if(!taxObligationsError){
+    for(const obligation of taxObligations||[]){
+      const type=String(obligation.obligation_type||"").trim().toUpperCase();
+      const accountCode=type==="TVA"?"445":type==="IRSA"?"442":null;
+      if(!accountCode){
+        passifBlockingIssues.push("Obligation fiscale "+String(obligation.magnisa_reference||obligation.id)+" sans correspondance PCG déterministe pour le type "+type+".");
+        continue;
+      }
+      const status=String(obligation.status||"").toLowerCase();
+      if(n(obligation.paid_amount)>0.005||!["open","overdue"].includes(status)){
+        ambiguousObligationAccounts.add(accountCode);
+        passifBlockingIssues.push("Obligation fiscale "+String(obligation.magnisa_reference||obligation.id)+" avec règlement ou statut non daté : situation historique à la clôture non reconstituable.");
+        continue;
+      }
+      const list=obligationsByAccount.get(accountCode)||[];
+      list.push(obligation);obligationsByAccount.set(accountCode,list);
+    }
+  }
+  if(!socialObligationsError){
+    for(const obligation of socialObligations||[]){
+      const name=String(obligation.organization_name||"").trim().toUpperCase();
+      const accountCode=["CNAPS","CNaPS".toUpperCase(),"OSTIE"].includes(name)?"431":null;
+      if(!accountCode){
+        passifBlockingIssues.push("Obligation sociale "+String(obligation.magnisa_reference||obligation.id)+" sans organisme PCG déterministe : "+name+".");
+        continue;
+      }
+      const status=String(obligation.status||"").toLowerCase();
+      if(n(obligation.paid_amount)>0.005||!["open","overdue"].includes(status)){
+        ambiguousObligationAccounts.add(accountCode);
+        passifBlockingIssues.push("Obligation sociale "+String(obligation.magnisa_reference||obligation.id)+" avec règlement ou statut non daté : situation historique à la clôture non reconstituable.");
+        continue;
+      }
+      const list=obligationsByAccount.get(accountCode)||[];
+      list.push(obligation);obligationsByAccount.set(accountCode,list);
+    }
+  }
+  for(const [accountCode,obligations] of obligationsByAccount){
+    if(ambiguousObligationAccounts.has(accountCode))continue;
+    const subledgerBalance=round(obligations.reduce((sum:number,row:any)=>sum+n(row.amount),0));
+    const ledgerBalance=liabilities.find((line:any)=>line.code===accountCode)?.balance||0;
+    const difference=round(ledgerBalance-subledgerBalance);
+    if(Math.abs(difference)>=0.01){
+      const code="__TAX_SOCIAL_RECONCILIATION_"+accountCode+"__";
+      taxSocialReconciliationLines.push({
+        code,label:"Écart obligations fiscales/sociales / grand livre • compte "+accountCode,
+        debit:Math.max(Math.abs(difference),0),credit:0,balance:Math.abs(difference),
+      });
+      taxSocialReconciliationRules.push({
+        account_code:code,section:"review",line_key:"tax_social_obligation_reconciliation",
+        normal_side:"both",requires_maturity:false,contra_equity:false,
+      });
+      passifBlockingIssues.push("Les obligations fiscales/sociales rapprochées au compte "+accountCode+" présentent un écart de "+difference+" "+(org?.currency||"MGA")+".");
+      continue;
+    }
+    taxSocialAccountCodes.add(accountCode);
+    for(const obligation of obligations){
+      taxSocialPassifLines.push({
+        code:accountCode,
+        label:"Obligation • "+String(obligation.obligation_type||obligation.organization_name)+" • "+String(obligation.magnisa_reference||obligation.id),
+        debit:0,credit:n(obligation.amount),balance:n(obligation.amount),
+      });
+    }
+    taxSocialPassifRules.push({
+      account_code:accountCode,section:"current_liabilities",
+      line_key:accountCode==="431"?"social_payables":"tax_payables",
+      normal_side:"credit",requires_maturity:false,contra_equity:false,
+    });
+  }
+
   const {data:loanRows,error:loanRowsError}=await supabase.from("loans")
     .select("id,lender_name,magnisa_reference,principal,start_date,liability_account_code,status")
     .eq("organization_id",organizationId).lte("start_date",year.period_end);
@@ -658,16 +747,18 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   }];
   const passifLines:BalanceSheetLedgerLine[]=[
     ...equity,
-    ...liabilities.filter((line:any)=>!loanAccountCodes.has(line.code)&&!supplierAccountCodes.has(line.code)&&!payrollAccountCodes.has(line.code)),
+    ...liabilities.filter((line:any)=>!loanAccountCodes.has(line.code)&&!supplierAccountCodes.has(line.code)&&!payrollAccountCodes.has(line.code)&&!taxSocialAccountCodes.has(line.code)),
     ...supplierPassifLines,
     ...payrollPassifLines,
+    ...taxSocialPassifLines,
+    ...taxSocialReconciliationLines,
     ...loanScheduleLines,
     ...loanGapLines,
     ...currentYearResultLine,
   ];
   const passifPresentation=buildPassifPresentation(
     passifLines,
-    [...(passifRules||[]),...supplierPassifRules,...payrollPassifRules,...loanScheduleRules,...currentYearResultRule],
+    [...(passifRules||[]),...supplierPassifRules,...payrollPassifRules,...taxSocialPassifRules,...taxSocialReconciliationRules,...loanScheduleRules,...currentYearResultRule],
     passifBlockingIssues,
   );
   const passifPresentationReady=passifRulesAvailable&&passifPresentation.ready
