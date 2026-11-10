@@ -246,6 +246,20 @@ describe("buildPassifPresentation", () => {
     expect(result.ready).toBe(true);
   });
 
+
+  it("presents the credit side of mixed tax accounts as current liabilities", () => {
+    const result = buildPassifPresentation(
+      [line("442", 0, 125_000), line("443", 0, 30_000), line("445", 0, 75_000)],
+      [
+        passifRule("442", "current_liabilities", "tax_payables"),
+        passifRule("443", "current_liabilities", "tax_payables"),
+        passifRule("445", "current_liabilities", "tax_payables"),
+      ],
+    );
+    expect(result.totals.currentLiabilities).toBe(230_000);
+    expect(result.ready).toBe(true);
+  });
+
   it("does not hide unmapped passif accounts or review balances", () => {
     const result = buildPassifPresentation(
       [passifLine("471", 0, 50), passifLine("999", 0, 20)],
