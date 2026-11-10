@@ -13,7 +13,7 @@ export default async function CustomerMandatesPage() {
   const [{data:org},{data:lines=[]},{data:disbursements=[]},{data:accounts=[]}]=await Promise.all([
     supabase.from("organizations").select("currency").eq("id",organizationId).single(),
     supabase.from("purchase_order_lines").select("id,description,quantity_received,line_total,mandate_confirmed,supplier_document_names_customer,company_bears_goods_risk,exact_cost_supported,mandate_supplier_document_reference,customers(name),purchase_orders!inner(number,supplier_id,suppliers(name))").eq("organization_id",organizationId).eq("purchase_purpose","customer_mandate").gt("quantity_received",0).order("created_at",{ascending:false}),
-    supabase.from("customer_mandate_disbursements").select("id,customer_id,supplier_id,supplier_document_reference,document_date,amount,disbursed_at,customers(name),suppliers(name),purchase_order_lines(description,purchase_orders(number)),customer_mandate_reimbursements(amount)").eq("organization_id",organizationId).order("disbursed_at",{ascending:false}),
+    supabase.from("customer_mandate_disbursements").select("id,purchase_order_line_id,customer_id,supplier_id,supplier_document_reference,document_date,amount,disbursed_at,customers(name),suppliers(name),purchase_order_lines(description,purchase_orders(number)),customer_mandate_reimbursements(amount)").eq("organization_id",organizationId).order("disbursed_at",{ascending:false}),
     supabase.from("financial_accounts").select("id,name,type").eq("organization_id",organizationId).eq("is_active",true).order("name"),
   ]);
   const currency=org?.currency||"MGA";
