@@ -90,12 +90,13 @@ export async function postStockTransferAction(formData: FormData) {
   const destination=z.string().uuid().parse(formData.get("destination_location_id"));
   const item=z.string().uuid().parse(formData.get("item_id"));
   const quantity=z.coerce.number().finite().positive().parse(formData.get("quantity"));
+  const stockBucket=z.enum(["resale","company_use","consumption"]).parse(formData.get("stock_bucket")||"resale");
   const unitCost=z.coerce.number().finite().nonnegative().parse(formData.get("unit_cost")||0);
   const reason=z.string().trim().min(3).max(500).parse(formData.get("reason"));
   const requestKey=z.string().uuid().parse(formData.get("request_key"));
   const {data,error}=await ctx.supabase.rpc("post_stock_transfer",{
     p_organization_id:ctx.organizationId,p_source_location:source,p_destination_location:destination,
-    p_lines:[{item_id:item,quantity,unit_cost:unitCost}],p_request_key:requestKey,p_reason:reason,
+    p_lines:[{item_id:item,stock_bucket:stockBucket,quantity,unit_cost:unitCost}],p_request_key:requestKey,p_reason:reason,
   });
   if(error) throw new Error("Transfert non validé : "+error.message);
   if(!data) throw new Error("La base n'a retourné aucun identifiant de transfert.");
