@@ -84,4 +84,4 @@ The remaining MGA 932,000 within the previously reported MGA 9,932,000 differenc
 
 The production snapshot contains four supplier payment records. Each payment has exactly one linked, balanced journal entry, and the paid amount on each supplier invoice equals the sum of its payment rows. The release verification asserts this relationship rather than deleting or regenerating historical payment entries.
 
-The four internal-transfer clearing lines form two balanced transfer pairs (MGA 4,000,000 and MGA 500,000). They are mapped to PCG 581, Virements de fonds, and the clearing account nets to zero. These are retained as valid paired transfers, not deleted as test data.
+The four previously unmapped clearing lines belong to two balanced transfer pairs (MGA 4,000,000 and MGA 500,000). They are mapped to PCG 581, Virements de fonds. A separate MGA 20,000 transfer pair was already mapped to 581. All three transfers are retained, and the clearing account nets to zero; none is deleted as test data.
