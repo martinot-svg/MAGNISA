@@ -19,7 +19,7 @@ const lineSchema = z.object({
   item_reference: z.string().trim().min(1).max(80),
   description: z.string().trim().min(2).max(240),
   unit: z.string().trim().min(1).max(24).default("unité"),
-  account_code: z.string().trim().regex(/^(31|32|33|34|35|36|37|38)\d{0,4}$/),
+  account_code: z.string().trim().refine(isPcg2005StockAccountCode, "Compte de stock PCG 2005 invalide."),
   quantity: z.coerce.number().finite().nonnegative(),
   unit_cost: z.coerce.number().finite().nonnegative(),
   impairment_amount: z.coerce.number().finite().nonnegative().default(0),
