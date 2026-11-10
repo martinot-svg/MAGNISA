@@ -126,11 +126,13 @@ BEGIN
     RAISE EXCEPTION 'Customer mandate clearing or recoverable supplier VAT PCG accounts are missing';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='supplier_invoices' AND column_name='tax_treatment')
-     OR NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='supplier_invoices' AND column_name='tax_document_reference') THEN
+     OR NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='supplier_invoices' AND column_name='tax_document_reference')
+     OR NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='supplier_invoices' AND column_name='expense_account_code') THEN
     RAISE EXCEPTION 'Supplier invoice tax evidence fields are missing';
   END IF;
   SELECT pg_get_functiondef('public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text,text)'::regprocedure) INTO v_def;
-  IF position('tax_total' in v_def)=0 OR position('p_tax_treatment' in v_def)=0 OR position('p_tax_document_reference' in v_def)=0 OR position('4456' in v_def)=0 THEN
+  IF position('tax_total' in v_def)=0 OR position('p_tax_treatment' in v_def)=0 OR position('p_tax_document_reference' in v_def)=0 OR position('4456' in v_def)=0
+     OR position('expense_account_code' in v_def)=0 OR position('pcg2005_supplier_invoice_mappings' in v_def)=0 THEN
     RAISE EXCEPTION 'Supplier invoice VAT split and recoverability posting are incomplete';
   END IF;
   IF has_function_privilege('anon','public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text,text)','EXECUTE')
