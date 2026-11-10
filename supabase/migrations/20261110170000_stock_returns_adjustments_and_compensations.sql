@@ -448,7 +448,7 @@ RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $functi
 DECLARE t public.stock_transfers%rowtype;l public.stock_transfer_lines%rowtype;v_on_hand numeric;v_reserved numeric;
 BEGIN
  PERFORM public.assert_org_access(p_org);PERFORM public.assert_org_permission(p_org,'inventory.manage');
- IF p_reason IS NULL OR length(trim(p_reason))<3 THEN RAISE EXCEPTION 'Motif d’annulation obligatoire'; END IF;
+ IF p_request_key IS NULL OR p_reason IS NULL OR length(trim(p_reason))<3 THEN RAISE EXCEPTION 'Clé de demande et motif d’annulation obligatoires'; END IF;
  SELECT * INTO t FROM public.stock_transfers WHERE id=p_transfer_id AND organization_id=p_org FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Transfert introuvable'; END IF;
  IF t.status='cancelled' THEN
@@ -477,7 +477,7 @@ RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $functi
 DECLARE d public.sales_deliveries%rowtype;l public.sales_delivery_lines%rowtype;
 BEGIN
  PERFORM public.assert_org_access(p_org);PERFORM public.assert_org_permission(p_org,'inventory.manage');
- IF p_reason IS NULL OR length(trim(p_reason))<3 THEN RAISE EXCEPTION 'Motif d’annulation obligatoire'; END IF;
+ IF p_request_key IS NULL OR p_reason IS NULL OR length(trim(p_reason))<3 THEN RAISE EXCEPTION 'Clé de demande et motif d’annulation obligatoires'; END IF;
  SELECT * INTO d FROM public.sales_deliveries WHERE id=p_delivery_id AND organization_id=p_org FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Livraison introuvable'; END IF;
  IF d.status='cancelled' THEN
