@@ -156,6 +156,12 @@ BEGIN
  IF EXISTS(SELECT 1 FROM public.journal_entries WHERE organization_id=v_org AND source_type='invoice' AND source_id IN (v_invoice_a,v_invoice_b)) THEN
   RAISE EXCEPTION 'Draft invoices must not be posted to accounting';
  END IF;
+ BEGIN
+  PERFORM public.post_customer_stock_return(v_org,(SELECT id FROM public.sales_delivery_lines WHERE delivery_id=v_del1 LIMIT 1),v_loc_a,0.1,'resalable','e1000000-0000-4000-8000-000000000077','CI return with draft invoice');
+  RAISE EXCEPTION 'A delivery linked to a draft invoice must not be returned before the draft is cancelled';
+ EXCEPTION WHEN OTHERS THEN
+  IF SQLERRM='A delivery linked to a draft invoice must not be returned before the draft is cancelled' THEN RAISE; END IF;
+ END;
  IF EXISTS(SELECT 1 FROM public.accounting_event_outbox WHERE organization_id=v_org AND event_type='stock_issue' AND status='posted')
  AND (SELECT COUNT(*) FROM public.journal_entries je JOIN public.stock_movements sm
      ON sm.id=je.source_id AND sm.organization_id=je.organization_id
