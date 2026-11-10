@@ -1,3 +1,4 @@
+import { formatDateTimeDisplay } from "@/lib/date-format";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireOrganization } from "@/lib/current-org";
@@ -95,7 +96,7 @@ export default async function ClientContributions({ params }: { params: Promise<
       {!(events as any[]).length ? <p className="muted">Aucune intervention.</p> :
       <div className="tableWrap"><table><thead><tr><th>Date</th><th>Collaborateur</th><th>Intervention</th><th>Étape et suivi</th><th>Validation</th><th>Décision</th></tr></thead><tbody>
         {(events as any[]).map((item:any)=><tr key={item.id}>
-          <td>{new Date(item.occurred_at).toLocaleString("fr-FR")}</td>
+          <td>{formatDateTimeDisplay(item.occurred_at)}</td>
           <td>{emailById.get(item.contributor_user_id)||item.contributor_user_id}<div className="muted">Saisi par {emailById.get(item.created_by)||item.created_by}</div></td>
           <td><strong>{typeLabelByKey.get(item.intervention_type)||item.intervention_type}</strong><div>{item.description}</div>{item.evidence_reference&&<div className="muted">{item.evidence_reference}</div>}</td>
           <td>{item.stage_status}
