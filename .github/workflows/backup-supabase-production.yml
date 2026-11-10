@@ -234,15 +234,15 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'Internal transfer clearing is not mapped to PCG 581';
             END IF;
-            IF NOT EXISTS (
-              SELECT 1 FROM public.pcg2005_journal_lines
-              WHERE reference='FOUR-2030'
+            IF (
+              SELECT count(*) FROM public.pcg2005_journal_lines
+              WHERE reference IN ('FOUR-2030','FOUR-2031')
                 AND pcg_code='606'
                 AND mapping_status='manuel'
                 AND mapping_evidence_status='record_only'
                 AND mapping_requires_attachment
-            ) THEN
-              RAISE EXCEPTION 'FOUR-2030 must map to PCG 606 and retain its missing-invoice evidence flag';
+            ) <> 2 THEN
+              RAISE EXCEPTION 'FOUR-2030 and FOUR-2031 must map to PCG 606 and retain their missing-invoice evidence flags';
             END IF;
             IF EXISTS (
               SELECT 1 FROM public.journal_entries
