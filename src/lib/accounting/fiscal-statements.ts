@@ -1,7 +1,8 @@
 import { requireOrganization } from "@/lib/current-org";
 import { requirePermission } from "@/lib/permissions";
+import { buildAssetPresentation, buildPassifPresentation, classifyReceivableMaturity, matchesStatementAccountKind, type AssetPresentation, type BalanceSheetLedgerLine, type BalanceSheetRule, type PassifPresentation, type PassifRule } from "./balance-sheet-presentation";
 
-export type StatementLine = { code: string; label: string; debit: number; credit: number; balance: number; comparativeBalance: number };
+export type StatementLine = { code: string; label: string; debit: number; credit: number; balance: number; comparativeBalance: number; sourceEntries?: {entryId:string;reference:string|null;sourceType:string|null;lineId:string}[]; sourceEntryCount?: number };
 export type FiscalStatements = {
   organization: any; year: any; currency: string; accounts: any[];
   assets: StatementLine[]; liabilities: StatementLine[]; equity: StatementLine[];
@@ -10,7 +11,11 @@ export type FiscalStatements = {
   cashFlows: {label:string;amount:number}[];
   openingCash:number; closingCash:number; profit:number; priorYearLabel:string|null;
   totals: {assets:number;liabilities:number;equity:number;balanceDifference:number};
-  controls: {unmapped:number;unbalancedEntries:number;unclassifiedCashFlowEntries:number;cashFlowReconciliationDifference:number;operatingCashFlowReconciliationReady:boolean;pcgPresentationReady:boolean;isClosed:boolean;notesReady:boolean;ready:boolean};
+  assetPresentation: AssetPresentation;
+  passifPresentation: PassifPresentation;
+  cashReconciliation: any;
+  inventoryValuation: any;
+  controls: {unmapped:number;unbalancedEntries:number;unclassifiedCashFlowEntries:number;cashFlowReconciliationDifference:number;operatingCashFlowReconciliationReady:boolean;pcgPresentationReady:boolean;assetPresentationReady:boolean;passifPresentationReady:boolean;cashReconciliationReady:boolean;inventoryCountReady:boolean;isClosed:boolean;notesReady:boolean;ready:boolean};
   notes: string[];
 };
 
@@ -24,6 +29,8 @@ export type FiscalStatementReadinessInput = {
   notesReady: boolean;
   operatingCashFlowReconciliationReady: boolean;
   pcgPresentationReady: boolean;
+  assetPresentationReady: boolean;
+  passifPresentationReady: boolean;
 };
 
 export function isFiscalStatementReady(input: FiscalStatementReadinessInput): boolean {
@@ -35,16 +42,53 @@ export function isFiscalStatementReady(input: FiscalStatementReadinessInput): bo
     && Math.abs(input.balanceDifference) < 0.01
     && input.notesReady
     && input.operatingCashFlowReconciliationReady
-    && input.pcgPresentationReady;
+    && input.pcgPresentationReady
+    && input.assetPresentationReady
+    && input.passifPresentationReady;
 }
 
 const n=(v:any)=>Number(v||0);
 const round=(v:number)=>Math.round((v+Number.EPSILON)*100)/100;
-const cashCodes=/^(511|512|513|514|515|516|517|518|53|54|58)/;
+const cashCodes=/^(511|512|513|514|515|517|518|53|54|58)/;
+
+export function taxSocialObligationAccountCode(kind: "tax" | "social", code: string): string | null {
+  const normalized = code.trim().toUpperCase();
+  if (kind === "tax") return normalized === "TVA" ? "445" : normalized === "IRSA" ? "442" : null;
+  return normalized === "CNAPS" || normalized === "OSTIE" ? "431" : null;
+}
+
+export function isObligationBalanceReconstructable(status: string, paidAmount: number): boolean {
+  return ["open", "overdue"].includes(status.trim().toLowerCase()) && Math.abs(paidAmount) < 0.005;
+}
+
+export function isInventoryCountReady(input: {
+  inventoryAvailable: boolean;
+  hasStockBalance: boolean;
+  hasApprovedCount: boolean;
+  grossLedgerGap: number;
+  impairmentLedgerGap: number;
+}): boolean {
+  if (!input.inventoryAvailable) return false;
+  if (!input.hasStockBalance) return true;
+  return input.hasApprovedCount
+    && Math.abs(input.grossLedgerGap) < 0.01
+    && Math.abs(input.impairmentLedgerGap) < 0.01;
+}
+
+export function isLoanRepaymentEffectiveAtDate(
+  status: string,
+  paymentDate: string,
+  reversedAt: string | null | undefined,
+  periodEnd: string,
+): boolean {
+  if (paymentDate > periodEnd) return false;
+  if (status === "posted") return true;
+  return status === "reversed" && !!reversedAt && reversedAt.slice(0, 10) > periodEnd;
+}
 
 export function classifyCashFlowCounterpart(code:string):"operating"|"investing"|"financing"|null {
   if(/^(2|404|405|462)/.test(code))return "investing";
-  if(/^(10|11|12|13|14|15|16|17)/.test(code))return "financing";
+  if(/^(10|11|12|13|14|15|16|17|516)/.test(code))return "financing";
   if(/^(3|4|6|7)/.test(code))return "operating";
   return null;
 }
@@ -60,6 +104,44 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   ]);
   if(yearError||orgError||accountError)throw new Error(yearError?.message||orgError?.message||accountError?.message);
   if(!year)throw new Error("Exercice comptable introuvable.");
+  const {data:balanceSheetRules,error:balanceSheetRulesError}=await supabase.from("pcg2005_balance_sheet_rules")
+    .select("account_code,section,line_key,normal_side,requires_maturity,contra_asset").order("account_code");
+  const balanceSheetRulesAvailable=!balanceSheetRulesError;
+  const {data:passifRules,error:passifRulesError}=await supabase.from("pcg2005_balance_sheet_passif_rules")
+    .select("account_code,section,line_key,normal_side,requires_maturity,contra_equity").order("account_code");
+  const passifRulesAvailable=!passifRulesError;
+  const {data:cashReconciliationData,error:cashReconciliationError}=await supabase.rpc("get_accounting_cash_reconciliation",{
+    p_organization_id:organizationId,
+    p_period_end:year.period_end,
+  });
+  const cashReconciliationAvailable=!cashReconciliationError;
+  const {data:inventoryData,error:inventoryError}=await supabase.rpc("get_accounting_inventory_valuation",{
+    p_organization_id:organizationId,
+    p_period_end:year.period_end,
+  });
+  const inventoryValuation=(inventoryData||{
+    count_available:false,lines:[],gross_ledger_gap:0,impairment_ledger_gap:0,
+    gross_gaps:[],impairment_gaps:[],
+  }) as any;
+  const hasApprovedInventoryCount=!inventoryError&&inventoryValuation.count_available===true;
+  const cashReconciliation=(cashReconciliationData||{
+    accounts:[],comparisons:[],account_movement_gap:0,gl_reconciliation_gap:0,
+    unknown_account_count:0,unknown_current_balance:0,
+  }) as any;
+  const {data:fixedAssetReconciliation,error:fixedAssetReconciliationError}=await supabase
+    .from("fixed_asset_register_reconciliation")
+    .select("account_code,register_debit,register_credit,ledger_debit,ledger_credit,debit_difference,credit_difference,reconciliation_status")
+    .eq("organization_id",organizationId);
+  if(fixedAssetReconciliationError)throw new Error(fixedAssetReconciliationError.message);
+  const {data:receivableData,error:receivableError}=await supabase.rpc("get_accounting_receivable_maturity",{
+    p_organization_id:organizationId,
+    p_period_end:year.period_end,
+  });
+  if(receivableError)throw new Error(receivableError.message);
+  const invoiceRows=Array.isArray(receivableData?.invoices)?receivableData.invoices:[];
+  const invoicePaymentIntegrityGap=n(receivableData?.invoice_payment_integrity_gap);
+  const paymentsMissingDateAmount=n(receivableData?.payments_missing_date_amount);
+  const unallocatedCustomerPaymentsAmount=n(receivableData?.unallocated_customer_payments_amount);
   const lines:any[]=[];
   for(let from=0;;from+=1000){
     const {data,error}=await supabase.from("pcg2005_journal_lines")
@@ -97,6 +179,15 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   }
   const accountMap=new Map((accounts||[]).map((a:any)=>[a.code,a]));
   const aggregate=new Map<string,{debit:number;credit:number;kind:string;label:string}>();
+  const hasStockLedgerBalance=lines.some((line:any)=>!!line.pcg_code&&/^3/.test(String(line.pcg_code))
+    &&Math.abs(n(line.debit)-n(line.credit))>=0.005);
+  const inventoryCountReady=isInventoryCountReady({
+    inventoryAvailable:!inventoryError,
+    hasStockBalance:hasStockLedgerBalance,
+    hasApprovedCount:hasApprovedInventoryCount,
+    grossLedgerGap:n(inventoryValuation.gross_ledger_gap),
+    impairmentLedgerGap:n(inventoryValuation.impairment_ledger_gap),
+  });
   let unmapped=0;
   for(const l of lines){
     if(!l.pcg_code||l.mapping_status==="a_mapper"){unmapped++;continue;}
@@ -105,22 +196,166 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     const v=aggregate.get(l.pcg_code)||{debit:0,credit:0,kind:a.kind,label:a.label};
     v.debit+=n(l.debit);v.credit+=n(l.credit);aggregate.set(l.pcg_code,v);
   }
+  const sourceEntriesByCode=new Map<string,BalanceSheetLedgerLine["sourceEntries"]>();
+  const sourceEntryCountsByCode=new Map<string,number>();
+  for(const ledgerLine of lines){
+    const code=String(ledgerLine.pcg_code||"");
+    if(!code)continue;
+    sourceEntryCountsByCode.set(code,(sourceEntryCountsByCode.get(code)||0)+1);
+    const entries=sourceEntriesByCode.get(code)||[];
+    entries.push({
+      entryId:String(ledgerLine.journal_entry_id),
+      reference:ledgerLine.reference?String(ledgerLine.reference):null,
+      sourceType:ledgerLine.source_type?String(ledgerLine.source_type):null,
+      lineId:String(ledgerLine.line_id),
+    });
+    sourceEntriesByCode.set(code,entries);
+  }
   const make=(kind:string,source=aggregate)=>[...new Set([...source.keys(),...priorBalances.keys()])]
     .map(code=>{
       const current=source.get(code);
       const account:any=accountMap.get(code);
-      if(!account||account.kind!==kind)return null;
+      if(!account||!matchesStatementAccountKind(code,String(account.kind),kind))return null;
       const v=current||{debit:0,credit:0,kind,label:account.label};
       const prior=priorBalances.get(code)||{debit:0,credit:0};
       const debitNormal=kind==="asset"||kind==="expense"||kind==="clearing";
+      const sourceEntries=sourceEntriesByCode.get(code)||[];
       return {code,label:v.label,debit:round(v.debit),credit:round(v.credit),
         balance:round(debitNormal?v.debit-v.credit:v.credit-v.debit),
-        comparativeBalance:round(debitNormal?prior.debit-prior.credit:prior.credit-prior.debit)};
+        comparativeBalance:round(debitNormal?prior.debit-prior.credit:prior.credit-prior.debit),
+        sourceEntries:sourceEntries.slice(0,100),
+        sourceEntryCount:sourceEntryCountsByCode.get(code)||0};
     })
     .filter((x):x is NonNullable<typeof x>=>!!x&&(Math.abs(x.balance)>=0.005||Math.abs(x.comparativeBalance)>=0.005))
     .sort((a,b)=>a.code.localeCompare(b.code));
   const clearing=make("clearing");
   const assets=[...make("asset"),...clearing.filter(x=>x.balance>0)];
+  let invoiceSubledgerBalance=0;
+  const receivableLines:BalanceSheetLedgerLine[]=(invoiceRows||[]).flatMap((invoice:any)=>{
+    const outstanding=round(n(invoice.outstanding_amount));
+    invoiceSubledgerBalance=round(invoiceSubledgerBalance+outstanding);
+    if(Math.abs(outstanding)<0.005)return [];
+    const maturity=classifyReceivableMaturity(invoice.due_date?String(invoice.due_date):null,String(year.period_end));
+    return [{
+      code:"411",
+      label:"Client • "+String(invoice.number||invoice.id),
+      debit:Math.max(outstanding,0),
+      credit:Math.max(-outstanding,0),
+      balance:outstanding,
+      maturity,
+    }];
+  });
+  const ledgerReceivablesBalance=assets.find(x=>x.code==="411")?.balance||0;
+  const receivableLedgerGap=round(ledgerReceivablesBalance-invoiceSubledgerBalance);
+  const fixedAssetGapRows=(fixedAssetReconciliation||[]).filter((row:any)=>
+    Math.abs(n(row.debit_difference))+Math.abs(n(row.credit_difference))>=0.01
+  );
+  const fixedAssetGapRules:BalanceSheetRule[]=fixedAssetGapRows.map((row:any)=>({
+    account_code:"__FIXED_ASSET_RECONCILIATION_"+String(row.account_code).replace(/[^A-Za-z0-9]/g,"_")+"__",
+    section:"review",line_key:"Écart registre / grand livre immobilisations",normal_side:"both",
+    requires_maturity:false,contra_asset:false,
+  }));
+  const fixedAssetGapLines:BalanceSheetLedgerLine[]=fixedAssetGapRows.map((row:any)=>({
+    code:"__FIXED_ASSET_RECONCILIATION_"+String(row.account_code).replace(/[^A-Za-z0-9]/g,"_")+"__",
+    label:"Immobilisations • compte "+String(row.account_code)+" • "+String(row.reconciliation_status),
+    debit:round(Math.abs(n(row.debit_difference))+Math.abs(n(row.credit_difference))),
+    credit:0,
+    balance:round(Math.abs(n(row.debit_difference))+Math.abs(n(row.credit_difference))),
+  }));
+  const cashComparisonGaps=(cashReconciliation.comparisons||[]).filter((row:any)=>Math.abs(n(row.difference))>=0.01);
+  const cashMovementGaps=(cashReconciliation.accounts||[]).filter((row:any)=>Math.abs(n(row.movement_gap))>=0.01);
+  const cashGapRules:BalanceSheetRule[]=[
+    ...cashComparisonGaps.map((row:any)=>({
+      account_code:"__CASH_GL_RECONCILIATION_"+String(row.pcg_account_code).replace(/[^A-Za-z0-9]/g,"_")+"__",
+      section:"review" as const,line_key:"Écart trésorerie auxiliaire / grand livre",normal_side:"both" as const,
+      requires_maturity:false,contra_asset:false,
+    })),
+    ...cashMovementGaps.map((row:any)=>({
+      account_code:"__CASH_MOVEMENT_RECONCILIATION_"+String(row.id).replace(/[^A-Za-z0-9]/g,"_")+"__",
+      section:"review" as const,line_key:"Écart compte financier / mouvements",normal_side:"both" as const,
+      requires_maturity:false,contra_asset:false,
+    })),
+  ];
+  const cashGapLines:BalanceSheetLedgerLine[]=[
+    ...cashComparisonGaps.map((row:any)=>({
+      code:"__CASH_GL_RECONCILIATION_"+String(row.pcg_account_code).replace(/[^A-Za-z0-9]/g,"_")+"__",
+      label:"Trésorerie • compte PCG "+String(row.pcg_account_code)+" • écart auxiliaire / GL",
+      debit:Math.abs(n(row.difference)),credit:0,balance:Math.abs(n(row.difference)),
+    })),
+    ...cashMovementGaps.map((row:any)=>({
+      code:"__CASH_MOVEMENT_RECONCILIATION_"+String(row.id).replace(/[^A-Za-z0-9]/g,"_")+"__",
+      label:"Trésorerie • "+String(row.name)+" • écart mouvements",
+      debit:Math.abs(n(row.movement_gap)),credit:0,balance:Math.abs(n(row.movement_gap)),
+    })),
+  ];
+  const cashBlockingIssues:string[]=[];
+  if(!cashReconciliationAvailable)cashBlockingIssues.push("Rapprochement de trésorerie indisponible : RPC ou migration PCG manquante.");
+  if(inventoryError)cashBlockingIssues.push("Sous-grand-livre d’inventaire indisponible : migration ou RPC manquante.");
+  else if(hasStockLedgerBalance&&!hasApprovedInventoryCount)cashBlockingIssues.push("Inventaire physique approuvé manquant à la date de clôture : les stocks ne peuvent pas être validés.");
+  if(hasApprovedInventoryCount&&n(inventoryValuation.gross_ledger_gap)>=0.01)cashBlockingIssues.push("La valeur brute de l’inventaire physique ne correspond pas aux comptes de stocks du grand livre.");
+  if(hasApprovedInventoryCount&&n(inventoryValuation.impairment_ledger_gap)>=0.01)cashBlockingIssues.push("Les dépréciations d’inventaire ne correspondent pas aux comptes 39 du grand livre.");
+  if(n(cashReconciliation.unknown_account_count)>0)cashBlockingIssues.push(String(cashReconciliation.unknown_account_count)+" compte(s) financier(s) sans correspondance PCG 5.");
+  if(n(cashReconciliation.account_movement_gap)>=0.01)cashBlockingIssues.push("Les soldes des comptes financiers ne correspondent pas à leurs mouvements.");
+  if(n(cashReconciliation.gl_reconciliation_gap)>=0.01)cashBlockingIssues.push("Les soldes de trésorerie auxiliaires ne correspondent pas au grand livre.");
+  const cashReconciliationReady=cashReconciliationAvailable
+    &&n(cashReconciliation.unknown_account_count)===0
+    &&n(cashReconciliation.account_movement_gap)<0.01
+    &&n(cashReconciliation.gl_reconciliation_gap)<0.01;
+  const inventoryGapRows=[
+    ...(inventoryValuation.gross_gaps||[]).map((row:any)=>({...row,gap_type:"valeur brute"})),
+    ...(inventoryValuation.impairment_gaps||[]).map((row:any)=>({...row,gap_type:"dépréciation"})),
+  ].filter((row:any)=>Math.abs(n(row.difference))>=0.01);
+  const inventoryGapRules:BalanceSheetRule[]=inventoryGapRows.map((row:any)=>({
+    account_code:"__INVENTORY_RECONCILIATION_"+String(row.gap_type).replace(/[^A-Za-z0-9]/g,"_")+"_"+String(row.account_code).replace(/[^A-Za-z0-9]/g,"_")+"__",
+    section:"review",line_key:"Écart inventaire physique / grand livre",normal_side:"both",
+    requires_maturity:false,contra_asset:false,
+  }));
+  const inventoryGapLines:BalanceSheetLedgerLine[]=inventoryGapRows.map((row:any)=>({
+    code:"__INVENTORY_RECONCILIATION_"+String(row.gap_type).replace(/[^A-Za-z0-9]/g,"_")+"_"+String(row.account_code).replace(/[^A-Za-z0-9]/g,"_")+"__",
+    label:"Inventaire • "+row.gap_type+" • compte "+row.account_code,
+    debit:Math.abs(n(row.difference)),credit:0,balance:Math.abs(n(row.difference)),
+  }));
+  const stockLedgerLines=assets.filter(x=>/^3/.test(x.code));
+  const stockPresentationLines:BalanceSheetLedgerLine[]=hasApprovedInventoryCount
+    ? (inventoryValuation.lines||[]).flatMap((item:any)=>[
+        {code:String(item.account_code),label:"Stock • "+String(item.item_reference)+" • "+String(item.description),debit:n(item.gross_value),credit:0,balance:n(item.gross_value)},
+        ...(n(item.impairment_amount)>0&&item.impairment_account_code?[{
+          code:String(item.impairment_account_code),label:"Dépréciation stock • "+String(item.item_reference)+" • "+String(item.description),
+          debit:0,credit:n(item.impairment_amount),balance:-n(item.impairment_amount),
+        }]:[]),
+      ])
+    : stockLedgerLines;
+  const stockRules:BalanceSheetRule[]=hasApprovedInventoryCount?[]:stockLedgerLines.map((line:any)=>({
+    account_code:line.code,section:"review",line_key:"Stocks sans inventaire physique approuvé",
+    normal_side:"both",requires_maturity:false,contra_asset:false,
+  }));
+  const reconciliationRules:BalanceSheetRule[]=[
+    ...inventoryGapRules,
+    ...stockRules,
+    ...cashGapRules,
+    ...fixedAssetGapRules,
+    {account_code:"__AR_GL_RECONCILIATION__",section:"review",line_key:"Écart grand livre / auxiliaire clients",normal_side:"both",requires_maturity:false,contra_asset:false},
+    {account_code:"__AR_PAYMENT_RECONCILIATION__",section:"review",line_key:"Écart factures / règlements",normal_side:"both",requires_maturity:false,contra_asset:false},
+    {account_code:"__AR_PAYMENT_DATE_MISSING__",section:"review",line_key:"Règlements confirmés sans date",normal_side:"both",requires_maturity:false,contra_asset:false},
+    {account_code:"__AR_UNALLOCATED_PAYMENT__",section:"review",line_key:"Règlements clients non affectés",normal_side:"both",requires_maturity:false,contra_asset:false},
+  ];
+  const reconciliationLines:BalanceSheetLedgerLine[]=[
+    ...(Math.abs(receivableLedgerGap)>=0.01?[{code:"__AR_GL_RECONCILIATION__",label:"Écart de rapprochement du compte 411",debit:Math.max(receivableLedgerGap,0),credit:Math.max(-receivableLedgerGap,0),balance:receivableLedgerGap}]:[]),
+    ...(invoicePaymentIntegrityGap>=0.01?[{code:"__AR_PAYMENT_RECONCILIATION__",label:"Écart absolu factures / règlements",debit:round(invoicePaymentIntegrityGap),credit:0,balance:round(invoicePaymentIntegrityGap)}]:[]),
+    ...(paymentsMissingDateAmount>=0.01?[{code:"__AR_PAYMENT_DATE_MISSING__",label:"Règlements confirmés sans date",debit:round(paymentsMissingDateAmount),credit:0,balance:round(paymentsMissingDateAmount)}]:[]),
+    ...(unallocatedCustomerPaymentsAmount>=0.01?[{code:"__AR_UNALLOCATED_PAYMENT__",label:"Règlements clients non affectés",debit:round(unallocatedCustomerPaymentsAmount),credit:0,balance:round(unallocatedCustomerPaymentsAmount)}]:[]),
+  ];
+  const presentationLines:BalanceSheetLedgerLine[]=[
+    ...assets.filter(x=>x.code!=="411"&&!/^3/.test(x.code)),
+    ...receivableLines,
+    ...stockPresentationLines,
+    ...fixedAssetGapLines,
+    ...inventoryGapLines,
+    ...cashGapLines,
+    ...reconciliationLines,
+  ];
+  const assetPresentation=buildAssetPresentation(presentationLines,[...(balanceSheetRules||[]),...reconciliationRules],cashBlockingIssues);
+  const assetPresentationReady=balanceSheetRulesAvailable&&assetPresentation.ready&&unmapped===0&&cashReconciliationReady&&inventoryCountReady;
   const liabilities=[...make("liability"),...clearing.filter(x=>x.balance<0).map(x=>({...x,balance:-x.balance,comparativeBalance:-x.comparativeBalance}))];
   const equity=make("equity");
   const resultAggregate=new Map<string,{debit:number;credit:number;kind:string;label:string}>();
@@ -135,7 +370,410 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   const sum=(xs:StatementLine[])=>round(xs.reduce((s,x)=>s+x.balance,0));
   const totalAssets=sum(assets),totalLiabilities=sum(liabilities),totalEquity=sum(equity);
   const profit=round(sum(income)-sum(expenses));
-  const balanceDifference=round(totalAssets-totalLiabilities-totalEquity-(year.status==="closed"?0:profit));
+  const currentResultAlreadyPosted=equity.some((line:any)=>
+    (line.code==="120"||line.code==="129")&&Math.abs(line.balance)>=0.005
+  );
+  const includeCurrentYearResult=year.status!=="closed"&&!currentResultAlreadyPosted;
+
+  const passifBlockingIssues:string[]=[];
+  if(!passifRulesAvailable)passifBlockingIssues.push("Référentiel de présentation du passif PCG 2005 indisponible.");
+
+  // Supplier payables are reconstructed as of the fiscal closing date.
+  const supplierPassifLines:BalanceSheetLedgerLine[]=[];
+  const supplierPassifRules:PassifRule[]=[];
+  const supplierAccountCodes=new Set<string>();
+  const {data:supplierInvoices,error:supplierInvoicesError}=await supabase.from("supplier_invoices")
+    .select("id,supplier_number,invoice_date,due_date,status,total")
+    .eq("organization_id",organizationId).lte("invoice_date",year.period_end);
+  const {data:supplierPayments,error:supplierPaymentsError}=await supabase.from("supplier_payments")
+    .select("supplier_invoice_id,amount,payment_date")
+    .eq("organization_id",organizationId).lte("payment_date",year.period_end);
+  const {data:supplierReconRows,error:supplierReconError}=await supabase.from("magnisa_supplier_reconciliation")
+    .select("supplier_invoice_id,payment_difference,allocation_difference,reconciliation_status")
+    .eq("organization_id",organizationId);
+  if(supplierInvoicesError||supplierPaymentsError||supplierReconError){
+    passifBlockingIssues.push("Rapprochement des dettes fournisseurs indisponible : "+(supplierInvoicesError?.message||supplierPaymentsError?.message||supplierReconError?.message));
+  }else{
+    const supplierPaymentsByInvoice=new Map<string,number>();
+    for(const payment of supplierPayments||[]){
+      supplierPaymentsByInvoice.set(payment.supplier_invoice_id,round((supplierPaymentsByInvoice.get(payment.supplier_invoice_id)||0)+n(payment.amount)));
+    }
+    const supplierReconMap=new Map((supplierReconRows||[]).map((row:any)=>[row.supplier_invoice_id,row]));
+    let supplierSubledgerBalance=0;
+    const activeSupplierInvoices=(supplierInvoices||[]).filter((invoice:any)=>{
+      const status=String(invoice.status||"").toLowerCase();
+      if(["draft","cancelled","canceled","void","annulee","annulée"].includes(status)){
+        if(["cancelled","canceled","void","annulee","annulée"].includes(status)){
+          passifBlockingIssues.push("Facture fournisseur "+String(invoice.supplier_number||invoice.id)+" annulée sans date d’effet historique exploitable.");
+        }
+        return false;
+      }
+      return true;
+    });
+    for(const invoice of activeSupplierInvoices){
+      const reconciliation:any=supplierReconMap.get(invoice.id);
+      if(!reconciliation){
+        passifBlockingIssues.push("Facture fournisseur "+String(invoice.supplier_number||invoice.id)+" absente du rapprochement auxiliaire.");
+      }else if(reconciliation.reconciliation_status!=="ok"||Math.abs(n(reconciliation.payment_difference))>=0.01||Math.abs(n(reconciliation.allocation_difference))>=0.01){
+        passifBlockingIssues.push("Rapprochement paiement / facture à corriger pour le fournisseur "+String(invoice.supplier_number||invoice.id)+".");
+      }
+      const paidAtClosing=supplierPaymentsByInvoice.get(invoice.id)||0;
+      const balance=round(n(invoice.total)-paidAtClosing);
+      supplierSubledgerBalance=round(supplierSubledgerBalance+balance);
+      if(balance < -0.005){
+        const code="__SUPPLIER_CREDIT_BALANCE_"+String(invoice.id).replace(/[^A-Za-z0-9]/g,"_")+"__";
+        supplierPassifLines.push({code,label:"Avance ou solde créditeur fournisseur • "+String(invoice.supplier_number||invoice.id),debit:Math.abs(balance),credit:0,balance:Math.abs(balance)});
+        supplierPassifRules.push({account_code:code,section:"review",line_key:"supplier_credit_balance_to_reclassify",normal_side:"both",requires_maturity:false,contra_equity:false});
+        passifBlockingIssues.push("Solde créditeur fournisseur à reclasser vers les avances versées (PCG 409) : "+String(invoice.supplier_number||invoice.id)+".");
+      }else if(balance>=0.005){
+        const maturity=classifyReceivableMaturity(invoice.due_date?String(invoice.due_date):null,String(year.period_end));
+        supplierPassifLines.push({
+          code:"401",label:"Fournisseur • "+String(invoice.supplier_number||invoice.id),
+          debit:0,credit:balance,balance,
+          ...(maturity?{maturity}:{}),
+        });
+      }
+    }
+    if(activeSupplierInvoices.length)supplierAccountCodes.add("401");
+    const supplierLedgerBalance=liabilities.find((line:any)=>line.code==="401")?.balance||0;
+    const supplierGap=round(supplierLedgerBalance-supplierSubledgerBalance);
+    if(Math.abs(supplierGap)>=0.01){
+      const code="__SUPPLIER_RECONCILIATION__";
+      supplierPassifLines.push({code,label:"Écart dettes fournisseurs auxiliaire / grand livre",debit:Math.abs(supplierGap),credit:0,balance:Math.abs(supplierGap)});
+      supplierPassifRules.push({account_code:code,section:"review",line_key:"supplier_payables_reconciliation",normal_side:"both",requires_maturity:false,contra_equity:false});
+      passifBlockingIssues.push("Les factures fournisseurs au "+String(year.period_end)+" ne correspondent pas au solde PCG 401 : écart de "+supplierGap+" "+(org?.currency||"MGA")+".");
+    }
+  }
+
+  // Payroll payables are reconstructed from payslips less payments actually made by period end.
+  const payrollPassifLines:BalanceSheetLedgerLine[]=[];
+  const payrollPassifRules:PassifRule[]=[];
+  const payrollAccountCodes=new Set<string>();
+  const {data:payrollRuns,error:payrollRunsError}=await supabase.from("payroll_runs")
+    .select("id,period_start,period_end,status")
+    .eq("organization_id",organizationId).lte("period_start",year.period_end).gte("period_end",year.period_start);
+  if(payrollRunsError){
+    passifBlockingIssues.push("Rapprochement des dettes de personnel indisponible : "+payrollRunsError.message);
+  }else{
+    const cancelledPayrollRuns=(payrollRuns||[]).filter((run:any)=>["cancelled","canceled"].includes(String(run.status||"").toLowerCase()));
+    for(const run of cancelledPayrollRuns){
+      passifBlockingIssues.push("Paie "+String(run.id)+" annulée sans date d’effet historique exploitable.");
+    }
+    const straddlingPayrollRuns=(payrollRuns||[]).filter((run:any)=>
+      !["draft","cancelled","canceled"].includes(String(run.status||"").toLowerCase())
+      &&(String(run.period_start)<String(year.period_start)||String(run.period_end)>String(year.period_end))
+    );
+    for(const run of straddlingPayrollRuns){
+      passifBlockingIssues.push("Paie "+String(run.id)+" chevauche la date de clôture : la part de charge et de dette de l’exercice doit être ventilée.");
+    }
+    const payrollRunIds=(payrollRuns||[]).filter((run:any)=>!["draft","cancelled","canceled"].includes(String(run.status||"").toLowerCase())).map((run:any)=>run.id);
+    let payslipRows:any[]=[];
+    let payrollReconRows:any[]=[];
+    let payrollPayments:any[]=[];
+    if(payrollRunIds.length){
+      const [{data:payslipsData,error:payslipsError},{data:payrollReconData,error:payrollReconError},{data:payrollPaymentsData,error:payrollPaymentsError}]=await Promise.all([
+        supabase.from("payslips").select("id,payroll_run_id,net_pay,status,magnisa_reference").eq("organization_id",organizationId).in("payroll_run_id",payrollRunIds),
+        supabase.from("magnisa_payroll_reconciliation").select("payslip_id,payment_difference,reconciliation_status").eq("organization_id",organizationId),
+        supabase.from("payroll_payments").select("payslip_id,amount,payment_date").eq("organization_id",organizationId).lte("payment_date",year.period_end),
+      ]);
+      if(payslipsError||payrollReconError||payrollPaymentsError)passifBlockingIssues.push("Détail des paies ou rapprochement des paiements indisponible : "+(payslipsError?.message||payrollReconError?.message||payrollPaymentsError?.message));
+      else{payslipRows=payslipsData||[];payrollReconRows=payrollReconData||[];payrollPayments=payrollPaymentsData||[];}
+    }
+    const payrollReconMap=new Map(payrollReconRows.map((row:any)=>[row.payslip_id,row]));
+    const payrollPaymentsByPayslip=new Map<string,number>();
+    for(const payment of payrollPayments){
+      payrollPaymentsByPayslip.set(payment.payslip_id,round((payrollPaymentsByPayslip.get(payment.payslip_id)||0)+n(payment.amount)));
+    }
+    let payrollSubledgerBalance=0;
+    const cancelledPayslips=payslipRows.filter((payslip:any)=>["cancelled","canceled"].includes(String(payslip.status||"").toLowerCase()));
+    for(const payslip of cancelledPayslips){
+      passifBlockingIssues.push("Bulletin "+String(payslip.magnisa_reference||payslip.id)+" annulé sans date d’effet historique exploitable.");
+    }
+    const activePayslips=payslipRows.filter((payslip:any)=>!["draft","cancelled","canceled"].includes(String(payslip.status||"").toLowerCase()));
+    for(const payslip of activePayslips){
+      const balance=round(n(payslip.net_pay)-(payrollPaymentsByPayslip.get(payslip.id)||0));
+      const reconciliation:any=payrollReconMap.get(payslip.id);
+      if(!reconciliation||reconciliation.reconciliation_status!=="ok"||Math.abs(n(reconciliation.payment_difference))>=0.01){
+        passifBlockingIssues.push("Rapprochement des paiements de paie à corriger pour le bulletin "+String(payslip.magnisa_reference||payslip.id)+".");
+      }
+      payrollSubledgerBalance=round(payrollSubledgerBalance+balance);
+      if(Math.abs(balance)>=0.005){
+        payrollPassifLines.push({
+          code:"421",label:"Rémunération due • "+String(payslip.magnisa_reference||payslip.id),
+          debit:Math.max(-balance,0),credit:Math.max(balance,0),balance,maturity:"current",
+        });
+      }
+    }
+    if(activePayslips.length)payrollAccountCodes.add("421");
+    const payrollLedgerBalance=liabilities.find((line:any)=>line.code==="421")?.balance||0;
+    const payrollGap=round(payrollLedgerBalance-payrollSubledgerBalance);
+    if(Math.abs(payrollGap)>=0.01){
+      const code="__PAYROLL_RECONCILIATION__";
+      payrollPassifLines.push({code,label:"Écart paies dues / compte PCG 421",debit:Math.abs(payrollGap),credit:0,balance:Math.abs(payrollGap)});
+      payrollPassifRules.push({account_code:code,section:"review",line_key:"payroll_payables_reconciliation",normal_side:"both",requires_maturity:false,contra_equity:false});
+      passifBlockingIssues.push("Les rémunérations dues au "+String(year.period_end)+" ne correspondent pas au solde PCG 421 : écart de "+payrollGap+" "+(org?.currency||"MGA")+".");
+    }
+  }
+
+  // Reconstruct each loan at the fiscal closing date, never from today's outstanding_principal.
+  // Tax and social obligations are accepted only when their as-of balance is provable.
+  // The current obligation schema has no payment date; partially/fully paid records
+  // therefore block historical reconstruction rather than being backdated by guess.
+  const taxSocialPassifLines:BalanceSheetLedgerLine[]=[];
+  const taxSocialPassifRules:PassifRule[]=[];
+  const taxSocialAccountCodes=new Set<string>();
+  const taxSocialReconciliationLines:BalanceSheetLedgerLine[]=[];
+  const taxSocialReconciliationRules:PassifRule[]=[];
+  const [{data:taxObligations,error:taxObligationsError},{data:socialObligations,error:socialObligationsError}]=await Promise.all([
+    supabase.from("tax_obligations")
+      .select("id,obligation_type,period_start,period_end,due_date,amount,paid_amount,status,magnisa_reference")
+      .eq("organization_id",organizationId).lte("period_end",year.period_end),
+    supabase.from("social_obligations")
+      .select("id,organization_name,period_start,period_end,due_date,amount,paid_amount,status,magnisa_reference")
+      .eq("organization_id",organizationId).lte("period_end",year.period_end),
+  ]);
+  if(taxObligationsError)passifBlockingIssues.push("Registre des obligations fiscales indisponible : "+taxObligationsError.message);
+  if(socialObligationsError)passifBlockingIssues.push("Registre des obligations sociales indisponible : "+socialObligationsError.message);
+  const obligationsByAccount=new Map<string,any[]>();
+  const ambiguousObligationAccounts=new Set<string>();
+  if(!taxObligationsError){
+    for(const obligation of taxObligations||[]){
+      const type=String(obligation.obligation_type||"").trim().toUpperCase();
+      const accountCode=taxSocialObligationAccountCode("tax",type);
+      if(!accountCode){
+        passifBlockingIssues.push("Obligation fiscale "+String(obligation.magnisa_reference||obligation.id)+" sans correspondance PCG déterministe pour le type "+type+".");
+        continue;
+      }
+      const status=String(obligation.status||"").toLowerCase();
+      if(!isObligationBalanceReconstructable(status,n(obligation.paid_amount))){
+        ambiguousObligationAccounts.add(accountCode);
+        passifBlockingIssues.push("Obligation fiscale "+String(obligation.magnisa_reference||obligation.id)+" avec règlement ou statut non daté : situation historique à la clôture non reconstituable.");
+        continue;
+      }
+      const list=obligationsByAccount.get(accountCode)||[];
+      list.push(obligation);obligationsByAccount.set(accountCode,list);
+    }
+  }
+  if(!socialObligationsError){
+    for(const obligation of socialObligations||[]){
+      const name=String(obligation.organization_name||"").trim().toUpperCase();
+      const accountCode=taxSocialObligationAccountCode("social",name);
+      if(!accountCode){
+        passifBlockingIssues.push("Obligation sociale "+String(obligation.magnisa_reference||obligation.id)+" sans organisme PCG déterministe : "+name+".");
+        continue;
+      }
+      const status=String(obligation.status||"").toLowerCase();
+      if(!isObligationBalanceReconstructable(status,n(obligation.paid_amount))){
+        ambiguousObligationAccounts.add(accountCode);
+        passifBlockingIssues.push("Obligation sociale "+String(obligation.magnisa_reference||obligation.id)+" avec règlement ou statut non daté : situation historique à la clôture non reconstituable.");
+        continue;
+      }
+      const list=obligationsByAccount.get(accountCode)||[];
+      list.push(obligation);obligationsByAccount.set(accountCode,list);
+    }
+  }
+  for(const [accountCode,obligations] of obligationsByAccount){
+    if(ambiguousObligationAccounts.has(accountCode))continue;
+    const subledgerBalance=round(obligations.reduce((sum:number,row:any)=>sum+n(row.amount),0));
+    const ledgerBalance=liabilities.find((line:any)=>line.code===accountCode)?.balance||0;
+    const difference=round(ledgerBalance-subledgerBalance);
+    if(Math.abs(difference)>=0.01){
+      const code="__TAX_SOCIAL_RECONCILIATION_"+accountCode+"__";
+      taxSocialReconciliationLines.push({
+        code,label:"Écart obligations fiscales/sociales / grand livre • compte "+accountCode,
+        debit:Math.max(Math.abs(difference),0),credit:0,balance:Math.abs(difference),
+      });
+      taxSocialReconciliationRules.push({
+        account_code:code,section:"review",line_key:"tax_social_obligation_reconciliation",
+        normal_side:"both",requires_maturity:false,contra_equity:false,
+      });
+      passifBlockingIssues.push("Les obligations fiscales/sociales rapprochées au compte "+accountCode+" présentent un écart de "+difference+" "+(org?.currency||"MGA")+".");
+      continue;
+    }
+    taxSocialAccountCodes.add(accountCode);
+    for(const obligation of obligations){
+      taxSocialPassifLines.push({
+        code:accountCode,
+        label:"Obligation • "+String(obligation.obligation_type||obligation.organization_name)+" • "+String(obligation.magnisa_reference||obligation.id),
+        debit:0,credit:n(obligation.amount),balance:n(obligation.amount),
+      });
+    }
+    taxSocialPassifRules.push({
+      account_code:accountCode,section:"current_liabilities",
+      line_key:accountCode==="431"?"social_payables":"tax_payables",
+      normal_side:"credit",requires_maturity:false,contra_equity:false,
+    });
+  }
+
+  const {data:loanRows,error:loanRowsError}=await supabase.from("loans")
+    .select("id,lender_name,magnisa_reference,principal,start_date,liability_account_code,status")
+    .eq("organization_id",organizationId).lte("start_date",year.period_end);
+  if(loanRowsError)passifBlockingIssues.push("Registre des emprunts indisponible : "+loanRowsError.message);
+  const historicalLoanRows=(loanRows||[]).filter((loan:any)=>String(loan.status||"").toLowerCase()!=="draft");
+  const loanIds=historicalLoanRows.map((loan:any)=>loan.id);
+  const [{data:scheduleVersions,error:scheduleVersionsError},{data:loanRepayments,error:loanRepaymentsError}]=await Promise.all([
+    supabase.from("loan_schedule_versions")
+      .select("id,loan_id,status,effective_from,effective_until")
+      .eq("organization_id",organizationId).lte("effective_from",year.period_end)
+      .or("effective_until.is.null,effective_until.gte."+year.period_end),
+    loanIds.length
+      ? supabase.from("loan_repayments")
+          .select("id,loan_id,installment_id,payment_date,principal_paid,status,reversed_at")
+          .eq("organization_id",organizationId).in("loan_id",loanIds).lte("payment_date",year.period_end)
+      : Promise.resolve({data:[],error:null} as any),
+  ]);
+  if(scheduleVersionsError)passifBlockingIssues.push("Versions historiques des échéanciers indisponibles : "+scheduleVersionsError.message);
+  if(loanRepaymentsError)passifBlockingIssues.push("Historique des remboursements d’emprunts indisponible : "+loanRepaymentsError.message);
+  const eligibleVersions=(scheduleVersions||[]).filter((version:any)=>
+    ["active","approved","superseded"].includes(String(version.status||"").toLowerCase())
+  );
+  const versionsByLoan=new Map<string,any[]>();
+  for(const version of eligibleVersions){
+    const list=versionsByLoan.get(version.loan_id)||[];
+    list.push(version);versionsByLoan.set(version.loan_id,list);
+  }
+  const repaymentsByLoan=new Map<string,any[]>();
+  const repaymentsByInstallment=new Map<string,number>();
+  for(const repayment of loanRepayments||[]){
+    const status=String(repayment.status||"").toLowerCase();
+    const reversedAt=repayment.reversed_at?String(repayment.reversed_at).slice(0,10):null;
+    if(["cancelled","canceled","void"].includes(status)){
+      passifBlockingIssues.push("Remboursement d’emprunt "+String(repayment.id)+" annulé sans historique d’effet vérifiable.");
+      continue;
+    }
+    if(!isLoanRepaymentEffectiveAtDate(status,String(repayment.payment_date),reversedAt,String(year.period_end))){
+      if(!["draft","pending","reversed"].includes(status)){
+        passifBlockingIssues.push("Statut historique non reconnu pour le remboursement d’emprunt "+String(repayment.id)+".");
+      }
+      continue;
+    }
+    const list=repaymentsByLoan.get(repayment.loan_id)||[];
+    list.push(repayment);repaymentsByLoan.set(repayment.loan_id,list);
+    if(repayment.installment_id){
+      repaymentsByInstallment.set(repayment.installment_id,round((repaymentsByInstallment.get(repayment.installment_id)||0)+n(repayment.principal_paid)));
+    }
+  }
+  const loanScheduleLines:BalanceSheetLedgerLine[]=[];
+  const loanScheduleRules:PassifRule[]=[];
+  const loanAccountCodes=new Set<string>();
+  const scheduledByAccount=new Map<string,number>();
+  const selectedScheduleByLoan=new Map<string,any>();
+  for(const loan of historicalLoanRows){
+    const loanStatus=String(loan.status||"").toLowerCase();
+    if(["cancelled","canceled","void"].includes(loanStatus)){
+      passifBlockingIssues.push("Emprunt "+String(loan.magnisa_reference||loan.id)+" annulé sans date d’effet historique exploitable.");
+      continue;
+    }
+    const repayments=repaymentsByLoan.get(loan.id)||[];
+    const principalPaid=round(repayments.reduce((sum:number,item:any)=>sum+n(item.principal_paid),0));
+    const outstanding=round(n(loan.principal)-principalPaid);
+    if(outstanding< -0.01){
+      passifBlockingIssues.push("Les remboursements cumulés dépassent le principal initial de l’emprunt "+String(loan.magnisa_reference||loan.id)+".");
+      continue;
+    }
+    if(outstanding<0.005)continue;
+    const accountCode=String(loan.liability_account_code||"");
+    if(!accountCode){
+      passifBlockingIssues.push("Emprunt "+String(loan.magnisa_reference||loan.id)+" sans compte PCG de dette.");
+      continue;
+    }
+    const versions=(versionsByLoan.get(loan.id)||[]).sort((a:any,b:any)=>String(b.effective_from).localeCompare(String(a.effective_from)));
+    const selectedVersion=versions[0];
+    if(!selectedVersion){
+      passifBlockingIssues.push("Aucun échéancier approuvé applicable à la clôture pour l’emprunt "+String(loan.magnisa_reference||loan.id)+".");
+      continue;
+    }
+    selectedScheduleByLoan.set(loan.id,selectedVersion);
+    loanAccountCodes.add(accountCode);
+    scheduledByAccount.set(accountCode,round((scheduledByAccount.get(accountCode)||0)+outstanding));
+  }
+  const selectedScheduleIds=[...new Set([...selectedScheduleByLoan.values()].map((version:any)=>version.id))] as string[];
+  let loanInstallments:any[]=[];
+  if(selectedScheduleIds.length){
+    const {data,error}=await supabase.from("loan_installments")
+      .select("id,loan_id,schedule_version_id,due_date,principal_due,status")
+      .eq("organization_id",organizationId).in("schedule_version_id",selectedScheduleIds);
+    if(error)passifBlockingIssues.push("Détail des échéances d’emprunts indisponible : "+error.message);
+    else loanInstallments=data||[];
+  }
+  for(const loan of historicalLoanRows){
+    const selectedVersion=selectedScheduleByLoan.get(loan.id);
+    if(!selectedVersion)continue;
+    const accountCode=String(loan.liability_account_code||"");
+    const repayments=repaymentsByLoan.get(loan.id)||[];
+    if(repayments.some((repayment:any)=>!repayment.installment_id&&n(repayment.principal_paid)>0.005)){
+      passifBlockingIssues.push("Remboursement anticipé non ventilé par échéance pour l’emprunt "+String(loan.magnisa_reference||loan.id)+" : échéancier de clôture non vérifiable.");
+    }
+    const rows=loanInstallments.filter((item:any)=>item.loan_id===loan.id&&item.schedule_version_id===selectedVersion.id);
+    if(!rows.length){
+      passifBlockingIssues.push("Échéancier vide à la date de clôture pour l’emprunt "+String(loan.magnisa_reference||loan.id)+".");
+      continue;
+    }
+    let currentPrincipal=0,nonCurrentPrincipal=0,unknownMaturity=0;
+    for(const item of rows){
+      const itemStatus=String(item.status||"").toLowerCase();
+      if(["cancelled","canceled","void"].includes(itemStatus)){
+        passifBlockingIssues.push("Échéance "+String(item.id)+" annulée sans historique d’effet vérifiable pour l’emprunt "+String(loan.magnisa_reference||loan.id)+".");
+        continue;
+      }
+      const remaining=round(n(item.principal_due)-(repaymentsByInstallment.get(item.id)||0));
+      if(remaining< -0.01){
+        passifBlockingIssues.push("Remboursements supérieurs au principal prévu pour l’échéance "+String(item.id)+".");
+        continue;
+      }
+      if(remaining<0.005)continue;
+      const maturity=classifyReceivableMaturity(item.due_date?String(item.due_date):null,String(year.period_end));
+      if(maturity==="current")currentPrincipal=round(currentPrincipal+remaining);
+      else if(maturity==="non_current")nonCurrentPrincipal=round(nonCurrentPrincipal+remaining);
+      else unknownMaturity=round(unknownMaturity+remaining);
+    }
+    const scheduled=round(currentPrincipal+nonCurrentPrincipal+unknownMaturity);
+    const outstanding=round(n(loan.principal)-repayments.reduce((sum:number,item:any)=>sum+n(item.principal_paid),0));
+    if(Math.abs(scheduled-outstanding)>=0.01){
+      passifBlockingIssues.push("Écart entre le capital restant dû reconstitué et l’échéancier historique de l’emprunt "+String(loan.magnisa_reference||loan.id)+" : "+round(scheduled-outstanding)+" "+(org?.currency||"MGA")+".");
+    }
+    const label="Emprunt • "+String(loan.magnisa_reference||loan.lender_name||loan.id);
+    if(currentPrincipal>=0.005)loanScheduleLines.push({code:accountCode,label,debit:0,credit:currentPrincipal,balance:currentPrincipal,maturity:"current"});
+    if(nonCurrentPrincipal>=0.005)loanScheduleLines.push({code:accountCode,label,debit:0,credit:nonCurrentPrincipal,balance:nonCurrentPrincipal,maturity:"non_current"});
+    if(unknownMaturity>=0.005)loanScheduleLines.push({code:accountCode,label,debit:0,credit:unknownMaturity,balance:unknownMaturity});
+  }
+  const loanGapLines:BalanceSheetLedgerLine[]=[];
+  for(const [accountCode,scheduled] of scheduledByAccount){
+    const ledger=liabilities.find((line:any)=>line.code===accountCode)?.balance||0;
+    const difference=round(ledger-scheduled);
+    if(Math.abs(difference)>=0.01){
+      const code="__LOAN_RECONCILIATION_"+accountCode.replace(/[^A-Za-z0-9]/g,"_")+"__";
+      loanGapLines.push({code,label:"Écart échéancier / grand livre • compte "+accountCode,debit:Math.abs(difference),credit:0,balance:Math.abs(difference)});
+      loanScheduleRules.push({account_code:code,section:"review",line_key:"loan_schedule_reconciliation",normal_side:"both",requires_maturity:false,contra_equity:false});
+    }
+  }
+  const currentYearResultLine:BalanceSheetLedgerLine[]=
+    includeCurrentYearResult&&Math.abs(profit)>=0.005
+      ? [{code:"__CURRENT_YEAR_RESULT__",label:"Résultat de l’exercice",debit:Math.max(-profit,0),credit:Math.max(profit,0),balance:profit}]
+      : [];
+  const currentYearResultRule:PassifRule[]=[{
+    account_code:"__CURRENT_YEAR_RESULT__",section:"equity",line_key:"equity_current_result",
+    normal_side:"both",requires_maturity:false,contra_equity:false,
+  }];
+  const passifLines:BalanceSheetLedgerLine[]=[
+    ...equity,
+    ...liabilities.filter((line:any)=>!loanAccountCodes.has(line.code)&&!supplierAccountCodes.has(line.code)&&!payrollAccountCodes.has(line.code)&&!taxSocialAccountCodes.has(line.code)),
+    ...supplierPassifLines,
+    ...payrollPassifLines,
+    ...taxSocialPassifLines,
+    ...taxSocialReconciliationLines,
+    ...loanScheduleLines,
+    ...loanGapLines,
+    ...currentYearResultLine,
+  ];
+  const passifPresentation=buildPassifPresentation(
+    passifLines,
+    [...(passifRules||[]),...supplierPassifRules,...payrollPassifRules,...taxSocialPassifRules,...taxSocialReconciliationRules,...loanScheduleRules,...currentYearResultRule],
+    passifBlockingIssues,
+  );
+  const passifPresentationReady=passifRulesAvailable&&passifPresentation.ready
+    &&Math.abs(passifPresentation.totals.passif-(totalEquity+totalLiabilities+(includeCurrentYearResult?profit:0)))<0.01;
+  const balanceDifference=round(totalAssets-totalLiabilities-totalEquity-(includeCurrentYearResult?profit:0));
   const equityCodes=new Set<string>((accounts||[]).filter((a:any)=>a.kind==="equity").map((a:any)=>String(a.code)));
   const equityChanges=[...equityCodes].map(code=>{
     const a:any=accountMap.get(code);
@@ -192,6 +830,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     .gte("entry_date",year.period_start).lte("entry_date",year.period_end);
   if(integrityError)throw new Error(integrityError.message);
   const unbalancedEntries=(integrity||[]).filter((x:any)=>x.integrity_status!=="equilibree").length;
+  const assetPresentationControlsReady=assetPresentationReady&&unbalancedEntries===0;
   const noteLabels:Record<string,string>={
     accounting_policies:"Règles et méthodes comptables",
     valuation_methods:"Méthodes d'évaluation et estimations",
@@ -210,7 +849,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   // Never label these statements as finalized until those PCG controls exist.
   const operatingCashFlowReconciliationReady=false;
   const pcgPresentationReady=false;
-  const ready=isFiscalStatementReady({isClosed:year.status==="closed",unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,balanceDifference,notesReady,operatingCashFlowReconciliationReady,pcgPresentationReady});
+  const ready=isFiscalStatementReady({isClosed:year.status==="closed",unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,balanceDifference,notesReady,operatingCashFlowReconciliationReady,pcgPresentationReady,assetPresentationReady:assetPresentationControlsReady,passifPresentationReady});
   const notes=[
     "Référentiel comptable : Plan Comptable Général 2005 de Madagascar.",
     "Devise de présentation : "+(org?.currency||"MGA")+".",
@@ -218,13 +857,13 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     "Base de préparation : écritures comptables validées et imputées au PCG.",
     ...Object.entries(noteLabels).map(([k,label])=>label+" : "+(String(noteValues[k]||"").trim()||"À renseigner avant arrêté définitif.")),
     "Le tableau des flux présente uniquement les mouvements bruts dont la contrepartie est unique. Le rapprochement du flux opérationnel avec le résultat avant impôt, requis par le PCG 2005 article 250-3, reste à construire et empêche l’arrêté définitif.",
-    "La ventilation courante/non courante des postes du bilan n’est pas encore documentée par échéance. La présentation réglementaire complète du bilan et du compte de résultat reste à valider et empêche l’arrêté définitif."
+    "Les créances clients du compte 411 sont ventilées selon les échéances contractuelles des factures et rapprochées des règlements confirmés et du grand livre. Les autres créances nécessitent leurs justificatifs d’échéance. La présentation réglementaire complète du bilan et du compte de résultat reste à valider."
   ];
   return {organization:{...org,...settings},year,currency:org?.currency||"MGA",accounts:accounts||[],
-    assets,liabilities,equity,expenses,income,equityChanges,cashFlows,
+    assets,liabilities,equity,expenses,income,equityChanges,cashFlows,assetPresentation,passifPresentation,cashReconciliation,inventoryValuation,
     openingCash:round(openingCash),closingCash:round(closingCash),profit,priorYearLabel:priorYear?.label||null,
     totals:{assets:totalAssets,liabilities:totalLiabilities,equity:totalEquity,balanceDifference},
-    controls:{unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,operatingCashFlowReconciliationReady,pcgPresentationReady,isClosed:year.status==="closed",notesReady,ready},notes};
+    controls:{unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,operatingCashFlowReconciliationReady,pcgPresentationReady,assetPresentationReady:assetPresentationControlsReady,passifPresentationReady,cashReconciliationReady,inventoryCountReady,isClosed:year.status==="closed",notesReady,ready},notes};
 }
 
 export async function getFiscalStatementContext(yearId:string){

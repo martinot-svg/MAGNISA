@@ -34,8 +34,10 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Validate production migration guard script syntax
-        run: bash -n scripts/ci/check-production-migration-history.sh
+      - name: Validate production migration scripts syntax
+        run: |
+          bash -n scripts/ci/check-production-migration-history.sh
+          bash -n scripts/ci/apply-production-allowlist.sh
 
       - name: Test production migration history reconciliation fixtures
         run: bash tests/ci/check-production-migration-history.test.sh

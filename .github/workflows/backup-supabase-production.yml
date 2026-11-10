@@ -7,6 +7,8 @@ on:
       - main
     paths:
       - .github/workflows/backup-supabase-production.yml
+      - supabase/migrations/**
+      - scripts/ci/apply-production-allowlist.sh
 
 permissions:
   contents: read
