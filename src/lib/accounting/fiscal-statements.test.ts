@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyCashFlowCounterpart, isFiscalStatementReady, isInventoryCountReady, isLoanRepaymentEffectiveAtDate, type FiscalStatementReadinessInput } from "./fiscal-statements";
+import { classifyCashFlowCounterpart, isFiscalStatementReady, isInventoryCountReady, isLoanRepaymentEffectiveAtDate, isObligationBalanceReconstructable, taxSocialObligationAccountCode, type FiscalStatementReadinessInput } from "./fiscal-statements";
 
 const valid: FiscalStatementReadinessInput = {
   isClosed:true,
@@ -104,5 +104,28 @@ describe("isInventoryCountReady", () => {
       inventoryAvailable:false,hasStockBalance:false,hasApprovedCount:false,
       grossLedgerGap:0,impairmentLedgerGap:0,
     })).toBe(false);
+  });
+});
+
+
+describe("taxSocialObligationAccountCode", () => {
+  it("maps known tax obligations to the PCG control accounts", () => {
+    expect(taxSocialObligationAccountCode("tax","TVA")).toBe("445");
+    expect(taxSocialObligationAccountCode("tax","IRSA")).toBe("442");
+    expect(taxSocialObligationAccountCode("tax","IS")).toBeNull();
+  });
+  it("maps CNaPS and OSTIE obligations to social payable account 431", () => {
+    expect(taxSocialObligationAccountCode("social","CNaPS")).toBe("431");
+    expect(taxSocialObligationAccountCode("social","OSTIE")).toBe("431");
+    expect(taxSocialObligationAccountCode("social","OTHER")).toBeNull();
+  });
+});
+
+describe("isObligationBalanceReconstructable", () => {
+  it("accepts only open or overdue obligations without recorded payments", () => {
+    expect(isObligationBalanceReconstructable("open",0)).toBe(true);
+    expect(isObligationBalanceReconstructable("overdue",0)).toBe(true);
+    expect(isObligationBalanceReconstructable("paid",0)).toBe(false);
+    expect(isObligationBalanceReconstructable("open",100)).toBe(false);
   });
 });
