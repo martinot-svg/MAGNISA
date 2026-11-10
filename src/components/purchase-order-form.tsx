@@ -10,7 +10,7 @@ type Location={id:string;name:string;code:string};
 
 type Line={item_id:string;description:string;purchase_purpose:"resale"|"customer_mandate"|"company_use"|"consumption";beneficiary_customer_id:string;mandate_confirmed:boolean;supplier_document_names_customer:boolean;company_bears_goods_risk:boolean;exact_cost_supported:boolean;mandate_supplier_document_reference:string;quantity_ordered:number;unit:string;unit_price:number;discount_amount:number;additional_cost_amount:number;tax_rate:number};
 
-export function PurchaseOrderForm({suppliers,items,customers,locations}:{suppliers:Supplier[];items:Item[];customers:Customer[];locations:Location[]}){
+export function PurchaseOrderForm({suppliers,items,customers}:{suppliers:Supplier[];items:Item[];customers:Customer[]}){
   const [lines,setLines]=useState<Line[]>([]);
   const [supplier,setSupplier]=useState("");
   const [currency,setCurrency]=useState("MGA");
