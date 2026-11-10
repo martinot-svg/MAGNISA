@@ -64,9 +64,9 @@ The catalogue and stock overview are available at /articles behind the optional 
 - Inventory valuation (CUMP/FIFO) and accounting integration.
 - Supplier invoice matching and customer mandate settlement.
 - Mixed service/product quote, order and invoice lines.
-- Purchase-order and goods-receipt UI, role permissions for procurement and organization feature activation.
+- Purchase-order attachment storage, supplier invoice matching, mandate settlement and supplier payment reconciliation.\n- Stock reservations, deliveries/issues, transfers, returns, adjustments and historical balance reconstruction UI.\n- Mixed service/product quote, order and invoice lines; the existing commercial RPCs still model service-only lines.\n- Accounting posting integration for inventory valuation and mixed merchandise/service revenue.
 
-Sales document lines are deliberately not changed in this slice. Merchandise and mandate lines must be integrated with order-to-invoice conversion and the accounting posting engine together; otherwise a product line could be invoiced as ordinary service revenue.
+Sales document lines and the existing commercial RPCs are deliberately not changed in this increment. Merchandise and mandate lines must be integrated with quote acceptance, order conversion, invoice generation and versioned PCG posting together; otherwise a product line could be invoiced as ordinary service revenue.
 
 ## Implementation phases
 
@@ -75,7 +75,7 @@ Sales document lines are deliberately not changed in this slice. Merchandise and
 3. Mixed commercial document lines linked to either a service or an item, preserving historical price and tax snapshots.
 4. Operation/event ledger with unique idempotency keys and source traceability.
 5. Atomic RPC workflows for stock issues, deliveries, returns, customer advances, mandates and journal posting.
-6. Procurement UI activation by organization feature and permission.
+6. Procurement UI activation by organization feature and inventory permissions (first multi-line order and partial-receipt screen delivered in this increment).
 7. Integration tests for complete workflows, reversals, tenant isolation and financial statement impact.
 
 No production data or schema is changed by this branch. The migration remains pending review and clean-database replay.
