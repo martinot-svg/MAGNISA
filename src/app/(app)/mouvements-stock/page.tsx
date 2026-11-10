@@ -34,7 +34,7 @@ export default async function StockOperationsPage({searchParams}:{searchParams:P
  const locMap=new Map((locations as any[]).map(x=>[x.id,x]));
  const deliveryMap=new Map((deliveries as any[]).map(x=>[x.id,x]));
  const receiptMap=new Map((receipts as any[]).map(x=>[x.id,x]));
- const receiptLinesWithItems=receiptLinesWithItems.map(line=>({...line,item_id:Array.isArray(line.purchase_order_lines)?line.purchase_order_lines[0]?.item_id:line.purchase_order_lines?.item_id}));
+ const receiptLinesWithItems=(receiptLines as any[]).map(line=>({...line,item_id:Array.isArray(line.purchase_order_lines)?line.purchase_order_lines[0]?.item_id:line.purchase_order_lines?.item_id}));
  const returnMap=new Map((returns as any[]).map(x=>[x.id,x]));
  const customerReturned=(lineId:string)=> (returnLines as any[]).filter(l=>l.source_line_type==="sales_delivery_line"&&l.source_line_id===lineId&&returnMap.get(l.return_id)?.return_type==="customer").reduce((sum,l)=>sum+Number(l.quantity),0);
  const supplierReturned=(lineId:string)=> (returnLines as any[]).filter(l=>l.source_line_type==="goods_receipt_line"&&l.source_line_id===lineId&&returnMap.get(l.return_id)?.return_type==="supplier").reduce((sum,l)=>sum+Number(l.quantity),0);
