@@ -86,10 +86,12 @@ BEGIN
 
   IF EXISTS (
     SELECT 1 FROM public.pcg2005_journal_lines
-    WHERE (source_type='expense' AND account_key IN ('EXPENSE:transport','EXPENSE:acquisition','EXPENSE:achat_de_mat_riel_informatique')
-           AND NOT (account_key='EXPENSE:transport' AND mapping_status='automatique' AND pcg_code='625'))
-       OR (source_type='supplier_invoice' AND account_key='EXPENSE:SUPPLIER')
-      AND (pcg_code IS NOT NULL OR mapping_status <> 'a_mapper')
+    WHERE (
+      (source_type='expense' AND account_key IN ('EXPENSE:transport','EXPENSE:acquisition','EXPENSE:achat_de_mat_riel_informatique')
+       AND NOT (account_key='EXPENSE:transport' AND mapping_status='automatique' AND pcg_code='625'))
+      OR (source_type='supplier_invoice' AND account_key='EXPENSE:SUPPLIER')
+    )
+    AND (pcg_code IS NOT NULL OR mapping_status <> 'a_mapper')
   ) THEN
     RAISE EXCEPTION 'PCG mapping regression: ambiguous acquisitions and supplier expense classes must remain unmapped';
   END IF;
