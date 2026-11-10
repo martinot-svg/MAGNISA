@@ -215,7 +215,8 @@ jobs:
             IF to_regclass('public.pcg2005_balance_sheet_rules') IS NULL
               OR to_regclass('public.pcg2005_balance_sheet_passif_rules') IS NULL
               OR to_regclass('public.inventory_counts') IS NULL
-              OR to_regclass('public.inventory_count_lines') IS NULL THEN
+              OR to_regclass('public.inventory_count_lines') IS NULL
+              OR to_regclass('public.pcg2005_supplier_invoice_mappings') IS NULL THEN
               RAISE EXCEPTION 'Required balance-sheet or inventory schema is missing after migration replay';
             END IF;
             IF NOT EXISTS (
@@ -233,12 +234,15 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'Internal transfer clearing is not mapped to PCG 581';
             END IF;
-            IF EXISTS (
+            IF NOT EXISTS (
               SELECT 1 FROM public.pcg2005_journal_lines
               WHERE reference='FOUR-2030'
-                AND (pcg_code IS NOT NULL OR mapping_status <> 'a_mapper')
+                AND pcg_code='606'
+                AND mapping_status='manuel'
+                AND mapping_evidence_status='record_only'
+                AND mapping_requires_attachment
             ) THEN
-              RAISE EXCEPTION 'FOUR-2030 generic supplier purchase must remain unmapped pending supporting evidence';
+              RAISE EXCEPTION 'FOUR-2030 must map to PCG 606 and retain its missing-invoice evidence flag';
             END IF;
             IF EXISTS (
               SELECT 1 FROM public.journal_entries
@@ -251,9 +255,9 @@ jobs:
               WHERE version IN (
                 '20261107170000','20261109170000','20261109290000','20261109300000',
                 '20261110000000','20261110090000','20261110091500','20261110093000',
-                '20261110094000','20261110095000'
+                '20261110094000','20261110095000','20261110100000'
               )
-            ) <> 10 THEN
+            ) <> 11 THEN
               RAISE EXCEPTION 'The exact allowlisted migration versions were not recorded';
             END IF;
           END $$;
