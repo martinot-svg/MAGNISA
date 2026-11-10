@@ -18,6 +18,8 @@ export type BalanceSheetRule = {
   contra_asset: boolean;
 };
 
+export type BalanceSheetSourceEntry = { entryId: string; reference: string | null; sourceType: string | null; lineId: string };
+
 export type BalanceSheetLedgerLine = {
   code: string;
   label: string;
@@ -26,6 +28,8 @@ export type BalanceSheetLedgerLine = {
   balance: number;
   comparativeBalance?: number;
   maturity?: "current" | "non_current";
+  sourceEntries?: BalanceSheetSourceEntry[];
+  sourceEntryCount?: number;
 };
 
 export type AssetPresentationBucket = {
