@@ -238,6 +238,7 @@ jobs:
             IF (
               SELECT count(*) FROM public.pcg2005_journal_lines
               WHERE reference IN ('FOUR-2030','FOUR-2031')
+                AND organization_id IN (SELECT DISTINCT organization_id FROM public.supplier_invoices WHERE supplier_number IN ('2030','2031'))
                 AND pcg_code='606'
                 AND mapping_status='manuel'
                 AND mapping_evidence_status='record_only'
@@ -248,6 +249,7 @@ jobs:
             IF (
               SELECT count(*) FROM public.pcg2005_journal_lines
               WHERE reference IN ('DEP-00003','DEP-00004')
+                AND organization_id IN (SELECT DISTINCT organization_id FROM public.expenses WHERE magnisa_reference IN ('DEP-00003','DEP-00004'))
                 AND pcg_code='218'
                 AND mapping_status='manuel'
                 AND mapping_evidence_status='record_only'
@@ -259,6 +261,7 @@ jobs:
               SELECT COALESCE(abs(sum(debit_difference)),0)
               FROM public.fixed_asset_register_reconciliation
               WHERE account_code='218'
+                AND organization_id IN (SELECT DISTINCT organization_id FROM public.expenses WHERE magnisa_reference IN ('DEP-00003','DEP-00004'))
             ) <> 9000000 THEN
               RAISE EXCEPTION 'The 9,000,000 MGA computer asset register gap must remain visible and unmasked';
             END IF;
@@ -268,15 +271,17 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'Unbalanced posted journal entry detected after migration replay';
             END IF;
-            IF abs(COALESCE((
-              SELECT sum(debit-credit)
+            IF EXISTS (
+              SELECT organization_id
               FROM public.pcg2005_journal_lines
               WHERE status='posted'
                 AND source_type IN ('internal_transfer_debit','internal_transfer_credit')
                 AND account_key LIKE 'TRANSIT:%'
                 AND pcg_code='581'
-            ),0)) >= 0.01 THEN
-              RAISE EXCEPTION 'Internal-transfer clearing entries do not net to zero on PCG 581';
+              GROUP BY organization_id
+              HAVING abs(sum(debit-credit)) >= 0.01
+            ) THEN
+              RAISE EXCEPTION 'Internal-transfer clearing entries do not net to zero on PCG 581 for each organization';
             END IF;
             IF EXISTS (
               SELECT sp.id
