@@ -83,4 +83,23 @@ if run_guard "$TMP/out-of-order" "$TMP/out-of-order-allow" "$TMP/out-of-order-ma
 fi
 grep -q 'older than the latest remote version' "$TMP/out-of-order.log" || fail "out-of-order failure reason missing"
 
+# The production allowlist executor must independently refuse historical versions behind the remote head.
+mkdir -p "$TMP/apply-root/scripts/ci" "$TMP/apply-root/supabase/migrations" "$TMP/fake-bin"
+cp "$ROOT/scripts/ci/apply-production-allowlist.sh" "$TMP/apply-root/scripts/ci/apply-production-allowlist.sh"
+: > "$TMP/apply-root/supabase/migrations/20261101000000_older_pending.sql"
+printf '20261101000000\n' > "$TMP/apply-root/supabase/migrations/production-pending-allowlist.txt"
+cat > "$TMP/fake-bin/psql" <<'PSQL'
+#!/usr/bin/env bash
+case "$*" in
+  *"max(version)"*) printf '20261102000000\n' ;;
+  *"where version = '20261101000000'"*) : ;;
+  *) echo "Unexpected psql invocation: $*" >&2; exit 2 ;;
+esac
+PSQL
+chmod +x "$TMP/fake-bin/psql"
+if SUPABASE_DB_URL=mock PATH="$TMP/fake-bin:$PATH" bash "$TMP/apply-root/scripts/ci/apply-production-allowlist.sh" dry-run > "$TMP/apply-out-of-order.log" 2>&1; then
+  fail "production allowlist executor accepted an out-of-order migration"
+fi
+grep -q 'Refusing out-of-order migration' "$TMP/apply-out-of-order.log" || fail "production executor out-of-order guard reason missing"
+
 echo "Migration history guard fixtures passed."
