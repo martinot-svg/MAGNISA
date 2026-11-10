@@ -212,7 +212,7 @@ jobs:
 
           # Exercise the exact reviewed production migration set against the
           # freshly restored production snapshot. Production remains untouched.
-          SUPABASE_DB_URL="$RESTORE_DB_URL" bash scripts/ci/apply-production-allowlist.sh apply
+          PGSSLMODE=disable SUPABASE_DB_URL="$RESTORE_DB_URL" bash scripts/ci/apply-production-allowlist.sh apply
           docker run --rm --network host postgres:17 \
             psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 -At <<'SQL'
           DO $$
