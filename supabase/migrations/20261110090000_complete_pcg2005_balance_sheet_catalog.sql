@@ -147,6 +147,7 @@ SELECT code,
        ELSE 'non_current_liabilities' END,
   CASE WHEN code='109' THEN 'unpaid_subscribed_capital'
        WHEN code IN ('131','132') THEN 'investment_grants'
+    WHEN code='229' THEN 'concession_obligations'
        WHEN code IN ('133') THEN 'deferred_tax_asset'
        WHEN code IN ('134') THEN 'deferred_tax_liability'
        WHEN code IN ('153','155','156','158') THEN 'non_current_provisions'
@@ -273,7 +274,7 @@ INSERT INTO public.pcg2005_balance_sheet_passif_rules
 SELECT code,
   CASE
     WHEN code IN ('101','104','105','106','107','108','109','110','119','120','129') THEN 'equity'
-    WHEN code IN ('131','132','134','138') OR code ~ '^15' OR code ~ '^(16|17)' THEN 'non_current_liabilities'
+    WHEN code IN ('131','132','134','138','229') OR code ~ '^15' OR code ~ '^(16|17)' THEN 'non_current_liabilities'
     WHEN code IN ('401','403','404','405','408','419','421','422','426','427','4286','431','432','438','444','445','447','4486','451','455','456','457','458','464','467','4686','481','487','516','519') THEN 'current_liabilities'
     ELSE 'review'
   END,
