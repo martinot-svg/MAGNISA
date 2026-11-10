@@ -109,9 +109,10 @@ VALUES
  ('e1000000-0000-4000-8000-000000000090',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000089','e1000000-0000-4000-8000-000000000088',NULL,1,500),
  ('e1000000-0000-4000-8000-000000000099',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000098','e1000000-0000-4000-8000-000000000097',NULL,1,500);
 INSERT INTO public.purchase_orders(id,organization_id,supplier_id,number,status,order_date,currency,subtotal,tax_total,total,created_by)
-VALUES('e1000000-0000-4000-8000-000000000100',:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-MULTI-2','submitted',current_date,'MGA',50,0,50,:'user_id'::uuid);
+VALUES('e1000000-0000-4000-8000-000000000100',:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-MULTI-2','draft',current_date,'MGA',50,0,50,:'user_id'::uuid);
 INSERT INTO public.purchase_order_lines(id,organization_id,purchase_order_id,item_id,description,purchase_purpose,quantity_ordered,unit,unit_price,tax_rate,line_total,sort_order)
 VALUES('e1000000-0000-4000-8000-000000000101',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000100','e1000000-0000-4000-8000-000000000079','Second order router','resale',1,'unit',50,0,50,0);
+UPDATE public.purchase_orders SET status='submitted' WHERE id='e1000000-0000-4000-8000-000000000100';
 INSERT INTO public.goods_receipts(id,organization_id,purchase_order_id,receipt_number,status,received_at,created_by)
 VALUES('e1000000-0000-4000-8000-000000000102',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000100','CI-GR-MULTI-2','draft',now(),:'user_id'::uuid);
 INSERT INTO public.goods_receipt_lines(id,organization_id,goods_receipt_id,purchase_order_line_id,stock_location_id,quantity_received,unit_cost)
@@ -235,7 +236,7 @@ BEGIN
  -- One supplier invoice is reconciled to receipts belonging to two different purchase orders.
  v_invoice:=public.record_supplier_invoice_with_tax(
    v_org,'e1000000-0000-4000-8000-000000000052','CI-SUPPLIER-MULTI-001',current_date,current_date+30,
-   150,15,'recoverable','CI-VAT-DOC-001','CI multi-order supplier invoice','goods_procurement');
+   150,15,'recoverable','CI-VAT-DOC-001','CI multi-order supplier invoice','goods_procurement','607');
  v_matches:=public.reconcile_supplier_invoice_multi_order(v_org,v_invoice,jsonb_build_array(
    jsonb_build_object('goods_receipt_line_id','e1000000-0000-4000-8000-000000000083','quantity',1,'unit_price',50),
    jsonb_build_object('goods_receipt_line_id','e1000000-0000-4000-8000-000000000085','quantity',1,'unit_price',50),
