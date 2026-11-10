@@ -81,8 +81,8 @@ export default async function StockOperationsPage({searchParams}:{searchParams:P
      <div className="field"><label>Motif et justificatif</label><input name="reason" minLength={3} maxLength={500} required/></div><button className="button">Enregistrer le retour fournisseur</button>
     </form>
    </div>
-  </section>
-  <section className="section card"><h2>Correction d'inventaire</h2><p className="muted">Une correction produit un mouvement compensatoire documenté. Une sortie utilise le CUMP courant; une entrée exige un coût justifié si aucun CUMP n'existe.</p>
+  </section>}
+  {canManage&&<section className="section card"><h2>Correction d'inventaire</h2><p className="muted">Une correction produit un mouvement compensatoire documenté. Une sortie utilise le CUMP courant; une entrée exige un coût justifié si aucun CUMP n'existe.</p>
    <form action={postStockAdjustmentAction} className="form"><input type="hidden" name="request_key" value={randomUUID()}/>
     <div className="grid2"><div className="field"><label>Article</label><select name="item_id" required defaultValue=""><option value="" disabled>Choisir</option>{(items as any[]).filter(i=>i.tracking_mode==="quantity").map(i=><option key={i.id} value={i.id}>{i.sku} · {i.name}</option>)}</select></div><div className="field"><label>Emplacement</label><select name="stock_location_id" required defaultValue=""><option value="" disabled>Choisir</option>{(locations as any[]).map(l=><option key={l.id} value={l.id}>{l.code} · {l.name}</option>)}</select></div></div>
     <div className="grid2"><div className="field"><label>Destination</label><select name="stock_bucket" defaultValue="resale"><option value="resale">Revente</option><option value="company_use">Usage interne</option><option value="consumption">Consommation</option><option value="quarantine">Quarantaine</option></select></div><div className="field"><label>Écart de quantité (+ / −)</label><input name="quantity_delta" type="number" step="0.0001" required/></div></div>
