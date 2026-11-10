@@ -144,5 +144,52 @@ jobs:
       - name: Apply only the approved migration allowlist
         run: bash scripts/ci/apply-production-allowlist.sh apply
 
-      - name: Verify remote migration history
-        run: supabase migration list --db-url "$SUPABASE_DB_URL"
+      - name: Verify production balance-sheet schema, mappings and journal integrity
+        shell: bash
+        run: |
+          psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -At <<'SQL'
+          DO $
+          BEGIN
+            IF to_regclass('public.pcg2005_balance_sheet_rules') IS NULL
+              OR to_regclass('public.pcg2005_balance_sheet_passif_rules') IS NULL
+              OR to_regclass('public.inventory_counts') IS NULL
+              OR to_regclass('public.inventory_count_lines') IS NULL
+              OR to_regclass('public.pcg2005_supplier_invoice_mappings') IS NULL THEN
+              RAISE EXCEPTION 'Required balance-sheet, inventory or source-mapping schema is missing';
+            END IF;
+            IF EXISTS (
+              SELECT 1 FROM public.journal_entries
+              WHERE status='posted' AND abs(total_debit-total_credit)>=0.01
+            ) THEN
+              RAISE EXCEPTION 'Unbalanced posted journal entry detected';
+            END IF;
+            IF EXISTS (
+              SELECT 1 FROM public.pcg2005_journal_lines
+              WHERE source_type IN ('internal_transfer_debit','internal_transfer_credit')
+                AND account_key LIKE 'TRANSIT:%'
+                AND pcg_code IS DISTINCT FROM '581'
+            ) THEN
+              RAISE EXCEPTION 'Internal transfer clearing is not mapped to PCG 581';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM public.pcg2005_journal_lines
+              WHERE reference='FOUR-2030'
+                AND pcg_code='606'
+                AND mapping_status='manuel'
+                AND mapping_evidence_status='record_only'
+                AND mapping_requires_attachment
+            ) THEN
+              RAISE EXCEPTION 'FOUR-2030 must map to PCG 606 and retain its missing-invoice evidence flag';
+            END IF;
+            IF (
+              SELECT count(*) FROM supabase_migrations.schema_migrations
+              WHERE version IN (
+                '20261107170000','20261109170000','20261109290000','20261109300000',
+                '20261110000000','20261110090000','20261110091500','20261110093000',
+                '20261110094000','20261110095000','20261110100000'
+              )
+            ) <> 11 THEN
+              RAISE EXCEPTION 'Production migration ledger does not contain all eleven approved versions';
+            END IF;
+          END $;
+          SQL
