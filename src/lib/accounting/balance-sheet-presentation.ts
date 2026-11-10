@@ -134,6 +134,13 @@ export function buildAssetPresentation(
     }
 
     const amount = round(line.balance);
+    const unexpectedSide =
+      (rule.normal_side === "debit" && amount < -0.005)
+      || (rule.normal_side === "credit" && amount > 0.005);
+    if (unexpectedSide) {
+      addToBucket(reviewRequired, "unexpected_balance_side_" + rule.line_key, line, amount);
+      continue;
+    }
     if (rule.requires_maturity) {
       addToBucket(maturityPending, bucketKey(rule), line, amount);
       maturityPendingNet = round(maturityPendingNet + amount);
