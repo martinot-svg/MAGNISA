@@ -59,4 +59,5 @@ printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_
 printf '20261101000000|remote_name\n' > "$TMP/mapped-source-remote"
 run_guard "$TMP/mapped-source" "$TMP/empty-allow" "$TMP/mapped-source-map" "$TMP/mapped-source-remote" > "$TMP/mapped-source.log" 2>&1 || { cat "$TMP/mapped-source.log"; fail "mapped local-only migration must not be re-executed"; }
 grep -q 'Local versions not recorded remotely: 0' "$TMP/mapped-source.log" || fail "mapped source still counted as pending"
-\necho "Migration history guard fixtures passed."
+
+echo "Migration history guard fixtures passed."
