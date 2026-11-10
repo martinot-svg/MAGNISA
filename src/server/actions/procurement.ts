@@ -20,7 +20,6 @@ const lineSchema = z.object({
   unit: z.string().trim().min(1).max(24),
   unit_price: z.number().finite().nonnegative(),
   tax_rate: z.number().finite().min(0).max(100),
-  stock_location_id: z.string().uuid().nullable().optional(),
 }).superRefine((line,ctx)=>{
   if(line.purchase_purpose==="customer_mandate"){
     if(!line.beneficiary_customer_id) ctx.addIssue({code:"custom",path:["beneficiary_customer_id"],message:"Le client bénéficiaire est obligatoire pour un mandat."});
@@ -57,10 +56,6 @@ export async function createPurchaseOrder(formData: FormData) {
     const item:any=itemById.get(line.item_id);
     if(line.purchase_purpose==="resale" && item.tracking_mode!=="quantity") throw new Error("Un article destiné à la revente doit être suivi en quantité.");
     if(item.tracking_mode==="serial") throw new Error("Le suivi par numéro de série n'est pas encore pris en charge.");
-    if(line.stock_location_id){
-      const {data:loc,error}=await ctx.supabase.from("stock_locations").select("id").eq("id",line.stock_location_id).eq("organization_id",ctx.organizationId).eq("is_active",true).maybeSingle();
-      if(error||!loc) throw new Error("Emplacement de stock invalide.");
-    }
   }
   const subtotal=lines.reduce((s,l)=>s+l.quantity_ordered*l.unit_price,0);
   const taxTotal=lines.reduce((s,l)=>s+l.quantity_ordered*l.unit_price*l.tax_rate/100,0);
@@ -79,7 +74,6 @@ export async function createPurchaseOrder(formData: FormData) {
     mandate_supplier_document_reference:l.mandate_supplier_document_reference||null,
     quantity_ordered:l.quantity_ordered,unit:l.unit,unit_price:l.unit_price,
     tax_rate:l.tax_rate,line_total:l.quantity_ordered*l.unit_price*(1+l.tax_rate/100),sort_order:index,
-    stock_location_id:l.stock_location_id||null,
   }));
   const {error:lineError}=await ctx.supabase.from("purchase_order_lines").insert(payload);
   if(lineError){
