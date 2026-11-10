@@ -51,6 +51,16 @@ const n=(v:any)=>Number(v||0);
 const round=(v:number)=>Math.round((v+Number.EPSILON)*100)/100;
 const cashCodes=/^(511|512|513|514|515|517|518|53|54|58)/;
 
+export function taxSocialObligationAccountCode(kind: "tax" | "social", code: string): string | null {
+  const normalized = code.trim().toUpperCase();
+  if (kind === "tax") return normalized === "TVA" ? "445" : normalized === "IRSA" ? "442" : null;
+  return normalized === "CNAPS" || normalized === "OSTIE" ? "431" : null;
+}
+
+export function isObligationBalanceReconstructable(status: string, paidAmount: number): boolean {
+  return ["open", "overdue"].includes(status.trim().toLowerCase()) && Math.abs(paidAmount) < 0.005;
+}
+
 export function isInventoryCountReady(input: {
   inventoryAvailable: boolean;
   hasStockBalance: boolean;
@@ -529,13 +539,13 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   if(!taxObligationsError){
     for(const obligation of taxObligations||[]){
       const type=String(obligation.obligation_type||"").trim().toUpperCase();
-      const accountCode=type==="TVA"?"445":type==="IRSA"?"442":null;
+      const accountCode=taxSocialObligationAccountCode("tax",type);
       if(!accountCode){
         passifBlockingIssues.push("Obligation fiscale "+String(obligation.magnisa_reference||obligation.id)+" sans correspondance PCG déterministe pour le type "+type+".");
         continue;
       }
       const status=String(obligation.status||"").toLowerCase();
-      if(n(obligation.paid_amount)>0.005||!["open","overdue"].includes(status)){
+      if(!isObligationBalanceReconstructable(status,n(obligation.paid_amount))){
         ambiguousObligationAccounts.add(accountCode);
         passifBlockingIssues.push("Obligation fiscale "+String(obligation.magnisa_reference||obligation.id)+" avec règlement ou statut non daté : situation historique à la clôture non reconstituable.");
         continue;
@@ -547,13 +557,13 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   if(!socialObligationsError){
     for(const obligation of socialObligations||[]){
       const name=String(obligation.organization_name||"").trim().toUpperCase();
-      const accountCode=["CNAPS","CNaPS".toUpperCase(),"OSTIE"].includes(name)?"431":null;
+      const accountCode=taxSocialObligationAccountCode("social",name);
       if(!accountCode){
         passifBlockingIssues.push("Obligation sociale "+String(obligation.magnisa_reference||obligation.id)+" sans organisme PCG déterministe : "+name+".");
         continue;
       }
       const status=String(obligation.status||"").toLowerCase();
-      if(n(obligation.paid_amount)>0.005||!["open","overdue"].includes(status)){
+      if(!isObligationBalanceReconstructable(status,n(obligation.paid_amount))){
         ambiguousObligationAccounts.add(accountCode);
         passifBlockingIssues.push("Obligation sociale "+String(obligation.magnisa_reference||obligation.id)+" avec règlement ou statut non daté : situation historique à la clôture non reconstituable.");
         continue;
