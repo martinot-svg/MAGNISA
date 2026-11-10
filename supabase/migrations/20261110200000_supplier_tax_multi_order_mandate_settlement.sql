@@ -323,6 +323,7 @@ CREATE TABLE IF NOT EXISTS public.customer_mandate_disbursements (
   request_key uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (organization_id,request_key),
+  UNIQUE (id,organization_id),
   FOREIGN KEY (purchase_order_line_id,organization_id)
     REFERENCES public.purchase_order_lines(id,organization_id) ON DELETE RESTRICT,
   FOREIGN KEY (customer_id,organization_id)
