@@ -166,6 +166,13 @@ jobs:
           RESTORE_DB_URL=$(printf '%s\n' "$LOCAL_DB_URL" | sed 's#/postgres$#/magnisa_restore#')
           test -n "$RESTORE_DB_URL"
 
+          # A newly created PostgreSQL database contains an empty public schema.
+          # The production dump also creates public, so remove only that empty
+          # template schema before restoring without pg_restore --clean.
+          docker run --rm --network host postgres:17 \
+            psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 \
+              -c "DROP SCHEMA IF EXISTS public CASCADE"
+
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
             psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -f /backup/roles.sql
           POSTGRES_CREATEDB_AFTER=$(docker run --rm --network host postgres:17 \
