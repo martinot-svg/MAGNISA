@@ -211,8 +211,8 @@ BEGIN
   );
 END;
 $function$;
-REVOKE ALL ON FUNCTION public.reconcile_supplier_invoice_to_posted_receipts(uuid,uuid,text) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.reconcile_supplier_invoice_to_posted_receipts(uuid,uuid,text) TO authenticated;
+REVOKE ALL ON FUNCTION public.reconcile_supplier_invoice_to_posted_receipts(uuid,uuid,uuid,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.reconcile_supplier_invoice_to_posted_receipts(uuid,uuid,uuid,text) TO authenticated;
 
 CREATE OR REPLACE VIEW public.magnisa_supplier_invoice_match_reconciliation
 WITH (security_invoker=true) AS
