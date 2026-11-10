@@ -80,6 +80,7 @@ try {
   await orderRow.locator("summary").filter({ hasText: "Stock & livraisons" }).click();
   forms = orderRow.locator("details").filter({ hasText: "Stock & livraisons" }).locator("form");
   const deliveryForm = forms.nth(1);
+  await deliveryForm.locator('select[name="stock_location_id"]').selectOption(locationId);
   await deliveryForm.locator('select[name="reservation_id"]').selectOption(newReservation.id);
   await deliveryForm.locator('input[name="quantity"]').fill("1");
   await deliveryForm.locator('input[name="delivery_reference"]').fill("CI-BROWSER-DELIVERY-01");
