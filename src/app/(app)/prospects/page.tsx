@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/permissions";
 import { EmptyState } from "@/components/empty-state";
 import { FormDialog } from "@/components/form-dialog";
 import { convertProspectToCustomer, createProspect } from "@/server/actions/commissions";
+import { formatDateDisplay } from "@/lib/date-format";
 
 export default async function ProspectsPage({ searchParams }: { searchParams: Promise<{ conversion?: string }> }) {
   const params = await searchParams;
@@ -56,7 +57,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
       {!prospects.length ? <EmptyState title="Aucun prospect" description="Crée un prospect réel pour démarrer le suivi commercial."/> :
       <div className="tableWrap"><table><thead><tr><th>Prospect</th><th>Statut</th><th>Contact</th><th>Source</th><th>Conversion</th><th>Action</th></tr></thead><tbody>
         {(prospects as any[]).map((prospect:any)=><tr key={prospect.id}>
-          <td><strong><Link href={"/prospects/"+prospect.id}>{prospect.name}</Link></strong><div className="muted">{new Date(prospect.created_at).toLocaleDateString("fr-FR")}</div></td>
+          <td><strong><Link href={"/prospects/"+prospect.id}>{prospect.name}</Link></strong><div className="muted">{formatDateDisplay(prospect.created_at)}</div></td>
           <td><span className="badge">{prospect.status}</span></td><td>{prospect.email||"—"}<div className="muted">{prospect.phone||""}</div></td>
           <td>{prospect.source||"—"}</td><td>{prospect.converted_customer_id?<span className="badge">Client créé</span>:"Non converti"}</td>
           <td>{canConvert&&!prospect.converted_customer_id&&prospect.status!=="lost"?
