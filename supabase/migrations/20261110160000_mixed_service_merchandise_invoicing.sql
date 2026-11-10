@@ -136,7 +136,7 @@ RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path=public
 AS $function$
-DECLARE i public.invoices%rowtype; r record; v_lines jsonb; v_key text; v_account text;
+DECLARE i public.invoices%rowtype; r record; v_lines jsonb; v_key text; v_account text; v_order_line public.order_lines%rowtype; v_billed numeric;
 BEGIN
  PERFORM public.assert_org_access(p_org);
  PERFORM public.assert_org_permission(p_org,'invoices.issue');
@@ -144,6 +144,25 @@ BEGIN
  IF NOT FOUND THEN RAISE EXCEPTION 'Facture introuvable'; END IF;
  IF i.status<>'draft' THEN RAISE EXCEPTION 'Seule une facture brouillon peut être émise'; END IF;
  IF i.total<=0 THEN RAISE EXCEPTION 'Total invalide'; END IF;
+
+ -- Revalidate delivery and remaining order quantities immediately before posting.
+ FOR r IN SELECT * FROM public.invoice_lines WHERE organization_id=p_org AND invoice_id=i.id LOOP
+  IF r.source_order_line_id IS NOT NULL THEN
+   SELECT * INTO v_order_line FROM public.order_lines WHERE id=r.source_order_line_id AND organization_id=p_org FOR UPDATE;
+   IF NOT FOUND THEN RAISE EXCEPTION 'Ligne de commande source introuvable'; END IF;
+   SELECT COALESCE(SUM(il.quantity),0) INTO v_billed
+    FROM public.invoice_lines il JOIN public.invoices inv ON inv.id=il.invoice_id AND inv.organization_id=il.organization_id
+    WHERE il.organization_id=p_org AND il.source_order_line_id=r.source_order_line_id
+      AND il.invoice_id<>i.id AND inv.status<>'cancelled';
+   IF r.line_kind='merchandise' AND r.quantity>v_order_line.delivered_quantity-v_billed+0.00000001 THEN
+    RAISE EXCEPTION 'Une marchandise de la facture n’est plus intégralement livrée ou disponible à facturer';
+   ELSIF r.line_kind='service' AND r.quantity>v_order_line.quantity-v_billed+0.00000001 THEN
+    RAISE EXCEPTION 'Une prestation de la facture dépasse le reliquat de commande';
+   END IF;
+  ELSIF r.line_kind='merchandise' THEN
+   RAISE EXCEPTION 'Une marchandise doit rester rattachée à une commande client';
+  END IF;
+ END LOOP;
 
  v_lines:=jsonb_build_array(jsonb_build_object(
   'pcg_code',public.magnisa_resolve_pcg_account(p_org,'invoice','recognition','customer_receivable','debit'),
@@ -179,5 +198,44 @@ BEGIN
  WHERE id=i.id AND organization_id=p_org;
  PERFORM public.magnisa_post_journal(p_org,i.issue_date,i.number,'Émission facture '||i.number,'invoice',i.id,v_lines);
  PERFORM public.audit_event(p_org,'invoice.issued','invoice',i.id,jsonb_build_object('status','draft'),jsonb_build_object('status','issued'));
+END;
+$function$;
+
+
+CREATE OR REPLACE FUNCTION public.update_invoice_line(p_org uuid,p_line uuid,p_quantity numeric,p_discount_pct numeric)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=public
+AS $function$
+DECLARE l public.invoice_lines%rowtype;ol public.order_lines%rowtype;
+ gross numeric;disc numeric;taxable numeric;tax numeric;total numeric;inv uuid;billed numeric;
+BEGIN
+ PERFORM public.assert_org_access(p_org);
+ PERFORM public.assert_org_permission(p_org,'invoices.create');
+ IF p_quantity IS NULL OR p_quantity<=0 OR p_discount_pct IS NULL OR p_discount_pct<0 OR p_discount_pct>100 THEN
+  RAISE EXCEPTION 'Quantité ou remise invalide';
+ END IF;
+ SELECT * INTO l FROM public.invoice_lines WHERE id=p_line AND organization_id=p_org FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Ligne de facture introuvable'; END IF;
+ IF l.line_kind<>'service' THEN RAISE EXCEPTION 'Les lignes de marchandises sont figées sur le prix et la quantité de la commande livrée'; END IF;
+ inv:=l.invoice_id;
+ IF NOT EXISTS(SELECT 1 FROM public.invoices WHERE id=inv AND organization_id=p_org AND status='draft') THEN
+  RAISE EXCEPTION 'Seule une facture brouillon peut être modifiée';
+ END IF;
+ IF l.source_order_line_id IS NOT NULL THEN
+  SELECT * INTO ol FROM public.order_lines WHERE id=l.source_order_line_id AND organization_id=p_org FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Ligne de commande source introuvable'; END IF;
+  SELECT COALESCE(SUM(il.quantity),0) INTO billed
+   FROM public.invoice_lines il JOIN public.invoices i ON i.id=il.invoice_id AND i.organization_id=il.organization_id
+   WHERE il.organization_id=p_org AND il.source_order_line_id=ol.id AND il.invoice_id<>inv AND i.status<>'cancelled';
+  IF p_quantity>ol.quantity-billed+0.00000001 THEN RAISE EXCEPTION 'La quantité dépasse le reliquat de prestation non facturé'; END IF;
+ END IF;
+ gross:=round(p_quantity*l.unit_price,2);disc:=round(gross*p_discount_pct/100,2);taxable:=gross-disc;
+ tax:=round(taxable*l.tax_rate/100,2);total:=taxable+tax;
+ UPDATE public.invoice_lines SET quantity=p_quantity,discount_pct=p_discount_pct,discount_amount=disc,taxable_amount=taxable,tax_amount=tax,line_total=total
+ WHERE id=l.id AND organization_id=p_org;
+ UPDATE public.invoices i SET subtotal=x.subtotal,discount_total=x.discount_total,tax_total=x.tax_total,total=x.total,balance_due=x.total-i.paid_amount,updated_at=now()
+ FROM (SELECT invoice_id,sum(taxable_amount) subtotal,sum(discount_amount) discount_total,sum(tax_amount) tax_total,sum(line_total) total
+       FROM public.invoice_lines WHERE invoice_id=inv GROUP BY invoice_id) x
+ WHERE i.id=inv AND i.organization_id=p_org;
 END;
 $function$;
