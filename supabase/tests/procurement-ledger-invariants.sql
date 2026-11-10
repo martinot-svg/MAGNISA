@@ -1,0 +1,60 @@
+-- Structural assertions for the procurement and perpetual stock foundation.
+\set ON_ERROR_STOP on
+BEGIN;
+DO $$
+DECLARE
+  v_table text;
+  v_definition text;
+BEGIN
+  FOREACH v_table IN ARRAY ARRAY[
+    'catalog_items','stock_locations','purchase_orders','purchase_order_lines',
+    'goods_receipts','goods_receipt_lines','stock_movements'
+  ] LOOP
+    IF to_regclass('public.'||v_table) IS NULL THEN
+      RAISE EXCEPTION 'Procurement table public.% is missing',v_table;
+    END IF;
+    IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid=to_regclass('public.'||v_table)) THEN
+      RAISE EXCEPTION 'RLS is not enabled on public.%',v_table;
+    END IF;
+    IF has_table_privilege('anon','public.'||v_table,'SELECT')
+       OR has_table_privilege('anon','public.'||v_table,'INSERT')
+       OR has_table_privilege('anon','public.'||v_table,'UPDATE')
+       OR has_table_privilege('anon','public.'||v_table,'DELETE') THEN
+      RAISE EXCEPTION 'Anonymous access is exposed on public.%',v_table;
+    END IF;
+  END LOOP;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname='public' AND indexname='stock_movements_organization_id_event_key_key'
+  ) THEN RAISE EXCEPTION 'Stock movement event idempotency constraint is missing'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname='public' AND indexname='goods_receipts_org_request_key_uidx'
+  ) THEN RAISE EXCEPTION 'Goods receipt request idempotency index is missing'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgname='stock_movements_immutable' AND NOT tgisinternal
+  ) THEN RAISE EXCEPTION 'Stock movement append-only guard is missing'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_views
+    WHERE schemaname='public' AND viewname='stock_on_hand'
+  ) THEN RAISE EXCEPTION 'Stock on hand view is missing'; END IF;
+
+  SELECT pg_get_functiondef('public.post_goods_receipt(uuid)'::regprocedure) INTO v_definition;
+  IF position('private.post_goods_receipt' in v_definition)=0 THEN
+    RAISE EXCEPTION 'Public receipt RPC wrapper is missing the private controlled workflow';
+  END IF;
+  SELECT pg_get_functiondef('private.post_goods_receipt(uuid)'::regprocedure) INTO v_definition;
+  IF position('customer_mandate' in v_definition)=0
+     OR position('company_bears_goods_risk' in v_definition)=0
+     OR position('quantity_received' in v_definition)=0
+     OR position('FOR UPDATE' in v_definition)=0 THEN
+    RAISE EXCEPTION 'Receipt mandate, quantity or concurrency guards are missing';
+  END IF;
+  IF has_function_privilege('anon','public.post_goods_receipt(uuid)','EXECUTE')
+     OR NOT has_function_privilege('authenticated','public.post_goods_receipt(uuid)','EXECUTE') THEN
+    RAISE EXCEPTION 'Receipt RPC grants are incorrect';
+  END IF;
+END $$;
+ROLLBACK;
