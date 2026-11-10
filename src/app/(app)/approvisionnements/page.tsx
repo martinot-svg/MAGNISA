@@ -4,7 +4,7 @@ import { FormDialog } from "@/components/form-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
 import { PurchaseOrderForm } from "@/components/purchase-order-form";
-import { postPurchaseReceipt,cancelDraftPurchaseOrder } from "@/server/actions/procurement";
+import { postPurchaseReceipt } from "@/server/actions/procurement";
 
 export default async function Approvisionnements(){
   const ctx=await requireOrganization();
