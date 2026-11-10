@@ -137,6 +137,9 @@ BEGIN
   IF v_invoice.reconciliation_scope<>'goods_procurement' THEN
     RAISE EXCEPTION 'Seules les factures d''achats de biens sont rapprochables des commandes.';
   END IF;
+  IF EXISTS (SELECT 1 FROM public.supplier_invoice_matches WHERE organization_id=p_org AND supplier_invoice_id=v_invoice.id) THEN
+    RAISE EXCEPTION 'Cette facture possède déjà un rapprochement ; annule ou corrige celui-ci avant une nouvelle opération.';
+  END IF;
   IF abs(v_invoice.total-v_invoice.subtotal-v_invoice.tax_total)>0.01 OR v_invoice.total<=0 THEN
     RAISE EXCEPTION 'Les totaux HT, TVA et TTC de la facture sont incohérents.';
   END IF;
@@ -227,7 +230,8 @@ $function$;
 REVOKE ALL ON FUNCTION public.reconcile_supplier_invoice_multi_order(uuid,uuid,jsonb,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.reconcile_supplier_invoice_multi_order(uuid,uuid,jsonb,text) TO authenticated;
 
-CREATE OR REPLACE VIEW public.magnisa_supplier_invoice_match_reconciliation
+DROP VIEW IF EXISTS public.magnisa_supplier_invoice_match_reconciliation;
+CREATE VIEW public.magnisa_supplier_invoice_match_reconciliation
 WITH (security_invoker=true) AS
 SELECT si.organization_id,si.id supplier_invoice_id,si.supplier_number,si.supplier_id,si.total invoice_total,
        coalesce(bool_and(m.match_status='matched'),'false')::boolean AS all_matches_without_variance,
