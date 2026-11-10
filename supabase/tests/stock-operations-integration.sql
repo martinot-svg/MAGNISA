@@ -93,7 +93,7 @@ BEGIN
  v_del2:=public.post_sales_delivery(v_org,v_order_a,v_delivery,'e1000000-0000-4000-8000-000000000042','CI-DL-2');
  IF (SELECT delivered_quantity FROM public.order_lines WHERE id=v_line_a)<>5 THEN RAISE EXCEPTION 'Partial plus final delivery did not reconcile to ordered quantity'; END IF;
  IF (SELECT quantity_fulfilled FROM public.stock_reservations WHERE id=v_res)<>5 THEN RAISE EXCEPTION 'Reservation was not fulfilled by delivery'; END IF;
- SELECT SUM(quantity_delta) INTO v_after FROM public.stock_movements WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a;
+ SELECT SUM(quantity_delta) INTO v_after FROM public.stock_movements WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='resale';
  IF v_after<>5 THEN RAISE EXCEPTION 'Delivery did not issue exactly five resale units'; END IF;
  IF (SELECT quantity_available FROM public.stock_available WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='company_use')<>4 THEN
   RAISE EXCEPTION 'Company-use stock was not kept separate from resale availability';
