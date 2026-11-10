@@ -177,7 +177,7 @@ jobs:
           }
 
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --clean --if-exists --exit-on-error \
+            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
               --section=pre-data /backup/magnisa-production.dump
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
             pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
