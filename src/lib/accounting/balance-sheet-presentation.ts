@@ -73,7 +73,6 @@ const labels: Record<string, string> = {
 };
 
 function bucketKey(rule: BalanceSheetRule): string {
-  if (rule.requires_maturity) return "maturity_pending";
   return rule.line_key;
 }
 
