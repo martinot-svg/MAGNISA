@@ -104,6 +104,74 @@ BEGIN
 END;
 $source_mapping_assert$;
 
+-- The two recorded computer acquisitions are classified provisionally as
+-- tangible equipment. No fixed-asset register record or depreciation schedule
+-- is fabricated while supplier invoices and in-service/useful-life details are absent.
+CREATE TABLE IF NOT EXISTS public.pcg2005_expense_mappings (
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  expense_id uuid NOT NULL REFERENCES public.expenses(id) ON DELETE RESTRICT,
+  account_key text NOT NULL,
+  pcg_code text NOT NULL REFERENCES public.pcg2005_accounts(code) ON DELETE RESTRICT,
+  rationale text NOT NULL CHECK (length(trim(rationale)) >= 20),
+  evidence_status text NOT NULL CHECK (evidence_status IN ('documented','record_only','pending')),
+  requires_attachment boolean NOT NULL DEFAULT false,
+  requires_asset_register boolean NOT NULL DEFAULT false,
+  requires_useful_life boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (organization_id,expense_id,account_key)
+);
+
+ALTER TABLE public.pcg2005_expense_mappings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS pcg2005_expense_mappings_read ON public.pcg2005_expense_mappings;
+CREATE POLICY pcg2005_expense_mappings_read
+  ON public.pcg2005_expense_mappings FOR SELECT TO authenticated
+  USING (public.has_org_permission(organization_id,'accounting.view'));
+REVOKE ALL ON public.pcg2005_expense_mappings FROM PUBLIC,anon,authenticated;
+GRANT SELECT ON public.pcg2005_expense_mappings TO authenticated;
+
+INSERT INTO public.pcg2005_expense_mappings
+  (organization_id,expense_id,account_key,pcg_code,rationale,evidence_status,
+   requires_attachment,requires_asset_register,requires_useful_life)
+SELECT e.organization_id,e.id,jl.account_key,'218',
+  'Expense '||e.magnisa_reference||': recorded description identifies computer equipment intended for durable use; provisional PCG 218 classification. Supplier invoice, in-service date, useful life and fixed-asset register record are missing and must be completed before depreciation is finalized.',
+  'record_only',true,true,true
+FROM public.expenses e
+JOIN public.journal_entries je ON je.source_id=e.id AND je.source_type='expense'
+JOIN public.journal_entry_lines jl ON jl.journal_entry_id=je.id
+WHERE (
+    (e.magnisa_reference='DEP-00003' AND e.description='Ordinateur portable'
+      AND e.category='Acquisition' AND e.amount=5000000 AND e.expense_date=DATE '2026-10-20'
+      AND jl.account_key='EXPENSE:acquisition')
+    OR
+    (e.magnisa_reference='DEP-00004' AND e.description='Ordinateur'
+      AND e.category='Achat de matériel informatique' AND e.amount=4000000 AND e.expense_date=DATE '2026-10-21'
+      AND jl.account_key='EXPENSE:achat_de_mat_riel_informatique')
+  )
+  AND e.status='paid'
+  AND e.expense_nature='expense'
+  AND e.supplier_name IS NULL
+  AND e.document_reference IS NULL
+  AND e.useful_life_months IS NULL
+ON CONFLICT (organization_id,expense_id,account_key) DO NOTHING;
+
+DO $expense_mapping_assert$
+BEGIN
+  IF (
+    SELECT count(*)
+    FROM public.pcg2005_expense_mappings em
+    JOIN public.expenses e ON e.id=em.expense_id
+    WHERE (e.magnisa_reference,e.amount) IN (('DEP-00003',5000000),('DEP-00004',4000000))
+      AND em.pcg_code='218'
+      AND em.evidence_status='record_only'
+      AND em.requires_attachment
+      AND em.requires_asset_register
+      AND em.requires_useful_life
+  ) <> 2 THEN
+    RAISE EXCEPTION 'Expected two provisional PCG 218 mappings for computer acquisitions DEP-00003 and DEP-00004';
+  END IF;
+END;
+$expense_mapping_assert$;
+
 CREATE OR REPLACE VIEW public.pcg2005_journal_lines
 WITH (security_invoker = true) AS
 SELECT
@@ -123,6 +191,7 @@ SELECT
   COALESCE(
     CASE
       WHEN sm.pcg_code IS NOT NULL THEN sm.pcg_code
+      WHEN em.pcg_code IS NOT NULL THEN em.pcg_code
       ELSE NULL::text
     END,
     CASE
@@ -168,7 +237,7 @@ SELECT
     END
   ) AS pcg_code,
   CASE
-    WHEN sm.pcg_code IS NOT NULL THEN 'manuel'
+    WHEN sm.pcg_code IS NOT NULL OR em.pcg_code IS NOT NULL THEN 'manuel'
     WHEN jl.account_key LIKE 'PCG:%' THEN 'automatique'
     WHEN jl.account_key LIKE 'TRANSIT:%' THEN 'automatique'
     WHEN je.source_type='expense' AND jl.account_key='EXPENSE:transport'
@@ -186,9 +255,9 @@ SELECT
     THEN 'automatique'
     ELSE 'a_mapper'
   END AS mapping_status,
-  sm.evidence_status AS mapping_evidence_status,
-  sm.rationale AS mapping_rationale,
-  sm.requires_attachment AS mapping_requires_attachment
+  COALESCE(sm.evidence_status,em.evidence_status) AS mapping_evidence_status,
+  COALESCE(sm.rationale,em.rationale) AS mapping_rationale,
+  (COALESCE(sm.requires_attachment,false) OR COALESCE(em.requires_attachment,false)) AS mapping_requires_attachment
 FROM public.journal_entry_lines jl
 JOIN public.journal_entries je
   ON je.id = jl.journal_entry_id
@@ -201,6 +270,11 @@ LEFT JOIN public.pcg2005_supplier_invoice_mappings sm
  AND sm.organization_id=jl.organization_id
  AND sm.supplier_invoice_id=je.source_id
  AND sm.account_key=jl.account_key
+LEFT JOIN public.pcg2005_expense_mappings em
+  ON je.source_type='expense'
+ AND em.organization_id=jl.organization_id
+ AND em.expense_id=je.source_id
+ AND em.account_key=jl.account_key
 LEFT JOIN public.pcg2005_account_mappings m
   ON m.organization_id = jl.organization_id
  AND m.legacy_account_key = jl.account_key
@@ -265,6 +339,24 @@ BEGIN
 END;
 $source_view_assert$;
 
+DO $expense_view_assert$
+BEGIN
+  IF (
+    SELECT count(*) FROM public.pcg2005_journal_lines
+    WHERE reference IN ('DEP-00003','DEP-00004')
+      AND pcg_code='218'
+      AND mapping_status='manuel'
+      AND mapping_evidence_status='record_only'
+      AND mapping_requires_attachment
+  ) <> 2 THEN
+    RAISE EXCEPTION 'Computer acquisitions DEP-00003 and DEP-00004 are not mapped provisionally to PCG 218 with evidence flags';
+  END IF;
+END;
+$expense_view_assert$;
+
+COMMENT ON TABLE public.pcg2005_expense_mappings IS
+  'Source-specific provisional PCG mappings for expense records. Record-only mappings remain visibly blocked by missing invoices, fixed-asset register details or useful-life data.';
+
 COMMENT ON VIEW public.pcg2005_journal_lines IS
-  'PCG ledger projection preserving generic expense safeguards. Travel expenses are mapped to 625 only when the source expense description identifies a déplacement. Source-specific supplier invoice overrides take precedence and retain evidence status; all other generic acquisition, IT equipment and supplier expense keys remain unmapped until their nature is evidenced.';
+  'PCG ledger projection preserving generic expense safeguards. Travel expenses are mapped to 625 only when the source expense description identifies a déplacement. Source-specific supplier invoice and expense overrides take precedence and retain evidence status; all other generic acquisition, IT equipment and supplier expense keys remain unmapped until their nature is evidenced.';
 
