@@ -95,31 +95,58 @@ export async function postPurchaseReceipt(formData: FormData) {
   await assertPermission(ctx,"inventory.manage");
   const orderId=z.string().uuid().parse(formData.get("purchase_order_id"));
   const orderLineId=z.string().uuid().parse(formData.get("purchase_order_line_id"));
+  const requestKey=z.string().uuid().parse(formData.get("receipt_request_key"));
   const locationId=z.preprocess(v=>v==null||v===""?null:v,z.string().uuid().nullable()).parse(formData.get("stock_location_id"));
   const quantity=z.coerce.number().finite().positive().parse(formData.get("quantity_received"));
   const unitCost=z.coerce.number().finite().nonnegative().parse(formData.get("unit_cost"));
   const reference=z.string().trim().max(160).parse(formData.get("supplier_delivery_reference")||"");
-  const receivedAt=z.string().datetime({offset:true}).optional().parse(formData.get("received_at")||undefined);
   const {data:order,error:orderError}=await ctx.supabase.from("purchase_orders").select("id,currency,status").eq("id",orderId).eq("organization_id",ctx.organizationId).maybeSingle();
   if(orderError||!order||!["submitted","partially_received"].includes(order.status)) throw new Error("Commande introuvable ou non ouverte à la réception.");
   const {data:line,error:lineError}=await ctx.supabase.from("purchase_order_lines").select("id,item_id,purchase_purpose,quantity_ordered,quantity_received").eq("id",orderLineId).eq("purchase_order_id",orderId).eq("organization_id",ctx.organizationId).maybeSingle();
   if(lineError||!line) throw new Error("Ligne de commande introuvable.");
-  if(Number(line.quantity_received)+quantity>Number(line.quantity_ordered)+1e-8) throw new Error("La quantité dépasse le reliquat à recevoir.");
-  const targetLocation=locationId;
-  if(line.purchase_purpose!=="customer_mandate" && !targetLocation) throw new Error("Un emplacement est obligatoire pour une réception appartenant à l'entreprise.");
-  const receiptId=randomUUID();
-  const receiptNumber="GR-"+new Date().toISOString().slice(0,10).replaceAll("-","")+"-"+receiptId.slice(0,8).toUpperCase();
-  const {error:receiptError}=await ctx.supabase.from("goods_receipts").insert({
-    id:receiptId,organization_id:ctx.organizationId,purchase_order_id:orderId,receipt_number:receiptNumber,
-    status:"draft",received_at:receivedAt||new Date().toISOString(),supplier_delivery_reference:reference||null,
-  });
-  if(receiptError) throw new Error("Impossible de créer le bon de réception.");
-  const {error:receiptLineError}=await ctx.supabase.from("goods_receipt_lines").insert({
-    organization_id:ctx.organizationId,goods_receipt_id:receiptId,purchase_order_line_id:orderLineId,
-    stock_location_id:targetLocation,quantity_received:quantity,unit_cost:unitCost,
-  });
-  if(receiptLineError) throw new Error("Bon de réception créé en brouillon, mais sa ligne n'a pas été enregistrée.");
-  const {error:postingError}=await ctx.supabase.rpc("post_goods_receipt",{p_receipt_id:receiptId});
+  if(Number(line.quantity_received)+quantity>Number(line.quantity_ordered)+1e-8) {
+    // A previously posted request is checked below before the remaining-quantity guard.
+    const {data:already}=await ctx.supabase.from("goods_receipts").select("id,status").eq("organization_id",ctx.organizationId).eq("request_key",requestKey).maybeSingle();
+    if(already?.status==="posted") return;
+    throw new Error("La quantité dépasse le reliquat à recevoir.");
+  }
+  if(line.purchase_purpose!=="customer_mandate" && !locationId) throw new Error("Un emplacement est obligatoire pour une réception appartenant à l'entreprise.");
+
+  let {data:receipt,error:lookupError}=await ctx.supabase.from("goods_receipts")
+    .select("id,status").eq("organization_id",ctx.organizationId).eq("request_key",requestKey).maybeSingle();
+  if(lookupError) throw new Error("Impossible de vérifier l'identifiant de réception.");
+  if(receipt?.status==="posted") return;
+  if(!receipt){
+    const receiptId=randomUUID();
+    const receiptNumber="GR-"+new Date().toISOString().slice(0,10).replaceAll("-","")+"-"+receiptId.slice(0,8).toUpperCase();
+    const {data:created,error:receiptError}=await ctx.supabase.from("goods_receipts").insert({
+      id:receiptId,organization_id:ctx.organizationId,purchase_order_id:orderId,receipt_number:receiptNumber,
+      request_key:requestKey,status:"draft",received_at:new Date().toISOString(),supplier_delivery_reference:reference||null,
+    }).select("id,status").single();
+    if(receiptError){
+      if(receiptError.code!=="23505") throw new Error("Impossible de créer le bon de réception.");
+      const {data:concurrent}=await ctx.supabase.from("goods_receipts").select("id,status").eq("organization_id",ctx.organizationId).eq("request_key",requestKey).maybeSingle();
+      if(!concurrent) throw new Error("La réception concurrente n'a pas pu être retrouvée.");
+      receipt=concurrent;
+    } else receipt=created;
+  }
+  if(!receipt||receipt.status!=="draft") throw new Error("La demande de réception possède un état inattendu.");
+  const {data:existingLine,error:existingLineError}=await ctx.supabase.from("goods_receipt_lines")
+    .select("id,quantity_received,unit_cost,purchase_order_line_id,stock_location_id")
+    .eq("organization_id",ctx.organizationId).eq("goods_receipt_id",receipt.id).maybeSingle();
+  if(existingLineError) throw new Error("Impossible de vérifier la ligne de réception.");
+  if(existingLine){
+    if(existingLine.purchase_order_line_id!==orderLineId || Number(existingLine.quantity_received)!==quantity || Number(existingLine.unit_cost)!==unitCost || existingLine.stock_location_id!==locationId){
+      throw new Error("La clé de demande existe déjà avec des paramètres différents.");
+    }
+  }else{
+    const {error:receiptLineError}=await ctx.supabase.from("goods_receipt_lines").insert({
+      organization_id:ctx.organizationId,goods_receipt_id:receipt.id,purchase_order_line_id:orderLineId,
+      stock_location_id:locationId,quantity_received:quantity,unit_cost:unitCost,
+    });
+    if(receiptLineError) throw new Error("Bon de réception créé en brouillon, mais sa ligne n'a pas été enregistrée.");
+  }
+  const {error:postingError}=await ctx.supabase.rpc("post_goods_receipt",{p_receipt_id:receipt.id});
   if(postingError) throw new Error("Réception conservée en brouillon, non validée : "+postingError.message);
   revalidatePath("/approvisionnements");
   revalidatePath("/articles");
