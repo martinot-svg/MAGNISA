@@ -61,6 +61,40 @@ LEFT JOIN public.pcg2005_account_mappings m
 LEFT JOIN public.expenses e
   ON e.id=je.source_id AND e.organization_id=jl.organization_id;
 
+DO $
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.pcg2005_journal_lines
+    WHERE source_type IN ('internal_transfer_debit','internal_transfer_credit')
+      AND account_key LIKE 'TRANSIT:%'
+      AND (pcg_code IS DISTINCT FROM '581' OR mapping_status <> 'automatique')
+  ) THEN
+    RAISE EXCEPTION 'PCG mapping regression: internal transfers must map to 581 automatically';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.pcg2005_journal_lines l
+    JOIN public.journal_entries je ON je.id=l.journal_entry_id
+    JOIN public.expenses e ON e.id=je.source_id AND e.organization_id=je.organization_id
+    WHERE l.source_type='expense' AND l.account_key='EXPENSE:transport'
+      AND (e.description ILIKE '%déplacement%' OR e.description ILIKE '%deplacement%')
+      AND (l.pcg_code IS DISTINCT FROM '625' OR l.mapping_status <> 'automatique')
+  ) THEN
+    RAISE EXCEPTION 'PCG mapping regression: documented travel expense must map to 625';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.pcg2005_journal_lines
+    WHERE (source_type='expense' AND account_key IN ('EXPENSE:transport','EXPENSE:acquisition','EXPENSE:achat_de_mat_riel_informatique')
+           AND NOT (account_key='EXPENSE:transport' AND mapping_status='automatique' AND pcg_code='625'))
+       OR (source_type='supplier_invoice' AND account_key='EXPENSE:SUPPLIER')
+      AND (pcg_code IS NOT NULL OR mapping_status <> 'a_mapper')
+  ) THEN
+    RAISE EXCEPTION 'PCG mapping regression: ambiguous acquisitions and supplier expense classes must remain unmapped';
+  END IF;
+END $;
+
 REVOKE ALL ON public.pcg2005_journal_lines FROM anon;
 GRANT SELECT ON public.pcg2005_journal_lines TO authenticated;
 
