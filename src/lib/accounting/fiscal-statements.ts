@@ -145,7 +145,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   const lines:any[]=[];
   const loadJournalLinePage=(from:number,includeMappingEvidence:boolean)=>{
     const columns=includeMappingEvidence
-      ?"journal_entry_id,entry_date,reference,status,source_type,line_id,account_key,account_label,debit,credit,pcg_code,mapping_status,mapping_evidence_status,mapping_rationale,mapping_requires_attachment"
+      ?"journal_entry_id,entry_date,reference,status,source_type,line_id,account_key,account_label,debit,credit,pcg_code,mapping_status,mapping_evidence_status,mapping_rationale,mapping_requires_attachment,mapping_requires_asset_register,mapping_requires_useful_life"
       :"journal_entry_id,entry_date,reference,status,source_type,line_id,account_key,account_label,debit,credit,pcg_code,mapping_status";
     return supabase.from("pcg2005_journal_lines").select(columns)
       .eq("organization_id",organizationId).eq("status","posted")
@@ -157,7 +157,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     let result=await loadJournalLinePage(from,supportsMappingEvidence);
     if(result.error&&supportsMappingEvidence&&(
       result.error.code==="42703"||result.error.code==="PGRST204"
-      ||/mapping_evidence_status|mapping_rationale|mapping_requires_attachment/i.test(result.error.message)
+      ||/mapping_evidence_status|mapping_rationale|mapping_requires_attachment|mapping_requires_asset_register|mapping_requires_useful_life/i.test(result.error.message)
     )){
       // Keep the app compatible with a rolling deployment where the application
       // reaches production before the additive source-evidence migration.
@@ -172,6 +172,14 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     .filter((line:any)=>line.mapping_requires_attachment===true)
     .map((line:any)=>"Pièce justificative manquante pour "+String(line.reference||line.journal_entry_id)+
       " : "+String(line.mapping_rationale||"justificatif fournisseur à joindre"));
+  const assetRegisterEvidenceIssues=lines
+    .filter((line:any)=>line.mapping_requires_asset_register===true)
+    .map((line:any)=>"Registre des immobilisations à compléter pour "+String(line.reference||line.journal_entry_id));
+  const usefulLifeEvidenceIssues=lines
+    .filter((line:any)=>line.mapping_requires_useful_life===true)
+    .map((line:any)=>"Durée d'utilité et date de mise en service à justifier pour "+String(line.reference||line.journal_entry_id));
+  const assetEvidenceBlockingIssues=[...assetRegisterEvidenceIssues,...usefulLifeEvidenceIssues];
+  const sourceEvidenceIssues=[...mappingEvidenceIssues,...assetEvidenceBlockingIssues];
   const {data:priorYear,error:priorYearError}=await supabase.from("accounting_fiscal_years")
     .select("id,label,period_start,period_end,status").eq("organization_id",organizationId)
     .lt("period_end",year.period_start).order("period_end",{ascending:false}).limit(1).maybeSingle();
@@ -373,8 +381,8 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     ...cashGapLines,
     ...reconciliationLines,
   ];
-  const assetPresentation=buildAssetPresentation(presentationLines,[...(balanceSheetRules||[]),...reconciliationRules],cashBlockingIssues);
-  const assetPresentationReady=balanceSheetRulesAvailable&&assetPresentation.ready&&unmapped===0&&cashReconciliationReady&&inventoryCountReady;
+  const assetPresentation=buildAssetPresentation(presentationLines,[...(balanceSheetRules||[]),...reconciliationRules],[...cashBlockingIssues,...assetEvidenceBlockingIssues]);
+  const assetPresentationReady=balanceSheetRulesAvailable&&assetPresentation.ready&&unmapped===0&&cashReconciliationReady&&inventoryCountReady&&assetEvidenceBlockingIssues.length===0;
   const liabilities=[...make("liability"),...clearing.filter(x=>x.balance<0).map(x=>({...x,balance:-x.balance,comparativeBalance:-x.comparativeBalance}))];
   const equity=make("equity");
   const resultAggregate=new Map<string,{debit:number;credit:number;kind:string;label:string}>();
@@ -875,7 +883,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     "Période : "+year.period_start+" au "+year.period_end+".",
     "Base de préparation : écritures comptables validées et imputées au PCG.",
     ...Object.entries(noteLabels).map(([k,label])=>label+" : "+(String(noteValues[k]||"").trim()||"À renseigner avant arrêté définitif.")),
-    ...mappingEvidenceIssues,
+    ...sourceEvidenceIssues,
     "Le tableau des flux présente uniquement les mouvements bruts dont la contrepartie est unique. Le rapprochement du flux opérationnel avec le résultat avant impôt, requis par le PCG 2005 article 250-3, reste à construire et empêche l’arrêté définitif.",
     "Les créances clients du compte 411 sont ventilées selon les échéances contractuelles des factures et rapprochées des règlements confirmés et du grand livre. Les autres créances nécessitent leurs justificatifs d’échéance. La présentation réglementaire complète du bilan et du compte de résultat reste à valider."
   ];
