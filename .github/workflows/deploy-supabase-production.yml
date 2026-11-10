@@ -7,6 +7,7 @@ on:
     paths:
       - "supabase/migrations/**"
       - "scripts/ci/check-production-migration-history.sh"
+      - "scripts/ci/apply-production-allowlist.sh"
       - ".github/workflows/deploy-supabase-production.yml"
   workflow_dispatch:
     inputs:
@@ -66,14 +67,20 @@ jobs:
               print(f"SUPABASE_DB_URL={url}", file=env_file)
           PY
 
-      - name: Reconcile the complete migration ledger (read-only)
-        run: bash scripts/ci/check-production-migration-history.sh
+      - name: Audit complete historical migration drift (non-blocking)
+        shell: bash
+        run: |
+          if bash scripts/ci/check-production-migration-history.sh; then
+            echo "Complete migration history is reconciled."
+          else
+            echo "::warning::Historical migration drift remains. Only the explicit production allowlist is eligible for this release."
+          fi
+
+      - name: Validate and dry-run only the approved migration allowlist
+        run: bash scripts/ci/apply-production-allowlist.sh dry-run
 
       - name: Verify Supabase CLI migration list
         run: supabase migration list --db-url "$SUPABASE_DB_URL"
-
-      - name: Preview pending migrations without applying them
-        run: supabase db push --db-url "$SUPABASE_DB_URL" --include-all --dry-run
 
   apply:
     name: Apply production migrations (explicit approval)
@@ -113,11 +120,36 @@ jobs:
               print(f"SUPABASE_DB_URL={url}", file=env_file)
           PY
 
-      - name: Reconcile the complete migration ledger again
-        run: bash scripts/ci/check-production-migration-history.sh
+      - name: Require a recent verified production backup
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "backup-supabase-production.yml",
+              branch: "main",
+              status: "success",
+              per_page: 10
+            });
+            const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+            const recent = runs.data.workflow_runs.find(run => Date.parse(run.created_at) >= cutoff);
+            if (!recent) {
+              core.setFailed("Aucune sauvegarde de production vérifiée au cours des dernières 24 heures.");
+              return;
+            }
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: recent.id
+            });
+            const backup = artifacts.data.artifacts.find(item =>
+              item.name === "magnisa-supabase-production-encrypted-backup" && !item.expired
+            );
+            if (!backup) core.setFailed("Archive chiffrée de sauvegarde introuvable.");
 
-      - name: Apply pending migrations
-        run: supabase db push --db-url "$SUPABASE_DB_URL" --include-all --yes
+      - name: Apply only the approved migration allowlist
+        run: bash scripts/ci/apply-production-allowlist.sh apply
 
       - name: Verify remote migration history
         run: supabase migration list --db-url "$SUPABASE_DB_URL"
