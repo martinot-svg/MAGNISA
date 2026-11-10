@@ -62,6 +62,11 @@ jobs:
         with:
           version: 3.0.0
 
+      - name: Install PostgreSQL client for isolated migration replay
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
       - name: Build an encoded connection string in the runner environment
         shell: bash
         run: |
