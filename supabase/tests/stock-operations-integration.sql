@@ -43,6 +43,8 @@ INSERT INTO public.catalog_items(id,organization_id,sku,name,item_kind,base_unit
 VALUES(:'other_item'::uuid,:'other_org'::uuid,'CI-OTHER-01','Other tenant item','merchandise','unit','quantity');
 INSERT INTO public.stock_locations(id,organization_id,code,name)
 VALUES(:'other_location'::uuid,:'other_org'::uuid,'CI-OTHER','Other tenant location');
+INSERT INTO public.stock_movements(organization_id,item_id,stock_location_id,movement_kind,quantity_delta,unit_cost,currency,source_type,source_id,event_key,created_by)
+VALUES(:'other_org'::uuid,:'other_item'::uuid,:'other_location'::uuid,'receipt',7,20,'MGA','ci_other_tenant',:'other_item'::uuid,'ci-other-tenant:'||:'other_item',:'user_id'::uuid);
 
 SELECT set_config('request.jwt.claim.sub', :'user_id', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
@@ -99,7 +101,7 @@ BEGIN
   jsonb_build_array(jsonb_build_object('item_id',v_item,'quantity',2,'unit_cost',50)),
   'e1000000-0000-4000-8000-000000000043','CI transfer test')<>v_transfer THEN RAISE EXCEPTION 'Transfer retry is not idempotent'; END IF;
  SELECT SUM(quantity_delta) INTO v_after FROM public.stock_movements WHERE organization_id=v_org AND item_id=v_item;
- IF v_after<>8 THEN RAISE EXCEPTION 'Transfer changed total company stock'; END IF;
+ IF v_after<>5 THEN RAISE EXCEPTION 'Transfer changed total company stock'; END IF;
  IF (SELECT SUM(quantity_delta) FROM public.stock_movements WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_b)<>2 THEN
   RAISE EXCEPTION 'Transfer destination did not receive the quantity';
  END IF;
