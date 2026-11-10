@@ -57,7 +57,9 @@ The post_goods_receipt workflow is atomic and retry-safe. It checks organization
 
 The receipt workflow intentionally does not create a journal. The supplier invoice and versioned PCG posting engine remain responsible for accounting recognition. A purchase order or physical receipt must not be mistaken for a supplier invoice, expense or inventory journal without the organization's configured inventory method and tax evidence.
 
-The catalogue and stock overview are available at /articles behind the optional inventory feature. Item creation and stock-location management use inventory.manage; read access uses inventory.view. This page displays quantities only and does not claim inventory valuation.\n\n## Operational stock subledger increment
+The catalogue and stock overview are available at /articles behind the optional inventory feature. Item creation and stock-location management use inventory.manage; read access uses inventory.view. This page displays quantities only and does not claim inventory valuation.
+
+## Operational stock subledger increment
 
 The next migration, `20261110140000_stock_reservations_deliveries_transfers.sql`, extends the existing ledger rather than introducing a second stock system:
 
@@ -74,16 +76,19 @@ The next migration, `20261110140000_stock_reservations_deliveries_transfers.sql`
 
 This increment implements CUMP, not FIFO. Company-use and consumption buckets are separated but their expense/asset accounting rules are not yet complete. Supplier returns, customer returns/credit notes, delivery cancellation/reversal, historical as-of reconstruction and the complete mixed merchandise/service invoice workflow remain release blockers. Do not infer completion of the whole purchase-to-cash cycle from the availability and delivery screens.
 
-## Deliberately not included in this slice
+## Remaining release blockers
 
-- Serial-number capture.
-- Stock issues, customer deliveries, returns, transfers and adjustments.
-- Inventory valuation (CUMP/FIFO) and accounting integration.
-- Supplier invoice matching and customer mandate settlement.
-- Mixed service/product quote, order and invoice lines.
-- Purchase-order attachment storage, supplier invoice matching, mandate settlement and supplier payment reconciliation.\n- Stock reservations, deliveries/issues, transfers, returns, adjustments and historical balance reconstruction UI.\n- Mixed service/product quote, order and invoice lines; the existing commercial RPCs still model service-only lines.\n- Accounting posting integration for inventory valuation and mixed merchandise/service revenue.
+- Serial-number capture and a dedicated fixed-asset acquisition workflow linked to the fixed-asset register.
+- Supplier invoice matching, supplier payments, mandate settlement and supplier credit-note reconciliation.
+- Quote creation and quote-to-order conversion with mixed service and merchandise lines; the current item-add workflow attaches merchandise to an already-confirmed order.
+- Customer credit-note issuance and refund settlement linked to returned quantities and original invoice lines.
+- End-to-end browser tests for the new procurement, stock, delivery, return and mixed-invoice screens. The current authenticated SQL integration suite validates database workflows, not the complete browser journey.
+- A genuinely concurrent two-session reservation test; current SQL tests verify oversubscription prevention sequentially and the RPC serializes competing requests with advisory locks.
+- Full accounting treatment for company-use and consumption buckets, damaged-stock impairment and quarantine disposition.
+- FIFO as an alternative method; the current implementation uses moving weighted average (CUMP).
+- Migration promotion planning against the live production history, dry-run, verified backup and restore evidence. No production migration has been applied.
 
-Sales document lines and the existing commercial RPCs are deliberately not changed in this increment. Merchandise and mandate lines must be integrated with quote acceptance, order conversion, invoice generation and versioned PCG posting together; otherwise a product line could be invoiced as ordinary service revenue.
+The invoice workflow supports service and merchandise lines sourced from an order, and merchandise invoicing is limited to delivered, not-yet-invoiced quantities. Returns currently create persistent stock return records and compensating stock movements; they do not yet issue a credit note or execute a customer refund. Do not treat a stock return as a credit note or refund.
 
 ## Implementation phases
 
