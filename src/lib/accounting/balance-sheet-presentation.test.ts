@@ -247,21 +247,18 @@ describe("buildPassifPresentation", () => {
   });
 
 
-  it("presents the credit side of mixed tax accounts as current liabilities", () => {
+  it("keeps debit-nature tax credit balances in review and presents 445 as a current liability", () => {
     const result = buildPassifPresentation(
+      [passifLine("442", 0, 125_000), passifLine("443", 0, 30_000), passifLine("445", 0, 75_000)],
       [
-        {...line("442", 0, 125_000), balance:125_000},
-        {...line("443", 0, 30_000), balance:30_000},
-        {...line("445", 0, 75_000), balance:75_000},
-      ],
-      [
-        passifRule("442", "current_liabilities", "tax_payables"),
-        passifRule("443", "current_liabilities", "tax_payables"),
+        passifRule("442", "review", "tax_recoverable_credit_balance"),
+        passifRule("443", "review", "state_operations_credit_balance"),
         passifRule("445", "current_liabilities", "tax_payables"),
       ],
     );
-    expect(result.totals.currentLiabilities).toBe(230_000);
-    expect(result.ready).toBe(true);
+    expect(result.totals.currentLiabilities).toBe(75_000);
+    expect(result.reviewRequired).toHaveLength(2);
+    expect(result.ready).toBe(false);
   });
 
   it("does not hide unmapped passif accounts or review balances", () => {
