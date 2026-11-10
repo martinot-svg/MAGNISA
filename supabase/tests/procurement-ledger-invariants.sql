@@ -69,6 +69,17 @@ BEGIN
       RAISE EXCEPTION 'Anonymous access exposed on %',v_table;
     END IF;
   END LOOP;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='supplier_invoices' AND column_name='reconciliation_scope') THEN
+    RAISE EXCEPTION 'Supplier invoice reconciliation scope is missing';
+  END IF;
+  SELECT pg_get_functiondef('public.record_supplier_invoice_with_scope(uuid,uuid,text,date,date,numeric,text,text)'::regprocedure) INTO v_def;
+  IF position('reconciliation_scope' in v_def)=0 OR position('record_supplier_invoice' in v_def)=0 THEN
+    RAISE EXCEPTION 'Supplier invoice classification wrapper is incomplete';
+  END IF;
+  IF has_function_privilege('anon','public.record_supplier_invoice_with_scope(uuid,uuid,text,date,date,numeric,text,text)','EXECUTE')
+     OR NOT has_function_privilege('authenticated','public.record_supplier_invoice_with_scope(uuid,uuid,text,date,date,numeric,text,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'Supplier invoice classification RPC grants are incorrect';
+  END IF;
   SELECT pg_get_functiondef('public.reconcile_supplier_invoice_to_receipts(uuid,uuid,uuid,jsonb,text)'::regprocedure) INTO v_def;
   IF position('assert_org_access' in v_def)=0 OR position('assert_org_permission' in v_def)=0
      OR position('FOR UPDATE' in v_def)=0 OR position('quantity_invoiced' in v_def)=0
