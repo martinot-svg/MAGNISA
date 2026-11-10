@@ -304,7 +304,7 @@ SELECT code,
   CASE WHEN code IN ('109','119','129') THEN 'debit'
        WHEN code='108' THEN 'both'
        ELSE 'credit' END,
-  code ~ '^(16|17)',
+  (code ~ '^(16|17)' OR code='401'),
   code IN ('109','119','129')
 FROM public.pcg2005_accounts
 WHERE kind IN ('liability','equity','clearing')
