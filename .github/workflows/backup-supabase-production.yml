@@ -204,6 +204,61 @@ jobs:
             > backup/restored-counts.tsv
           diff -u backup/production-counts.tsv backup/restored-counts.tsv
           echo "Restore test passed: exact PostgreSQL row counts for application and restorable Supabase schemas, plus Storage binary SHA-256 hashes, match. The encrypted dump retains the platform-managed Realtime, Vault and Cron schemas."
+
+          # Exercise the exact reviewed production migration set against the
+          # freshly restored production snapshot before any production DDL.
+          SUPABASE_DB_URL="$RESTORE_DB_URL" bash scripts/ci/apply-production-allowlist.sh apply
+          docker run --rm --network host postgres:17 \
+            psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 -At <<'SQL'
+          DO $
+          BEGIN
+            IF to_regclass('public.pcg2005_balance_sheet_rules') IS NULL
+              OR to_regclass('public.pcg2005_balance_sheet_passif_rules') IS NULL
+              OR to_regclass('public.inventory_counts') IS NULL
+              OR to_regclass('public.inventory_count_lines') IS NULL THEN
+              RAISE EXCEPTION 'Required balance-sheet or inventory schema is missing after migration replay';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_proc p
+              JOIN pg_namespace n ON n.oid = p.pronamespace
+              WHERE n.nspname='public' AND p.proname='get_accounting_receivable_maturity'
+            ) THEN
+              RAISE EXCEPTION 'Receivable maturity RPC is missing after migration replay';
+            END IF;
+            IF EXISTS (
+              SELECT 1 FROM public.pcg2005_journal_lines
+              WHERE source_type IN ('internal_transfer_debit','internal_transfer_credit')
+                AND account_key LIKE 'TRANSIT:%'
+                AND pcg_code IS DISTINCT FROM '581'
+            ) THEN
+              RAISE EXCEPTION 'Internal transfer clearing is not mapped to PCG 581';
+            END IF;
+            IF EXISTS (
+              SELECT 1 FROM public.pcg2005_journal_lines
+              WHERE reference='FOUR-2030'
+                AND (pcg_code IS NOT NULL OR mapping_status <> 'a_mapper')
+            ) THEN
+              RAISE EXCEPTION 'FOUR-2030 generic supplier purchase must remain unmapped pending supporting evidence';
+            END IF;
+            IF EXISTS (
+              SELECT 1 FROM public.journal_entries
+              WHERE status='posted' AND abs(total_debit-total_credit)>=0.01
+            ) THEN
+              RAISE EXCEPTION 'Unbalanced posted journal entry detected after migration replay';
+            END IF;
+            IF (
+              SELECT count(*) FROM supabase_migrations.schema_migrations
+              WHERE version IN (
+                '20261107170000','20261109170000','20261109290000','20261109300000',
+                '20261110000000','20261110090000','20261110091500','20261110093000',
+                '20261110094000','20261110095000'
+              )
+            ) <> 10 THEN
+              RAISE EXCEPTION 'The exact allowlisted migration versions were not recorded';
+            END IF;
+          END $;
+          SQL
+
           docker run --rm --network host postgres:17 \
             psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 \
               -c "DROP DATABASE IF EXISTS magnisa_restore WITH (FORCE)"
