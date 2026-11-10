@@ -9,7 +9,7 @@ import {
   setCatalogItemActive,
   createStockLocation,
   setStockLocationActive,
-} from "@/server/actions/inventory";
+} from "@/server/actions/catalog";
 
 const KIND_LABELS: Record<string,string> = {
   merchandise: "Marchandise",
@@ -70,7 +70,7 @@ export default async function Articles({
                   <div className="field"><label>Nature</label><select name="item_kind" defaultValue="merchandise"><option value="merchandise">Marchandise</option><option value="equipment">Équipement</option><option value="consumable">Consommable</option><option value="raw_material">Matière / composant</option><option value="other">Autre article</option></select></div>
                   <div className="field"><label>Unité de base</label><input name="base_unit" defaultValue="unité" required/></div>
                 </div>
-                <div className="field"><label>Suivi du stock</label><select name="tracking_mode" defaultValue="quantity"><option value="quantity">Quantité</option><option value="none">Sans suivi de quantité</option><option value="serial">Numéro de série (non activé dans les réceptions)</option></select></div>
+                <div className="field"><label>Suivi du stock</label><select name="tracking_mode" defaultValue="quantity"><option value="quantity">Quantité</option><option value="none">Sans suivi de quantité</option><option value="serial" disabled>Numéro de série (à venir)</option></select></div>
                 <div className="grid2">
                   <div className="field"><label>Prix d'achat indicatif</label><input name="default_purchase_price" type="number" min="0" step="0.01" defaultValue="0" required/></div>
                   <div className="field"><label>Prix de vente indicatif</label><input name="default_sale_price" type="number" min="0" step="0.01" defaultValue="0" required/></div>
