@@ -44,7 +44,7 @@ export function isFiscalStatementReady(input: FiscalStatementReadinessInput): bo
 
 const n=(v:any)=>Number(v||0);
 const round=(v:number)=>Math.round((v+Number.EPSILON)*100)/100;
-const cashCodes=/^(511|512|513|514|515|516|517|518|53|54|58)/;
+const cashCodes=/^(511|512|513|514|515|517|518|53|54|58)/;
 
 export function classifyCashFlowCounterpart(code:string):"operating"|"investing"|"financing"|null {
   if(/^(2|404|405|462)/.test(code))return "investing";
