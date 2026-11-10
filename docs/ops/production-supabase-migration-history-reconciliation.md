@@ -21,7 +21,7 @@ A filename-based comparison found 66 remote rows with a direct candidate among 6
 
 ## Why production deployment is blocked
 
-The production workflow runs the migration-history guard and then `supabase db push --include-all`. The guard correctly fails closed when remote history is not represented locally, when names differ without an approved mapping, or when local-only timestamped migrations are not explicitly allowlisted.
+The full-history guard correctly fails closed when remote history is not represented locally, when names differ without an approved mapping, or when local-only timestamped migrations are not explicitly allowlisted. The Supabase CLI also refuses a subset push when remote-only history rows are missing locally, even if a temporary project contains only reviewed files. That behavior was confirmed by the production preflight logs; no production SQL ran during the failed preflight.
 
 Blindly allowlisting all 88 local-only versions would be unsafe: some may be renamed copies of migrations already applied under different remote versions. The Supabase CLI would attempt to execute the local-only versions unless their history is reconciled through a verified process. Reapplying DDL or data migrations without confirming idempotence and prior effects could damage production.
 
@@ -31,7 +31,7 @@ The manifest `production-history-reconciliation.tsv` is intentionally left uncha
 - a non-empty evidence reference;
 - a SHA-256 matching the referenced local file.
 
-The pending allowlist contains the five pre-existing pending migrations plus the five new balance-sheet asset migrations from this branch. It does not approve the other unreviewed local-only versions.
+The pending allowlist contains five pre-existing pending migrations, five balance-sheet/asset migrations, and one source-specific PCG 606 supplier-invoice correction (11 exact versions in total). It does not approve the other unreviewed local-only versions.
 
 ## Safe release rule
 
@@ -39,12 +39,12 @@ The full-history guard remains fail-closed. **Never run `supabase db push --incl
 
 A separate controlled release path is implemented for the exact versions in `production-pending-allowlist.txt`:
 
-- `scripts/ci/apply-production-allowlist.sh` creates a temporary Supabase project containing only the explicitly allowlisted SQL files. Unreviewed repository migrations are not copied into that project.
-- The production preflight runs a dry-run against that isolated migration set and checks version/name consistency against the remote ledger.
-- The backup workflow is triggered by migration changes and must complete its encrypted backup, isolated database restore, and Storage integrity checks.
-- The production `APPLY` workflow requires a recent successful backup artifact before applying the allowlist.
-- Supabase CLI applies the original timestamped files, preserving their exact migration versions in `supabase_migrations.schema_migrations`.
+- `scripts/ci/apply-production-allowlist.sh` reads only the timestamped SQL files explicitly listed in the allowlist. It checks version/name mismatches and hashes each pending file.
+- In `apply` mode, each migration runs through `psql` in its own transaction. The exact original version and filename-derived name are inserted into `supabase_migrations.schema_migrations` in the same transaction as the SQL. A partially completed release can be safely rerun: already-applied versions are verified and skipped.
+- The encrypted backup workflow restores the production snapshot into an isolated PostgreSQL database, applies the same 11 migrations to that disposable copy, and asserts the required balance-sheet tables, receivable RPC, PCG 581 transfer mapping, FOUR-2030 PCG 606 mapping/evidence flag, posted journal balance, and exact migration ledger versions.
+- The production preflight is read-only and validates the allowlist against the remote ledger. The production `APPLY` job requires a successful encrypted backup artifact for the exact commit being released, then applies only the allowlisted versions and verifies the deployed schema and accounting controls.
+- The full historical migration guard remains visible and fail-closed. The runner does not repair, rewrite, or bulk-mark the 135 remote-only rows or the other 83 unreviewed local-only migrations.
 
 This path does **not** claim that the complete historical ledger has been reconciled. It permits only the reviewed allowlist to be released without replaying the other local-only migrations. The normal full-repository `db push` remains blocked until the manifest is fully reconciled.
 
-The asset and passif code has passed the repository's local migration replay and authenticated workflow tests. The allowlisted migrations have not yet been applied to production; that final operation requires the explicit `APPLY` selection in the GitHub Actions workflow after the backup succeeds.
+The asset and passif code has passed the repository's local migration replay and authenticated workflow tests. The production migration release remains pending until the new backup workflow has successfully replayed the 11 migrations against the restored snapshot and the explicit `APPLY` workflow dispatch is executed for that exact main commit.

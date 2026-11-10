@@ -60,3 +60,28 @@ Ces observations sont des données de départ, pas une validation de clôture. L
 ## Références normatives
 
 Les règles de classement et de présentation sont alignées sur le Plan comptable général 2005 de Madagascar, notamment les classes 1 à 5, les comptes correcteurs d'actif et les dispositions relatives aux créances et stocks. Toute décision de valorisation doit rester justifiée par les pièces et les méthodes autorisées.
+
+## Source-specific supplier invoice classification
+
+The generic `EXPENSE:SUPPLIER` key must never inherit a balance-sheet account such as 218 for every supplier invoice. The source-specific mapping layer records the supplier invoice independently of the generic key.
+
+Computer Store invoice 2030 (`DFO-00003`, MGA 30,000; source note: Achat de souris) and invoice 2031 (`DFO-00004`, MGA 50,000; source note: Achat d'encre) are classified to PCG 2005 account 606, Achats non stockés de matières et fournitures. These are low-value, non-stocked supply purchases, not fixed assets. The posted journal entries are not rewritten.
+
+Both source records have no attached invoice (`attachment_url IS NULL`). The overrides therefore retain `evidence_status=record_only` and `requires_attachment=true`; the original invoices remain required audit support. Other generic supplier purchases remain unmapped until their nature is evidenced. The PCG 2005 Guide annoté, XI.23, identifies account 606 for non-stocked purchases and account 605 for purchases of materials, equipment and works.
+
+## Computer acquisitions awaiting fixed-asset evidence
+
+The source ledger contains two paid expense records describing computer equipment:
+
+- `DEP-00003`: Ordinateur portable, MGA 5,000,000, 20 October 2026.
+- `DEP-00004`: Ordinateur, MGA 4,000,000, 21 October 2026.
+
+Their nature and amounts support a provisional PCG 218 classification as tangible equipment intended for durable use. The source records have no supplier name, invoice/document reference, in-service date or useful life. The migration therefore maps only these two journal sources to 218 with `evidence_status=record_only` and a mandatory-document flag. It does not create fixed-asset register records, invent depreciation periods, or alter posted journal entries. The resulting MGA 9,000,000 difference against the empty fixed-asset register remains visible and blocks asset readiness until the supporting invoices, in-service dates, useful lives and register records are completed.
+
+The remaining MGA 932,000 within the previously reported MGA 9,932,000 difference corresponds to two supplier invoices of MGA 900,000 and MGA 32,000 whose records contain no usable purchase description or invoice attachment. They remain unmapped rather than being guessed into either assets or expenses. The MGA 9,000,000 computer classification plus MGA 932,000 unclassified supplier purchases reconciles to the reported MGA 9,932,000 exposure.
+
+## Payment and internal-transfer controls
+
+The production snapshot contains four supplier payment records. Each payment has exactly one linked, balanced journal entry, and the paid amount on each supplier invoice equals the sum of its payment rows. The release verification asserts this relationship rather than deleting or regenerating historical payment entries.
+
+The four previously unmapped clearing lines belong to two balanced transfer pairs (MGA 4,000,000 and MGA 500,000). They are mapped to PCG 581, Virements de fonds. A separate MGA 20,000 transfer pair was already mapped to 581. All three transfers are retained, and the clearing account nets to zero; none is deleted as test data.

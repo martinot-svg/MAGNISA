@@ -12,8 +12,6 @@ MIGRATIONS_DIR="$ROOT/supabase/migrations"
 ALLOWLIST="$MIGRATIONS_DIR/production-pending-allowlist.txt"
 : "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}"
 command -v psql >/dev/null
-command -v supabase >/dev/null
-test -f "$ROOT/supabase/config.toml"
 test -f "$ALLOWLIST"
 
 mapfile -t ALLOWED_VERSIONS < <(awk 'NF && $1 !~ /^#/ {print $1}' "$ALLOWLIST" | sort)
@@ -28,8 +26,6 @@ fi
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
-mkdir -p "$TMP_DIR/supabase/migrations"
-cp "$ROOT/supabase/config.toml" "$TMP_DIR/supabase/config.toml"
 
 PENDING=0
 for version in "${ALLOWED_VERSIONS[@]}"; do
@@ -46,10 +42,17 @@ for version in "${ALLOWED_VERSIONS[@]}"; do
     exit 1
   fi
 
-  file="$(basename "${matches[0]}")"
-  expected_name="${file#${version}_}"
+  file="${matches[0]}"
+  filename="$(basename "$file")"
+  expected_name="${filename#${version}_}"
   expected_name="${expected_name%.sql}"
-  remote_name="$(psql "$SUPABASE_DB_URL" -X -qAt -v ON_ERROR_STOP=1 -c "select name from supabase_migrations.schema_migrations where version = '$version'")"
+  if [[ ! "$expected_name" =~ ^[a-z0-9_]+$ ]]; then
+    echo "::error::Invalid migration name: $expected_name"
+    exit 1
+  fi
+
+  remote_name="$(psql "$SUPABASE_DB_URL" -X -qAt -v ON_ERROR_STOP=1 \
+    -c "select coalesce(name,'') from supabase_migrations.schema_migrations where version = '$version'")"
 
   if [[ -n "$remote_name" ]]; then
     if [[ "$remote_name" != "$expected_name" ]]; then
@@ -60,39 +63,46 @@ for version in "${ALLOWED_VERSIONS[@]}"; do
     continue
   fi
 
-  cp "${matches[0]}" "$TMP_DIR/supabase/migrations/$file"
-  printf 'Pending approved migration: %s %s sha256=%s\n' \
-    "$version" "$expected_name" "$(sha256sum "${matches[0]}" | awk '{print $1}')"
+  checksum="$(sha256sum "$file" | awk '{print $1}')"
+  printf 'Pending approved migration: %s %s sha256=%s\n' "$version" "$expected_name" "$checksum"
   PENDING=$((PENDING + 1))
-done
 
-if [[ "$PENDING" -eq 0 ]]; then
-  echo "All allowlisted production migrations are already applied."
-  exit 0
-fi
-
-echo "Applying only $PENDING approved migration(s); unallowlisted repository migrations are excluded."
-if [[ "$MODE" == "dry-run" ]]; then
-  (cd "$TMP_DIR" && supabase db push --db-url "$SUPABASE_DB_URL" --include-all --dry-run)
-else
-  (cd "$TMP_DIR" && supabase db push --db-url "$SUPABASE_DB_URL" --include-all --yes)
-fi
-
-if [[ "$MODE" == "apply" ]]; then
-  for version in "${ALLOWED_VERSIONS[@]}"; do
-    shopt -s nullglob
-    matches=( "$MIGRATIONS_DIR/${version}_"*.sql )
-    shopt -u nullglob
-    file="$(basename "${matches[0]}")"
-    expected_name="${file#${version}_}"
-    expected_name="${expected_name%.sql}"
-    remote_name="$(psql "$SUPABASE_DB_URL" -X -qAt -v ON_ERROR_STOP=1 -c "select name from supabase_migrations.schema_migrations where version = '$version'")"
-    if [[ "$remote_name" != "$expected_name" ]]; then
-      echo "::error::Migration verification failed for $version: expected '$expected_name', got '${remote_name:-ABSENT}'"
+  if [[ "$MODE" == "apply" ]]; then
+    # Preserve the exact repository migration version in Supabase's ledger.
+    # The CLI cannot push a reviewed subset while the historic production
+    # ledger contains remote-only versions. Execute one allowlisted file per
+    # transaction and record that exact version in the same transaction.
+    tag="\$magnisa_migration_${version}\$"
+    if grep -Fq "$tag" "$file"; then
+      echo "::error::Migration contains reserved SQL quote delimiter $tag"
       exit 1
     fi
-  done
-  echo "Approved production migration set verified."
+
+    wrapper="$TMP_DIR/${filename}.transaction.sql"
+    {
+      printf 'BEGIN;\n'
+      # A legacy migration contains its own outer BEGIN/COMMIT. Remove only
+      # standalone transaction-control lines; PL/pgSQL BEGIN blocks remain.
+      awk 'tolower($0) !~ /^[[:space:]]*(begin|commit)[[:space:]]*;[[:space:]]*$/' "$file"
+      printf '\nINSERT INTO supabase_migrations.schema_migrations(version,name,statements,created_by)\n'
+      printf "VALUES ('%s','%s',ARRAY[%s", "$version" "$expected_name" "$tag"
+      cat "$file"
+      printf '%s]::text[],current_user)\nON CONFLICT (version) DO NOTHING;\nCOMMIT;\n' "$tag"
+    } > "$wrapper"
+
+    psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f "$wrapper"
+    verified_name="$(psql "$SUPABASE_DB_URL" -X -qAt -v ON_ERROR_STOP=1 \
+      -c "select coalesce(name,'') from supabase_migrations.schema_migrations where version = '$version'")"
+    if [[ "$verified_name" != "$expected_name" ]]; then
+      echo "::error::Migration ledger verification failed for $version: expected '$expected_name', got '${verified_name:-ABSENT}'"
+      exit 1
+    fi
+    echo "Applied and ledger-verified: $version $expected_name"
+  fi
+done
+
+if [[ "$MODE" == "dry-run" ]]; then
+  echo "Read-only preflight complete: $PENDING approved migration(s) pending; no production SQL was executed."
 else
-  echo "Dry-run complete; no production migration was applied."
+  echo "All approved production migrations have been applied and their exact versions verified."
 fi

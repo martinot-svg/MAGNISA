@@ -62,6 +62,11 @@ jobs:
         with:
           version: 3.0.0
 
+      - name: Install PostgreSQL client for isolated migration replay
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
       - name: Build an encoded connection string in the runner environment
         shell: bash
         run: |
@@ -204,6 +209,178 @@ jobs:
             > backup/restored-counts.tsv
           diff -u backup/production-counts.tsv backup/restored-counts.tsv
           echo "Restore test passed: exact PostgreSQL row counts for application and restorable Supabase schemas, plus Storage binary SHA-256 hashes, match. The encrypted dump retains the platform-managed Realtime, Vault and Cron schemas."
+
+          # Exercise the exact reviewed production migration set against the
+          # freshly restored production snapshot. Production remains untouched.
+          SUPABASE_DB_URL="$RESTORE_DB_URL" bash scripts/ci/apply-production-allowlist.sh apply
+          docker run --rm --network host postgres:17 \
+            psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 -At <<'SQL'
+          DO $$
+          BEGIN
+            IF to_regclass('public.pcg2005_balance_sheet_rules') IS NULL
+              OR to_regclass('public.pcg2005_balance_sheet_passif_rules') IS NULL
+              OR to_regclass('public.inventory_counts') IS NULL
+              OR to_regclass('public.inventory_count_lines') IS NULL
+              OR to_regclass('public.pcg2005_supplier_invoice_mappings') IS NULL
+              OR to_regclass('public.pcg2005_expense_mappings') IS NULL THEN
+              RAISE EXCEPTION 'Required balance-sheet, inventory or source-mapping schema is missing after migration replay';
+            END IF;
+
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_proc p
+              JOIN pg_namespace n ON n.oid=p.pronamespace
+              WHERE n.nspname='public' AND p.proname='get_accounting_receivable_maturity'
+            ) THEN
+              RAISE EXCEPTION 'Receivable maturity RPC is missing after migration replay';
+            END IF;
+
+            IF (
+              SELECT count(*) FROM public.pcg2005_journal_lines
+              WHERE reference IN ('FOUR-1','FOUR-9898')
+                AND pcg_code IS NULL
+                AND mapping_status='a_mapper'
+            ) <> 2 THEN
+              RAISE EXCEPTION 'Undocumented generic supplier invoices FOUR-1 and FOUR-9898 must remain unmapped, not classified as fixed assets';
+            END IF;
+            IF EXISTS (
+              SELECT 1 FROM public.journal_entries
+              WHERE status='posted' AND abs(total_debit-total_credit)>=0.01
+            ) THEN
+              RAISE EXCEPTION 'Unbalanced posted journal entry detected after migration replay';
+            END IF;
+
+            IF EXISTS (
+              SELECT organization_id
+              FROM public.pcg2005_journal_lines
+              WHERE status='posted'
+                AND source_type IN ('internal_transfer_debit','internal_transfer_credit')
+                AND account_key LIKE 'TRANSIT:%'
+                AND pcg_code='581'
+              GROUP BY organization_id
+              HAVING abs(sum(debit-credit))>=0.01
+            ) THEN
+              RAISE EXCEPTION 'Internal-transfer clearing entries do not net to zero on PCG 581';
+            END IF;
+
+            IF EXISTS (
+              SELECT sp.id
+              FROM public.supplier_payments sp
+              LEFT JOIN public.journal_entries je
+                ON je.source_id=sp.id AND je.source_type='supplier_payment'
+              GROUP BY sp.id,sp.amount
+              HAVING count(je.id)<>1
+                OR abs(COALESCE(max(je.total_debit),0)-sp.amount)>=0.01
+                OR abs(COALESCE(max(je.total_credit),0)-sp.amount)>=0.01
+            ) THEN
+              RAISE EXCEPTION 'Supplier payment does not have exactly one balanced journal entry';
+            END IF;
+
+            IF EXISTS (
+              SELECT si.id
+              FROM public.supplier_invoices si
+              LEFT JOIN public.supplier_payments sp ON sp.supplier_invoice_id=si.id
+              GROUP BY si.id,si.paid_amount
+              HAVING abs(si.paid_amount-COALESCE(sum(sp.amount),0))>=0.01
+            ) THEN
+              RAISE EXCEPTION 'Supplier invoice paid amount does not reconcile to its payment rows';
+            END IF;
+
+            IF EXISTS (
+              SELECT fa.id
+              FROM public.financial_accounts fa
+              LEFT JOIN public.financial_transactions ft
+                ON ft.organization_id=fa.organization_id
+               AND ft.financial_account_id=fa.id
+              GROUP BY fa.id,fa.balance
+              HAVING abs(fa.balance-COALESCE(sum(ft.amount),0))>=0.01
+            ) THEN
+              RAISE EXCEPTION 'Treasury subledger balance does not reconcile to its movements';
+            END IF;
+
+            IF EXISTS (
+              WITH financial_by_code AS (
+                SELECT organization_id,pcg_account_code,sum(balance) financial_balance
+                FROM public.financial_accounts
+                WHERE pcg_account_code IS NOT NULL
+                GROUP BY organization_id,pcg_account_code
+              ),
+              ledger_by_code AS (
+                SELECT organization_id,pcg_code,sum(debit-credit) ledger_balance
+                FROM public.pcg2005_journal_lines
+                WHERE status='posted'
+                  AND pcg_code ~ '^(511|512|515|517|518|53|54)$'
+                GROUP BY organization_id,pcg_code
+              ),
+              comparison AS (
+                SELECT COALESCE(f.organization_id,l.organization_id) organization_id,
+                  COALESCE(f.pcg_account_code,l.pcg_code) pcg_code,
+                  COALESCE(f.financial_balance,0)-COALESCE(l.ledger_balance,0) difference
+                FROM financial_by_code f
+                FULL OUTER JOIN ledger_by_code l
+                  ON l.organization_id=f.organization_id AND l.pcg_code=f.pcg_account_code
+              )
+              SELECT 1 FROM comparison WHERE abs(difference)>=0.01
+            ) THEN
+              RAISE EXCEPTION 'PCG class 5 balances do not reconcile to treasury accounts';
+            END IF;
+
+            IF (
+              SELECT count(*) FROM public.pcg2005_journal_lines
+              WHERE reference IN ('FOUR-2030','FOUR-2031')
+                AND organization_id IN (
+                  SELECT DISTINCT organization_id FROM public.supplier_invoices
+                  WHERE supplier_number IN ('2030','2031')
+                )
+                AND pcg_code='606'
+                AND mapping_status='manuel'
+                AND mapping_evidence_status='record_only'
+                AND mapping_requires_attachment
+            ) <> 2 THEN
+              RAISE EXCEPTION 'Computer Store invoices 2030 and 2031 must map to PCG 606 with missing-invoice evidence flags';
+            END IF;
+
+            IF (
+              SELECT count(*) FROM public.pcg2005_journal_lines
+              WHERE reference IN ('DEP-00003','DEP-00004')
+                AND organization_id IN (
+                  SELECT DISTINCT organization_id FROM public.expenses
+                  WHERE magnisa_reference IN ('DEP-00003','DEP-00004')
+                )
+                AND pcg_code='218'
+                AND mapping_status='manuel'
+                AND mapping_evidence_status='record_only'
+                AND mapping_requires_attachment
+                AND mapping_requires_asset_register
+                AND mapping_requires_useful_life
+            ) <> 2 THEN
+              RAISE EXCEPTION 'Computer acquisitions DEP-00003 and DEP-00004 must map provisionally to PCG 218';
+            END IF;
+
+            IF (
+              SELECT COALESCE(abs(sum(debit_difference)),0)
+              FROM public.fixed_asset_register_reconciliation
+              WHERE account_code='218'
+                AND organization_id IN (
+                  SELECT DISTINCT organization_id FROM public.expenses
+                  WHERE magnisa_reference IN ('DEP-00003','DEP-00004')
+                )
+            ) <> 9000000 THEN
+              RAISE EXCEPTION 'The 9,000,000 MGA computer asset register gap must remain visible';
+            END IF;
+
+            IF (
+              SELECT count(*) FROM supabase_migrations.schema_migrations
+              WHERE version IN (
+                '20261107170000','20261109170000','20261109290000','20261109300000',
+                '20261110000000','20261110090000','20261110091500','20261110093000',
+                '20261110094000','20261110095000','20261110100000'
+              )
+            ) <> 11 THEN
+              RAISE EXCEPTION 'The exact eleven allowlisted migration versions were not recorded';
+            END IF;
+          END $$;
+          SQL
+
           docker run --rm --network host postgres:17 \
             psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 \
               -c "DROP DATABASE IF EXISTS magnisa_restore WITH (FORCE)"
