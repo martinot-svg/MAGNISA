@@ -367,7 +367,7 @@ CREATE OR REPLACE FUNCTION public.reserve_stock(
 AS $$ SELECT private.reserve_stock($1,$2,$3,$4,$5,$6,$7); $$;
 CREATE OR REPLACE FUNCTION public.release_stock_reservation(p_organization_id uuid,p_reservation_id uuid,p_quantity numeric,p_request_key uuid)
 RETURNS void LANGUAGE sql SECURITY INVOKER SET search_path=pg_catalog,public,private
-AS $ SELECT private.release_stock_reservation($1,$2,$3,$4); $;
+AS $$ SELECT private.release_stock_reservation($1,$2,$3,$4); $$;
 CREATE OR REPLACE FUNCTION public.post_sales_delivery(
  p_organization_id uuid,p_order_id uuid,p_lines jsonb,p_request_key uuid,p_delivery_reference text DEFAULT NULL
 ) RETURNS uuid LANGUAGE sql SECURITY INVOKER SET search_path=pg_catalog,public,private
