@@ -135,6 +135,15 @@ BEGIN
 
  -- The second customer can reserve only the remaining available quantity.
  v_res:=public.reserve_stock(v_org,v_order_b,v_line_b,v_item,v_loc_a,3,'e1000000-0000-4000-8000-000000000045');
+ IF (SELECT SUM(quantity_delta) FROM public.stock_movements WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='resale')<>3 THEN
+  RAISE EXCEPTION 'Expected 3 physical resale units after transfer at source';
+ END IF;
+ IF (SELECT SUM(quantity_reserved-quantity_fulfilled-quantity_released) FROM public.stock_reservations WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='resale' AND status IN ('active','partially_fulfilled'))<>3 THEN
+  RAISE EXCEPTION 'Expected 3 active resale units reserved at source';
+ END IF;
+ IF (SELECT quantity_available FROM public.stock_available WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='resale')<>0 THEN
+  RAISE EXCEPTION 'Stock availability view must be zero after reservation';
+ END IF;
  BEGIN
   PERFORM public.reserve_stock(v_org,v_order_c,v_line_c,v_item,v_loc_a,1,'e1000000-0000-4000-8000-000000000046');
   RAISE EXCEPTION 'Competing reservation should not oversubscribe stock';
