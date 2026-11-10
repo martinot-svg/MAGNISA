@@ -6,6 +6,24 @@ import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
 
+export async function addCatalogItemToOrderAction(formData: FormData) {
+  const ctx=await requireOrganization();
+  await assertPermission(ctx,"orders.manage");
+  const orderId=z.string().uuid().parse(formData.get("order_id"));
+  const itemId=z.string().uuid().parse(formData.get("item_id"));
+  const quantity=z.coerce.number().finite().positive().parse(formData.get("quantity"));
+  const unitPrice=z.coerce.number().finite().nonnegative().parse(formData.get("unit_price"));
+  const taxRate=z.coerce.number().finite().min(0).max(100).parse(formData.get("tax_rate"));
+  const discountPct=z.coerce.number().finite().min(0).max(100).parse(formData.get("discount_pct")||0);
+  const {data,error}=await ctx.supabase.rpc("add_catalog_item_to_order",{
+    p_organization_id:ctx.organizationId,p_order_id:orderId,p_item_id:itemId,p_quantity:quantity,
+    p_unit_price:unitPrice,p_tax_rate:taxRate,p_discount_pct:discountPct,
+  });
+  if(error) throw new Error("Article non ajouté à la commande : "+error.message);
+  if(!data) throw new Error("La base n'a retourné aucun identifiant de ligne.");
+  revalidatePath("/commandes");revalidatePath("/factures");
+}
+
 export async function reserveStockAction(formData: FormData) {
   const ctx=await requireOrganization();
   await assertPermission(ctx,"orders.manage");
