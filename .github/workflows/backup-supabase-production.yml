@@ -216,7 +216,8 @@ jobs:
               OR to_regclass('public.pcg2005_balance_sheet_passif_rules') IS NULL
               OR to_regclass('public.inventory_counts') IS NULL
               OR to_regclass('public.inventory_count_lines') IS NULL
-              OR to_regclass('public.pcg2005_supplier_invoice_mappings') IS NULL THEN
+              OR to_regclass('public.pcg2005_supplier_invoice_mappings') IS NULL
+              OR to_regclass('public.pcg2005_expense_mappings') IS NULL THEN
               RAISE EXCEPTION 'Required balance-sheet or inventory schema is missing after migration replay';
             END IF;
             IF NOT EXISTS (
@@ -243,6 +244,23 @@ jobs:
                 AND mapping_requires_attachment
             ) <> 2 THEN
               RAISE EXCEPTION 'FOUR-2030 and FOUR-2031 must map to PCG 606 and retain their missing-invoice evidence flags';
+            END IF;
+            IF (
+              SELECT count(*) FROM public.pcg2005_journal_lines
+              WHERE reference IN ('DEP-00003','DEP-00004')
+                AND pcg_code='218'
+                AND mapping_status='manuel'
+                AND mapping_evidence_status='record_only'
+                AND mapping_requires_attachment
+            ) <> 2 THEN
+              RAISE EXCEPTION 'Computer acquisitions DEP-00003 and DEP-00004 must map provisionally to PCG 218 with evidence flags';
+            END IF;
+            IF (
+              SELECT abs(sum(debit_difference))
+              FROM public.fixed_asset_register_reconciliation
+              WHERE account_code='218'
+            ) <> 9000000 THEN
+              RAISE EXCEPTION 'The 9,000,000 MGA computer asset register gap must remain visible and unmasked';
             END IF;
             IF EXISTS (
               SELECT 1 FROM public.journal_entries
