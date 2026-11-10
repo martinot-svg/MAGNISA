@@ -73,12 +73,85 @@ VALUES(:'other_location'::uuid,:'other_org'::uuid,'CI-OTHER','Other tenant locat
 INSERT INTO public.stock_movements(organization_id,item_id,stock_location_id,movement_kind,quantity_delta,unit_cost,currency,source_type,source_id,event_key,created_by)
 VALUES(:'other_org'::uuid,:'other_item'::uuid,:'other_location'::uuid,'receipt',7,20,'MGA','ci_other_tenant',:'other_item'::uuid,'ci-other-tenant:'||:'other_item',:'user_id'::uuid);
 
+
+-- Dedicated supplier partial-receipt and customer-mandate fixtures.
+INSERT INTO public.catalog_items(id,organization_id,sku,name,item_kind,base_unit,tracking_mode)
+VALUES
+ ('e1000000-0000-4000-8000-000000000079',:'org_id'::uuid,'CI-PARTIAL-01','Partial receipt test router','merchandise','unit','quantity'),
+ ('e1000000-0000-4000-8000-000000000086',:'org_id'::uuid,'CI-MANDATE-01','Customer mandate kit','equipment','unit','quantity'),
+ ('e1000000-0000-4000-8000-000000000095',:'org_id'::uuid,'CI-MANDATE-BAD','Invalid mandate kit','equipment','unit','quantity');
+INSERT INTO public.purchase_orders(id,organization_id,supplier_id,number,status,order_date,currency,subtotal,tax_total,total,created_by)
+VALUES
+ ('e1000000-0000-4000-8000-000000000080',:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-PARTIAL','submitted',current_date,'MGA',100,0,100,:'user_id'::uuid),
+ ('e1000000-0000-4000-8000-000000000087',:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-MANDATE','submitted',current_date,'MGA',500,0,500,:'user_id'::uuid),
+ ('e1000000-0000-4000-8000-000000000096',:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-MANDATE-BAD','submitted',current_date,'MGA',500,0,500,:'user_id'::uuid);
+INSERT INTO public.purchase_order_lines(id,organization_id,purchase_order_id,item_id,description,purchase_purpose,quantity_ordered,unit,unit_price,tax_rate,line_total,sort_order)
+VALUES
+ ('e1000000-0000-4000-8000-000000000081',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000080','e1000000-0000-4000-8000-000000000079','Two router units','resale',2,'unit',50,0,100,0),
+ ('e1000000-0000-4000-8000-000000000088',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000087','e1000000-0000-4000-8000-000000000086','Customer kit under documented mandate','customer_mandate',1,'unit',500,0,500,0);
+INSERT INTO public.purchase_order_lines(id,organization_id,purchase_order_id,item_id,description,purchase_purpose,beneficiary_customer_id,mandate_confirmed,supplier_document_names_customer,company_bears_goods_risk,exact_cost_supported,mandate_supplier_document_reference,quantity_ordered,unit,unit_price,tax_rate,line_total,sort_order)
+VALUES ('e1000000-0000-4000-8000-000000000097',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000096','e1000000-0000-4000-8000-000000000095','Mandate without evidence','customer_mandate',:'customer_id'::uuid,false,false,true,false,NULL,1,'unit',500,0,500,0);
+INSERT INTO public.goods_receipts(id,organization_id,purchase_order_id,receipt_number,status,received_at,created_by)
+VALUES
+ ('e1000000-0000-4000-8000-000000000082',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000080','CI-GR-PARTIAL-1','draft',now(),:'user_id'::uuid),
+ ('e1000000-0000-4000-8000-000000000084',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000080','CI-GR-PARTIAL-2','draft',now(),:'user_id'::uuid),
+ ('e1000000-0000-4000-8000-000000000089',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000087','CI-GR-MANDATE','draft',now(),:'user_id'::uuid),
+ ('e1000000-0000-4000-8000-000000000098',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000096','CI-GR-MANDATE-BAD','draft',now(),:'user_id'::uuid);
+INSERT INTO public.goods_receipt_lines(id,organization_id,goods_receipt_id,purchase_order_line_id,stock_location_id,quantity_received,unit_cost)
+VALUES
+ ('e1000000-0000-4000-8000-000000000083',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000082','e1000000-0000-4000-8000-000000000081',:'location_a'::uuid,1,50),
+ ('e1000000-0000-4000-8000-000000000085',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000084','e1000000-0000-4000-8000-000000000081',:'location_a'::uuid,1,50),
+ ('e1000000-0000-4000-8000-000000000090',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000089','e1000000-0000-4000-8000-000000000088',NULL,1,500),
+ ('e1000000-0000-4000-8000-000000000099',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000098','e1000000-0000-4000-8000-000000000097',NULL,1,500);
+
 SELECT set_config('request.jwt.claim.sub', :'user_id', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 SELECT set_config('request.jwt.claims',jsonb_build_object('sub',:'user_id'::uuid,'role','authenticated')::text,true);
 SET LOCAL ROLE authenticated;
 
-DO $$
+DO $
+DECLARE
+ v_org uuid:='e1000000-0000-4000-8000-000000000001';
+ v_item_partial uuid:='e1000000-0000-4000-8000-000000000079';
+ v_item_mandate uuid:='e1000000-0000-4000-8000-000000000086';
+ v_item_bad uuid:='e1000000-0000-4000-8000-000000000095';
+ v_on_hand numeric;
+BEGIN
+ PERFORM public.post_goods_receipt('e1000000-0000-4000-8000-000000000082');
+ IF (SELECT status FROM public.purchase_orders WHERE id='e1000000-0000-4000-8000-000000000080')<>'partially_received'
+ OR (SELECT quantity_received FROM public.purchase_order_lines WHERE id='e1000000-0000-4000-8000-000000000081')<>1 THEN
+  RAISE EXCEPTION 'First partial supplier receipt did not preserve the remaining quantity';
+ END IF;
+ PERFORM public.post_goods_receipt('e1000000-0000-4000-8000-000000000084');
+ IF (SELECT status FROM public.purchase_orders WHERE id='e1000000-0000-4000-8000-000000000080')<>'received'
+ OR (SELECT quantity_received FROM public.purchase_order_lines WHERE id='e1000000-0000-4000-8000-000000000081')<>2 THEN
+  RAISE EXCEPTION 'Second supplier receipt did not close the purchase order';
+ END IF;
+ SELECT COALESCE(SUM(quantity_delta),0) INTO v_on_hand FROM public.stock_movements
+ WHERE organization_id=v_org AND item_id=v_item_partial AND stock_bucket='resale';
+ IF v_on_hand<>2 THEN RAISE EXCEPTION 'Two partial receipts must create exactly two physical stock units'; END IF;
+
+ PERFORM public.post_goods_receipt('e1000000-0000-4000-8000-000000000089');
+ IF EXISTS(SELECT 1 FROM public.stock_movements WHERE organization_id=v_org AND item_id=v_item_mandate) THEN
+  RAISE EXCEPTION 'Customer-mandate goods must never enter company stock';
+ END IF;
+ IF (SELECT quantity_received FROM public.purchase_order_lines WHERE id='e1000000-0000-4000-8000-000000000088')<>1 THEN
+  RAISE EXCEPTION 'Documented mandate receipt quantity was not recorded';
+ END IF;
+
+ BEGIN
+  PERFORM public.post_goods_receipt('e1000000-0000-4000-8000-000000000098');
+  RAISE EXCEPTION 'Mandate receipt without legal and supplier-document evidence must fail';
+ EXCEPTION WHEN OTHERS THEN
+  IF SQLERRM='Mandate receipt without legal and supplier-document evidence must fail' THEN RAISE; END IF;
+ END;
+ IF (SELECT status FROM public.goods_receipts WHERE id='e1000000-0000-4000-8000-000000000098')<>'draft'
+ OR (SELECT quantity_received FROM public.purchase_order_lines WHERE id='e1000000-0000-4000-8000-000000000097')<>0 THEN
+  RAISE EXCEPTION 'Rejected mandate receipt must leave no partial write';
+ END IF;
+END $;
+
+DO $
 DECLARE
  v_org uuid:='e1000000-0000-4000-8000-000000000001';
  v_item uuid:='e1000000-0000-4000-8000-000000000031';
