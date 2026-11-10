@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyCashFlowCounterpart, isFiscalStatementReady, type FiscalStatementReadinessInput } from "./fiscal-statements";
+import { classifyCashFlowCounterpart, isFiscalStatementReady, isLoanRepaymentEffectiveAtDate, type FiscalStatementReadinessInput } from "./fiscal-statements";
 
 const valid: FiscalStatementReadinessInput = {
   isClosed:true,
@@ -44,5 +44,25 @@ describe("classifyCashFlowCounterpart",()=>{
     expect(classifyCashFlowCounterpart("401")).toBe("operating");
     expect(classifyCashFlowCounterpart("164")).toBe("financing");
     expect(classifyCashFlowCounterpart("516")).toBe("financing");
+  });
+});
+
+
+describe("isLoanRepaymentEffectiveAtDate", () => {
+  it("includes posted principal repayments made by fiscal close", () => {
+    expect(isLoanRepaymentEffectiveAtDate("posted", "2026-06-30", null, "2026-12-31")).toBe(true);
+  });
+  it("excludes repayments made after fiscal close", () => {
+    expect(isLoanRepaymentEffectiveAtDate("posted", "2027-01-02", null, "2026-12-31")).toBe(false);
+  });
+  it("keeps a repayment reversed only after fiscal close in the historical closing balance", () => {
+    expect(isLoanRepaymentEffectiveAtDate("reversed", "2026-06-30", "2027-02-01", "2026-12-31")).toBe(true);
+  });
+  it("excludes a repayment reversed on or before fiscal close", () => {
+    expect(isLoanRepaymentEffectiveAtDate("reversed", "2026-06-30", "2026-12-30", "2026-12-31")).toBe(false);
+  });
+  it("does not count draft or pending repayments", () => {
+    expect(isLoanRepaymentEffectiveAtDate("pending", "2026-06-30", null, "2026-12-31")).toBe(false);
+    expect(isLoanRepaymentEffectiveAtDate("draft", "2026-06-30", null, "2026-12-31")).toBe(false);
   });
 });
