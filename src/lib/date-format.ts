@@ -20,3 +20,21 @@ export function formatDateDisplay(value?: string | null): string {
     timeZone: "UTC",
   }).format(parsed);
 }
+
+/**
+ * Format a timestamp for MAGNISA screens using the application timezone.
+ * Date and time are display-only; the original ISO value remains unchanged.
+ */
+export function formatDateTimeDisplay(value?: string | null): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Indian/Antananarivo",
+  }).format(parsed);
+}
