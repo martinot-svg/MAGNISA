@@ -1,4 +1,4 @@
-const mixedBalanceAccountCodes = new Set(["422", "442", "443", "445", "451", "456", "458", "467"]);
+const mixedBalanceAccountCodes = new Set(["422", "442", "443", "445", "451", "455", "456", "458", "467"]);
 
 export function matchesStatementAccountKind(
   code: string,
