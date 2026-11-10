@@ -22,6 +22,13 @@
 \set other_location 'e2000000-0000-4000-8000-000000000003'
 \set service_id 'e1000000-0000-4000-8000-000000000048'
 \set service_line_id 'e1000000-0000-4000-8000-000000000049'
+\set supplier_id 'e1000000-0000-4000-8000-000000000052'
+\set purchase_order_id 'e1000000-0000-4000-8000-000000000053'
+\set purchase_order_line_id 'e1000000-0000-4000-8000-000000000054'
+\set goods_receipt_id 'e1000000-0000-4000-8000-000000000055'
+\set goods_receipt_line_id 'e1000000-0000-4000-8000-000000000056'
+\set order_d 'e1000000-0000-4000-8000-000000000057'
+\set order_e 'e1000000-0000-4000-8000-000000000058'
 
 BEGIN;
 INSERT INTO public.customers(id,organization_id,name,is_active)
@@ -36,11 +43,23 @@ INSERT INTO public.orders(id,organization_id,customer_id,number,status,subtotal,
 VALUES
  (:'order_a'::uuid,:'org_id'::uuid,:'customer_id'::uuid,'CI-STOCK-ORDER-A','confirmed',0,0,0,:'user_id'::uuid),
  (:'order_b'::uuid,:'org_id'::uuid,:'customer_id'::uuid,'CI-STOCK-ORDER-B','confirmed',0,0,0,:'user_id'::uuid),
- (:'order_c'::uuid,:'org_id'::uuid,:'customer_id'::uuid,'CI-STOCK-ORDER-C','confirmed',0,0,0,:'user_id'::uuid);
+ (:'order_c'::uuid,:'org_id'::uuid,:'customer_id'::uuid,'CI-STOCK-ORDER-C','confirmed',0,0,0,:'user_id'::uuid),
+ (:'order_d'::uuid,:'org_id'::uuid,:'customer_id'::uuid,'CI-STOCK-ORDER-D','confirmed',0,0,0,:'user_id'::uuid),
+ (:'order_e'::uuid,:'org_id'::uuid,:'customer_id'::uuid,'CI-STOCK-ORDER-E','confirmed',0,0,0,:'user_id'::uuid);
 INSERT INTO public.services(id,organization_id,name,unit,unit_price,tax_rate,direct_cost_estimate,is_active,service_type)
 VALUES(:'service_id'::uuid,:'org_id'::uuid,'CI installation service','intervention',1000,20,0,true,'one_off');
 INSERT INTO public.order_lines(id,organization_id,order_id,service_id,line_kind,description,quantity,unit,unit_price,tax_rate,discount_pct,discount_amount,taxable_amount,line_total,sort_order)
 VALUES(:'service_line_id'::uuid,:'org_id'::uuid,:'order_a'::uuid,:'service_id'::uuid,'service','Installation routeur',1,'intervention',1000,20,0,0,1000,1200,0);
+INSERT INTO public.suppliers(id,organization_id,name,supplier_type,is_active)
+VALUES(:'supplier_id'::uuid,:'org_id'::uuid,'CI router supplier','supplier',true);
+INSERT INTO public.purchase_orders(id,organization_id,supplier_id,number,status,order_date,currency,subtotal,tax_total,total,created_by)
+VALUES(:'purchase_order_id'::uuid,:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-RET-01','submitted',current_date,'MGA',50,0,50,:'user_id'::uuid);
+INSERT INTO public.purchase_order_lines(id,organization_id,purchase_order_id,item_id,description,purchase_purpose,quantity_ordered,unit,unit_price,tax_rate,line_total,sort_order)
+VALUES(:'purchase_order_line_id'::uuid,:'org_id'::uuid,:'purchase_order_id'::uuid,:'item_id'::uuid,'CI supplier return stock','resale',1,'unit',50,0,50,0);
+INSERT INTO public.goods_receipts(id,organization_id,purchase_order_id,receipt_number,status,received_at,created_by)
+VALUES(:'goods_receipt_id'::uuid,:'org_id'::uuid,:'purchase_order_id'::uuid,'CI-GR-RET-01','draft',now(),:'user_id'::uuid);
+INSERT INTO public.goods_receipt_lines(id,organization_id,goods_receipt_id,purchase_order_line_id,stock_location_id,quantity_received,unit_cost)
+VALUES(:'goods_receipt_line_id'::uuid,:'org_id'::uuid,:'goods_receipt_id'::uuid,:'purchase_order_line_id'::uuid,:'location_a'::uuid,1,50);
 -- Seed physical stock through a single documented opening receipt event.
 INSERT INTO public.stock_movements(organization_id,item_id,stock_location_id,movement_kind,quantity_delta,unit_cost,currency,source_type,source_id,event_key,created_by)
 VALUES(:'org_id'::uuid,:'item_id'::uuid,:'location_a'::uuid,'receipt',10,50,'MGA','ci_opening_stock',:'item_id'::uuid,'ci-opening-stock:'||:'item_id',:'user_id'::uuid);
@@ -68,8 +87,10 @@ DECLARE
  v_order_a uuid:='e1000000-0000-4000-8000-000000000034';
  v_order_b uuid:='e1000000-0000-4000-8000-000000000035';
  v_order_c uuid:='e1000000-0000-4000-8000-000000000036';
+ v_order_d uuid:='e1000000-0000-4000-8000-000000000057';v_order_e uuid:='e1000000-0000-4000-8000-000000000058';
+ v_receipt uuid:='e1000000-0000-4000-8000-000000000055';v_receipt_line uuid:='e1000000-0000-4000-8000-000000000056';
  v_line_a uuid;v_line_b uuid;v_line_c uuid;v_res uuid;v_del1 uuid;v_del2 uuid;v_transfer uuid;v_invoice_a uuid;v_invoice_b uuid;
- v_before numeric;v_after numeric;v_count integer;
+ v_before numeric;v_after numeric;v_count integer;v_line_d uuid;v_line_e uuid;v_res_d uuid;v_res_e uuid;v_del_d uuid;v_del_e uuid;v_return uuid;v_supplier_return uuid;v_adjustment uuid;v_asof numeric;
  v_delivery jsonb;
 BEGIN
  IF auth.uid() IS NULL OR NOT public.is_org_member(v_org) THEN RAISE EXCEPTION 'Authenticated tenant fixture is not active'; END IF;
