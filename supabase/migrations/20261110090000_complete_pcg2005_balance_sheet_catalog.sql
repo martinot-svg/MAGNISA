@@ -140,7 +140,7 @@ SELECT code,
        ELSE 'equity_components' END,
   CASE WHEN code='109' THEN 'debit'
        WHEN code IN ('101','104','105','106','107','108','110','120','131','132','134','138','153','155','156','158','161','163','164','165','167','168','171','172','173','178') THEN 'credit'
-       WHEN code IN ('119','129','169') THEN 'debit'
+       WHEN code IN ('119','129','133','169') THEN 'debit'
        ELSE 'both' END
 FROM public.pcg2005_accounts
 WHERE code ~ '^(10[1-9]|11[09]|12[09]|13[1-8]|15[3-8]|16[1-9]|17[1-8]|18[18])$'
