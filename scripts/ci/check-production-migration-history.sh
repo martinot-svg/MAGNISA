@@ -78,9 +78,6 @@ else
   : > "$ALLOW"
 fi
 
-: > "$UNEXPECTED"
-while IFS= read -r version; do
-  [[ -n "$version" ]] || continue
 : > "$UNMAPPED"
 : > "$USED_MAP"
 if [[ -f "$RECONCILIATION_FILE" ]]; then
