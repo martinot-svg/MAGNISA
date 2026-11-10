@@ -438,7 +438,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   }
 
   const {data:loanRows,error:loanRowsError}=await supabase.from("loans")
-    .select("id,lender_name,magnisa_reference,liability_account_code")
+    .select("id,lender_name,magnisa_reference,outstanding_principal,liability_account_code")
     .eq("organization_id",organizationId);
   if(loanRowsError)passifBlockingIssues.push("Échéanciers d’emprunts indisponibles : "+loanRowsError.message);
   const loanIds=(loanRows||[]).map((loan:any)=>loan.id);
