@@ -71,4 +71,16 @@ printf '20261101000000|remote_name\n' > "$TMP/mapped-source-remote"
 run_guard "$TMP/mapped-source" "$TMP/empty-allow" "$TMP/mapped-source-map" "$TMP/mapped-source-remote" > "$TMP/mapped-source.log" 2>&1 || { cat "$TMP/mapped-source.log"; fail "mapped local-only migration must not be re-executed"; }
 grep -q 'Local versions not recorded remotely: 0' "$TMP/mapped-source.log" || fail "mapped source still counted as pending"
 
+# A missing local migration older than the current remote head must fail even when allowlisted.
+mkdir -p "$TMP/out-of-order"
+: > "$TMP/out-of-order/20261101000000_older_pending.sql"
+: > "$TMP/out-of-order/20261102000000_remote_head.sql"
+printf '20261101000000\n' > "$TMP/out-of-order-allow"
+printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\n' > "$TMP/out-of-order-map"
+printf '20261102000000|remote_head\n' > "$TMP/out-of-order-remote"
+if run_guard "$TMP/out-of-order" "$TMP/out-of-order-allow" "$TMP/out-of-order-map" "$TMP/out-of-order-remote" > "$TMP/out-of-order.log" 2>&1; then
+  fail "out-of-order local migration unexpectedly passed"
+fi
+grep -q 'older than the latest remote version' "$TMP/out-of-order.log" || fail "out-of-order failure reason missing"
+
 echo "Migration history guard fixtures passed."
