@@ -1,3 +1,4 @@
+import { formatDateDisplay } from "@/lib/date-format";
 import React from "react";
 import { NextResponse } from "next/server";
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
@@ -35,7 +36,7 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
  const doc=<Document>
   <Page size="A4" style={styles.page} wrap>
    <Text style={styles.title}>{title}</Text>
-   <Text style={styles.subtitle}>États financiers annuels • PCG 2005 Madagascar • {s.year.label} • {s.year.period_start} au {s.year.period_end} • Comparatif : {s.priorYearLabel||"Non disponible"}</Text>
+   <Text style={styles.subtitle}>États financiers annuels • PCG 2005 Madagascar • {s.year.label} • {formatDateDisplay(s.year.period_start)} au {formatDateDisplay(s.year.period_end)} • Comparatif : {s.priorYearLabel||"Non disponible"}</Text>
    <Text style={styles.warning}>{s.controls.ready?"ÉTATS FINANCIERS ARRÊTÉS":"PROJET / NON VALIDÉ — "+(s.controls.isClosed?"Contrôles incomplets":"Exercice non clôturé")}</Text>
    <Text style={styles.section}>1. BILAN</Text>
    <Text>Actif : {money(s.totals.assets,s.currency)} • Passifs : {money(s.totals.liabilities,s.currency)} • Capitaux propres : {money(s.totals.equity,s.currency)}</Text>
