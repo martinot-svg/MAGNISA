@@ -80,8 +80,24 @@ WHERE s.name='Computer Store'
 ON CONFLICT (organization_id,supplier_invoice_id,account_key) DO NOTHING;
 
 DO $source_mapping_assert$
+DECLARE
+  v_source_count integer;
 BEGIN
-  IF (
+  SELECT count(*) INTO v_source_count
+  FROM public.supplier_invoices si
+  JOIN public.suppliers s ON s.id=si.supplier_id
+  WHERE s.name='Computer Store'
+    AND (
+      (si.supplier_number='2030' AND si.magnisa_reference='DFO-00003' AND si.total=30000
+        AND lower(trim(coalesce(si.notes,'')))='achat de souris')
+      OR
+      (si.supplier_number='2031' AND si.magnisa_reference='DFO-00004' AND si.total=50000
+        AND lower(trim(coalesce(si.notes,'')))='achat d''encre')
+    );
+  IF v_source_count NOT IN (0,2) THEN
+    RAISE EXCEPTION 'Unexpected partial source data for Computer Store invoices 2030 and 2031';
+  END IF;
+  IF v_source_count=2 AND (
     SELECT count(*)
     FROM public.pcg2005_supplier_invoice_mappings sm
     JOIN public.supplier_invoices si ON si.id=sm.supplier_invoice_id
@@ -155,8 +171,16 @@ WHERE (
 ON CONFLICT (organization_id,expense_id,account_key) DO NOTHING;
 
 DO $expense_mapping_assert$
+DECLARE
+  v_source_count integer;
 BEGIN
-  IF (
+  SELECT count(*) INTO v_source_count
+  FROM public.expenses
+  WHERE (magnisa_reference,amount) IN (('DEP-00003',5000000),('DEP-00004',4000000));
+  IF v_source_count NOT IN (0,2) THEN
+    RAISE EXCEPTION 'Unexpected partial source data for computer acquisitions DEP-00003 and DEP-00004';
+  END IF;
+  IF v_source_count=2 AND (
     SELECT count(*)
     FROM public.pcg2005_expense_mappings em
     JOIN public.expenses e ON e.id=em.expense_id
@@ -326,7 +350,13 @@ REVOKE INSERT, UPDATE, DELETE ON public.pcg2005_journal_lines FROM anon, authent
 
 DO $source_view_assert$
 BEGIN
-  IF (
+  IF EXISTS (
+    SELECT 1 FROM public.supplier_invoices si
+    JOIN public.suppliers s ON s.id=si.supplier_id
+    WHERE s.name='Computer Store'
+      AND si.supplier_number IN ('2030','2031')
+      AND si.magnisa_reference IN ('DFO-00003','DFO-00004')
+  ) AND (
     SELECT count(*) FROM public.pcg2005_journal_lines
     WHERE reference IN ('FOUR-2030','FOUR-2031')
       AND pcg_code='606'
@@ -341,7 +371,10 @@ $source_view_assert$;
 
 DO $expense_view_assert$
 BEGIN
-  IF (
+  IF EXISTS (
+    SELECT 1 FROM public.expenses
+    WHERE magnisa_reference IN ('DEP-00003','DEP-00004')
+  ) AND (
     SELECT count(*) FROM public.pcg2005_journal_lines
     WHERE reference IN ('DEP-00003','DEP-00004')
       AND pcg_code='218'
