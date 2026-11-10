@@ -43,7 +43,7 @@ GRANT SELECT ON public.pcg2005_supplier_invoice_mappings TO authenticated;
 INSERT INTO public.pcg2005_supplier_invoice_mappings
   (organization_id,supplier_invoice_id,account_key,pcg_code,rationale,evidence_status,requires_attachment)
 SELECT si.organization_id,si.id,'EXPENSE:SUPPLIER','606',
-  'Computer Store invoice 2030: purchase of a mouse for MGA 30,000; small non-stocked equipment classified to PCG 2005 account 606. Original invoice attachment is absent and remains required for audit support.',
+  'Facture Computer Store 2030 : achat d''une souris pour 30 000 MGA ; petit équipement non stocké classé au compte 606 du PCG 2005. La facture originale n''est pas jointe et reste à fournir pour la piste d''audit.',
   'record_only',true
 FROM public.supplier_invoices si
 JOIN public.suppliers s ON s.id=si.supplier_id
@@ -63,7 +63,7 @@ ON CONFLICT (organization_id,supplier_invoice_id,account_key) DO NOTHING;
 INSERT INTO public.pcg2005_supplier_invoice_mappings
   (organization_id,supplier_invoice_id,account_key,pcg_code,rationale,evidence_status,requires_attachment)
 SELECT si.organization_id,si.id,'EXPENSE:SUPPLIER','606',
-  'Computer Store invoice 2031: ink purchase for MGA 50,000; non-stocked consumable supplies classified to PCG 2005 account 606. Original invoice attachment is absent and remains required for audit support.',
+  'Facture Computer Store 2031 : achat d''encre pour 50 000 MGA ; fourniture non stockée classée au compte 606 du PCG 2005. La facture originale n''est pas jointe et reste à fournir pour la piste d''audit.',
   'record_only',true
 FROM public.supplier_invoices si
 JOIN public.suppliers s ON s.id=si.supplier_id
@@ -133,7 +133,7 @@ INSERT INTO public.pcg2005_expense_mappings
   (organization_id,expense_id,account_key,pcg_code,rationale,evidence_status,
    requires_attachment,requires_asset_register,requires_useful_life)
 SELECT e.organization_id,e.id,jl.account_key,'218',
-  'Expense '||e.magnisa_reference||': recorded description identifies computer equipment intended for durable use; provisional PCG 218 classification. Supplier invoice, in-service date, useful life and fixed-asset register record are missing and must be completed before depreciation is finalized.',
+  'Dépense '||e.magnisa_reference||' : la description identifie un ordinateur destiné à un usage durable ; classement provisoire au compte 218 du PCG 2005. La facture fournisseur, la date de mise en service, la durée d''utilité et la fiche d''immobilisation sont absentes et doivent être renseignées avant le calcul des amortissements.',
   'record_only',true,true,true
 FROM public.expenses e
 JOIN public.journal_entries je ON je.source_id=e.id AND je.source_type='expense'
