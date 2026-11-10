@@ -1,4 +1,4 @@
--- Source-specific PCG 2005 classification for documented supplier purchases.
+-- Source-specific PCG 2005 classification from supplier-invoice records, with evidence gaps retained.
 -- The generic EXPENSE:SUPPLIER mapping must not classify every supplier invoice as an asset.
 
 INSERT INTO public.pcg2005_accounts(code,label,kind)
