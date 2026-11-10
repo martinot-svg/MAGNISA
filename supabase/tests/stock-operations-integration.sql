@@ -108,6 +108,17 @@ VALUES
  ('e1000000-0000-4000-8000-000000000085',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000084','e1000000-0000-4000-8000-000000000081',:'location_a'::uuid,1,50),
  ('e1000000-0000-4000-8000-000000000090',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000089','e1000000-0000-4000-8000-000000000088',NULL,1,500),
  ('e1000000-0000-4000-8000-000000000099',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000098','e1000000-0000-4000-8000-000000000097',NULL,1,500);
+INSERT INTO public.purchase_orders(id,organization_id,supplier_id,number,status,order_date,currency,subtotal,tax_total,total,created_by)
+VALUES('e1000000-0000-4000-8000-000000000100',:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-MULTI-2','submitted',current_date,'MGA',50,0,50,:'user_id'::uuid);
+INSERT INTO public.purchase_order_lines(id,organization_id,purchase_order_id,item_id,description,purchase_purpose,quantity_ordered,unit,unit_price,tax_rate,line_total,sort_order)
+VALUES('e1000000-0000-4000-8000-000000000101',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000100','e1000000-0000-4000-8000-000000000079','Second order router','resale',1,'unit',50,0,50,0);
+INSERT INTO public.goods_receipts(id,organization_id,purchase_order_id,receipt_number,status,received_at,created_by)
+VALUES('e1000000-0000-4000-8000-000000000102',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000100','CI-GR-MULTI-2','draft',now(),:'user_id'::uuid);
+INSERT INTO public.goods_receipt_lines(id,organization_id,goods_receipt_id,purchase_order_line_id,stock_location_id,quantity_received,unit_cost)
+VALUES('e1000000-0000-4000-8000-000000000103',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000102','e1000000-0000-4000-8000-000000000101',:'location_a'::uuid,1,50);
+INSERT INTO public.financial_accounts(id,organization_id,name,type,balance,is_active)
+VALUES('e1000000-0000-4000-8000-000000000104',:'org_id'::uuid,'CI Mandate Bank','bank',10000,true)
+ON CONFLICT (organization_id,name) DO NOTHING;
 
 SELECT set_config('request.jwt.claim.sub', :'user_id', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
@@ -154,9 +165,83 @@ BEGIN
  OR (SELECT quantity_received FROM public.purchase_order_lines WHERE id='e1000000-0000-4000-8000-000000000097')<>0 THEN
   RAISE EXCEPTION 'Rejected mandate receipt must leave no partial write';
  END IF;
-END $$;
 
-DO $$
+DO $
+DECLARE
+ v_org uuid:='e1000000-0000-4000-8000-000000000001';
+ v_disbursement uuid;
+ v_retry uuid;
+ v_reimbursement uuid;
+ v_invoice uuid;
+ v_matches integer;
+ v_balance numeric;
+ v_match_status text;
+ v_orders text;
+BEGIN
+ PERFORM public.post_goods_receipt('e1000000-0000-4000-8000-000000000102');
+
+ -- Company-paid mandate is a customer receivable, not stock or supplier expense.
+ v_disbursement:=public.record_customer_mandate_disbursement(
+   v_org,'e1000000-0000-4000-8000-000000000088','CI-SUPPLIER-INVOICE-CUSTOMER-001',
+   current_date,500,'e1000000-0000-4000-8000-000000000104',current_date,
+   'e1000000-0000-4000-8000-000000000105');
+ v_retry:=public.record_customer_mandate_disbursement(
+   v_org,'e1000000-0000-4000-8000-000000000088','CI-SUPPLIER-INVOICE-CUSTOMER-001',
+   current_date,500,'e1000000-0000-4000-8000-000000000104',current_date,
+   'e1000000-0000-4000-8000-000000000105');
+ IF v_retry<>v_disbursement THEN RAISE EXCEPTION 'Mandate disbursement retry is not idempotent'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.journal_entries WHERE organization_id=v_org AND source_type='customer_mandate_disbursement' AND source_id=v_disbursement)
+    OR NOT EXISTS(SELECT 1 FROM public.journal_entry_lines WHERE account_key='PCG:467' AND debit=500 AND customer_id='e1000000-0000-4000-8000-000000000037') THEN
+   RAISE EXCEPTION 'Mandate supplier payment did not post to the customer clearing account';
+ END IF;
+ v_reimbursement:=public.record_customer_mandate_reimbursement(
+   v_org,v_disbursement,'e1000000-0000-4000-8000-000000000104',200,current_date,'CI-MANDATE-REIMB-1',
+   'e1000000-0000-4000-8000-000000000106');
+ PERFORM public.record_customer_mandate_reimbursement(
+   v_org,v_disbursement,'e1000000-0000-4000-8000-000000000104',300,current_date,'CI-MANDATE-REIMB-2',
+   'e1000000-0000-4000-8000-000000000107');
+ IF (SELECT sum(amount) FROM public.customer_mandate_reimbursements WHERE disbursement_id=v_disbursement)<>500 THEN
+   RAISE EXCEPTION 'Mandate customer reimbursements did not clear the exact disbursement';
+ END IF;
+ BEGIN
+   PERFORM public.record_customer_mandate_reimbursement(v_org,v_disbursement,'e1000000-0000-4000-8000-000000000104',1,current_date,'CI-OVER-REIMB',
+     'e1000000-0000-4000-8000-000000000108');
+   RAISE EXCEPTION 'Over-reimbursement must be rejected';
+ EXCEPTION WHEN OTHERS THEN
+   IF SQLERRM='Over-reimbursement must be rejected' THEN RAISE; END IF;
+ END;
+ SELECT balance INTO v_balance FROM public.financial_accounts WHERE id='e1000000-0000-4000-8000-000000000104';
+ IF v_balance<>10000 THEN RAISE EXCEPTION 'Mandate disbursement and reimbursement did not reconcile treasury balance'; END IF;
+
+ -- One supplier invoice is reconciled to receipts belonging to two different purchase orders.
+ v_invoice:=public.record_supplier_invoice_with_tax(
+   v_org,'e1000000-0000-4000-8000-000000000052','CI-SUPPLIER-MULTI-001',current_date,current_date+30,
+   150,15,'recoverable','CI-VAT-DOC-001','CI multi-order supplier invoice','goods_procurement');
+ v_matches:=public.reconcile_supplier_invoice_multi_order(v_org,v_invoice,jsonb_build_array(
+   jsonb_build_object('goods_receipt_line_id','e1000000-0000-4000-8000-000000000083','quantity',1,'unit_price',50),
+   jsonb_build_object('goods_receipt_line_id','e1000000-0000-4000-8000-000000000085','quantity',1,'unit_price',50),
+   jsonb_build_object('goods_receipt_line_id','e1000000-0000-4000-8000-000000000103','quantity',1,'unit_price',50)
+ ),NULL);
+ IF v_matches<>2 THEN RAISE EXCEPTION 'One invoice must produce two purchase-order match headers'; END IF;
+ SELECT match_status,purchase_order_number INTO v_match_status,v_orders
+ FROM public.magnisa_supplier_invoice_match_reconciliation WHERE supplier_invoice_id=v_invoice;
+ IF v_match_status<>'matched' OR v_orders NOT LIKE '%CI-PO-PARTIAL%' OR v_orders NOT LIKE '%CI-PO-MULTI-2%' THEN
+   RAISE EXCEPTION 'Multi-order reconciliation view did not aggregate all purchase orders';
+ END IF;
+ IF (SELECT subtotal FROM public.supplier_invoices WHERE id=v_invoice)<>150
+    OR (SELECT tax_total FROM public.supplier_invoices WHERE id=v_invoice)<>15
+    OR (SELECT total FROM public.supplier_invoices WHERE id=v_invoice)<>165 THEN
+   RAISE EXCEPTION 'Supplier invoice HT, VAT and TTC totals were not persisted separately';
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.journal_entry_lines jl JOIN public.journal_entries je ON je.id=jl.journal_entry_id
+   WHERE je.source_type='supplier_invoice' AND je.source_id=v_invoice AND jl.account_key='TAX:SUPPLIER_INPUT' AND jl.debit=15) THEN
+   RAISE EXCEPTION 'Recoverable supplier VAT was not separated in the accounting entry';
+ END IF;
+END $;
+
+END $;
+
+DO $
 DECLARE
  v_org uuid:='e1000000-0000-4000-8000-000000000001';
  v_item uuid:='e1000000-0000-4000-8000-000000000031';
