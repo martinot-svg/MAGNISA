@@ -234,6 +234,14 @@ jobs:
               RAISE EXCEPTION 'Receivable maturity RPC is missing after migration replay';
             END IF;
 
+            IF (
+              SELECT count(*) FROM public.pcg2005_journal_lines
+              WHERE reference IN ('FOUR-1','FOUR-9898')
+                AND pcg_code IS NULL
+                AND mapping_status='a_mapper'
+            ) <> 2 THEN
+              RAISE EXCEPTION 'Undocumented generic supplier invoices FOUR-1 and FOUR-9898 must remain unmapped, not classified as fixed assets';
+            END IF;
             IF EXISTS (
               SELECT 1 FROM public.journal_entries
               WHERE status='posted' AND abs(total_debit-total_credit)>=0.01
