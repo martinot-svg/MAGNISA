@@ -172,7 +172,7 @@ jobs:
                 AND account_key LIKE 'TRANSIT:%'
                 AND pcg_code='581'
             ),0)) >= 0.01 THEN
-              RAISE EXCEPTION 'The four internal-transfer clearing lines do not net to zero on PCG 581';
+              RAISE EXCEPTION 'Internal-transfer clearing entries do not net to zero on PCG 581';
             END IF;
             IF EXISTS (
               SELECT sp.id
