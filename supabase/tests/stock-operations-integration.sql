@@ -167,7 +167,9 @@ BEGIN
   RAISE EXCEPTION 'Rejected mandate receipt must leave no partial write';
  END IF;
 
-DO $$
+END $;
+
+DO $
 DECLARE
  v_org uuid:='e1000000-0000-4000-8000-000000000001';
  v_disbursement uuid;
@@ -267,11 +269,9 @@ BEGIN
      AND total_debit=165 AND total_credit=165 AND status='posted') THEN
    RAISE EXCEPTION 'Supplier invoice VAT posting is not balanced and posted';
  END IF;
-END $$;
+END $;
 
-END $$;
-
-DO $$
+DO $
 DECLARE
  v_org uuid:='e1000000-0000-4000-8000-000000000001';
  v_item uuid:='e1000000-0000-4000-8000-000000000031';
