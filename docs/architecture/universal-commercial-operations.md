@@ -57,14 +57,14 @@ The post_goods_receipt workflow is atomic and retry-safe. It checks organization
 
 The receipt workflow intentionally does not create a journal. The supplier invoice and versioned PCG posting engine remain responsible for accounting recognition. A purchase order or physical receipt must not be mistaken for a supplier invoice, expense or inventory journal without the organization's configured inventory method and tax evidence.
 
-## Deliberately not included in this slice
+The catalogue and stock overview are available at /articles behind the optional inventory feature. Item creation and stock-location management use inventory.manage; read access uses inventory.view. This page displays quantities only and does not claim inventory valuation.\n\n## Deliberately not included in this slice
 
 - Serial-number capture.
 - Stock issues, customer deliveries, returns, transfers and adjustments.
 - Inventory valuation (CUMP/FIFO) and accounting integration.
 - Supplier invoice matching and customer mandate settlement.
 - Mixed service/product quote, order and invoice lines.
-- User interface, role permissions and organization feature activation.
+- Purchase-order and goods-receipt UI, role permissions for procurement and organization feature activation.
 
 Sales document lines are deliberately not changed in this slice. Merchandise and mandate lines must be integrated with order-to-invoice conversion and the accounting posting engine together; otherwise a product line could be invoiced as ordinary service revenue.
 
@@ -75,7 +75,7 @@ Sales document lines are deliberately not changed in this slice. Merchandise and
 3. Mixed commercial document lines linked to either a service or an item, preserving historical price and tax snapshots.
 4. Operation/event ledger with unique idempotency keys and source traceability.
 5. Atomic RPC workflows for stock issues, deliveries, returns, customer advances, mandates and journal posting.
-6. UI activation by organization feature and permission.
+6. Procurement UI activation by organization feature and permission.
 7. Integration tests for complete workflows, reversals, tenant isolation and financial statement impact.
 
 No production data or schema is changed by this branch. The migration remains pending review and clean-database replay.
