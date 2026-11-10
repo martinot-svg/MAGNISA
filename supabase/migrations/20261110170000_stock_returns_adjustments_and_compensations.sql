@@ -16,6 +16,7 @@ ALTER TABLE public.sales_deliveries ADD COLUMN cancelled_at timestamptz;
 CREATE UNIQUE INDEX sales_deliveries_cancel_request_uidx ON public.sales_deliveries(organization_id,cancellation_request_key) WHERE cancellation_request_key IS NOT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS invoice_lines_id_organization_uidx ON public.invoice_lines(id,organization_id);
+CREATE UNIQUE INDEX IF NOT EXISTS stock_movements_id_organization_uidx ON public.stock_movements(id,organization_id);
 
 CREATE TABLE public.stock_returns(
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
