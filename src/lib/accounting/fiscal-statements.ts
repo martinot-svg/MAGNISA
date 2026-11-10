@@ -445,6 +445,17 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   if(payrollRunsError){
     passifBlockingIssues.push("Rapprochement des dettes de personnel indisponible : "+payrollRunsError.message);
   }else{
+    const cancelledPayrollRuns=(payrollRuns||[]).filter((run:any)=>["cancelled","canceled"].includes(String(run.status||"").toLowerCase()));
+    for(const run of cancelledPayrollRuns){
+      passifBlockingIssues.push("Paie "+String(run.id)+" annulée sans date d’effet historique exploitable.");
+    }
+    const straddlingPayrollRuns=(payrollRuns||[]).filter((run:any)=>
+      !["draft","cancelled","canceled"].includes(String(run.status||"").toLowerCase())
+      &&(String(run.period_start)<String(year.period_start)||String(run.period_end)>String(year.period_end))
+    );
+    for(const run of straddlingPayrollRuns){
+      passifBlockingIssues.push("Paie "+String(run.id)+" chevauche la date de clôture : la part de charge et de dette de l’exercice doit être ventilée.");
+    }
     const payrollRunIds=(payrollRuns||[]).filter((run:any)=>!["draft","cancelled","canceled"].includes(String(run.status||"").toLowerCase())).map((run:any)=>run.id);
     let payslipRows:any[]=[];
     let payrollReconRows:any[]=[];
@@ -464,6 +475,10 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
       payrollPaymentsByPayslip.set(payment.payslip_id,round((payrollPaymentsByPayslip.get(payment.payslip_id)||0)+n(payment.amount)));
     }
     let payrollSubledgerBalance=0;
+    const cancelledPayslips=payslipRows.filter((payslip:any)=>["cancelled","canceled"].includes(String(payslip.status||"").toLowerCase()));
+    for(const payslip of cancelledPayslips){
+      passifBlockingIssues.push("Bulletin "+String(payslip.magnisa_reference||payslip.id)+" annulé sans date d’effet historique exploitable.");
+    }
     const activePayslips=payslipRows.filter((payslip:any)=>!["draft","cancelled","canceled"].includes(String(payslip.status||"").toLowerCase()));
     for(const payslip of activePayslips){
       const balance=round(n(payslip.net_pay)-(payrollPaymentsByPayslip.get(payslip.id)||0));
