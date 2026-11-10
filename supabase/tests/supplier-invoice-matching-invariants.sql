@@ -31,8 +31,8 @@ BEGIN
   IF to_regclass('public.magnisa_supplier_invoice_match_reconciliation') IS NULL THEN
     RAISE EXCEPTION 'Supplier invoice match reconciliation view is missing';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='supplier_invoice_matches_organization_id_supplier_invoice_id_key') THEN
-    RAISE EXCEPTION 'A supplier invoice cannot be matched more than once';
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='supplier_invoice_matches_invoice_order_uidx') THEN
+    RAISE EXCEPTION 'Supplier invoices must support several purchase-order matches';
   END IF;
 END $$;
 ROLLBACK;
