@@ -326,7 +326,7 @@ BEGIN
  v_cost:=dl.unit_cost;
  SELECT il.id INTO v_invoice_line FROM public.invoice_lines il JOIN public.invoices inv ON inv.id=il.invoice_id AND inv.organization_id=il.organization_id
  WHERE il.organization_id=p_org AND il.source_order_line_id=dl.order_line_id AND inv.status IN ('issued','partially_paid','paid')
- ORDER BY inv.issue_date DESC,il.created_at DESC LIMIT 1;
+ ORDER BY inv.issue_date DESC,il.sort_order DESC LIMIT 1;
  v_return:=gen_random_uuid();v_line:=gen_random_uuid();
  v_number:='CR-'||to_char(now(),'YYYYMMDD')||'-'||upper(substr(replace(v_return::text,'-',''),1,8));
  INSERT INTO public.stock_returns(id,organization_id,return_number,return_type,source_document_id,request_key,reason,created_by)
