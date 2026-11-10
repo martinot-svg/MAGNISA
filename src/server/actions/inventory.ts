@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
+import { isPcg2005StockAccountCode } from "@/lib/accounting/inventory-validation";
 
 const countSchema = z.object({
   fiscal_year_id: z.string().uuid(),
