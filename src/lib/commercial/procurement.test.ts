@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  calculatePurchaseLineTotals,
   classifyReceiptStockEffect,
   derivePurchaseOrderStatus,
   validateGoodsReceiptQuantity,
@@ -61,5 +62,24 @@ describe("procurement classification", () => {
 
   it("rejects inconsistent received quantities", () => {
     expect(() => derivePurchaseOrderStatus([{ quantityOrdered: 5, quantityReceived: 6 }])).toThrow();
+  });
+});
+
+describe("purchase line amount calculation", () => {
+  it("applies discount and allocated costs before calculating tax", () => {
+    expect(calculatePurchaseLineTotals({
+      quantity: 2, unitPrice: 1000, discountAmount: 100,
+      additionalCostAmount: 50, taxRate: 20,
+    })).toEqual({
+      grossAmount: 2000, discountAmount: 100, additionalCostAmount: 50,
+      taxableBase: 1950, taxAmount: 390, totalAmount: 2340,
+    });
+  });
+
+  it("rejects discounts greater than the gross line amount", () => {
+    expect(() => calculatePurchaseLineTotals({
+      quantity: 1, unitPrice: 100, discountAmount: 101,
+      additionalCostAmount: 0, taxRate: 20,
+    })).toThrow("The discount exceeds the gross purchase line.");
   });
 });
