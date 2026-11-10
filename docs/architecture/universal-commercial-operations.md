@@ -35,7 +35,7 @@ These are operational classifications, not a chart of accounts. A single operati
 
 ## Procurement and stock foundation in this branch
 
-The additive migration 20261110092048_commercial_items_procurement_stock_ledger.sql introduces:
+The forward-only migration `20261110180000_universal_commercial_stock_cycle.sql` introduces the additive procurement and stock foundation:
 
 - catalog_items: organization-scoped SKU catalogue, item kind, base unit, tracking mode and default commercial prices.
 - stock_locations: organization-scoped stores, warehouses and transit locations.
@@ -61,7 +61,7 @@ The catalogue and stock overview are available at /articles behind the optional 
 
 ## Operational stock subledger increment
 
-The next migration, `20261110140000_stock_reservations_deliveries_transfers.sql`, extends the existing ledger rather than introducing a second stock system:
+The same consolidated migration extends the existing ledger rather than introducing a second stock system. Its internal SQL sections preserve the development order of procurement, reservations, delivery, transfers, valuation, mixed invoicing and returns:
 
 - `stock_reservations` records customer-order reservations separately from physical movements. `stock_available` reports physical quantity, active reserved quantity and available quantity. Reservation RPCs serialize competing reservations using a transaction-scoped advisory lock and prevent reserving more than either available stock or the undelivered order-line balance.
 - `sales_deliveries` and `sales_delivery_lines` record partial or full dispatches. The delivery RPC validates order-line identity, quantity remaining, location and optional reservation; then atomically records the negative stock movement and fulfils the reservation. Delivery does not issue an invoice.
@@ -86,7 +86,7 @@ This increment implements CUMP, not FIFO. Company-use and consumption buckets ar
 - A genuinely concurrent two-session reservation test; current SQL tests verify oversubscription prevention sequentially and the RPC serializes competing requests with advisory locks.
 - Full accounting treatment for company-use and consumption buckets, damaged-stock impairment and quarantine disposition.
 - FIFO as an alternative method; the current implementation uses moving weighted average (CUMP).
-- Migration promotion planning against the live production history, dry-run, verified backup and restore evidence. No production migration has been applied.
+- The seven development migrations have been consolidated, in their original SQL order, into one forward-only migration at `20261110180000`, after the production ledger head `20261110100000`. This prevents the original out-of-order version `20261110092048` from being replayed after later production migrations. The chronological guard now rejects any missing local migration older than the remote ledger head. A schema-level rehearsal against a restorable production-history clone and verified backup/restore evidence are still required before any production action. No production migration has been applied.
 
 The invoice workflow supports service and merchandise lines sourced from an order, and merchandise invoicing is limited to delivered, not-yet-invoiced quantities. Returns currently create persistent stock return records and compensating stock movements; they do not yet issue a credit note or execute a customer refund. Do not treat a stock return as a credit note or refund.
 
@@ -100,4 +100,4 @@ The invoice workflow supports service and merchandise lines sourced from an orde
 6. Procurement UI activation by organization feature and inventory permissions (first multi-line order and partial-receipt screen delivered in this increment).
 7. Integration tests for complete workflows, reversals, tenant isolation and financial statement impact.
 
-No production data or schema is changed by this branch. The migration remains pending review and clean-database replay.
+No production data or schema is changed by this branch. The forward-only migration remains pending clean-database replay and isolated production-history compatibility rehearsal.
