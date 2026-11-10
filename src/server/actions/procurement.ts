@@ -103,10 +103,10 @@ export async function postPurchaseReceipt(formData: FormData) {
   const receivedAt=z.string().datetime({offset:true}).optional().parse(formData.get("received_at")||undefined);
   const {data:order,error:orderError}=await ctx.supabase.from("purchase_orders").select("id,currency,status").eq("id",orderId).eq("organization_id",ctx.organizationId).maybeSingle();
   if(orderError||!order||!["submitted","partially_received"].includes(order.status)) throw new Error("Commande introuvable ou non ouverte à la réception.");
-  const {data:line,error:lineError}=await ctx.supabase.from("purchase_order_lines").select("id,item_id,purchase_purpose,quantity_ordered,quantity_received,stock_location_id").eq("id",orderLineId).eq("purchase_order_id",orderId).eq("organization_id",ctx.organizationId).maybeSingle();
+  const {data:line,error:lineError}=await ctx.supabase.from("purchase_order_lines").select("id,item_id,purchase_purpose,quantity_ordered,quantity_received").eq("id",orderLineId).eq("purchase_order_id",orderId).eq("organization_id",ctx.organizationId).maybeSingle();
   if(lineError||!line) throw new Error("Ligne de commande introuvable.");
   if(Number(line.quantity_received)+quantity>Number(line.quantity_ordered)+1e-8) throw new Error("La quantité dépasse le reliquat à recevoir.");
-  const targetLocation=locationId||line.stock_location_id;
+  const targetLocation=locationId;
   if(line.purchase_purpose!=="customer_mandate" && !targetLocation) throw new Error("Un emplacement est obligatoire pour une réception appartenant à l'entreprise.");
   const receiptId=randomUUID();
   const receiptNumber="GR-"+new Date().toISOString().slice(0,10).replaceAll("-","")+"-"+receiptId.slice(0,8).toUpperCase();
