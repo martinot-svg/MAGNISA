@@ -210,7 +210,7 @@ jobs:
           SUPABASE_DB_URL="$RESTORE_DB_URL" bash scripts/ci/apply-production-allowlist.sh apply
           docker run --rm --network host postgres:17 \
             psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 -At <<'SQL'
-          DO $
+          DO $$
           BEGIN
             IF to_regclass('public.pcg2005_balance_sheet_rules') IS NULL
               OR to_regclass('public.pcg2005_balance_sheet_passif_rules') IS NULL
@@ -256,7 +256,7 @@ jobs:
             ) <> 10 THEN
               RAISE EXCEPTION 'The exact allowlisted migration versions were not recorded';
             END IF;
-          END $;
+          END $$;
           SQL
 
           docker run --rm --network host postgres:17 \
