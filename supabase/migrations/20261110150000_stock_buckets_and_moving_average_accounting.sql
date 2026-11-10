@@ -222,7 +222,7 @@ BEGIN
   IF v_qty<=0 THEN RAISE EXCEPTION 'Invalid delivery quantity.'; END IF;
   SELECT * INTO v_order_line FROM public.order_lines
   WHERE id=(r->>'order_line_id')::uuid AND order_id=p_order_id AND organization_id=p_organization_id FOR UPDATE;
-  IF NOT FOUND OR v_order_line.item_id IS DISTINCT FROM v_item OR v_order_line.line_kind NOT IN ('merchandise','equipment','consumable') THEN RAISE EXCEPTION 'Invalid stock order line.'; END IF;
+  IF NOT FOUND OR v_order_line.item_id IS DISTINCT FROM v_item OR v_order_line.line_kind NOT IN ('merchandise','equipment','consumable','other') THEN RAISE EXCEPTION 'Invalid stock order line.'; END IF;
   SELECT COALESCE(SUM(quantity_delivered),0) INTO v_already FROM public.sales_delivery_lines dl
   JOIN public.sales_deliveries d ON d.id=dl.delivery_id AND d.organization_id=dl.organization_id
   WHERE dl.organization_id=p_organization_id AND dl.order_line_id=v_order_line.id AND d.status='posted';
@@ -304,4 +304,51 @@ BEGIN
         (p_organization_id,v_item,p_destination_location,v_bucket,'transfer_in',v_qty,v_cost,COALESCE(v_currency,'MGA'),'stock_transfer',v_id,v_line,'stock-transfer-in:'||v_line::text,now(),auth.uid());
  END LOOP;
  RETURN v_id;
+END $$;
+
+
+CREATE OR REPLACE FUNCTION private.add_catalog_item_to_order(
+ p_organization_id uuid,p_order_id uuid,p_item_id uuid,p_quantity numeric,
+ p_unit_price numeric,p_tax_rate numeric,p_discount_pct numeric
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=pg_catalog,public,private,auth
+AS $$
+DECLARE v_order public.orders%rowtype; v_item public.catalog_items%rowtype;
+ v_line_id uuid; v_gross numeric; v_discount numeric; v_taxable numeric; v_tax numeric; v_total numeric; v_kind text;
+BEGIN
+ IF auth.uid() IS NULL OR NOT public.is_org_member(p_organization_id) THEN RAISE EXCEPTION 'Access denied.'; END IF;
+ PERFORM public.assert_org_access(p_organization_id);
+ PERFORM public.assert_org_permission(p_organization_id,'orders.manage');
+ IF p_quantity IS NULL OR p_quantity<=0 OR p_unit_price IS NULL OR p_unit_price<0 OR p_tax_rate IS NULL OR p_tax_rate NOT BETWEEN 0 AND 100 OR p_discount_pct IS NULL OR p_discount_pct NOT BETWEEN 0 AND 100 THEN
+  RAISE EXCEPTION 'Invalid item order line amounts.';
+ END IF;
+ SELECT * INTO v_order FROM public.orders WHERE id=p_order_id AND organization_id=p_organization_id FOR UPDATE;
+ IF NOT FOUND OR v_order.status NOT IN ('confirmed','in_progress') THEN RAISE EXCEPTION 'Order is not open for item lines.'; END IF;
+ IF EXISTS(SELECT 1 FROM public.invoices WHERE order_id=p_order_id AND organization_id=p_organization_id AND status<>'cancelled')
+ OR EXISTS(SELECT 1 FROM public.sales_deliveries WHERE order_id=p_order_id AND organization_id=p_organization_id AND status='posted') THEN
+  RAISE EXCEPTION 'Order lines cannot be added after invoicing or delivery has started.';
+ END IF;
+ SELECT * INTO v_item FROM public.catalog_items WHERE id=p_item_id AND organization_id=p_organization_id AND is_active;
+ IF NOT FOUND OR v_item.tracking_mode<>'quantity' THEN RAISE EXCEPTION 'Active quantity-tracked catalogue item required.'; END IF;
+ -- A catalog item is a commercial good when sold; its physical item_kind remains separate.
+ v_kind:='merchandise';
+ v_gross:=round(p_quantity*p_unit_price,2);
+ v_discount:=round(v_gross*p_discount_pct/100,2);
+ v_taxable:=v_gross-v_discount;
+ v_tax:=round(v_taxable*p_tax_rate/100,2);
+ v_total:=v_taxable+v_tax;
+ INSERT INTO public.order_lines(organization_id,order_id,service_id,item_id,line_kind,description,quantity,unit,unit_price,tax_rate,line_total,sort_order,discount_pct,discount_amount,taxable_amount,delivered_quantity)
+ VALUES(p_organization_id,p_order_id,NULL,p_item_id,v_kind,v_item.name,p_quantity,v_item.base_unit,p_unit_price,p_tax_rate,v_total,
+ COALESCE((SELECT max(sort_order)+1 FROM public.order_lines WHERE organization_id=p_organization_id AND order_id=p_order_id),0),
+ p_discount_pct,v_discount,v_taxable,0)
+ RETURNING id INTO v_line_id;
+ UPDATE public.orders o SET
+  subtotal=COALESCE((SELECT SUM(round(ol.quantity*ol.unit_price-ol.discount_amount,2)) FROM public.order_lines ol WHERE ol.organization_id=p_organization_id AND ol.order_id=p_order_id),0),
+  tax_total=COALESCE((SELECT SUM(round((ol.quantity*ol.unit_price-ol.discount_amount)*ol.tax_rate/100,2)) FROM public.order_lines ol WHERE ol.organization_id=p_organization_id AND ol.order_id=p_order_id),0),
+  total=COALESCE((SELECT SUM(ol.line_total) FROM public.order_lines ol WHERE ol.organization_id=p_organization_id AND ol.order_id=p_order_id),0),
+  updated_at=now()
+ WHERE o.id=p_order_id AND o.organization_id=p_organization_id;
+ PERFORM public.audit_event(p_organization_id,'order.catalog_item_added','order',p_order_id,NULL,jsonb_build_object('order_line_id',v_line_id,'item_id',p_item_id,'quantity',p_quantity,'line_total',v_total));
+ RETURN v_line_id;
 END $$;
