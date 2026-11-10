@@ -256,7 +256,7 @@ jobs:
               RAISE EXCEPTION 'Computer acquisitions DEP-00003 and DEP-00004 must map provisionally to PCG 218 with evidence flags';
             END IF;
             IF (
-              SELECT abs(sum(debit_difference))
+              SELECT COALESCE(abs(sum(debit_difference)),0)
               FROM public.fixed_asset_register_reconciliation
               WHERE account_code='218'
             ) <> 9000000 THEN
