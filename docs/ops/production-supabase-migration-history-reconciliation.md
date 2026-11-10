@@ -35,6 +35,16 @@ The pending allowlist contains the five pre-existing pending migrations plus the
 
 ## Safe release rule
 
-Do not merge or run the production `db push` while the history guard reports unmapped remote versions, unexplained name mismatches, or unreviewed local-only versions. Do not disable the guard, fabricate manifest evidence, or bulk-allowlist migrations to obtain a green check.
+The full-history guard remains fail-closed. **Never run `supabase db push --include-all` from the repository root** while the 135 remote-only rows, name mismatches, and unreviewed local-only versions remain unresolved. Do not disable the guard, fabricate manifest evidence, or bulk-allowlist the remaining migrations.
 
-The asset migrations are additive and have passed only the repository's local migration replay when the corresponding CI run is green. They have **not** been applied to production. Production release still requires a complete history reconciliation, verified backup/restore point, authenticated functional acceptance, and a controlled migration/deployment window.
+A separate controlled release path is implemented for the exact versions in `production-pending-allowlist.txt`:
+
+- `scripts/ci/apply-production-allowlist.sh` creates a temporary Supabase project containing only the explicitly allowlisted SQL files. Unreviewed repository migrations are not copied into that project.
+- The production preflight runs a dry-run against that isolated migration set and checks version/name consistency against the remote ledger.
+- The backup workflow is triggered by migration changes and must complete its encrypted backup, isolated database restore, and Storage integrity checks.
+- The production `APPLY` workflow requires a recent successful backup artifact before applying the allowlist.
+- Supabase CLI applies the original timestamped files, preserving their exact migration versions in `supabase_migrations.schema_migrations`.
+
+This path does **not** claim that the complete historical ledger has been reconciled. It permits only the reviewed allowlist to be released without replaying the other local-only migrations. The normal full-repository `db push` remains blocked until the manifest is fully reconciled.
+
+The asset and passif code has passed the repository's local migration replay and authenticated workflow tests. The allowlisted migrations have not yet been applied to production; that final operation requires the explicit `APPLY` selection in the GitHub Actions workflow after the backup succeeds.
