@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
+import { calculatePurchaseLineTotals } from "@/lib/commercial/procurement";
 
 const lineSchema = z.object({
   item_id: z.string().uuid(),
@@ -61,8 +62,9 @@ export async function createPurchaseOrder(formData: FormData) {
     if(line.purchase_purpose==="company_use" && item.item_kind==="equipment") throw new Error("Cet équipement destiné à l’usage durable doit être qualifié dans le registre des immobilisations avant tout achat. Le flux immobilisation n’est pas encore raccordé aux approvisionnements.");
     if(item.tracking_mode==="serial") throw new Error("Le suivi par numéro de série n'est pas encore pris en charge.");
   }
-  const subtotal=lines.reduce((s,l)=>s+l.quantity_ordered*l.unit_price-l.discount_amount+l.additional_cost_amount,0);
-  const taxTotal=lines.reduce((s,l)=>s+(l.quantity_ordered*l.unit_price-l.discount_amount+l.additional_cost_amount)*l.tax_rate/100,0);
+  const totals=lines.map(l=>calculatePurchaseLineTotals({quantity:l.quantity_ordered,unitPrice:l.unit_price,discountAmount:l.discount_amount,additionalCostAmount:l.additional_cost_amount,taxRate:l.tax_rate}));
+  const subtotal=totals.reduce((sum,t)=>sum+t.taxableBase,0);
+  const taxTotal=totals.reduce((sum,t)=>sum+t.taxAmount,0);
   const number="PO-"+new Date().toISOString().slice(0,10).replaceAll("-","")+"-"+randomUUID().slice(0,8).toUpperCase();
   const {data:order,error:orderError}=await ctx.supabase.from("purchase_orders").insert({
     organization_id:ctx.organizationId,supplier_id:supplierId,number,status:"draft",
@@ -78,7 +80,7 @@ export async function createPurchaseOrder(formData: FormData) {
     mandate_supplier_document_reference:l.mandate_supplier_document_reference||null,
     quantity_ordered:l.quantity_ordered,unit:l.unit,unit_price:l.unit_price,
     tax_rate:l.tax_rate,discount_amount:l.discount_amount,additional_cost_amount:l.additional_cost_amount,
-    line_total:(l.quantity_ordered*l.unit_price-l.discount_amount+l.additional_cost_amount)*(1+l.tax_rate/100),sort_order:index,
+    line_total:totals[index].totalAmount,sort_order:index,
   }));
   const {error:lineError}=await ctx.supabase.from("purchase_order_lines").insert(payload);
   if(lineError){
