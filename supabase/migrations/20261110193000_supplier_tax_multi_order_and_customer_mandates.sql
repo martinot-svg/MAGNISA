@@ -113,7 +113,7 @@ BEGIN
     ) VALUES(
       p_org,v_invoice,'EXPENSE:SUPPLIER',v_cost_account,
       'Imputation fournisseur créée à partir de la nature déclarée de la facture ; justificatif conservé dans la fiche fournisseur.',
-      CASE WHEN nullif(trim(coalesce(p_tax_document_reference,'')),'') IS NULL THEN 'pending' ELSE 'documented' END,
+      'pending',
       true
     ) ON CONFLICT(organization_id,supplier_invoice_id,account_key) DO NOTHING;
   END IF;
@@ -124,6 +124,7 @@ BEGIN
   RETURN v_invoice;
 END;
 $function$;
+REVOKE ALL ON FUNCTION public.record_supplier_invoice_with_scope(uuid,uuid,text,date,date,numeric,text,text) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text) TO authenticated;
 
@@ -162,8 +163,8 @@ BEGIN
     RAISE EXCEPTION 'Le rapprochement doit contenir entre 1 et 200 lignes.';
   END IF;
   IF EXISTS(
-    SELECT 1 FROM jsonb_array_elements(p_allocations) x
-    GROUP BY x->>'goods_receipt_line_id' HAVING count(*)>1
+    SELECT 1 FROM jsonb_array_elements(p_allocations) AS x(value)
+    GROUP BY x.value->>'goods_receipt_line_id' HAVING count(*)>1
   ) THEN RAISE EXCEPTION 'Une même ligne de réception ne peut apparaître deux fois.'; END IF;
 
   SELECT * INTO v_invoice FROM public.supplier_invoices
@@ -177,8 +178,8 @@ BEGIN
 
   FOR v_order_id IN
     SELECT DISTINCT gr.purchase_order_id
-    FROM jsonb_array_elements(p_allocations) a
-    JOIN public.goods_receipt_lines grl ON grl.id=(a->>'goods_receipt_line_id')::uuid AND grl.organization_id=p_org
+    FROM jsonb_array_elements(p_allocations) AS a(value)
+    JOIN public.goods_receipt_lines grl ON grl.id=(a.value->>'goods_receipt_line_id')::uuid AND grl.organization_id=p_org
     JOIN public.goods_receipts gr ON gr.id=grl.goods_receipt_id AND gr.organization_id=p_org
     ORDER BY gr.purchase_order_id
   LOOP
@@ -196,8 +197,8 @@ BEGIN
     v_order_subtotal:=0;
     v_variance:=false;
     FOR v_allocation IN
-      SELECT a FROM jsonb_array_elements(p_allocations) a
-      JOIN public.goods_receipt_lines grl ON grl.id=(a->>'goods_receipt_line_id')::uuid AND grl.organization_id=p_org
+      SELECT a.value FROM jsonb_array_elements(p_allocations) AS a(value)
+      JOIN public.goods_receipt_lines grl ON grl.id=(a.value->>'goods_receipt_line_id')::uuid AND grl.organization_id=p_org
       JOIN public.goods_receipts gr ON gr.id=grl.goods_receipt_id AND gr.organization_id=p_org
       WHERE gr.purchase_order_id=v_order.id
     LOOP
@@ -242,8 +243,8 @@ BEGIN
     ) RETURNING id INTO v_match;
 
     FOR v_allocation IN
-      SELECT a FROM jsonb_array_elements(p_allocations) a
-      JOIN public.goods_receipt_lines grl ON grl.id=(a->>'goods_receipt_line_id')::uuid AND grl.organization_id=p_org
+      SELECT a.value FROM jsonb_array_elements(p_allocations) AS a(value)
+      JOIN public.goods_receipt_lines grl ON grl.id=(a.value->>'goods_receipt_line_id')::uuid AND grl.organization_id=p_org
       JOIN public.goods_receipts gr ON gr.id=grl.goods_receipt_id AND gr.organization_id=p_org
       WHERE gr.purchase_order_id=v_order.id
     LOOP
