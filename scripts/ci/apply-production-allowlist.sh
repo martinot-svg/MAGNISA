@@ -78,15 +78,21 @@ else
   (cd "$TMP_DIR" && supabase db push --db-url "$SUPABASE_DB_URL" --include-all --yes)
 fi
 
-for version in "${ALLOWED_VERSIONS[@]}"; do
-  file="$(basename "$(printf '%s\n' "$MIGRATIONS_DIR/${version}_"*.sql)")"
-  expected_name="${file#${version}_}"
-  expected_name="${expected_name%.sql}"
-  remote_name="$(psql "$SUPABASE_DB_URL" -X -qAt -v ON_ERROR_STOP=1 -c "select name from supabase_migrations.schema_migrations where version = '$version'")"
-  if [[ "$remote_name" != "$expected_name" ]]; then
-    echo "::error::Migration verification failed for $version: expected '$expected_name', got '${remote_name:-ABSENT}'"
-    exit 1
-  fi
-done
-
-echo "Approved production migration set verified."
+if [[ "$MODE" == "apply" ]]; then
+  for version in "${ALLOWED_VERSIONS[@]}"; do
+    shopt -s nullglob
+    matches=( "$MIGRATIONS_DIR/${version}_"*.sql )
+    shopt -u nullglob
+    file="$(basename "${matches[0]}")"
+    expected_name="${file#${version}_}"
+    expected_name="${expected_name%.sql}"
+    remote_name="$(psql "$SUPABASE_DB_URL" -X -qAt -v ON_ERROR_STOP=1 -c "select name from supabase_migrations.schema_migrations where version = '$version'")"
+    if [[ "$remote_name" != "$expected_name" ]]; then
+      echo "::error::Migration verification failed for $version: expected '$expected_name', got '${remote_name:-ABSENT}'"
+      exit 1
+    fi
+  done
+  echo "Approved production migration set verified."
+else
+  echo "Dry-run complete; no production migration was applied."
+fi
