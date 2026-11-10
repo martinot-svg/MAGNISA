@@ -126,6 +126,7 @@ GRANT SELECT ON public.pcg2005_balance_sheet_rules TO authenticated;
 INSERT INTO public.pcg2005_balance_sheet_rules(account_code,section,line_key,normal_side)
 SELECT code,
   CASE WHEN code IN ('101','104','105','106','107','108','109','110','119','120','129') THEN 'equity'
+       WHEN code='133' THEN 'non_current_assets'
        WHEN code IN ('181','188') THEN 'clearing'
        ELSE 'non_current_liabilities' END,
   CASE WHEN code='109' THEN 'unpaid_subscribed_capital'
@@ -147,8 +148,9 @@ ON CONFLICT (account_code) DO NOTHING;
 
 -- Class 2: long-term assets; accumulated depreciation and impairment are contra-assets.
 INSERT INTO public.pcg2005_balance_sheet_rules(account_code,section,line_key,normal_side,contra_asset)
-SELECT code,'non_current_assets',
-  CASE WHEN code ~ '^20' THEN 'intangible_assets_gross'
+SELECT code,CASE WHEN code='229' THEN 'non_current_liabilities' ELSE 'non_current_assets' END,
+  CASE WHEN code='229' THEN 'rights_of_grantor'
+       WHEN code ~ '^20' THEN 'intangible_assets_gross'
        WHEN code ~ '^21' THEN 'tangible_assets_gross'
        WHEN code ~ '^22' THEN 'concession_assets_gross'
        WHEN code ~ '^23' THEN 'assets_in_progress'
@@ -157,7 +159,7 @@ SELECT code,'non_current_assets',
        WHEN code ~ '^28' THEN 'accumulated_depreciation'
        WHEN code ~ '^29' THEN 'non_current_impairment'
        ELSE 'unclassified_non_current_asset' END,
-  CASE WHEN code ~ '^(28|29)' THEN 'credit' ELSE 'debit' END,
+  CASE WHEN code='229' OR code ~ '^(28|29)' THEN 'credit' ELSE 'debit' END,
   code ~ '^(28|29)'
 FROM public.pcg2005_accounts
 WHERE code ~ '^(20|21|22|23|26|27|28|29)'
