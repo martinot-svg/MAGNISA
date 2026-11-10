@@ -359,7 +359,7 @@ BEGIN
  IF NOT FOUND OR gr.status<>'posted' THEN RAISE EXCEPTION 'La réception source n’est pas validée'; END IF;
  SELECT * INTO pol FROM public.purchase_order_lines WHERE id=grl.purchase_order_line_id AND organization_id=p_org;
  IF NOT FOUND OR pol.purchase_purpose='customer_mandate' THEN RAISE EXCEPTION 'Un achat sous mandat ne constitue pas un stock appartenant à l’entreprise'; END IF;
- SELECT stock_bucket,unit_cost INTO v_bucket,v_cost FROM public.stock_movements
+ SELECT stock_bucket INTO v_bucket FROM public.stock_movements
  WHERE organization_id=p_org AND source_type='goods_receipt' AND source_line_id=grl.id AND movement_kind='receipt' LIMIT 1;
  IF v_bucket IS NULL THEN RAISE EXCEPTION 'Mouvement d’entrée d’origine introuvable'; END IF;
  IF NOT EXISTS(SELECT 1 FROM public.stock_locations WHERE id=p_location_id AND organization_id=p_org AND is_active) THEN RAISE EXCEPTION 'Emplacement de retour invalide'; END IF;
@@ -368,8 +368,10 @@ BEGIN
  WHERE rl.organization_id=p_org AND rl.source_line_type='goods_receipt_line' AND rl.source_line_id=grl.id
    AND sr.return_type='supplier' AND sr.status='posted';
  IF p_quantity>grl.quantity_received-v_returned+0.00000001 THEN RAISE EXCEPTION 'Le retour dépasse la quantité reçue non encore retournée'; END IF;
- SELECT COALESCE(SUM(quantity_delta),0) INTO v_on_hand FROM public.stock_movements
+ SELECT COALESCE(SUM(quantity_delta),0),COALESCE(SUM(quantity_delta*unit_cost),0) INTO v_on_hand,v_cost FROM public.stock_movements
  WHERE organization_id=p_org AND item_id=grl.item_id AND stock_location_id=p_location_id AND stock_bucket=v_bucket;
+ IF v_on_hand<=0 THEN RAISE EXCEPTION 'Aucun stock physique à retourner depuis cet emplacement'; END IF;
+ v_cost:=round(v_cost/v_on_hand,2);
  SELECT COALESCE(SUM(quantity_reserved-quantity_fulfilled-quantity_released),0) INTO v_reserved
  FROM public.stock_reservations WHERE organization_id=p_org AND item_id=grl.item_id AND stock_location_id=p_location_id
  AND stock_bucket='resale' AND status IN ('active','partially_fulfilled');
