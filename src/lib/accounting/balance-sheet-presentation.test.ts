@@ -53,6 +53,16 @@ describe("buildAssetPresentation", () => {
     expect(result.ready).toBe(false);
   });
 
+  it("flags abnormal credit balances on debit-normal asset accounts", () => {
+    const result = buildAssetPresentation(
+      [line("411", 0, 90_000)],
+      [rule("411", "current_assets", "trade_receivables", { requires_maturity: true, normal_side: "debit" })],
+    );
+    expect(result.reviewRequired).toHaveLength(1);
+    expect(result.ready).toBe(false);
+    expect(result.totals.identifiedNet).toBe(0);
+  });
+
   it("blocks suspense and mixed third-party accounts rather than hiding them", () => {
     const result = buildAssetPresentation(
       [line("471", 75_000)],
