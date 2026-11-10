@@ -72,6 +72,18 @@ CREATE TABLE public.stock_reservations (
 CREATE INDEX stock_reservations_available_idx
   ON public.stock_reservations(organization_id,item_id,stock_location_id,status);
 
+CREATE TABLE public.stock_reservation_events (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT,
+ reservation_id uuid NOT NULL,
+ event_kind text NOT NULL CHECK(event_kind IN ('release')),
+ quantity numeric(18,4) NOT NULL CHECK(quantity>0),
+ request_key uuid NOT NULL,
+ created_by uuid NOT NULL REFERENCES auth.users(id),
+ created_at timestamptz NOT NULL DEFAULT now(),
+ UNIQUE(organization_id,request_key),
+ FOREIGN KEY(reservation_id,organization_id) REFERENCES public.stock_reservations(id,organization_id) ON DELETE RESTRICT
+);
 CREATE TABLE public.sales_deliveries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT,
@@ -144,7 +156,7 @@ CREATE TABLE public.stock_transfer_lines (
 DO $rls$
 DECLARE t text;
 BEGIN
- FOREACH t IN ARRAY ARRAY['stock_reservations','sales_deliveries','sales_delivery_lines','stock_transfers','stock_transfer_lines'] LOOP
+ FOREACH t IN ARRAY ARRAY['stock_reservations','stock_reservation_events','sales_deliveries','sales_delivery_lines','stock_transfers','stock_transfer_lines'] LOOP
   EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY',t);
   EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC,anon',t);
   EXECUTE format('CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING(public.is_org_member(organization_id))',t||'_org_select',t);
@@ -218,18 +230,25 @@ BEGIN
  RETURN v_id;
 END $$;
 
-CREATE OR REPLACE FUNCTION private.release_stock_reservation(p_organization_id uuid,p_reservation_id uuid,p_quantity numeric)
+CREATE OR REPLACE FUNCTION private.release_stock_reservation(p_organization_id uuid,p_reservation_id uuid,p_quantity numeric,p_request_key uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER
 SET search_path=pg_catalog,public,private,auth
 AS $$
-DECLARE r public.stock_reservations%rowtype;
+DECLARE r public.stock_reservations%rowtype; e public.stock_reservation_events%rowtype;
 BEGIN
  IF auth.uid() IS NULL OR NOT public.is_org_member(p_organization_id) THEN RAISE EXCEPTION 'Access denied.'; END IF;
  PERFORM public.assert_org_access(p_organization_id);
  PERFORM public.assert_org_permission(p_organization_id,'orders.manage');
+ SELECT * INTO e FROM public.stock_reservation_events WHERE organization_id=p_organization_id AND request_key=p_request_key;
+ IF FOUND THEN
+  IF e.reservation_id<>p_reservation_id OR e.quantity<>p_quantity OR e.event_kind<>'release' THEN RAISE EXCEPTION 'Release request key reused with different data.'; END IF;
+  RETURN;
+ END IF;
  SELECT * INTO r FROM public.stock_reservations WHERE id=p_reservation_id AND organization_id=p_organization_id FOR UPDATE;
  IF NOT FOUND OR r.status NOT IN ('active','partially_fulfilled') THEN RAISE EXCEPTION 'Active reservation not found.'; END IF;
  IF p_quantity IS NULL OR p_quantity<=0 OR p_quantity>r.quantity_reserved-r.quantity_fulfilled-r.quantity_released THEN RAISE EXCEPTION 'Invalid release quantity.'; END IF;
+ INSERT INTO public.stock_reservation_events(organization_id,reservation_id,event_kind,quantity,request_key,created_by)
+ VALUES(p_organization_id,p_reservation_id,'release',p_quantity,p_request_key,auth.uid());
  UPDATE public.stock_reservations SET quantity_released=quantity_released+p_quantity,
  status=CASE WHEN quantity_fulfilled+quantity_released+p_quantity=quantity_reserved THEN 'released' ELSE 'partially_fulfilled' END,updated_at=now()
  WHERE id=r.id AND organization_id=p_organization_id;
@@ -346,9 +365,9 @@ CREATE OR REPLACE FUNCTION public.reserve_stock(
  p_stock_location_id uuid,p_quantity numeric,p_request_key uuid
 ) RETURNS uuid LANGUAGE sql SECURITY INVOKER SET search_path=pg_catalog,public,private
 AS $$ SELECT private.reserve_stock($1,$2,$3,$4,$5,$6,$7); $$;
-CREATE OR REPLACE FUNCTION public.release_stock_reservation(p_organization_id uuid,p_reservation_id uuid,p_quantity numeric)
+CREATE OR REPLACE FUNCTION public.release_stock_reservation(p_organization_id uuid,p_reservation_id uuid,p_quantity numeric,p_request_key uuid)
 RETURNS void LANGUAGE sql SECURITY INVOKER SET search_path=pg_catalog,public,private
-AS $$ SELECT private.release_stock_reservation($1,$2,$3); $$;
+AS $ SELECT private.release_stock_reservation($1,$2,$3,$4); $;
 CREATE OR REPLACE FUNCTION public.post_sales_delivery(
  p_organization_id uuid,p_order_id uuid,p_lines jsonb,p_request_key uuid,p_delivery_reference text DEFAULT NULL
 ) RETURNS uuid LANGUAGE sql SECURITY INVOKER SET search_path=pg_catalog,public,private
@@ -359,20 +378,20 @@ CREATE OR REPLACE FUNCTION public.post_stock_transfer(
 AS $$ SELECT private.post_stock_transfer($1,$2,$3,$4,$5,$6); $$;
 
 REVOKE ALL ON FUNCTION private.reserve_stock(uuid,uuid,uuid,uuid,uuid,numeric,uuid) FROM PUBLIC,anon;
-REVOKE ALL ON FUNCTION private.release_stock_reservation(uuid,uuid,numeric) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION private.release_stock_reservation(uuid,uuid,numeric,uuid) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION private.post_sales_delivery(uuid,uuid,jsonb,uuid,text) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION private.post_stock_transfer(uuid,uuid,uuid,jsonb,uuid,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION private.reserve_stock(uuid,uuid,uuid,uuid,uuid,numeric,uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION private.release_stock_reservation(uuid,uuid,numeric) TO authenticated;
+GRANT EXECUTE ON FUNCTION private.release_stock_reservation(uuid,uuid,numeric,uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION private.post_sales_delivery(uuid,uuid,jsonb,uuid,text) TO authenticated;
 GRANT EXECUTE ON FUNCTION private.post_stock_transfer(uuid,uuid,uuid,jsonb,uuid,text) TO authenticated;
 
 REVOKE ALL ON FUNCTION public.reserve_stock(uuid,uuid,uuid,uuid,uuid,numeric,uuid) FROM PUBLIC,anon;
-REVOKE ALL ON FUNCTION public.release_stock_reservation(uuid,uuid,numeric) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.release_stock_reservation(uuid,uuid,numeric,uuid) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.post_sales_delivery(uuid,uuid,jsonb,uuid,text) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.post_stock_transfer(uuid,uuid,uuid,jsonb,uuid,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.reserve_stock(uuid,uuid,uuid,uuid,uuid,numeric,uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.release_stock_reservation(uuid,uuid,numeric) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.release_stock_reservation(uuid,uuid,numeric,uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.post_sales_delivery(uuid,uuid,jsonb,uuid,text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.post_stock_transfer(uuid,uuid,uuid,jsonb,uuid,text) TO authenticated;
 
