@@ -1,5 +1,6 @@
 import { requireOrganization } from "@/lib/current-org";
 import { requirePermission } from "@/lib/permissions";
+import { buildAssetPresentation, type AssetPresentation } from "./balance-sheet-presentation";
 
 export type StatementLine = { code: string; label: string; debit: number; credit: number; balance: number; comparativeBalance: number };
 export type FiscalStatements = {
@@ -10,7 +11,8 @@ export type FiscalStatements = {
   cashFlows: {label:string;amount:number}[];
   openingCash:number; closingCash:number; profit:number; priorYearLabel:string|null;
   totals: {assets:number;liabilities:number;equity:number;balanceDifference:number};
-  controls: {unmapped:number;unbalancedEntries:number;unclassifiedCashFlowEntries:number;cashFlowReconciliationDifference:number;operatingCashFlowReconciliationReady:boolean;pcgPresentationReady:boolean;isClosed:boolean;notesReady:boolean;ready:boolean};
+  assetPresentation: AssetPresentation;
+  controls: {unmapped:number;unbalancedEntries:number;unclassifiedCashFlowEntries:number;cashFlowReconciliationDifference:number;operatingCashFlowReconciliationReady:boolean;pcgPresentationReady:boolean;assetPresentationReady:boolean;isClosed:boolean;notesReady:boolean;ready:boolean};
   notes: string[];
 };
 
@@ -60,6 +62,9 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   ]);
   if(yearError||orgError||accountError)throw new Error(yearError?.message||orgError?.message||accountError?.message);
   if(!year)throw new Error("Exercice comptable introuvable.");
+  const {data:balanceSheetRules,error:balanceSheetRulesError}=await supabase.from("pcg2005_balance_sheet_rules")
+    .select("account_code,section,line_key,normal_side,requires_maturity,contra_asset").order("account_code");
+  const balanceSheetRulesAvailable=!balanceSheetRulesError;
   const lines:any[]=[];
   for(let from=0;;from+=1000){
     const {data,error}=await supabase.from("pcg2005_journal_lines")
@@ -122,6 +127,8 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   const clearing=make("clearing");
   const assets=[...make("asset"),...clearing.filter(x=>x.balance>0)];
   const liabilities=[...make("liability"),...clearing.filter(x=>x.balance<0).map(x=>({...x,balance:-x.balance,comparativeBalance:-x.comparativeBalance}))];
+  const assetPresentation=buildAssetPresentation(assets, balanceSheetRules||[]);
+  const assetPresentationReady=balanceSheetRulesAvailable&&assetPresentation.ready;
   const equity=make("equity");
   const resultAggregate=new Map<string,{debit:number;credit:number;kind:string;label:string}>();
   for(const l of lines){
@@ -224,7 +231,8 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     assets,liabilities,equity,expenses,income,equityChanges,cashFlows,
     openingCash:round(openingCash),closingCash:round(closingCash),profit,priorYearLabel:priorYear?.label||null,
     totals:{assets:totalAssets,liabilities:totalLiabilities,equity:totalEquity,balanceDifference},
-    controls:{unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,operatingCashFlowReconciliationReady,pcgPresentationReady,isClosed:year.status==="closed",notesReady,ready},notes};
+    assetPresentation,
+    controls:{unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,operatingCashFlowReconciliationReady,pcgPresentationReady,assetPresentationReady,isClosed:year.status==="closed",notesReady,ready},notes};
 }
 
 export async function getFiscalStatementContext(yearId:string){
