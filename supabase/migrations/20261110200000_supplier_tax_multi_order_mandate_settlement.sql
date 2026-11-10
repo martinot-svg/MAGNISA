@@ -1,6 +1,10 @@
 -- Complete supplier reconciliation, tax capture and customer-mandate settlement.
 -- Forward-only; no production operation is performed by this migration file.
 
+ALTER TABLE public.purchase_order_lines
+  ADD COLUMN IF NOT EXISTS discount_amount numeric(18,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS additional_cost_amount numeric(18,2) NOT NULL DEFAULT 0;
+
 ALTER TABLE public.supplier_invoices
   ADD COLUMN IF NOT EXISTS tax_treatment text NOT NULL DEFAULT 'not_applicable',
   ADD COLUMN IF NOT EXISTS tax_document_reference text;
