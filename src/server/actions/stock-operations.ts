@@ -48,8 +48,9 @@ export async function releaseStockReservationAction(formData: FormData) {
   await assertPermission(ctx,"orders.manage");
   const id=z.string().uuid().parse(formData.get("reservation_id"));
   const quantity=z.coerce.number().finite().positive().parse(formData.get("quantity"));
+  const requestKey=z.string().uuid().parse(formData.get("request_key"));
   const {error}=await ctx.supabase.rpc("release_stock_reservation",{
-    p_organization_id:ctx.organizationId,p_reservation_id:id,p_quantity:quantity,
+    p_organization_id:ctx.organizationId,p_reservation_id:id,p_quantity:quantity,p_request_key:requestKey,
   });
   if(error) throw new Error("Libération refusée : "+error.message);
   revalidatePath("/commandes");revalidatePath("/mouvements-stock");
