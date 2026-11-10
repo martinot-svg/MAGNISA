@@ -1,4 +1,4 @@
--- Authenticated end-to-end tests for item orders, reservations, deliveries and transfers.
+END $block2$;END $block3$;-- Authenticated end-to-end tests for item orders, reservations, deliveries and transfers.
 -- Uses the disposable local Supabase database and rolls back all fixture data.
 \set ON_ERROR_STOP on
 \set org_id 'e1000000-0000-4000-8000-000000000001'
@@ -126,7 +126,7 @@ SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 SELECT set_config('request.jwt.claims',jsonb_build_object('sub',:'user_id'::uuid,'role','authenticated')::text,true);
 SET LOCAL ROLE authenticated;
 
-DO $$
+DO $partial$
 DECLARE
  v_org uuid:='e1000000-0000-4000-8000-000000000001';
  v_item_partial uuid:='e1000000-0000-4000-8000-000000000079';
@@ -165,9 +165,8 @@ BEGIN
  IF (SELECT status FROM public.goods_receipts WHERE id='e1000000-0000-4000-8000-000000000098')<>'draft'
  OR (SELECT quantity_received FROM public.purchase_order_lines WHERE id='e1000000-0000-4000-8000-000000000097')<>0 THEN
   RAISE EXCEPTION 'Rejected mandate receipt must leave no partial write';
- END IF;
-
-END $;
+ END DO $block2$
+END $partial$;
 
 DO $
 DECLARE
@@ -271,7 +270,7 @@ BEGIN
  END IF;
 END $;
 
-DO $
+DO $block3$
 DECLARE
  v_org uuid:='e1000000-0000-4000-8000-000000000001';
  v_item uuid:='e1000000-0000-4000-8000-000000000031';
