@@ -301,7 +301,7 @@ SELECT code,
     WHEN code IN ('451','455','456','457','458','464','467','4686') THEN 'other_current_payables'
     ELSE 'unclassified_passif'
   END,
-  CASE WHEN code IN ('109','119','129') THEN 'debit'
+  CASE WHEN code IN ('109','119','129','169') THEN 'debit'
        WHEN code='108' THEN 'both'
        ELSE 'credit' END,
   (code ~ '^(16|17)' OR code='401'),
