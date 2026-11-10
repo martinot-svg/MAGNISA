@@ -15,6 +15,7 @@ export const FEATURE_CATALOG=[
   {key:"magnimail",label:"MagniMail",href:"/magnimail",required:true,group:"Communication",description:"Messagerie clients intégrée : réception, envoi, brouillons, pièces jointes et historique."},
   {key:"suppliers",label:"Fournisseurs & achats",href:"/fournisseurs",required:false,group:"Achats & fournisseurs",description:"Fournisseurs, sous-traitants et factures fournisseurs."},
   {key:"inventory",label:"Articles & stocks",href:"/articles",required:false,group:"Achats & fournisseurs",description:"Catalogue général des articles, emplacements et quantités en stock."},
+  {key:"stock_operations",label:"Mouvements de stock",href:"/mouvements-stock",required:false,group:"Achats & fournisseurs",description:"Disponibilités, réservations, livraisons, transferts et historique des mouvements."},
   {key:"procurement",label:"Approvisionnements",href:"/approvisionnements",required:false,group:"Achats & fournisseurs",description:"Commandes fournisseurs, réceptions partielles et suivi des achats physiques."},
   {key:"expenses",label:"Charges & dépenses",href:"/depenses",required:false,group:"Achats & fournisseurs",description:"Coûts d'exploitation et décaissements."},
   {key:"treasury",label:"Trésorerie",href:"/tresorerie",required:false,group:"Trésorerie",description:"Banque, caisse, Mobile Money, transferts et rapprochements."},
