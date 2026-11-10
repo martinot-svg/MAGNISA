@@ -281,7 +281,9 @@ SELECT
   END AS mapping_status,
   COALESCE(sm.evidence_status,em.evidence_status) AS mapping_evidence_status,
   COALESCE(sm.rationale,em.rationale) AS mapping_rationale,
-  (COALESCE(sm.requires_attachment,false) OR COALESCE(em.requires_attachment,false)) AS mapping_requires_attachment
+  (COALESCE(sm.requires_attachment,false) OR COALESCE(em.requires_attachment,false)) AS mapping_requires_attachment,
+  COALESCE(em.requires_asset_register,false) AS mapping_requires_asset_register,
+  COALESCE(em.requires_useful_life,false) AS mapping_requires_useful_life
 FROM public.journal_entry_lines jl
 JOIN public.journal_entries je
   ON je.id = jl.journal_entry_id
