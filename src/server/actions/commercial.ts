@@ -7,6 +7,23 @@ import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
 
 const lineSchema = z.object({ service_id: z.string().uuid(), quantity: z.coerce.number().finite().positive(), discount_pct: z.coerce.number().finite().min(0).max(100), unit_price: z.coerce.number().finite().nonnegative(), order_line_id: z.string().uuid().optional() });
+const invoiceLineSchema = z.object({
+  line_kind: z.enum(["service","merchandise"]).default("service"),
+  service_id: z.string().uuid().optional(),
+  item_id: z.string().uuid().optional(),
+  order_line_id: z.string().uuid().optional(),
+  quantity: z.coerce.number().finite().positive(),
+  discount_pct: z.coerce.number().finite().min(0).max(100),
+  unit_price: z.coerce.number().finite().nonnegative(),
+  max_quantity: z.coerce.number().finite().positive().optional(),
+  description: z.string().optional(),
+  unit: z.string().optional(),
+}).superRefine((line,ctx)=>{
+  if(line.line_kind==="service"&&!line.service_id) ctx.addIssue({code:"custom",path:["service_id"],message:"Sélectionne une prestation."});
+  if(line.line_kind==="merchandise"&&(!line.item_id||!line.order_line_id||!line.max_quantity||line.quantity>line.max_quantity)){
+    ctx.addIssue({code:"custom",path:["item_id"],message:"La marchandise doit être livrée, rattachée à la commande et limitée au reliquat livrable non facturé."});
+  }
+}).transform(({max_quantity,description,unit,...line})=>line);
 
 export async function quoteToOrderAction(formData: FormData) {
   const ctx = await requireOrganization();
@@ -41,7 +58,7 @@ export async function createInvoiceDraft(formData: FormData) {
   const ctx = await requireOrganization(); await assertPermission(ctx, "invoices.create");
   const customerId = String(formData.get("customer_id") || ""); const dueDate = String(formData.get("due_date") || ""); const orderId = String(formData.get("order_id") || "").trim() || null;
   let lines: unknown; try { lines = JSON.parse(String(formData.get("lines") || "[]")); } catch { throw new Error("Les lignes de facture sont invalides."); }
-  const parsedLines = z.array(lineSchema).min(1, "Ajoute au moins une prestation.").max(100).safeParse(lines); if (!parsedLines.success) throw new Error("Vérifie les prestations de la facture.");
+  const parsedLines = z.array(invoiceLineSchema).min(1, "Ajoute au moins une ligne.").max(100).safeParse(lines); if (!parsedLines.success) throw new Error("Vérifie les prestations et marchandises de la facture.");
   if (!z.iso.date().safeParse(dueDate).success) throw new Error("Date d'échéance invalide.");
   const { data, error } = await ctx.supabase.rpc("create_invoice_draft", { p_org: ctx.organizationId, p_customer: customerId, p_due_date: dueDate, p_lines: parsedLines.data, p_order: orderId });
   if (error) throw new Error(error.message); revalidatePath("/factures"); if (orderId) revalidatePath("/commandes"); redirect(`/factures/${data}`);
