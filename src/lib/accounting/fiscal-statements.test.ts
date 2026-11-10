@@ -11,6 +11,8 @@ const valid: FiscalStatementReadinessInput = {
   notesReady:true,
   operatingCashFlowReconciliationReady:true,
   pcgPresentationReady:true,
+  assetPresentationReady:true,
+  passifPresentationReady:true,
 };
 
 describe("isFiscalStatementReady",()=>{
@@ -19,6 +21,12 @@ describe("isFiscalStatementReady",()=>{
   });
   it("blocks finalization while the operating cash flow bridge is missing",()=>{
     expect(isFiscalStatementReady({...valid,operatingCashFlowReconciliationReady:false})).toBe(false);
+  });
+  it("blocks finalization while the active side is not validated",()=>{
+    expect(isFiscalStatementReady({...valid,assetPresentationReady:false})).toBe(false);
+  });
+  it("blocks finalization while the passif side is not validated",()=>{
+    expect(isFiscalStatementReady({...valid,passifPresentationReady:false})).toBe(false);
   });
   it("blocks finalization while PCG presentation classifications are missing",()=>{
     expect(isFiscalStatementReady({...valid,pcgPresentationReady:false})).toBe(false);
