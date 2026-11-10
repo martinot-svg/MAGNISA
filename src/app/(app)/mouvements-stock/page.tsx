@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { requireOrganization } from "@/lib/current-org";
 import { requirePermission,hasPermission } from "@/lib/permissions";
-import { money } from "@/lib/money";
 import { EmptyState } from "@/components/empty-state";
 import { postStockTransferAction,releaseStockReservationAction } from "@/server/actions/stock-operations";
 
@@ -23,7 +22,6 @@ export default async function StockOperationsPage(){
  const itemMap=new Map((items as any[]).map(x=>[x.id,x]));
  const locMap=new Map((locations as any[]).map(x=>[x.id,x]));
  const balanceRows=(balances as any[]).map(b=>({...b,item:itemMap.get(b.item_id),location:locMap.get(b.stock_location_id)}));
- const currency=org?.currency||"MGA";
  return <>
   <div className="pageHead"><div><p className="eyebrow">Sous-grand livre opérationnel</p><h1>Mouvements & disponibilités</h1><p>Stock physique, réservations, livraisons et transferts enregistrés dans le registre persistant.</p></div></div>
   <section className="section">
