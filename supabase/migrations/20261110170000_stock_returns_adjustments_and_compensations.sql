@@ -377,11 +377,11 @@ BEGIN
    AND sr.return_type='supplier' AND sr.status='posted';
  IF p_quantity>grl.quantity_received-v_returned+0.00000001 THEN RAISE EXCEPTION 'Le retour dépasse la quantité reçue non encore retournée'; END IF;
  SELECT COALESCE(SUM(quantity_delta),0),COALESCE(SUM(quantity_delta*unit_cost),0) INTO v_on_hand,v_cost FROM public.stock_movements
- WHERE organization_id=p_org AND item_id=grl.item_id AND stock_location_id=p_location_id AND stock_bucket=v_bucket;
+ WHERE organization_id=p_org AND item_id=pol.item_id AND stock_location_id=p_location_id AND stock_bucket=v_bucket;
  IF v_on_hand<=0 THEN RAISE EXCEPTION 'Aucun stock physique à retourner depuis cet emplacement'; END IF;
  v_cost:=round(v_cost/v_on_hand,2);
  SELECT COALESCE(SUM(quantity_reserved-quantity_fulfilled-quantity_released),0) INTO v_reserved
- FROM public.stock_reservations WHERE organization_id=p_org AND item_id=grl.item_id AND stock_location_id=p_location_id
+ FROM public.stock_reservations WHERE organization_id=p_org AND item_id=pol.item_id AND stock_location_id=p_location_id
  AND stock_bucket='resale' AND status IN ('active','partially_fulfilled');
  IF v_on_hand-v_reserved+0.00000001<p_quantity THEN RAISE EXCEPTION 'Stock physique disponible insuffisant pour le retour fournisseur'; END IF;
  v_return:=gen_random_uuid();v_line:=gen_random_uuid();
@@ -389,9 +389,9 @@ BEGIN
  INSERT INTO public.stock_returns(id,organization_id,return_number,return_type,source_document_id,request_key,reason,created_by)
  VALUES(v_return,p_org,v_number,'supplier',gr.id,p_request_key,trim(p_reason),auth.uid());
  INSERT INTO public.stock_return_lines(id,organization_id,return_id,source_line_type,source_line_id,item_id,stock_location_id,quantity,return_condition,stock_bucket,unit_cost)
- VALUES(v_line,p_org,v_return,'goods_receipt_line',grl.id,grl.item_id,p_location_id,p_quantity,'supplier_return',v_bucket,v_cost);
+ VALUES(v_line,p_org,v_return,'goods_receipt_line',grl.id,pol.item_id,p_location_id,p_quantity,'supplier_return',v_bucket,v_cost);
  INSERT INTO public.stock_movements(organization_id,item_id,stock_location_id,stock_bucket,movement_kind,quantity_delta,unit_cost,currency,source_type,source_id,source_line_id,event_key,effective_at,created_by)
- VALUES(p_org,grl.item_id,p_location_id,v_bucket,'supplier_return',-p_quantity,v_cost,'MGA','supplier_return',v_return,v_line,'supplier-return:'||v_line::text,now(),auth.uid());
+ VALUES(p_org,pol.item_id,p_location_id,v_bucket,'supplier_return',-p_quantity,v_cost,'MGA','supplier_return',v_return,v_line,'supplier-return:'||v_line::text,now(),auth.uid());
  PERFORM public.audit_event(p_org,'stock.supplier_return_posted','stock_return',v_return,NULL,jsonb_build_object('receipt_line_id',grl.id,'quantity',p_quantity,'bucket',v_bucket));
  RETURN v_return;
 END;
