@@ -114,6 +114,11 @@ BEGIN
  EXCEPTION WHEN OTHERS THEN
   IF SQLERRM='Competing reservation should not oversubscribe stock' THEN RAISE; END IF;
  END;
+ PERFORM public.release_stock_reservation(v_org,v_res,1,'e1000000-0000-4000-8000-000000000047');
+ PERFORM public.release_stock_reservation(v_org,v_res,1,'e1000000-0000-4000-8000-000000000047');
+ IF (SELECT quantity_released FROM public.stock_reservations WHERE id=v_res)<>1 THEN
+  RAISE EXCEPTION 'Reservation release retry changed the quantity more than once';
+ END IF;
 
  -- Tenant isolation: authenticated user has no membership in the other organization.
  SELECT count(*) INTO v_count FROM public.stock_movements WHERE organization_id='e2000000-0000-4000-8000-000000000001';
