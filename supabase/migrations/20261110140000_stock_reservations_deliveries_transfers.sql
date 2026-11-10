@@ -264,7 +264,7 @@ AS $$
 DECLARE v_existing public.sales_deliveries%rowtype; v_order public.orders%rowtype;
  r jsonb; v_delivery_id uuid; v_line_id uuid; v_order_line public.order_lines%rowtype;
  v_res public.stock_reservations%rowtype; v_item uuid; v_loc uuid; v_qty numeric; v_cost numeric;
- v_on_hand numeric; v_reserved numeric; v_already numeric; v_remaining numeric; v_number text; v_fingerprint text; v_currency text;
+ v_on_hand numeric; v_reserved numeric; v_already numeric; v_remaining numeric; v_line_reserved numeric; v_number text; v_fingerprint text; v_currency text;
 BEGIN
  IF auth.uid() IS NULL OR NOT public.is_org_member(p_organization_id) THEN RAISE EXCEPTION 'Access denied.'; END IF;
  PERFORM public.assert_org_access(p_organization_id);
@@ -306,6 +306,10 @@ BEGIN
     status=CASE WHEN quantity_fulfilled+v_qty+quantity_released=quantity_reserved THEN 'fulfilled' ELSE 'partially_fulfilled' END,updated_at=now()
     WHERE id=v_res.id AND organization_id=p_organization_id;
   ELSE
+   SELECT COALESCE(SUM(quantity_reserved-quantity_fulfilled-quantity_released),0) INTO v_line_reserved
+   FROM public.stock_reservations WHERE organization_id=p_organization_id AND order_line_id=v_order_line.id
+     AND status IN ('active','partially_fulfilled');
+   IF v_qty>v_remaining-v_line_reserved THEN RAISE EXCEPTION 'Delivery exceeds the unreserved remainder of this order line.'; END IF;
    PERFORM pg_advisory_xact_lock(hashtextextended(p_organization_id::text||':'||v_item::text||':'||v_loc::text,0));
    SELECT COALESCE(SUM(quantity_delta),0) INTO v_on_hand FROM public.stock_movements WHERE organization_id=p_organization_id AND item_id=v_item AND stock_location_id=v_loc;
    SELECT COALESCE(SUM(quantity_reserved-quantity_fulfilled-quantity_released),0) INTO v_reserved FROM public.stock_reservations
