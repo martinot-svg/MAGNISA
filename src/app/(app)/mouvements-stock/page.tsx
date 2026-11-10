@@ -2,15 +2,16 @@ import { randomUUID } from "node:crypto";
 import { requireOrganization } from "@/lib/current-org";
 import { requirePermission,hasPermission } from "@/lib/permissions";
 import { EmptyState } from "@/components/empty-state";
-import { postStockTransferAction,releaseStockReservationAction } from "@/server/actions/stock-operations";
+import { postStockTransferAction,releaseStockReservationAction,processStockAccountingEventAction } from "@/server/actions/stock-operations";
 
 export default async function StockOperationsPage(){
  const ctx=await requireOrganization();
  await requirePermission(ctx,"inventory.view");
  const canManage=await hasPermission(ctx,"inventory.manage");
  const canManageOrders=await hasPermission(ctx,"orders.manage");
+ const canPostAccounting=await hasPermission(ctx,"accounting.manage");
  const {supabase,organizationId}=ctx;
- const [{data:balances=[]},{data:items=[]},{data:locations=[]},{data:reservations=[]},{data:movements=[]} ,{data:transfers=[]},{data:transferLines=[]}] = await Promise.all([
+ const [{data:balances=[]},{data:items=[]},{data:locations=[]},{data:reservations=[]},{data:movements=[]} ,{data:transfers=[]},{data:transferLines=[]},{data:accountingEvents=[]}] = await Promise.all([
   supabase.from("stock_available").select("item_id,stock_location_id,stock_bucket,quantity_on_hand,quantity_reserved,quantity_available").eq("organization_id",organizationId),
   supabase.from("catalog_items").select("id,sku,name,base_unit,tracking_mode").eq("organization_id",organizationId).eq("is_active",true).order("name"),
   supabase.from("stock_locations").select("id,code,name,location_kind").eq("organization_id",organizationId).eq("is_active",true).order("name"),
@@ -18,6 +19,7 @@ export default async function StockOperationsPage(){
   supabase.from("stock_movements").select("id,item_id,stock_location_id,stock_bucket,movement_kind,quantity_delta,unit_cost,currency,source_type,source_id,effective_at,created_by").eq("organization_id",organizationId).order("effective_at",{ascending:false}).limit(100),
   supabase.from("stock_transfers").select("id,transfer_number,source_location_id,destination_location_id,reason,transferred_at,status").eq("organization_id",organizationId).order("transferred_at",{ascending:false}).limit(50),
   supabase.from("stock_transfer_lines").select("transfer_id,item_id,stock_bucket,quantity,unit_cost").eq("organization_id",organizationId),
+  supabase.from("accounting_event_outbox").select("id,source_id,event_type,payload,status,journal_entry_id,last_error,created_at,attempted_at,posted_at").eq("organization_id",organizationId).order("created_at",{ascending:false}).limit(100),
  ]);
  const itemMap=new Map((items as any[]).map(x=>[x.id,x]));
  const locMap=new Map((locations as any[]).map(x=>[x.id,x]));
@@ -41,6 +43,9 @@ export default async function StockOperationsPage(){
   </section>
   <section className="section"><div className="pageHead"><div><h2>Derniers mouvements physiques</h2><p>Registre append-only, origine métier et date d'effet.</p></div></div>
    {!movements.length?<EmptyState title="Aucun mouvement" description="Les mouvements validés apparaîtront ici."/>:<div className="tableWrap"><table><thead><tr><th>Date d'effet</th><th>Article</th><th>Destination</th><th>Emplacement</th><th>Nature</th><th className="right">Variation</th><th>Origine</th></tr></thead><tbody>{(movements as any[]).map(m=><tr key={m.id}><td>{new Date(m.effective_at).toLocaleString("fr-FR")}</td><td>{itemMap.get(m.item_id)?.name||m.item_id}</td><td>{m.stock_bucket==="resale"?"Revente":m.stock_bucket==="company_use"?"Usage interne":"Consommation"}</td><td>{locMap.get(m.stock_location_id)?.name||m.stock_location_id}</td><td>{m.movement_kind}</td><td className="right">{Number(m.quantity_delta)>0?"+":""}{Number(m.quantity_delta).toLocaleString("fr-FR")}</td><td>{m.source_type} · {String(m.source_id).slice(0,8)}</td></tr>)}</tbody></table></div>}
+  </section>
+  <section className="section"><div className="pageHead"><div><h2>Événements comptables du stock</h2><p>Les mouvements physiques sont conservés même lorsqu'aucune période comptable ouverte ne permet encore de comptabiliser leur impact. Les événements restent en attente et peuvent être retraités après régularisation de la période ou des règles PCG.</p></div></div>
+   {!accountingEvents.length?<EmptyState title="Aucun événement comptable de stock" description="Les entrées de marchandises de revente et les sorties livrées seront tracées ici."/>:<div className="tableWrap"><table><thead><tr><th>Événement</th><th>Source</th><th>Montant</th><th>Statut</th><th>Dernière tentative</th><th>Action</th></tr></thead><tbody>{(accountingEvents as any[]).map(e=><tr key={e.id}><td>{e.event_type==="stock_receipt"?"Réception de marchandises":"Sortie pour livraison"}</td><td>{String(e.source_id).slice(0,8)}</td><td>{Number(e.payload?.amount||0).toLocaleString("fr-FR")} {e.payload?.currency||"MGA"}</td><td>{e.status==="posted"?"Comptabilisé":"En attente"}{e.last_error&&<div className="muted">{e.last_error}</div>}{e.journal_entry_id&&<div className="muted">Journal {String(e.journal_entry_id).slice(0,8)}</div>}</td><td>{e.attempted_at?new Date(e.attempted_at).toLocaleString("fr-FR"):"—"}</td><td>{canPostAccounting&&e.status==="pending"&&<form action={processStockAccountingEventAction}><input type="hidden" name="event_id" value={e.id}/><button className="button small">Retenter la comptabilisation</button></form>}</td></tr>)}</tbody></table></div>}
   </section>
   <section className="section"><div className="pageHead"><div><h2>Transferts enregistrés</h2><p>Historique des transferts entre emplacements.</p></div></div>
    {!transfers.length?<EmptyState title="Aucun transfert" description="Les transferts validés apparaîtront ici."/>:<div className="tableWrap"><table><thead><tr><th>Référence</th><th>Articles</th><th>De</th><th>Vers</th><th>Motif</th><th>Date</th><th>Statut</th></tr></thead><tbody>{(transfers as any[]).map(t=><tr key={t.id}><td>{t.transfer_number}</td><td>{(transferLines as any[]).filter((line:any)=>line.transfer_id===t.id).map((line:any)=>{const item=itemMap.get(line.item_id);return (item?.name||line.item_id)+" × "+Number(line.quantity)+" ("+line.stock_bucket+")";}).join(", ")}</td><td>{locMap.get(t.source_location_id)?.name||"—"}</td><td>{locMap.get(t.destination_location_id)?.name||"—"}</td><td>{t.reason}</td><td>{new Date(t.transferred_at).toLocaleString("fr-FR")}</td><td>{t.status}</td></tr>)}</tbody></table></div>}
