@@ -1,6 +1,6 @@
 -- Persistent fixtures for a real two-request/two-transaction stock reservation race.
 -- Runs only in the disposable local Supabase CI database.
-\\set ON_ERROR_STOP on
+\set ON_ERROR_STOP on
 BEGIN;
 INSERT INTO public.customers(id,organization_id,name,is_active)
 VALUES('e1000000-0000-4000-8000-000000000131','e1000000-0000-4000-8000-000000000001','Concurrent reservation CI customer',true);
