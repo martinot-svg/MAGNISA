@@ -196,6 +196,15 @@ BEGIN
    current_date,300,'e1000000-0000-4000-8000-000000000104',current_date,
    'e1000000-0000-4000-8000-000000000109');
  IF v_retry<>v_disbursement THEN RAISE EXCEPTION 'Mandate disbursement retry is not idempotent'; END IF;
+ BEGIN
+   PERFORM public.record_customer_mandate_disbursement(
+     v_org,'e1000000-0000-4000-8000-000000000088','CI-SUPPLIER-INVOICE-CUSTOMER-001',
+     current_date,1,'e1000000-0000-4000-8000-000000000104',current_date,
+     'e1000000-0000-4000-8000-000000000110');
+   RAISE EXCEPTION 'Mandate supplier overpayment must be rejected';
+ EXCEPTION WHEN OTHERS THEN
+   IF SQLERRM='Mandate supplier overpayment must be rejected' THEN RAISE; END IF;
+ END;
  IF (SELECT sum(amount) FROM public.customer_mandate_disbursements WHERE purchase_order_line_id='e1000000-0000-4000-8000-000000000088')<>500
     OR (SELECT sum(debit) FROM public.journal_entry_lines jl JOIN public.journal_entries je ON je.id=jl.journal_entry_id WHERE je.organization_id=v_org AND je.source_type='customer_mandate_disbursement' AND jl.account_key='PCG:467' AND jl.customer_id='e1000000-0000-4000-8000-000000000037')<>500 THEN
    RAISE EXCEPTION 'Mandate supplier payment did not post to the customer clearing account';
