@@ -256,6 +256,16 @@ BEGIN
    WHERE je.source_type='supplier_invoice' AND je.source_id=v_invoice AND jl.account_key='TAX:SUPPLIER_INPUT' AND jl.debit=15) THEN
    RAISE EXCEPTION 'Recoverable supplier VAT was not separated in the accounting entry';
  END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.pcg2005_supplier_invoice_mappings
+   WHERE organization_id=v_org AND supplier_invoice_id=v_invoice AND account_key='TAX:SUPPLIER_INPUT'
+     AND pcg_code='4456' AND evidence_status='record_only' AND requires_attachment) THEN
+   RAISE EXCEPTION 'Supplier VAT mapping must preserve the missing supporting-document evidence';
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.journal_entries
+   WHERE organization_id=v_org AND source_type='supplier_invoice' AND source_id=v_invoice
+     AND total_debit=165 AND total_credit=165 AND status='posted') THEN
+   RAISE EXCEPTION 'Supplier invoice VAT posting is not balanced and posted';
+ END IF;
 END $;
 
 END $;
