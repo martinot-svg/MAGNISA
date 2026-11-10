@@ -54,6 +54,14 @@ BEGIN
  IF position('transfer_out' in v_def)=0 OR position('transfer_in' in v_def)=0 OR position('pg_advisory_xact_lock' in v_def)=0 OR position('stock_bucket' in v_def)=0 THEN
   RAISE EXCEPTION 'Transfer paired movements or concurrency guards missing';
  END IF;
+ SELECT pg_get_functiondef('public.create_invoice_draft(uuid,uuid,date,jsonb,uuid)'::regprocedure) INTO v_def;
+ IF position('delivered_quantity' in v_def)=0 OR position('source_order_line_id' in v_def)=0 OR position('line_kind' in v_def)=0 THEN
+  RAISE EXCEPTION 'Mixed invoice draft does not enforce delivered source quantities';
+ END IF;
+ SELECT pg_get_functiondef('public.issue_invoice(uuid,uuid)'::regprocedure) INTO v_def;
+ IF position('magnisa_post_journal' in v_def)=0 OR position('merchandise_revenue' in v_def)=0 OR position('service_revenue' in v_def)=0 THEN
+  RAISE EXCEPTION 'Invoice issuance is not mapped by line nature through the versioned journal engine';
+ END IF;
  IF has_function_privilege('anon','public.release_stock_reservation(uuid,uuid,numeric,uuid)','EXECUTE') OR has_function_privilege('anon','public.post_sales_delivery(uuid,uuid,jsonb,uuid,text)','EXECUTE')
  OR has_function_privilege('anon','public.post_stock_transfer(uuid,uuid,uuid,jsonb,uuid,text)','EXECUTE') THEN
   RAISE EXCEPTION 'Anonymous execution of stock operation RPCs is exposed';
