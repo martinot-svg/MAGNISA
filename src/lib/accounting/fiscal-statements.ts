@@ -49,7 +49,7 @@ const cashCodes=/^(511|512|513|514|515|517|518|53|54|58)/;
 
 export function classifyCashFlowCounterpart(code:string):"operating"|"investing"|"financing"|null {
   if(/^(2|404|405|462)/.test(code))return "investing";
-  if(/^(10|11|12|13|14|15|16|17)/.test(code))return "financing";
+  if(/^(10|11|12|13|14|15|16|17|516)/.test(code))return "financing";
   if(/^(3|4|6|7)/.test(code))return "operating";
   return null;
 }
