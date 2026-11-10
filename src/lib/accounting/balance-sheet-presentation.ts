@@ -28,6 +28,8 @@ export type BalanceSheetLedgerLine = {
   balance: number;
   comparativeBalance?: number;
   maturity?: "current" | "non_current";
+  sourceEntries?: { entryId: string; reference: string | null; sourceType: string | null; lineId: string }[];
+  sourceEntryCount?: number;
   sourceEntries?: BalanceSheetSourceEntry[];
   sourceEntryCount?: number;
 };
