@@ -114,7 +114,7 @@ SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 SELECT set_config('request.jwt.claims',jsonb_build_object('sub',:'user_id'::uuid,'role','authenticated')::text,true);
 SET LOCAL ROLE authenticated;
 
-DO $
+DO $$
 DECLARE
  v_org uuid:='e1000000-0000-4000-8000-000000000001';
  v_item_partial uuid:='e1000000-0000-4000-8000-000000000079';
@@ -154,9 +154,9 @@ BEGIN
  OR (SELECT quantity_received FROM public.purchase_order_lines WHERE id='e1000000-0000-4000-8000-000000000097')<>0 THEN
   RAISE EXCEPTION 'Rejected mandate receipt must leave no partial write';
  END IF;
-END $;
+END $$;
 
-DO $
+DO $$
 DECLARE
  v_org uuid:='e1000000-0000-4000-8000-000000000001';
  v_item uuid:='e1000000-0000-4000-8000-000000000031';
