@@ -20,6 +20,8 @@
 \set other_org 'e2000000-0000-4000-8000-000000000001'
 \set other_item 'e2000000-0000-4000-8000-000000000002'
 \set other_location 'e2000000-0000-4000-8000-000000000003'
+\set service_id 'e1000000-0000-4000-8000-000000000048'
+\set service_line_id 'e1000000-0000-4000-8000-000000000049'
 
 BEGIN;
 INSERT INTO public.customers(id,organization_id,name,is_active)
@@ -35,6 +37,10 @@ VALUES
  (:'order_a'::uuid,:'org_id'::uuid,:'customer_id'::uuid,'CI-STOCK-ORDER-A','confirmed',0,0,0,:'user_id'::uuid),
  (:'order_b'::uuid,:'org_id'::uuid,:'customer_id'::uuid,'CI-STOCK-ORDER-B','confirmed',0,0,0,:'user_id'::uuid),
  (:'order_c'::uuid,:'org_id'::uuid,:'customer_id'::uuid,'CI-STOCK-ORDER-C','confirmed',0,0,0,:'user_id'::uuid);
+INSERT INTO public.services(id,organization_id,name,unit,unit_price,tax_rate,direct_cost_estimate,is_active,service_type)
+VALUES(:'service_id'::uuid,:'org_id'::uuid,'CI installation service','intervention',1000,20,0,true,'one_off');
+INSERT INTO public.order_lines(id,organization_id,order_id,service_id,line_kind,description,quantity,unit,unit_price,tax_rate,discount_pct,discount_amount,taxable_amount,line_total,sort_order)
+VALUES(:'service_line_id'::uuid,:'org_id'::uuid,:'order_a'::uuid,:'service_id'::uuid,'service','Installation routeur',1,'intervention',1000,20,0,0,1000,1200,0);
 -- Seed physical stock through a single documented opening receipt event.
 INSERT INTO public.stock_movements(organization_id,item_id,stock_location_id,movement_kind,quantity_delta,unit_cost,currency,source_type,source_id,event_key,created_by)
 VALUES(:'org_id'::uuid,:'item_id'::uuid,:'location_a'::uuid,'receipt',10,50,'MGA','ci_opening_stock',:'item_id'::uuid,'ci-opening-stock:'||:'item_id',:'user_id'::uuid);
@@ -62,7 +68,7 @@ DECLARE
  v_order_a uuid:='e1000000-0000-4000-8000-000000000034';
  v_order_b uuid:='e1000000-0000-4000-8000-000000000035';
  v_order_c uuid:='e1000000-0000-4000-8000-000000000036';
- v_line_a uuid;v_line_b uuid;v_line_c uuid;v_res uuid;v_del1 uuid;v_del2 uuid;v_transfer uuid;
+ v_line_a uuid;v_line_b uuid;v_line_c uuid;v_res uuid;v_del1 uuid;v_del2 uuid;v_transfer uuid;v_invoice_a uuid;v_invoice_b uuid;
  v_before numeric;v_after numeric;v_count integer;
  v_delivery jsonb;
 BEGIN
@@ -106,6 +112,28 @@ BEGIN
  IF (SELECT COALESCE(SUM((payload->>'amount')::numeric),0) FROM public.accounting_event_outbox
      WHERE organization_id=v_org AND event_type='stock_issue')<>250 THEN
   RAISE EXCEPTION 'CUMP stock issue value was not captured in the accounting outbox';
+ END IF;
+ v_invoice_a:=public.create_invoice_draft(v_org,'e1000000-0000-4000-8000-000000000037',current_date+30,
+  jsonb_build_array(
+   jsonb_build_object('line_kind','service','service_id','e1000000-0000-4000-8000-000000000048','order_line_id','e1000000-0000-4000-8000-000000000049','quantity',1,'discount_pct',0,'unit_price',1000),
+   jsonb_build_object('line_kind','merchandise','item_id',v_item,'order_line_id',v_line_a,'quantity',2,'discount_pct',0,'unit_price',100)
+  ),v_order_a);
+ v_invoice_b:=public.create_invoice_draft(v_org,'e1000000-0000-4000-8000-000000000037',current_date+30,
+  jsonb_build_array(jsonb_build_object('line_kind','merchandise','item_id',v_item,'order_line_id',v_line_a,'quantity',3,'discount_pct',0,'unit_price',100)),v_order_a);
+ IF (SELECT COUNT(*) FROM public.invoice_lines WHERE organization_id=v_org AND invoice_id=v_invoice_a AND line_kind='service' AND service_id='e1000000-0000-4000-8000-000000000048')<>1
+ OR (SELECT COUNT(*) FROM public.invoice_lines WHERE organization_id=v_org AND invoice_id=v_invoice_a AND line_kind='merchandise' AND item_id=v_item AND source_order_line_id=v_line_a)<>1
+ OR (SELECT COUNT(*) FROM public.invoice_lines WHERE organization_id=v_org AND invoice_id=v_invoice_b AND line_kind='merchandise' AND item_id=v_item AND source_order_line_id=v_line_a)<>1 THEN
+  RAISE EXCEPTION 'Mixed invoice did not preserve service and merchandise line identities';
+ END IF;
+ BEGIN
+  PERFORM public.create_invoice_draft(v_org,'e1000000-0000-4000-8000-000000000037',current_date+30,
+   jsonb_build_array(jsonb_build_object('line_kind','merchandise','item_id',v_item,'order_line_id',v_line_a,'quantity',0.1,'discount_pct',0,'unit_price',100)),v_order_a);
+  RAISE EXCEPTION 'Invoicing beyond delivered and unbilled quantity should fail';
+ EXCEPTION WHEN OTHERS THEN
+  IF SQLERRM='Invoicing beyond delivered and unbilled quantity should fail' THEN RAISE; END IF;
+ END;
+ IF EXISTS(SELECT 1 FROM public.journal_entries WHERE organization_id=v_org AND source_type='invoice' AND source_id IN (v_invoice_a,v_invoice_b)) THEN
+  RAISE EXCEPTION 'Draft invoices must not be posted to accounting';
  END IF;
  IF EXISTS(SELECT 1 FROM public.accounting_event_outbox WHERE organization_id=v_org AND event_type='stock_issue' AND status='posted')
  AND (SELECT COUNT(*) FROM public.journal_entries je JOIN public.stock_movements sm
