@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAssetPresentation, classifyReceivableMaturity, type BalanceSheetLedgerLine, type BalanceSheetRule } from "./balance-sheet-presentation";
+import { buildAssetPresentation, classifyReceivableMaturity, matchesStatementAccountKind, type BalanceSheetLedgerLine, type BalanceSheetRule } from "./balance-sheet-presentation";
 
 const line = (code: string, debit: number, credit = 0): BalanceSheetLedgerLine => ({
   code, label: code, debit, credit, balance: debit - credit,
