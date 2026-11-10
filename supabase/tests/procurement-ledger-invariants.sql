@@ -77,8 +77,9 @@ BEGIN
     RAISE EXCEPTION 'Supplier invoice classification wrapper is incomplete';
   END IF;
   IF has_function_privilege('anon','public.record_supplier_invoice_with_scope(uuid,uuid,text,date,date,numeric,text,text)','EXECUTE')
-     OR NOT has_function_privilege('authenticated','public.record_supplier_invoice_with_scope(uuid,uuid,text,date,date,numeric,text,text)','EXECUTE') THEN
-    RAISE EXCEPTION 'Supplier invoice classification RPC grants are incorrect';
+     OR has_function_privilege('authenticated','public.record_supplier_invoice_with_scope(uuid,uuid,text,date,date,numeric,text,text)','EXECUTE')
+     OR has_function_privilege('authenticated','public.record_supplier_invoice(uuid,uuid,text,date,date,numeric,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'Legacy gross-only supplier invoice RPC must be disabled for authenticated users';
   END IF;
   SELECT pg_get_functiondef('public.reconcile_supplier_invoice_to_receipts(uuid,uuid,uuid,jsonb,text)'::regprocedure) INTO v_def;
   IF position('assert_org_access' in v_def)=0 OR position('assert_org_permission' in v_def)=0
