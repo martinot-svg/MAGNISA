@@ -65,6 +65,14 @@ export async function postSalesDeliveryAction(formData: FormData) {
   const quantity=z.coerce.number().finite().positive().parse(formData.get("quantity"));
   const unitCost=z.coerce.number().finite().nonnegative().parse(formData.get("unit_cost")||0);
   const reservationId=z.preprocess(v=>v===""||v==null?null:v,z.string().uuid().nullable()).parse(formData.get("reservation_id"));
+  if(reservationId){
+    const {data:reservation,error:reservationError}=await ctx.supabase.from("stock_reservations")
+      .select("stock_location_id").eq("id",reservationId).eq("organization_id",ctx.organizationId).maybeSingle();
+    if(reservationError||!reservation) throw new Error("Réservation introuvable dans cette entreprise.");
+    // A delivery linked to a reservation must leave the exact reserved location.
+    const reservedLocationId=z.string().uuid().parse(reservation.stock_location_id);
+    formData.set("stock_location_id",reservedLocationId);
+  }
   const requestKey=z.string().uuid().parse(formData.get("request_key"));
   const reference=z.string().trim().max(160).parse(formData.get("delivery_reference")||"");
   const lines=[{order_line_id:orderLineId,item_id:itemId,stock_location_id:locationId,quantity,unit_cost:unitCost,reservation_id:reservationId}];
