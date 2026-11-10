@@ -12,6 +12,10 @@ describe("classifyCommercialLine", () => {
       treatment: "merchandise_sale_and_stock", requiresStockMovement: true, revenueNature: "merchandise",
     });
   });
+  it("requires resale destination before classifying owned goods as merchandise", () => {
+    expect(classifyCommercialLine({ nature: "merchandise", capacity: "principal", goodsOwner: "company", purchaseDestination: "company_use" }).treatment)
+      .toBe("manual_accounting_review");
+  });
   it("requires evidence before classifying a purchase as a mandate", () => {
     expect(classifyCommercialLine({ nature: "third_party_purchase" }).treatment).toBe("manual_accounting_review");
     expect(classifyCommercialLine({ nature: "third_party_purchase", capacity: "agent", mandate: {
@@ -33,7 +37,11 @@ describe("classifyCommercialLine", () => {
     expect(classifyCommercialLine({ nature: "consumable_supply", purchaseDestination: "consumption" }).treatment).toBe("expense_or_consumption");
   });
   it("distinguishes exact mandate reimbursements from service fees", () => {
-    expect(classifyCommercialLine({ nature: "reimbursable_disbursement", capacity: "agent", reimbursementIsExact: true }).treatment).toBe("reimbursable_third_party_clearing");
+    expect(classifyCommercialLine({ nature: "reimbursable_disbursement", capacity: "agent", reimbursementIsExact: true, mandate: {
+      mandateConfirmed: true, supplierDocumentNamesCustomer: true, companyBearsGoodsRisk: false, exactCostSupported: true,
+    } }).treatment).toBe("reimbursable_third_party_clearing");
+    expect(classifyCommercialLine({ nature: "reimbursable_disbursement", capacity: "agent", reimbursementIsExact: true }).treatment)
+      .toBe("manual_accounting_review");
     expect(classifyCommercialLine({ nature: "reimbursable_disbursement", separatelyPricedServiceFee: true }).treatment).toBe("service_revenue");
   });
   it("keeps advances, refundable deposits and guarantees outside revenue", () => {
