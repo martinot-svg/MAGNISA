@@ -6,6 +6,7 @@ import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
 import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
+import { formatDateDisplay } from "@/lib/date-format";
 
 type PreviewItem = {
   type?: string;
@@ -77,7 +78,7 @@ async function createSocial(fd: FormData) {
 
 function formatDate(value?: string | null) {
   if (!value) return "À confirmer";
-  return new Date(`${value}T00:00:00`).toLocaleDateString("fr-FR");
+  return formatDateDisplay(value);
 }
 
 export default async function TaxSocial({
