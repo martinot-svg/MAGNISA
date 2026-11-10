@@ -275,7 +275,7 @@ SELECT code,
   CASE
     WHEN code IN ('101','104','105','106','107','108','109','110','119','120','129') THEN 'equity'
     WHEN code IN ('131','132','134','138','229') OR code ~ '^15' OR code ~ '^(16|17)' THEN 'non_current_liabilities'
-    WHEN code IN ('401','403','404','405','408','419','421','422','426','427','4286','431','432','438','444','445','447','4486','451','455','456','457','458','464','467','4686','481','487','516','519') THEN 'current_liabilities'
+    WHEN code IN ('401','403','404','405','408','419','421','422','426','427','4286','431','432','438','442','443','444','445','447','4486','451','455','456','457','458','464','467','4686','481','487','516','519') THEN 'current_liabilities'
     ELSE 'review'
   END,
   CASE
@@ -293,7 +293,7 @@ SELECT code,
     WHEN code IN ('401','403','408','419') THEN 'suppliers_and_attached'
     WHEN code IN ('421','422','426','427','4286') THEN 'employee_payables'
     WHEN code IN ('431','432','438') THEN 'social_payables'
-    WHEN code IN ('444','445','447','4486') THEN 'tax_payables'
+    WHEN code IN ('442','443','444','445','447','4486') THEN 'tax_payables'
     WHEN code IN ('404','405') THEN 'other_debts'
     WHEN code IN ('481','487') THEN 'provisions_and_deferred_income'
     WHEN code='516' THEN 'current_portion_of_long_term_debt'
