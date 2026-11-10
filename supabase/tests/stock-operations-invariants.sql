@@ -4,7 +4,7 @@ BEGIN;
 DO $$
 DECLARE t text; v_def text;
 BEGIN
- FOREACH t IN ARRAY ARRAY['stock_reservations','stock_reservation_events','sales_deliveries','sales_delivery_lines','stock_transfers','stock_transfer_lines'] LOOP
+ FOREACH t IN ARRAY ARRAY['stock_reservations','stock_reservation_events','sales_deliveries','sales_delivery_lines','stock_transfers','stock_transfer_lines','accounting_event_outbox'] LOOP
   IF to_regclass('public.'||t) IS NULL THEN RAISE EXCEPTION 'Missing stock workflow table: %',t; END IF;
   IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid=to_regclass('public.'||t)) THEN RAISE EXCEPTION 'RLS disabled on %',t; END IF;
   IF has_table_privilege('anon','public.'||t,'SELECT') OR has_table_privilege('anon','public.'||t,'INSERT') OR has_table_privilege('anon','public.'||t,'UPDATE') OR has_table_privilege('anon','public.'||t,'DELETE') THEN
