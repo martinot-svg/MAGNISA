@@ -36,7 +36,7 @@ export default async function Statements({searchParams}:{searchParams:Promise<{y
     {(years||[]).map((y:any)=><option key={y.id} value={y.id}>{y.label} • {formatDateDisplay(y.period_start)} au {formatDateDisplay(y.period_end)} • {y.status==="closed"?"Clôturé":"Ouvert"}</option>)}
    </select></div><button className="button">Afficher l'exercice</button></form>
    <p className="muted">Entreprise : {s.organization?.trade_name||s.organization?.legal_name||s.organization?.name||"Entreprise"} • Devise : {s.currency} • Période : {formatDateDisplay(s.year.period_start)} au {formatDateDisplay(s.year.period_end)} • Comparatif : {s.priorYearLabel||"Aucun exercice antérieur disponible"}</p>
-   <p><strong>{s.controls.ready?"États contrôlés":"PROJET / NON VALIDÉ"}</strong> • Exercice clôturé : {s.controls.isClosed?"Oui":"Non"} • Comptes non imputés : {s.controls.unmapped} • Écritures déséquilibrées : {s.controls.unbalancedEntries} • Écart de bilan : {fmt(s.totals.balanceDifference)} • Flux non classés : {s.controls.unclassifiedCashFlowEntries} • Écart de rapprochement de trésorerie : {fmt(s.controls.cashFlowReconciliationDifference)} • Annexe renseignée : {s.controls.notesReady?"Oui":"Non"} • Ventilation PCG de l’actif : {s.controls.assetPresentationReady?"Validée":"À compléter"} • Rapprochement trésorerie : {s.controls.cashReconciliationReady?"Validé":"À compléter"} • Inventaire physique : {s.controls.inventoryCountReady?"Validé":"À compléter"} • Rapprochement flux opérationnel / résultat avant impôt : {s.controls.operatingCashFlowReconciliationReady?"Validé":"À construire"} • Présentation PCG complète : {s.controls.pcgPresentationReady?"Validée":"À compléter"}</p>
+   <p><strong>{s.controls.ready?"États contrôlés":"PROJET / NON VALIDÉ"}</strong> • Exercice clôturé : {s.controls.isClosed?"Oui":"Non"} • Comptes non imputés : {s.controls.unmapped} • Écritures déséquilibrées : {s.controls.unbalancedEntries} • Écart de bilan : {fmt(s.totals.balanceDifference)} • Flux non classés : {s.controls.unclassifiedCashFlowEntries} • Écart de rapprochement de trésorerie : {fmt(s.controls.cashFlowReconciliationDifference)} • Annexe renseignée : {s.controls.notesReady?"Oui":"Non"} • Ventilation PCG de l’actif : {s.controls.assetPresentationReady?"Validée":"À compléter"} • Ventilation PCG du passif : {s.controls.passifPresentationReady?"Validée":"À compléter"} • Rapprochement trésorerie : {s.controls.cashReconciliationReady?"Validé":"À compléter"} • Inventaire physique : {s.controls.inventoryCountReady?"Validé":"À compléter"} • Rapprochement flux opérationnel / résultat avant impôt : {s.controls.operatingCashFlowReconciliationReady?"Validé":"À construire"} • Présentation PCG complète : {s.controls.pcgPresentationReady?"Validée":"À compléter"}</p>
    {!s.controls.ready&&<p role="alert">Les documents exportés portent le statut PROJET / NON VALIDÉ. Les rapprochements du tableau des flux et les ventilations PCG du bilan et du compte de résultat restent à compléter avant tout arrêté définitif.</p>}
   </section>
   <section className="section">
@@ -56,6 +56,26 @@ export default async function Statements({searchParams}:{searchParams:Promise<{y
     <p><strong>Actif non courant net classé : {fmt(s.assetPresentation.totals.nonCurrentNet)}</strong> • <strong>Actif courant net classé : {fmt(s.assetPresentation.totals.currentNet)}</strong> • Créances en attente d'échéance : {fmt(s.assetPresentation.totals.maturityPendingNet)} • Total identifié hors comptes à justifier : {fmt(s.assetPresentation.totals.identifiedNet)}</p>
     {s.assetPresentation.blockingIssues.length>0&&<ul role="alert">{s.assetPresentation.blockingIssues.map((issue:string,i:number)=><li key={i}>{issue}</li>)}</ul>}
     {!s.controls.assetPresentationReady&&<p role="alert">La présentation de l'actif n'est pas validable : des rapprochements, échéances, comptes transitoires, soldes anormaux, mappings ou migrations restent à contrôler.</p>}
+   </div>
+   <div className="tableWrap">
+    <h3>Ventilation réglementaire des capitaux propres et du passif selon le PCG 2005</h3>
+    <p className="muted">Les soldes créditeurs et débiteurs des comptes mixtes sont présentés selon leur sens réel. Les emprunts sont ventilés à partir de leurs échéanciers actifs; les échéances absentes ou incohérentes restent bloquantes.</p>
+    {[
+      {title:"Capitaux propres",items:s.passifPresentation.equity},
+      {title:"Passifs non courants",items:s.passifPresentation.nonCurrentLiabilities},
+      {title:"Passifs courants",items:s.passifPresentation.currentLiabilities},
+      {title:"Dettes en attente de ventilation par échéance",items:s.passifPresentation.maturityPending},
+      {title:"Comptes à justifier ou à reclasser",items:s.passifPresentation.reviewRequired},
+      {title:"Comptes sans règle de présentation du passif",items:s.passifPresentation.unmapped},
+    ].map(group=><div key={group.title}>
+      <h4>{group.title}</h4>
+      <table><thead><tr><th>Rubrique</th><th>Comptes sources</th><th className="right">Montant</th></tr></thead><tbody>
+        {group.items.length?group.items.map(item=><tr key={item.key}><td>{item.label}</td><td>{item.accounts.map((a:any)=>a.code+" • "+a.label).join("; ")}</td><td className="right">{fmt(item.amount)}</td></tr>):<tr><td colSpan={3}>Aucun montant identifié.</td></tr>}
+      </tbody></table>
+    </div>)}
+    <p><strong>Capitaux propres nets : {fmt(s.passifPresentation.totals.equity)}</strong> • Passifs non courants : {fmt(s.passifPresentation.totals.nonCurrentLiabilities)} • Passifs courants : {fmt(s.passifPresentation.totals.currentLiabilities)} • Échéances à justifier : {fmt(s.passifPresentation.totals.maturityPending)} • <strong>Total capitaux propres et passifs : {fmt(s.passifPresentation.totals.passif)}</strong></p>
+    {s.passifPresentation.blockingIssues.length>0&&<ul role="alert">{s.passifPresentation.blockingIssues.map((issue:string,i:number)=><li key={i}>{issue}</li>)}</ul>}
+    {!s.controls.passifPresentationReady&&<p role="alert">La présentation du passif n'est pas validable : des comptes, échéanciers d'emprunts ou rapprochements doivent encore être justifiés.</p>}
    </div>
    <p><a href="/inventaires">Gérer l'inventaire physique de clôture</a></p>
    <div className="tableWrap">
