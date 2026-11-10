@@ -70,8 +70,8 @@ export default async function Statements({searchParams}:{searchParams:Promise<{y
       {title:"Comptes sans règle de présentation du passif",items:s.passifPresentation.unmapped},
     ].map(group=><div key={group.title}>
       <h4>{group.title}</h4>
-      <table><thead><tr><th>Rubrique</th><th>Comptes sources</th><th className="right">Montant</th></tr></thead><tbody>
-        {group.items.length?group.items.map(item=><tr key={item.key}><td>{item.label}</td><td>{item.accounts.map((a:any)=>a.code+" • "+a.label).join("; ")}</td><td className="right">{fmt(item.amount)}</td></tr>):<tr><td colSpan={3}>Aucun montant identifié.</td></tr>}
+      <table><thead><tr><th>Rubrique</th><th>Comptes sources</th><th>Écritures / pièces sources</th><th className="right">Montant</th></tr></thead><tbody>
+        {group.items.length?group.items.map(item=><tr key={item.key}><td>{item.label}</td><td>{item.accounts.map((a:any)=>a.code+" • "+a.label).join("; ")}<td>{item.accounts.map((a:any)=>{const refs=(a.sourceEntries||[]).map((e:any)=>e.reference||e.entryId);const more=Math.max(0,(a.sourceEntryCount||refs.length)-refs.length);return a.code+": "+(refs.length?refs.join(", "):a.label)+(more?" (+"+more+" autres)":"");}).join("; ")}</td></td><td className="right">{fmt(item.amount)}</td></tr>):<tr><td colSpan={4}>Aucun montant identifié.</td></tr>}
       </tbody></table>
     </div>)}
     <p><strong>Capitaux propres nets : {fmt(s.passifPresentation.totals.equity)}</strong> • Passifs non courants : {fmt(s.passifPresentation.totals.nonCurrentLiabilities)} • Passifs courants : {fmt(s.passifPresentation.totals.currentLiabilities)} • Échéances à justifier : {fmt(s.passifPresentation.totals.maturityPending)} • <strong>Total capitaux propres et passifs : {fmt(s.passifPresentation.totals.passif)}</strong></p>
