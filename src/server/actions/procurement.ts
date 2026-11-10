@@ -96,6 +96,9 @@ export async function postPurchaseReceipt(formData: FormData) {
   const orderId=z.string().uuid().parse(formData.get("purchase_order_id"));
   const orderLineId=z.string().uuid().parse(formData.get("purchase_order_line_id"));
   const requestKey=z.string().uuid().parse(formData.get("receipt_request_key"));
+  const {data:previousRequest,error:previousRequestError}=await ctx.supabase.from("goods_receipts").select("id,status").eq("organization_id",ctx.organizationId).eq("request_key",requestKey).maybeSingle();
+  if(previousRequestError) throw new Error("Impossible de vérifier la demande de réception.");
+  if(previousRequest?.status==="posted") return;
   const locationId=z.preprocess(v=>v==null||v===""?null:v,z.string().uuid().nullable()).parse(formData.get("stock_location_id"));
   const quantity=z.coerce.number().finite().positive().parse(formData.get("quantity_received"));
   const unitCost=z.coerce.number().finite().nonnegative().parse(formData.get("unit_cost"));
