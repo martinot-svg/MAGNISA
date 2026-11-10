@@ -197,7 +197,7 @@ BEGIN
  SELECT * INTO v_order FROM public.orders WHERE id=p_order_id AND organization_id=p_organization_id FOR UPDATE;
  IF NOT FOUND OR v_order.status NOT IN ('confirmed','in_progress') THEN RAISE EXCEPTION 'Order is not eligible for stock reservation.'; END IF;
  SELECT * INTO v_line FROM public.order_lines WHERE id=p_order_line_id AND order_id=p_order_id AND organization_id=p_organization_id FOR UPDATE;
- IF NOT FOUND OR v_line.item_id IS DISTINCT FROM p_item_id OR v_line.line_kind NOT IN ('merchandise','equipment','consumable') THEN
+ IF NOT FOUND OR v_line.item_id IS DISTINCT FROM p_item_id OR v_line.line_kind NOT IN ('merchandise','equipment','consumable','other') THEN
   RAISE EXCEPTION 'Order line is not a matching stock item.';
  END IF;
  IF NOT EXISTS(SELECT 1 FROM public.stock_locations WHERE id=p_stock_location_id AND organization_id=p_organization_id AND is_active) THEN
@@ -389,7 +389,7 @@ BEGIN
  IF auth.uid() IS NULL OR NOT public.is_org_member(p_organization_id) THEN RAISE EXCEPTION 'Access denied.'; END IF;
  PERFORM public.assert_org_access(p_organization_id);
  PERFORM public.assert_org_permission(p_organization_id,'orders.manage');
- IF p_quantity IS NULL OR p_quantity<=0 OR p_unit_price IS NULL OR p_unit_price<0 OR p_tax_rate NOT BETWEEN 0 AND 100 OR p_discount_pct NOT BETWEEN 0 AND 100 THEN
+ IF p_quantity IS NULL OR p_quantity<=0 OR p_unit_price IS NULL OR p_unit_price<0 OR p_tax_rate IS NULL OR p_tax_rate NOT BETWEEN 0 AND 100 OR p_discount_pct IS NULL OR p_discount_pct NOT BETWEEN 0 AND 100 THEN
   RAISE EXCEPTION 'Invalid item order line amounts.';
  END IF;
  SELECT * INTO v_order FROM public.orders WHERE id=p_order_id AND organization_id=p_organization_id FOR UPDATE;
