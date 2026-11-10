@@ -98,16 +98,27 @@ BEGIN
  IF (SELECT quantity_available FROM public.stock_available WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='company_use')<>4 THEN
   RAISE EXCEPTION 'Company-use stock was not kept separate from resale availability';
  END IF;
- IF (SELECT COUNT(*) FROM public.journal_entries je JOIN public.stock_movements sm
-     ON sm.id=je.source_id AND sm.organization_id=je.organization_id
-     WHERE je.organization_id=v_org AND je.source_type='stock_issue' AND sm.source_type='sales_delivery')<>2 THEN
-  RAISE EXCEPTION 'Each physical sales issue must have exactly one linked stock accounting journal';
+ IF (SELECT COUNT(*) FROM public.accounting_event_outbox e
+     JOIN public.stock_movements sm ON sm.id=e.source_id AND sm.organization_id=e.organization_id
+     WHERE e.organization_id=v_org AND e.event_type='stock_issue' AND sm.source_type='sales_delivery')<>2 THEN
+  RAISE EXCEPTION 'Each physical sales issue must create one durable accounting event';
  END IF;
- IF (SELECT COALESCE(SUM(jl.debit),0) FROM public.journal_entry_lines jl JOIN public.journal_entries je ON je.id=jl.journal_entry_id
-     WHERE je.organization_id=v_org AND je.source_type='stock_issue' AND jl.account_key='PCG:603')<>250
+ IF (SELECT COALESCE(SUM((payload->>'amount')::numeric),0) FROM public.accounting_event_outbox
+     WHERE organization_id=v_org AND event_type='stock_issue')<>250 THEN
+  RAISE EXCEPTION 'CUMP stock issue value was not captured in the accounting outbox';
+ END IF;
+ IF EXISTS(SELECT 1 FROM public.accounting_event_outbox WHERE organization_id=v_org AND event_type='stock_issue' AND status='posted')
+ AND (SELECT COUNT(*) FROM public.journal_entries je JOIN public.stock_movements sm
+     ON sm.id=je.source_id AND sm.organization_id=je.organization_id
+     WHERE je.organization_id=v_org AND je.source_type='stock_movement' AND sm.source_type='sales_delivery')<>2 THEN
+  RAISE EXCEPTION 'Posted stock accounting events must each have one linked journal';
+ END IF;
+ IF EXISTS(SELECT 1 FROM public.accounting_event_outbox WHERE organization_id=v_org AND event_type='stock_issue' AND status='posted')
+ AND ((SELECT COALESCE(SUM(jl.debit),0) FROM public.journal_entry_lines jl JOIN public.journal_entries je ON je.id=jl.journal_entry_id
+     WHERE je.organization_id=v_org AND je.source_type='stock_movement' AND jl.account_key='PCG:603')<>250
  OR (SELECT COALESCE(SUM(jl.credit),0) FROM public.journal_entry_lines jl JOIN public.journal_entries je ON je.id=jl.journal_entry_id
-     WHERE je.organization_id=v_org AND je.source_type='stock_issue' AND jl.account_key='PCG:37')<>250 THEN
-  RAISE EXCEPTION 'Moving-average cost of goods sold was not posted to PCG 603 / 37';
+     WHERE je.organization_id=v_org AND je.source_type='stock_movement' AND jl.account_key='PCG:37')<>250) THEN
+  RAISE EXCEPTION 'Posted CUMP stock issue journals must balance PCG 603 / 37';
  END IF;
 
  v_transfer:=public.post_stock_transfer(v_org,v_loc_a,v_loc_b,
