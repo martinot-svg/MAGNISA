@@ -225,6 +225,21 @@ REVOKE ALL ON public.pcg2005_journal_lines FROM anon;
 GRANT SELECT ON public.pcg2005_journal_lines TO authenticated;
 REVOKE INSERT, UPDATE, DELETE ON public.pcg2005_journal_lines FROM anon, authenticated;
 
+DO $source_view_assert$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.pcg2005_journal_lines
+    WHERE reference='FOUR-2030'
+      AND pcg_code='606'
+      AND mapping_status='manuel'
+      AND mapping_evidence_status='record_only'
+      AND mapping_requires_attachment
+  ) THEN
+    RAISE EXCEPTION 'Computer Store invoice 2030 source-specific PCG 606 mapping is not visible in the journal projection';
+  END IF;
+END;
+$source_view_assert$;
+
 COMMENT ON VIEW public.pcg2005_journal_lines IS
-  'PCG ledger projection preserving generic expense safeguards. Travel expenses are mapped to 625 only when the source expense description identifies a déplacement. Generic acquisition, IT equipment and supplier expense keys remain unmapped until their nature is evidenced.';
+  'PCG ledger projection preserving generic expense safeguards. Travel expenses are mapped to 625 only when the source expense description identifies a déplacement. Source-specific supplier invoice overrides take precedence and retain evidence status; all other generic acquisition, IT equipment and supplier expense keys remain unmapped until their nature is evidenced.';
 
