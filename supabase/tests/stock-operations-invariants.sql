@@ -23,15 +23,15 @@ BEGIN
   RAISE EXCEPTION 'Reservation RPC wrapper or grants are incorrect';
  END IF;
  SELECT pg_get_functiondef('private.reserve_stock(uuid,uuid,uuid,uuid,uuid,numeric,uuid)'::regprocedure) INTO v_def;
- IF position('pg_advisory_xact_lock' in v_def)=0 OR position('quantity_reserved' in v_def)=0 THEN
+ IF position('pg_advisory_xact_lock' in v_def)=0 OR position('quantity_reserved' in v_def)=0 OR position('stock_bucket' in v_def)=0 THEN
   RAISE EXCEPTION 'Reservation concurrency/quantity guards missing';
  END IF;
  SELECT pg_get_functiondef('private.post_sales_delivery(uuid,uuid,jsonb,uuid,text)'::regprocedure) INTO v_def;
- IF position('sales-delivery:' in v_def)=0 OR position('quantity_delivered' in v_def)=0 OR position('quantity_fulfilled' in v_def)=0 THEN
+ IF position('sales-delivery:' in v_def)=0 OR position('quantity_delivered' in v_def)=0 OR position('quantity_fulfilled' in v_def)=0 OR position('stock_bucket' in v_def)=0 THEN
   RAISE EXCEPTION 'Delivery stock posting and reservation fulfilment missing';
  END IF;
  SELECT pg_get_functiondef('private.post_stock_transfer(uuid,uuid,uuid,jsonb,uuid,text)'::regprocedure) INTO v_def;
- IF position('transfer_out' in v_def)=0 OR position('transfer_in' in v_def)=0 OR position('pg_advisory_xact_lock' in v_def)=0 THEN
+ IF position('transfer_out' in v_def)=0 OR position('transfer_in' in v_def)=0 OR position('pg_advisory_xact_lock' in v_def)=0 OR position('stock_bucket' in v_def)=0 THEN
   RAISE EXCEPTION 'Transfer paired movements or concurrency guards missing';
  END IF;
  IF has_function_privilege('anon','public.release_stock_reservation(uuid,uuid,numeric,uuid)','EXECUTE') OR has_function_privilege('anon','public.post_sales_delivery(uuid,uuid,jsonb,uuid,text)','EXECUTE')
