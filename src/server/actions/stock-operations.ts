@@ -100,3 +100,14 @@ export async function postStockTransferAction(formData: FormData) {
   if(!data) throw new Error("La base n'a retourné aucun identifiant de transfert.");
   revalidatePath("/articles");revalidatePath("/mouvements-stock");revalidatePath("/commandes");
 }
+
+export async function processStockAccountingEventAction(formData: FormData) {
+  const ctx=await requireOrganization();
+  await assertPermission(ctx,"accounting.manage");
+  const eventId=z.string().uuid().parse(formData.get("event_id"));
+  const {data,error}=await ctx.supabase.rpc("process_stock_accounting_event",{
+    p_organization_id:ctx.organizationId,p_event_id:eventId,
+  });
+  if(error) throw new Error("Événement comptable non traité : "+error.message);
+  revalidatePath("/mouvements-stock");revalidatePath("/comptabilite/journaux");
+}
