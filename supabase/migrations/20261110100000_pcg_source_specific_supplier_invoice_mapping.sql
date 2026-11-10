@@ -59,6 +59,26 @@ WHERE s.name='Computer Store'
   AND si.attachment_url IS NULL
 ON CONFLICT (organization_id,supplier_invoice_id,account_key) DO NOTHING;
 
+-- Computer Store invoice 2031 is also a low-value non-stocked supply purchase.
+INSERT INTO public.pcg2005_supplier_invoice_mappings
+  (organization_id,supplier_invoice_id,account_key,pcg_code,rationale,evidence_status,requires_attachment)
+SELECT si.organization_id,si.id,'EXPENSE:SUPPLIER','606',
+  'Computer Store invoice 2031: ink purchase for MGA 50,000; non-stocked consumable supplies classified to PCG 2005 account 606. Original invoice attachment is absent and remains required for audit support.',
+  'record_only',true
+FROM public.supplier_invoices si
+JOIN public.suppliers s ON s.id=si.supplier_id
+JOIN public.journal_entries je
+  ON je.source_id=si.id AND je.source_type='supplier_invoice'
+JOIN public.journal_entry_lines jl
+  ON jl.journal_entry_id=je.id AND jl.account_key='EXPENSE:SUPPLIER'
+WHERE s.name='Computer Store'
+  AND si.supplier_number='2031'
+  AND si.magnisa_reference='DFO-00004'
+  AND si.total=50000
+  AND lower(trim(coalesce(si.notes,'')))='achat d''encre'
+  AND si.attachment_url IS NULL
+ON CONFLICT (organization_id,supplier_invoice_id,account_key) DO NOTHING;
+
 DO $source_mapping_assert$
 BEGIN
   IF (
@@ -73,8 +93,8 @@ BEGIN
       AND sm.pcg_code='606'
       AND sm.evidence_status='record_only'
       AND sm.requires_attachment
-  ) <> 1 THEN
-    RAISE EXCEPTION 'Expected exactly one source-specific PCG 606 mapping for Computer Store invoice 2030';
+  ) <> 2 THEN
+    RAISE EXCEPTION 'Expected exactly two source-specific PCG 606 mappings for Computer Store invoices 2030 and 2031';
   END IF;
 END;
 $source_mapping_assert$;
@@ -227,15 +247,15 @@ REVOKE INSERT, UPDATE, DELETE ON public.pcg2005_journal_lines FROM anon, authent
 
 DO $source_view_assert$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM public.pcg2005_journal_lines
-    WHERE reference='FOUR-2030'
+  IF (
+    SELECT count(*) FROM public.pcg2005_journal_lines
+    WHERE reference IN ('FOUR-2030','FOUR-2031')
       AND pcg_code='606'
       AND mapping_status='manuel'
       AND mapping_evidence_status='record_only'
       AND mapping_requires_attachment
-  ) THEN
-    RAISE EXCEPTION 'Computer Store invoice 2030 source-specific PCG 606 mapping is not visible in the journal projection';
+  ) <> 2 THEN
+    RAISE EXCEPTION 'Computer Store invoices 2030 and 2031 source-specific PCG 606 mappings are not visible in the journal projection';
   END IF;
 END;
 $source_view_assert$;
