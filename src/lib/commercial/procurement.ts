@@ -111,3 +111,36 @@ export function derivePurchaseOrderStatus(
   if (lines.some((line) => line.quantityReceived > 0)) return "partially_received";
   return "submitted";
 }
+
+
+export interface PurchaseLineAmounts {
+  quantity: number;
+  unitPrice: number;
+  discountAmount: number;
+  additionalCostAmount: number;
+  taxRate: number;
+}
+export interface PurchaseLineTotals {
+  grossAmount: number;
+  discountAmount: number;
+  additionalCostAmount: number;
+  taxableBase: number;
+  taxAmount: number;
+  totalAmount: number;
+}
+const roundCurrency = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+
+export function calculatePurchaseLineTotals(input: PurchaseLineAmounts): PurchaseLineTotals {
+  const values=[input.quantity,input.unitPrice,input.discountAmount,input.additionalCostAmount,input.taxRate];
+  if(values.some(value=>!Number.isFinite(value)) || input.quantity<=0 || input.unitPrice<0 ||
+    input.discountAmount<0 || input.additionalCostAmount<0 || input.taxRate<0 || input.taxRate>100){
+    throw new Error("Purchase line amounts are invalid.");
+  }
+  const grossAmount=roundCurrency(input.quantity*input.unitPrice);
+  const discountAmount=roundCurrency(input.discountAmount);
+  const additionalCostAmount=roundCurrency(input.additionalCostAmount);
+  if(discountAmount>grossAmount) throw new Error("The discount exceeds the gross purchase line.");
+  const taxableBase=roundCurrency(grossAmount-discountAmount+additionalCostAmount);
+  const taxAmount=roundCurrency(taxableBase*input.taxRate/100);
+  return {grossAmount,discountAmount,additionalCostAmount,taxableBase,taxAmount,totalAmount:roundCurrency(taxableBase+taxAmount)};
+}
