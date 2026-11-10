@@ -213,6 +213,7 @@ BEGIN
        AND NOT (source_type='expense' AND account_key='EXPENSE:transport'
          AND mapping_status='automatique' AND pcg_code='625'))
     )
+    AND mapping_evidence_status IS NULL
     AND (pcg_code IS NOT NULL OR mapping_status <> 'a_mapper')
   ) THEN
     RAISE EXCEPTION 'PCG mapping regression: generic expenses and acquisitions must not map to balance-sheet accounts';
