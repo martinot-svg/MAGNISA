@@ -4,7 +4,7 @@ BEGIN;
 DO $$
 DECLARE t text; v_def text;
 BEGIN
- FOREACH t IN ARRAY ARRAY['stock_reservations','stock_reservation_events','sales_deliveries','sales_delivery_lines','stock_transfers','stock_transfer_lines','accounting_event_outbox'] LOOP
+ FOREACH t IN ARRAY ARRAY['stock_reservations','stock_reservation_events','sales_deliveries','sales_delivery_lines','stock_transfers','stock_transfer_lines','accounting_event_outbox','stock_returns','stock_return_lines','stock_adjustments','stock_adjustment_lines'] LOOP
   IF to_regclass('public.'||t) IS NULL THEN RAISE EXCEPTION 'Missing stock workflow table: %',t; END IF;
   IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid=to_regclass('public.'||t)) THEN RAISE EXCEPTION 'RLS disabled on %',t; END IF;
   IF has_table_privilege('anon','public.'||t,'SELECT') OR has_table_privilege('anon','public.'||t,'INSERT') OR has_table_privilege('anon','public.'||t,'UPDATE') OR has_table_privilege('anon','public.'||t,'DELETE') THEN
@@ -31,6 +31,23 @@ BEGIN
  IF NOT has_function_privilege('authenticated','public.process_stock_accounting_event(uuid,uuid)','EXECUTE')
     OR has_function_privilege('anon','public.process_stock_accounting_event(uuid,uuid)','EXECUTE') THEN
   RAISE EXCEPTION 'Stock accounting outbox processing grants are incorrect';
+ END IF;
+ IF NOT has_function_privilege('authenticated','public.post_customer_stock_return(uuid,uuid,uuid,numeric,text,uuid,text)','EXECUTE')
+    OR NOT has_function_privilege('authenticated','public.post_supplier_stock_return(uuid,uuid,uuid,numeric,uuid,text)','EXECUTE')
+    OR NOT has_function_privilege('authenticated','public.post_stock_adjustment(uuid,uuid,uuid,text,numeric,numeric,text,text,uuid)','EXECUTE')
+    OR NOT has_function_privilege('authenticated','public.cancel_stock_transfer(uuid,uuid,uuid,text)','EXECUTE')
+    OR NOT has_function_privilege('authenticated','public.cancel_sales_delivery(uuid,uuid,uuid,text)','EXECUTE')
+    OR NOT has_function_privilege('authenticated','public.stock_balance_as_of(uuid,timestamptz)','EXECUTE') THEN
+  RAISE EXCEPTION 'Returns, adjustments, cancellation or as-of RPC grants are missing';
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='public.stock_movements'::regclass AND conname='stock_movements_stock_bucket_check'
+  AND position('quarantine' in pg_get_constraintdef(oid))>0) THEN
+  RAISE EXCEPTION 'Quarantine stock bucket is not supported by the movement ledger';
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.accounting_posting_rules WHERE operation_type='stock_return' AND operation_key='merchandise_stock' AND debit_account_code='37' AND active)
+    OR NOT EXISTS(SELECT 1 FROM public.accounting_posting_rules WHERE operation_type='stock_supplier_return' AND operation_key='stock_variation' AND debit_account_code='603' AND active)
+    OR NOT EXISTS(SELECT 1 FROM public.accounting_posting_rules WHERE operation_type='stock_adjustment_in' AND operation_key='merchandise_stock' AND debit_account_code='37' AND active) THEN
+  RAISE EXCEPTION 'Return and inventory adjustment accounting rules are missing';
  END IF;
  IF NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_lines' AND column_name='item_id') THEN
   RAISE EXCEPTION 'Order item linkage missing';
