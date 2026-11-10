@@ -19,8 +19,11 @@ const lineSchema = z.object({
   quantity_ordered: z.number().finite().positive(),
   unit: z.string().trim().min(1).max(24),
   unit_price: z.number().finite().nonnegative(),
+  discount_amount: z.number().finite().nonnegative().default(0),
+  additional_cost_amount: z.number().finite().nonnegative().default(0),
   tax_rate: z.number().finite().min(0).max(100),
 }).superRefine((line,ctx)=>{
+  if(line.discount_amount > line.quantity_ordered * line.unit_price) ctx.addIssue({code:"custom",path:["discount_amount"],message:"La remise dépasse le montant brut de la ligne."});
   if(line.purchase_purpose==="customer_mandate"){
     if(!line.beneficiary_customer_id) ctx.addIssue({code:"custom",path:["beneficiary_customer_id"],message:"Le client bénéficiaire est obligatoire pour un mandat."});
     if(!line.mandate_confirmed || !line.supplier_document_names_customer || line.company_bears_goods_risk || !line.exact_cost_supported || !line.mandate_supplier_document_reference?.trim()){
@@ -57,8 +60,8 @@ export async function createPurchaseOrder(formData: FormData) {
     if(line.purchase_purpose==="resale" && item.tracking_mode!=="quantity") throw new Error("Un article destiné à la revente doit être suivi en quantité.");
     if(item.tracking_mode==="serial") throw new Error("Le suivi par numéro de série n'est pas encore pris en charge.");
   }
-  const subtotal=lines.reduce((s,l)=>s+l.quantity_ordered*l.unit_price,0);
-  const taxTotal=lines.reduce((s,l)=>s+l.quantity_ordered*l.unit_price*l.tax_rate/100,0);
+  const subtotal=lines.reduce((s,l)=>s+l.quantity_ordered*l.unit_price-l.discount_amount+l.additional_cost_amount,0);
+  const taxTotal=lines.reduce((s,l)=>s+(l.quantity_ordered*l.unit_price-l.discount_amount+l.additional_cost_amount)*l.tax_rate/100,0);
   const number="PO-"+new Date().toISOString().slice(0,10).replaceAll("-","")+"-"+randomUUID().slice(0,8).toUpperCase();
   const {data:order,error:orderError}=await ctx.supabase.from("purchase_orders").insert({
     organization_id:ctx.organizationId,supplier_id:supplierId,number,status:"draft",
@@ -73,7 +76,8 @@ export async function createPurchaseOrder(formData: FormData) {
     company_bears_goods_risk:l.company_bears_goods_risk,exact_cost_supported:l.exact_cost_supported,
     mandate_supplier_document_reference:l.mandate_supplier_document_reference||null,
     quantity_ordered:l.quantity_ordered,unit:l.unit,unit_price:l.unit_price,
-    tax_rate:l.tax_rate,line_total:l.quantity_ordered*l.unit_price*(1+l.tax_rate/100),sort_order:index,
+    tax_rate:l.tax_rate,discount_amount:l.discount_amount,additional_cost_amount:l.additional_cost_amount,
+    line_total:(l.quantity_ordered*l.unit_price-l.discount_amount+l.additional_cost_amount)*(1+l.tax_rate/100),sort_order:index,
   }));
   const {error:lineError}=await ctx.supabase.from("purchase_order_lines").insert(payload);
   if(lineError){
