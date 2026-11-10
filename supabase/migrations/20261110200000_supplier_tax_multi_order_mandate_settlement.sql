@@ -304,7 +304,6 @@ CREATE TABLE IF NOT EXISTS public.customer_mandate_disbursements (
   request_key uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (organization_id,request_key),
-  UNIQUE (organization_id,purchase_order_line_id,supplier_document_reference),
   FOREIGN KEY (purchase_order_line_id,organization_id)
     REFERENCES public.purchase_order_lines(id,organization_id) ON DELETE RESTRICT,
   FOREIGN KEY (customer_id,organization_id)
@@ -360,6 +359,7 @@ DECLARE
   v_id uuid;
   v_existing public.customer_mandate_disbursements%rowtype;
   v_expected numeric(18,2);
+  v_previously_disbursed numeric(18,2):=0;
   v_ref text;
   v_entry uuid;
   v_lines jsonb;
@@ -408,10 +408,12 @@ BEGIN
   IF v_line.mandate_supplier_document_reference<>trim(p_supplier_document_reference) THEN
     RAISE EXCEPTION 'La référence de la pièce fournisseur doit correspondre à celle du mandat validé.';
   END IF;
-  IF EXISTS(SELECT 1 FROM public.customer_mandate_disbursements
-    WHERE organization_id=p_org AND purchase_order_line_id=p_purchase_order_line
-      AND supplier_document_reference=trim(p_supplier_document_reference)) THEN
-    RAISE EXCEPTION 'Cette pièce fournisseur est déjà enregistrée pour cette ligne de mandat.';
+  SELECT coalesce(sum(amount),0) INTO v_previously_disbursed
+    FROM public.customer_mandate_disbursements
+   WHERE organization_id=p_org AND purchase_order_line_id=p_purchase_order_line
+     AND supplier_document_reference=trim(p_supplier_document_reference);
+  IF p_amount>v_expected-v_previously_disbursed+0.00000001 THEN
+    RAISE EXCEPTION 'Le paiement dépasse le coût exact restant à régler pour cette pièce fournisseur.';
   END IF;
   SELECT * INTO v_account FROM public.financial_accounts
    WHERE id=p_account AND organization_id=p_org AND is_active FOR UPDATE;
