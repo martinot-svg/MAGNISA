@@ -39,7 +39,21 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
    <Text style={styles.warning}>{s.controls.ready?"ÉTATS FINANCIERS ARRÊTÉS":"PROJET / NON VALIDÉ — "+(s.controls.isClosed?"Contrôles incomplets":"Exercice non clôturé")}</Text>
    <Text style={styles.section}>1. BILAN</Text>
    <Text>Actif : {money(s.totals.assets,s.currency)} • Passifs : {money(s.totals.liabilities,s.currency)} • Capitaux propres : {money(s.totals.equity,s.currency)}</Text>
-   <Table title="Actifs" rows={s.assets} currency={s.currency}/>
+   <Table title="Actifs • détail du grand livre" rows={s.assets} currency={s.currency}/>
+   <Text style={styles.section}>Ventilation réglementaire de l'actif PCG 2005</Text>
+   <Text style={styles.note}>Inventaire physique : {s.inventoryValuation.count_available?"Approuvé le "+s.inventoryValuation.count_date+" • "+s.inventoryValuation.valuation_method:"Absent / non approuvé"} • Écart brut {money(s.inventoryValuation.gross_ledger_gap,s.currency)} • Écart dépréciations {money(s.inventoryValuation.impairment_ledger_gap,s.currency)}</Text>
+   <Text style={styles.note}>Actif non courant net classé : {money(s.assetPresentation.totals.nonCurrentNet,s.currency)} • Actif courant net classé : {money(s.assetPresentation.totals.currentNet,s.currency)} • Créances en attente d'échéance : {money(s.assetPresentation.totals.maturityPendingNet,s.currency)}</Text>
+   {[{title:"Actif non courant",items:s.assetPresentation.nonCurrent},{title:"Actif courant",items:s.assetPresentation.current},{title:"Créances à ventiler selon leur échéance",items:s.assetPresentation.maturityPending},{title:"Comptes à justifier ou reclasser",items:s.assetPresentation.reviewRequired},{title:"Comptes sans règle PCG",items:s.assetPresentation.unmapped}].map(group=><View key={group.title}>
+    <Text style={styles.note}>{group.title}</Text>
+    {group.items.map(item=><View style={styles.row} key={item.key}><Text style={styles.cell}>{item.label} • {item.accounts.map((a:any)=>a.code+" "+a.label).join("; ")}</Text><Text style={styles.right}>{money(item.amount,s.currency)}</Text></View>)}
+    {!group.items.length&&<Text style={styles.note}>Aucun montant identifié.</Text>}
+   </View>)}
+   {s.assetPresentation.blockingIssues.map((issue:string,i:number)=><Text style={styles.warning} key={i}>{issue}</Text>)}
+   {!s.controls.assetPresentationReady&&<Text style={styles.warning}>Ventilation de l'actif non validée : échéances, comptes transitoires, soldes anormaux, mappings ou migration de présentation à contrôler.</Text>}
+   <Text style={styles.section}>Rapprochement banques, mobile money et caisse</Text>
+   {s.cashReconciliation.accounts.map((a:any)=><View style={styles.row} key={a.id}><Text style={styles.cell}>{a.name} • {a.type} • PCG {a.pcg_account_code||"À mapper"}</Text><Text style={styles.right}>{money(a.as_of_balance,s.currency)} • Écart mouvements {money(a.movement_gap,s.currency)}</Text></View>)}
+   {s.cashReconciliation.comparisons.map((a:any)=><View style={styles.row} key={a.pcg_account_code}><Text style={styles.cell}>PCG {a.pcg_account_code} • Auxiliaire {money(a.financial_balance,s.currency)} • Grand livre {money(a.ledger_balance,s.currency)}</Text><Text style={styles.right}>Écart {money(a.difference,s.currency)}</Text></View>)}
+   <Text style={styles.note}>Écart interne trésorerie : {money(s.cashReconciliation.account_movement_gap,s.currency)} • Écart auxiliaire / grand livre : {money(s.cashReconciliation.gl_reconciliation_gap,s.currency)} • Comptes non mappés : {s.cashReconciliation.unknown_account_count}</Text>
    <Table title="Capitaux propres" rows={s.equity} currency={s.currency}/>
    <Table title="Passifs" rows={s.liabilities} currency={s.currency}/>
    <Text style={styles.note}>Écart de bilan : {money(s.totals.balanceDifference,s.currency)}</Text>
@@ -55,7 +69,7 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
    <Text style={styles.section}>5. ANNEXE</Text>
    {s.notes.map((r,i)=><Text style={styles.note} key={i}>{i+1}. {r}</Text>)}
    <Text style={styles.section}>Contrôles de préparation</Text>
-   <Text style={styles.note}>Exercice clôturé : {s.controls.isClosed?"Oui":"Non"} • Comptes non imputés : {s.controls.unmapped} • Écritures déséquilibrées : {s.controls.unbalancedEntries} • Flux non classés : {s.controls.unclassifiedCashFlowEntries} • Écart de trésorerie : {money(s.controls.cashFlowReconciliationDifference,s.currency)} • Bilan équilibré : {Math.abs(s.totals.balanceDifference)<0.01?"Oui":"Non"}</Text><Text style={styles.warning}>Rapprochement du flux opérationnel avec le résultat avant impôt : {s.controls.operatingCashFlowReconciliationReady?"Validé":"À construire"}. Présentation PCG complète : {s.controls.pcgPresentationReady?"Validée":"À compléter"}. Cet export demeure un document de travail.</Text>
+   <Text style={styles.note}>Exercice clôturé : {s.controls.isClosed?"Oui":"Non"} • Comptes non imputés : {s.controls.unmapped} • Écritures déséquilibrées : {s.controls.unbalancedEntries} • Flux non classés : {s.controls.unclassifiedCashFlowEntries} • Écart de trésorerie : {money(s.controls.cashFlowReconciliationDifference,s.currency)} • Bilan équilibré : {Math.abs(s.totals.balanceDifference)<0.01?"Oui":"Non"} • Ventilation PCG de l’actif : {s.controls.assetPresentationReady?"Validée":"À compléter"} • Rapprochement trésorerie : {s.controls.cashReconciliationReady?"Validé":"À compléter"} • Inventaire physique : {s.controls.inventoryCountReady?"Validé":"À compléter"}</Text><Text style={styles.warning}>Rapprochement du flux opérationnel avec le résultat avant impôt : {s.controls.operatingCashFlowReconciliationReady?"Validé":"À construire"}. Présentation PCG complète : {s.controls.pcgPresentationReady?"Validée":"À compléter"}. Cet export demeure un document de travail.</Text>
    <Text style={styles.note}>Document généré par MAGNISA. L'arrêté des états financiers demeure sous la responsabilité des dirigeants et nécessite la validation des informations complémentaires de l'annexe.</Text>
   </Page>
  </Document>;

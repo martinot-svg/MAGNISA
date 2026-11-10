@@ -36,13 +36,38 @@ export default async function Statements({searchParams}:{searchParams:Promise<{y
     {(years||[]).map((y:any)=><option key={y.id} value={y.id}>{y.label} • {formatDateDisplay(y.period_start)} au {formatDateDisplay(y.period_end)} • {y.status==="closed"?"Clôturé":"Ouvert"}</option>)}
    </select></div><button className="button">Afficher l'exercice</button></form>
    <p className="muted">Entreprise : {s.organization?.trade_name||s.organization?.legal_name||s.organization?.name||"Entreprise"} • Devise : {s.currency} • Période : {formatDateDisplay(s.year.period_start)} au {formatDateDisplay(s.year.period_end)} • Comparatif : {s.priorYearLabel||"Aucun exercice antérieur disponible"}</p>
-   <p><strong>{s.controls.ready?"États contrôlés":"PROJET / NON VALIDÉ"}</strong> • Exercice clôturé : {s.controls.isClosed?"Oui":"Non"} • Comptes non imputés : {s.controls.unmapped} • Écritures déséquilibrées : {s.controls.unbalancedEntries} • Écart de bilan : {fmt(s.totals.balanceDifference)} • Flux non classés : {s.controls.unclassifiedCashFlowEntries} • Écart de rapprochement de trésorerie : {fmt(s.controls.cashFlowReconciliationDifference)} • Annexe renseignée : {s.controls.notesReady?"Oui":"Non"} • Rapprochement flux opérationnel / résultat avant impôt : {s.controls.operatingCashFlowReconciliationReady?"Validé":"À construire"} • Présentation PCG complète : {s.controls.pcgPresentationReady?"Validée":"À compléter"}</p>
+   <p><strong>{s.controls.ready?"États contrôlés":"PROJET / NON VALIDÉ"}</strong> • Exercice clôturé : {s.controls.isClosed?"Oui":"Non"} • Comptes non imputés : {s.controls.unmapped} • Écritures déséquilibrées : {s.controls.unbalancedEntries} • Écart de bilan : {fmt(s.totals.balanceDifference)} • Flux non classés : {s.controls.unclassifiedCashFlowEntries} • Écart de rapprochement de trésorerie : {fmt(s.controls.cashFlowReconciliationDifference)} • Annexe renseignée : {s.controls.notesReady?"Oui":"Non"} • Ventilation PCG de l’actif : {s.controls.assetPresentationReady?"Validée":"À compléter"} • Rapprochement trésorerie : {s.controls.cashReconciliationReady?"Validé":"À compléter"} • Inventaire physique : {s.controls.inventoryCountReady?"Validé":"À compléter"} • Rapprochement flux opérationnel / résultat avant impôt : {s.controls.operatingCashFlowReconciliationReady?"Validé":"À construire"} • Présentation PCG complète : {s.controls.pcgPresentationReady?"Validée":"À compléter"}</p>
    {!s.controls.ready&&<p role="alert">Les documents exportés portent le statut PROJET / NON VALIDÉ. Les rapprochements du tableau des flux et les ventilations PCG du bilan et du compte de résultat restent à compléter avant tout arrêté définitif.</p>}
   </section>
   <section className="section">
    <h2>1. Bilan</h2>
    <div className="grid3"><div className="card"><div className="muted">Total actif</div><div className="metric">{fmt(s.totals.assets)}</div></div><div className="card"><div className="muted">Capitaux propres</div><div className="metric">{fmt(s.totals.equity)}</div></div><div className="card"><div className="muted">Passifs</div><div className="metric">{fmt(s.totals.liabilities)}</div></div></div>
    {[["Actifs",s.assets],["Capitaux propres",s.equity],["Passifs",s.liabilities]].map(([title,items]:any)=><div className="tableWrap" key={title}><h3>{title}</h3><table><thead><tr><th>Compte</th><th>Intitulé</th><th className="right">Débit</th><th className="right">Crédit</th><th className="right">Solde N</th><th className="right">Solde N-1</th></tr></thead><tbody>{rows(items)}</tbody></table></div>)}
+   <div className="tableWrap">
+    <h3>Ventilation réglementaire de l'actif selon le PCG 2005</h3>
+    <p className="muted">Les comptes correcteurs sont isolés des valeurs brutes. Les créances sans échéance documentée et les comptes transitoires restent signalés, sans classement arbitraire.</p>
+    {[{title:"Actif non courant",items:s.assetPresentation.nonCurrent},{title:"Actif courant",items:s.assetPresentation.current},{title:"Créances en attente de ventilation par échéance",items:s.assetPresentation.maturityPending},{title:"Comptes à justifier ou à reclasser",items:s.assetPresentation.reviewRequired},{title:"Comptes sans règle de présentation PCG",items:s.assetPresentation.unmapped}].map(group=><div key={group.title}>
+     <h4>{group.title}</h4>
+     <table><thead><tr><th>Rubrique</th><th>Comptes sources</th><th className="right">Montant</th></tr></thead><tbody>
+      {group.items.length?group.items.map(item=><tr key={item.key}><td>{item.label}</td><td>{item.accounts.map((a:any)=>a.code+" • "+a.label).join("; ")}</td><td className="right">{fmt(item.amount)}</td></tr>):<tr><td colSpan={3}>Aucun montant identifié.</td></tr>}
+     </tbody></table>
+    </div>)}
+    <p>Inventaire physique : {s.inventoryValuation.count_available?("Approuvé le "+s.inventoryValuation.count_date+" • Méthode "+s.inventoryValuation.valuation_method):"Absent ou non approuvé"} • Écart brut : {fmt(s.inventoryValuation.gross_ledger_gap)} • Écart dépréciations : {fmt(s.inventoryValuation.impairment_ledger_gap)}</p>
+    <p><strong>Actif non courant net classé : {fmt(s.assetPresentation.totals.nonCurrentNet)}</strong> • <strong>Actif courant net classé : {fmt(s.assetPresentation.totals.currentNet)}</strong> • Créances en attente d'échéance : {fmt(s.assetPresentation.totals.maturityPendingNet)} • Total identifié hors comptes à justifier : {fmt(s.assetPresentation.totals.identifiedNet)}</p>
+    {s.assetPresentation.blockingIssues.length>0&&<ul role="alert">{s.assetPresentation.blockingIssues.map((issue:string,i:number)=><li key={i}>{issue}</li>)}</ul>}
+    {!s.controls.assetPresentationReady&&<p role="alert">La présentation de l'actif n'est pas validable : des rapprochements, échéances, comptes transitoires, soldes anormaux, mappings ou migrations restent à contrôler.</p>}
+   </div>
+   <p><a href="/inventaires">Gérer l'inventaire physique de clôture</a></p>
+   <div className="tableWrap">
+    <h3>Rapprochement des banques, mobile money et caisse</h3>
+    <table><thead><tr><th>Compte financier</th><th>Type</th><th>Compte PCG</th><th className="right">Solde actuel</th><th className="right">Mouvements</th><th className="right">Solde à la clôture</th><th className="right">Écart interne</th></tr></thead><tbody>
+     {s.cashReconciliation.accounts.length?s.cashReconciliation.accounts.map((a:any)=><tr key={a.id}><td>{a.name}</td><td>{a.type}</td><td>{a.pcg_account_code||"À mapper"}</td><td className="right">{fmt(a.current_balance)}</td><td className="right">{fmt(a.movements_total)}</td><td className="right">{fmt(a.as_of_balance)}</td><td className="right">{fmt(a.movement_gap)}</td></tr>):<tr><td colSpan={7}>Aucun compte financier.</td></tr>}
+    </tbody></table>
+    <table><thead><tr><th>Compte PCG</th><th className="right">Auxiliaire trésorerie</th><th className="right">Grand livre</th><th className="right">Écart</th></tr></thead><tbody>
+     {s.cashReconciliation.comparisons.length?s.cashReconciliation.comparisons.map((a:any)=><tr key={a.pcg_account_code}><td>{a.pcg_account_code}</td><td className="right">{fmt(a.financial_balance)}</td><td className="right">{fmt(a.ledger_balance)}</td><td className="right">{fmt(a.difference)}</td></tr>):<tr><td colSpan={4}>Aucun rapprochement disponible.</td></tr>}
+    </tbody></table>
+    <p>Écart comptes financiers / mouvements : {fmt(s.cashReconciliation.account_movement_gap)} • Écart auxiliaire / grand livre : {fmt(s.cashReconciliation.gl_reconciliation_gap)} • Comptes financiers sans mapping PCG : {s.cashReconciliation.unknown_account_count}</p>
+   </div>
    <p><strong>Écart de bilan : {fmt(s.totals.balanceDifference)}</strong></p>
   </section>
   <section className="section">

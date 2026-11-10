@@ -1,5 +1,6 @@
 import { requireOrganization } from "@/lib/current-org";
 import { requirePermission } from "@/lib/permissions";
+import { buildAssetPresentation, classifyReceivableMaturity, type AssetPresentation, type BalanceSheetLedgerLine, type BalanceSheetRule } from "./balance-sheet-presentation";
 
 export type StatementLine = { code: string; label: string; debit: number; credit: number; balance: number; comparativeBalance: number };
 export type FiscalStatements = {
@@ -10,7 +11,10 @@ export type FiscalStatements = {
   cashFlows: {label:string;amount:number}[];
   openingCash:number; closingCash:number; profit:number; priorYearLabel:string|null;
   totals: {assets:number;liabilities:number;equity:number;balanceDifference:number};
-  controls: {unmapped:number;unbalancedEntries:number;unclassifiedCashFlowEntries:number;cashFlowReconciliationDifference:number;operatingCashFlowReconciliationReady:boolean;pcgPresentationReady:boolean;isClosed:boolean;notesReady:boolean;ready:boolean};
+  assetPresentation: AssetPresentation;
+  cashReconciliation: any;
+  inventoryValuation: any;
+  controls: {unmapped:number;unbalancedEntries:number;unclassifiedCashFlowEntries:number;cashFlowReconciliationDifference:number;operatingCashFlowReconciliationReady:boolean;pcgPresentationReady:boolean;assetPresentationReady:boolean;cashReconciliationReady:boolean;inventoryCountReady:boolean;isClosed:boolean;notesReady:boolean;ready:boolean};
   notes: string[];
 };
 
@@ -60,6 +64,44 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   ]);
   if(yearError||orgError||accountError)throw new Error(yearError?.message||orgError?.message||accountError?.message);
   if(!year)throw new Error("Exercice comptable introuvable.");
+  const {data:balanceSheetRules,error:balanceSheetRulesError}=await supabase.from("pcg2005_balance_sheet_rules")
+    .select("account_code,section,line_key,normal_side,requires_maturity,contra_asset").order("account_code");
+  const balanceSheetRulesAvailable=!balanceSheetRulesError;
+  const {data:cashReconciliationData,error:cashReconciliationError}=await supabase.rpc("get_accounting_cash_reconciliation",{
+    p_organization_id:organizationId,
+    p_period_end:year.period_end,
+  });
+  const cashReconciliationAvailable=!cashReconciliationError;
+  const {data:inventoryData,error:inventoryError}=await supabase.rpc("get_accounting_inventory_valuation",{
+    p_organization_id:organizationId,
+    p_period_end:year.period_end,
+  });
+  const inventoryValuation=(inventoryData||{
+    count_available:false,lines:[],gross_ledger_gap:0,impairment_ledger_gap:0,
+    gross_gaps:[],impairment_gaps:[],
+  }) as any;
+  const hasApprovedInventoryCount=!inventoryError&&inventoryValuation.count_available===true;
+  const inventoryCountReady=hasApprovedInventoryCount
+    &&n(inventoryValuation.gross_ledger_gap)<0.01
+    &&n(inventoryValuation.impairment_ledger_gap)<0.01;
+  const cashReconciliation=(cashReconciliationData||{
+    accounts:[],comparisons:[],account_movement_gap:0,gl_reconciliation_gap:0,
+    unknown_account_count:0,unknown_current_balance:0,
+  }) as any;
+  const {data:fixedAssetReconciliation,error:fixedAssetReconciliationError}=await supabase
+    .from("fixed_asset_register_reconciliation")
+    .select("account_code,register_debit,register_credit,ledger_debit,ledger_credit,debit_difference,credit_difference,reconciliation_status")
+    .eq("organization_id",organizationId);
+  if(fixedAssetReconciliationError)throw new Error(fixedAssetReconciliationError.message);
+  const {data:receivableData,error:receivableError}=await supabase.rpc("get_accounting_receivable_maturity",{
+    p_organization_id:organizationId,
+    p_period_end:year.period_end,
+  });
+  if(receivableError)throw new Error(receivableError.message);
+  const invoiceRows=Array.isArray(receivableData?.invoices)?receivableData.invoices:[];
+  const invoicePaymentIntegrityGap=n(receivableData?.invoice_payment_integrity_gap);
+  const paymentsMissingDateAmount=n(receivableData?.payments_missing_date_amount);
+  const unallocatedCustomerPaymentsAmount=n(receivableData?.unallocated_customer_payments_amount);
   const lines:any[]=[];
   for(let from=0;;from+=1000){
     const {data,error}=await supabase.from("pcg2005_journal_lines")
@@ -121,6 +163,133 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     .sort((a,b)=>a.code.localeCompare(b.code));
   const clearing=make("clearing");
   const assets=[...make("asset"),...clearing.filter(x=>x.balance>0)];
+  let invoiceSubledgerBalance=0;
+  const receivableLines:BalanceSheetLedgerLine[]=(invoiceRows||[]).flatMap((invoice:any)=>{
+    const outstanding=round(n(invoice.outstanding_amount));
+    invoiceSubledgerBalance=round(invoiceSubledgerBalance+outstanding);
+    if(Math.abs(outstanding)<0.005)return [];
+    const maturity=classifyReceivableMaturity(invoice.due_date?String(invoice.due_date):null,String(year.period_end));
+    return [{
+      code:"411",
+      label:"Client • "+String(invoice.number||invoice.id),
+      debit:Math.max(outstanding,0),
+      credit:Math.max(-outstanding,0),
+      balance:outstanding,
+      maturity,
+    }];
+  });
+  const ledgerReceivablesBalance=assets.find(x=>x.code==="411")?.balance||0;
+  const receivableLedgerGap=round(ledgerReceivablesBalance-invoiceSubledgerBalance);
+  const fixedAssetGapRows=(fixedAssetReconciliation||[]).filter((row:any)=>
+    Math.abs(n(row.debit_difference))+Math.abs(n(row.credit_difference))>=0.01
+  );
+  const fixedAssetGapRules:BalanceSheetRule[]=fixedAssetGapRows.map((row:any)=>({
+    account_code:"__FIXED_ASSET_RECONCILIATION_"+String(row.account_code).replace(/[^A-Za-z0-9]/g,"_")+"__",
+    section:"review",line_key:"Écart registre / grand livre immobilisations",normal_side:"both",
+    requires_maturity:false,contra_asset:false,
+  }));
+  const fixedAssetGapLines:BalanceSheetLedgerLine[]=fixedAssetGapRows.map((row:any)=>({
+    code:"__FIXED_ASSET_RECONCILIATION_"+String(row.account_code).replace(/[^A-Za-z0-9]/g,"_")+"__",
+    label:"Immobilisations • compte "+String(row.account_code)+" • "+String(row.reconciliation_status),
+    debit:round(Math.abs(n(row.debit_difference))+Math.abs(n(row.credit_difference))),
+    credit:0,
+    balance:round(Math.abs(n(row.debit_difference))+Math.abs(n(row.credit_difference))),
+  }));
+  const cashComparisonGaps=(cashReconciliation.comparisons||[]).filter((row:any)=>Math.abs(n(row.difference))>=0.01);
+  const cashMovementGaps=(cashReconciliation.accounts||[]).filter((row:any)=>Math.abs(n(row.movement_gap))>=0.01);
+  const cashGapRules:BalanceSheetRule[]=[
+    ...cashComparisonGaps.map((row:any)=>({
+      account_code:"__CASH_GL_RECONCILIATION_"+String(row.pcg_account_code).replace(/[^A-Za-z0-9]/g,"_")+"__",
+      section:"review" as const,line_key:"Écart trésorerie auxiliaire / grand livre",normal_side:"both" as const,
+      requires_maturity:false,contra_asset:false,
+    })),
+    ...cashMovementGaps.map((row:any)=>({
+      account_code:"__CASH_MOVEMENT_RECONCILIATION_"+String(row.id).replace(/[^A-Za-z0-9]/g,"_")+"__",
+      section:"review" as const,line_key:"Écart compte financier / mouvements",normal_side:"both" as const,
+      requires_maturity:false,contra_asset:false,
+    })),
+  ];
+  const cashGapLines:BalanceSheetLedgerLine[]=[
+    ...cashComparisonGaps.map((row:any)=>({
+      code:"__CASH_GL_RECONCILIATION_"+String(row.pcg_account_code).replace(/[^A-Za-z0-9]/g,"_")+"__",
+      label:"Trésorerie • compte PCG "+String(row.pcg_account_code)+" • écart auxiliaire / GL",
+      debit:Math.abs(n(row.difference)),credit:0,balance:Math.abs(n(row.difference)),
+    })),
+    ...cashMovementGaps.map((row:any)=>({
+      code:"__CASH_MOVEMENT_RECONCILIATION_"+String(row.id).replace(/[^A-Za-z0-9]/g,"_")+"__",
+      label:"Trésorerie • "+String(row.name)+" • écart mouvements",
+      debit:Math.abs(n(row.movement_gap)),credit:0,balance:Math.abs(n(row.movement_gap)),
+    })),
+  ];
+  const cashBlockingIssues:string[]=[];
+  if(!cashReconciliationAvailable)cashBlockingIssues.push("Rapprochement de trésorerie indisponible : RPC ou migration PCG manquante.");
+  if(inventoryError)cashBlockingIssues.push("Sous-grand-livre d’inventaire indisponible : migration ou RPC manquante.");
+  else if(!hasApprovedInventoryCount)cashBlockingIssues.push("Inventaire physique approuvé manquant à la date de clôture : les stocks ne peuvent pas être validés.");
+  if(hasApprovedInventoryCount&&n(inventoryValuation.gross_ledger_gap)>=0.01)cashBlockingIssues.push("La valeur brute de l’inventaire physique ne correspond pas aux comptes de stocks du grand livre.");
+  if(hasApprovedInventoryCount&&n(inventoryValuation.impairment_ledger_gap)>=0.01)cashBlockingIssues.push("Les dépréciations d’inventaire ne correspondent pas aux comptes 39 du grand livre.");
+  if(n(cashReconciliation.unknown_account_count)>0)cashBlockingIssues.push(String(cashReconciliation.unknown_account_count)+" compte(s) financier(s) sans correspondance PCG 5.");
+  if(n(cashReconciliation.account_movement_gap)>=0.01)cashBlockingIssues.push("Les soldes des comptes financiers ne correspondent pas à leurs mouvements.");
+  if(n(cashReconciliation.gl_reconciliation_gap)>=0.01)cashBlockingIssues.push("Les soldes de trésorerie auxiliaires ne correspondent pas au grand livre.");
+  const cashReconciliationReady=cashReconciliationAvailable
+    &&n(cashReconciliation.unknown_account_count)===0
+    &&n(cashReconciliation.account_movement_gap)<0.01
+    &&n(cashReconciliation.gl_reconciliation_gap)<0.01;
+  const inventoryGapRows=[
+    ...(inventoryValuation.gross_gaps||[]).map((row:any)=>({...row,gap_type:"valeur brute"})),
+    ...(inventoryValuation.impairment_gaps||[]).map((row:any)=>({...row,gap_type:"dépréciation"})),
+  ].filter((row:any)=>Math.abs(n(row.difference))>=0.01);
+  const inventoryGapRules:BalanceSheetRule[]=inventoryGapRows.map((row:any)=>({
+    account_code:"__INVENTORY_RECONCILIATION_"+String(row.gap_type).replace(/[^A-Za-z0-9]/g,"_")+"_"+String(row.account_code).replace(/[^A-Za-z0-9]/g,"_")+"__",
+    section:"review",line_key:"Écart inventaire physique / grand livre",normal_side:"both",
+    requires_maturity:false,contra_asset:false,
+  }));
+  const inventoryGapLines:BalanceSheetLedgerLine[]=inventoryGapRows.map((row:any)=>({
+    code:"__INVENTORY_RECONCILIATION_"+String(row.gap_type).replace(/[^A-Za-z0-9]/g,"_")+"_"+String(row.account_code).replace(/[^A-Za-z0-9]/g,"_")+"__",
+    label:"Inventaire • "+row.gap_type+" • compte "+row.account_code,
+    debit:Math.abs(n(row.difference)),credit:0,balance:Math.abs(n(row.difference)),
+  }));
+  const stockLedgerLines=assets.filter(x=>/^3/.test(x.code));
+  const stockPresentationLines:BalanceSheetLedgerLine[]=hasApprovedInventoryCount
+    ? (inventoryValuation.lines||[]).flatMap((item:any)=>[
+        {code:String(item.account_code),label:"Stock • "+String(item.item_reference)+" • "+String(item.description),debit:n(item.gross_value),credit:0,balance:n(item.gross_value)},
+        ...(n(item.impairment_amount)>0&&item.impairment_account_code?[{
+          code:String(item.impairment_account_code),label:"Dépréciation stock • "+String(item.item_reference)+" • "+String(item.description),
+          debit:0,credit:n(item.impairment_amount),balance:-n(item.impairment_amount),
+        }]:[]),
+      ])
+    : stockLedgerLines;
+  const stockRules:BalanceSheetRule[]=hasApprovedInventoryCount?[]:stockLedgerLines.map((line:any)=>({
+    account_code:line.code,section:"review",line_key:"Stocks sans inventaire physique approuvé",
+    normal_side:"both",requires_maturity:false,contra_asset:false,
+  }));
+  const reconciliationRules:BalanceSheetRule[]=[
+    ...inventoryGapRules,
+    ...stockRules,
+    ...cashGapRules,
+    ...fixedAssetGapRules,
+    {account_code:"__AR_GL_RECONCILIATION__",section:"review",line_key:"Écart grand livre / auxiliaire clients",normal_side:"both",requires_maturity:false,contra_asset:false},
+    {account_code:"__AR_PAYMENT_RECONCILIATION__",section:"review",line_key:"Écart factures / règlements",normal_side:"both",requires_maturity:false,contra_asset:false},
+    {account_code:"__AR_PAYMENT_DATE_MISSING__",section:"review",line_key:"Règlements confirmés sans date",normal_side:"both",requires_maturity:false,contra_asset:false},
+    {account_code:"__AR_UNALLOCATED_PAYMENT__",section:"review",line_key:"Règlements clients non affectés",normal_side:"both",requires_maturity:false,contra_asset:false},
+  ];
+  const reconciliationLines:BalanceSheetLedgerLine[]=[
+    ...(Math.abs(receivableLedgerGap)>=0.01?[{code:"__AR_GL_RECONCILIATION__",label:"Écart de rapprochement du compte 411",debit:Math.max(receivableLedgerGap,0),credit:Math.max(-receivableLedgerGap,0),balance:receivableLedgerGap}]:[]),
+    ...(invoicePaymentIntegrityGap>=0.01?[{code:"__AR_PAYMENT_RECONCILIATION__",label:"Écart absolu factures / règlements",debit:round(invoicePaymentIntegrityGap),credit:0,balance:round(invoicePaymentIntegrityGap)}]:[]),
+    ...(paymentsMissingDateAmount>=0.01?[{code:"__AR_PAYMENT_DATE_MISSING__",label:"Règlements confirmés sans date",debit:round(paymentsMissingDateAmount),credit:0,balance:round(paymentsMissingDateAmount)}]:[]),
+    ...(unallocatedCustomerPaymentsAmount>=0.01?[{code:"__AR_UNALLOCATED_PAYMENT__",label:"Règlements clients non affectés",debit:round(unallocatedCustomerPaymentsAmount),credit:0,balance:round(unallocatedCustomerPaymentsAmount)}]:[]),
+  ];
+  const presentationLines:BalanceSheetLedgerLine[]=[
+    ...assets.filter(x=>x.code!=="411"&&!/^3/.test(x.code)),
+    ...clearing.filter(x=>x.balance<0),
+    ...receivableLines,
+    ...stockPresentationLines,
+    ...fixedAssetGapLines,
+    ...inventoryGapLines,
+    ...cashGapLines,
+    ...reconciliationLines,
+  ];
+  const assetPresentation=buildAssetPresentation(presentationLines,[...(balanceSheetRules||[]),...reconciliationRules],cashBlockingIssues);
+  const assetPresentationReady=balanceSheetRulesAvailable&&assetPresentation.ready&&unmapped===0&&cashReconciliationReady&&inventoryCountReady;
   const liabilities=[...make("liability"),...clearing.filter(x=>x.balance<0).map(x=>({...x,balance:-x.balance,comparativeBalance:-x.comparativeBalance}))];
   const equity=make("equity");
   const resultAggregate=new Map<string,{debit:number;credit:number;kind:string;label:string}>();
@@ -192,6 +361,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     .gte("entry_date",year.period_start).lte("entry_date",year.period_end);
   if(integrityError)throw new Error(integrityError.message);
   const unbalancedEntries=(integrity||[]).filter((x:any)=>x.integrity_status!=="equilibree").length;
+  const assetPresentationControlsReady=assetPresentationReady&&unbalancedEntries===0;
   const noteLabels:Record<string,string>={
     accounting_policies:"Règles et méthodes comptables",
     valuation_methods:"Méthodes d'évaluation et estimations",
@@ -218,13 +388,13 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     "Base de préparation : écritures comptables validées et imputées au PCG.",
     ...Object.entries(noteLabels).map(([k,label])=>label+" : "+(String(noteValues[k]||"").trim()||"À renseigner avant arrêté définitif.")),
     "Le tableau des flux présente uniquement les mouvements bruts dont la contrepartie est unique. Le rapprochement du flux opérationnel avec le résultat avant impôt, requis par le PCG 2005 article 250-3, reste à construire et empêche l’arrêté définitif.",
-    "La ventilation courante/non courante des postes du bilan n’est pas encore documentée par échéance. La présentation réglementaire complète du bilan et du compte de résultat reste à valider et empêche l’arrêté définitif."
+    "Les créances clients du compte 411 sont ventilées selon les échéances contractuelles des factures et rapprochées des règlements confirmés et du grand livre. Les autres créances nécessitent leurs justificatifs d’échéance. La présentation réglementaire complète du bilan et du compte de résultat reste à valider."
   ];
   return {organization:{...org,...settings},year,currency:org?.currency||"MGA",accounts:accounts||[],
-    assets,liabilities,equity,expenses,income,equityChanges,cashFlows,
+    assets,liabilities,equity,expenses,income,equityChanges,cashFlows,assetPresentation,cashReconciliation,inventoryValuation,
     openingCash:round(openingCash),closingCash:round(closingCash),profit,priorYearLabel:priorYear?.label||null,
     totals:{assets:totalAssets,liabilities:totalLiabilities,equity:totalEquity,balanceDifference},
-    controls:{unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,operatingCashFlowReconciliationReady,pcgPresentationReady,isClosed:year.status==="closed",notesReady,ready},notes};
+    controls:{unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,operatingCashFlowReconciliationReady,pcgPresentationReady,assetPresentationReady:assetPresentationControlsReady,cashReconciliationReady,inventoryCountReady,isClosed:year.status==="closed",notesReady,ready},notes};
 }
 
 export async function getFiscalStatementContext(yearId:string){
