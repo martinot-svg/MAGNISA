@@ -129,7 +129,7 @@ done < "$RECONCILIATION_FILE"
 # migration. Do not let db push re-run that local file under its different version.
 : > "$TMP_DIR/mapped-local-files"
 while IFS='|' read -r version remote_name local_file mapping_type evidence_ref expected_sha; do
-  [[ -n "$version" && "$version" != \\#* ]] || continue
+  [[ -n "$version" && "$version" != \#* ]] || continue
   printf '%s\n' "$local_file" >> "$TMP_DIR/mapped-local-files"
 done < "$RECONCILIATION_FILE"
 awk -F '|' 'NR==FNR {mapped[$1]=1; next} !($3 in mapped) {print $1}' \
