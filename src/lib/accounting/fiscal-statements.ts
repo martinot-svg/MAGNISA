@@ -1,6 +1,6 @@
 import { requireOrganization } from "@/lib/current-org";
 import { requirePermission } from "@/lib/permissions";
-import { buildAssetPresentation, classifyReceivableMaturity, matchesStatementAccountKind, type AssetPresentation, type BalanceSheetLedgerLine, type BalanceSheetRule } from "./balance-sheet-presentation";
+import { buildAssetPresentation, buildPassifPresentation, classifyReceivableMaturity, matchesStatementAccountKind, type AssetPresentation, type BalanceSheetLedgerLine, type BalanceSheetRule, type PassifPresentation, type PassifRule } from "./balance-sheet-presentation";
 
 export type StatementLine = { code: string; label: string; debit: number; credit: number; balance: number; comparativeBalance: number };
 export type FiscalStatements = {
@@ -12,9 +12,10 @@ export type FiscalStatements = {
   openingCash:number; closingCash:number; profit:number; priorYearLabel:string|null;
   totals: {assets:number;liabilities:number;equity:number;balanceDifference:number};
   assetPresentation: AssetPresentation;
+  passifPresentation: PassifPresentation;
   cashReconciliation: any;
   inventoryValuation: any;
-  controls: {unmapped:number;unbalancedEntries:number;unclassifiedCashFlowEntries:number;cashFlowReconciliationDifference:number;operatingCashFlowReconciliationReady:boolean;pcgPresentationReady:boolean;assetPresentationReady:boolean;cashReconciliationReady:boolean;inventoryCountReady:boolean;isClosed:boolean;notesReady:boolean;ready:boolean};
+  controls: {unmapped:number;unbalancedEntries:number;unclassifiedCashFlowEntries:number;cashFlowReconciliationDifference:number;operatingCashFlowReconciliationReady:boolean;pcgPresentationReady:boolean;assetPresentationReady:boolean;passifPresentationReady:boolean;cashReconciliationReady:boolean;inventoryCountReady:boolean;isClosed:boolean;notesReady:boolean;ready:boolean};
   notes: string[];
 };
 
@@ -67,6 +68,9 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   const {data:balanceSheetRules,error:balanceSheetRulesError}=await supabase.from("pcg2005_balance_sheet_rules")
     .select("account_code,section,line_key,normal_side,requires_maturity,contra_asset").order("account_code");
   const balanceSheetRulesAvailable=!balanceSheetRulesError;
+  const {data:passifRules,error:passifRulesError}=await supabase.from("pcg2005_balance_sheet_passif_rules")
+    .select("account_code,section,line_key,normal_side,requires_maturity,contra_equity").order("account_code");
+  const passifRulesAvailable=!passifRulesError;
   const {data:cashReconciliationData,error:cashReconciliationError}=await supabase.rpc("get_accounting_cash_reconciliation",{
     p_organization_id:organizationId,
     p_period_end:year.period_end,
@@ -303,6 +307,96 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   const sum=(xs:StatementLine[])=>round(xs.reduce((s,x)=>s+x.balance,0));
   const totalAssets=sum(assets),totalLiabilities=sum(liabilities),totalEquity=sum(equity);
   const profit=round(sum(income)-sum(expenses));
+
+  const passifBlockingIssues:string[]=[];
+  if(!passifRulesAvailable)passifBlockingIssues.push("Référentiel de présentation du passif PCG 2005 indisponible.");
+  const {data:loanRows,error:loanRowsError}=await supabase.from("loans")
+    .select("id,lender_name,magnisa_reference,outstanding_principal,liability_account_code,active_schedule_version_id,status")
+    .eq("organization_id",organizationId);
+  if(loanRowsError)passifBlockingIssues.push("Échéanciers d’emprunts indisponibles : "+loanRowsError.message);
+  const activeScheduleIds=[...new Set((loanRows||[]).map((loan:any)=>loan.active_schedule_version_id).filter(Boolean))] as string[];
+  let loanInstallments:any[]=[];
+  if(activeScheduleIds.length){
+    const {data,error}=await supabase.from("loan_installments")
+      .select("loan_id,schedule_version_id,due_date,principal_due,status")
+      .eq("organization_id",organizationId).in("schedule_version_id",activeScheduleIds);
+    if(error)passifBlockingIssues.push("Détail des échéances d’emprunts indisponible : "+error.message);
+    else loanInstallments=data||[];
+  }
+  const loanScheduleLines:BalanceSheetLedgerLine[]=[];
+  const loanScheduleRules:PassifRule[]=[];
+  const loanAccountCodes=new Set<string>();
+  const scheduledByAccount=new Map<string,number>();
+  for(const loan of loanRows||[]){
+    const outstanding=Math.max(0,n(loan.outstanding_principal));
+    if(outstanding<0.005)continue;
+    const accountCode=String(loan.liability_account_code||"");
+    if(!accountCode){
+      passifBlockingIssues.push("Emprunt "+String(loan.magnisa_reference||loan.id)+" sans compte PCG de dette.");
+      continue;
+    }
+    const scheduleId=String(loan.active_schedule_version_id||"");
+    if(!scheduleId){
+      passifBlockingIssues.push("Emprunt "+String(loan.magnisa_reference||loan.id)+" sans échéancier approuvé actif.");
+      continue;
+    }
+    const rows=loanInstallments.filter((item:any)=>item.loan_id===loan.id&&item.schedule_version_id===scheduleId&&String(item.status||"").toLowerCase()!=="paid");
+    if(!rows.length){
+      passifBlockingIssues.push("Échéancier vide pour l’emprunt "+String(loan.magnisa_reference||loan.id)+".");
+      continue;
+    }
+    let currentPrincipal=0,nonCurrentPrincipal=0,unknownMaturity=0;
+    for(const item of rows){
+      const amount=Math.max(0,n(item.principal_due));
+      if(amount<0.005)continue;
+      const maturity=classifyReceivableMaturity(item.due_date?String(item.due_date):null,String(year.period_end));
+      if(maturity==="current")currentPrincipal=round(currentPrincipal+amount);
+      else if(maturity==="non_current")nonCurrentPrincipal=round(nonCurrentPrincipal+amount);
+      else unknownMaturity=round(unknownMaturity+amount);
+    }
+    const scheduled=round(currentPrincipal+nonCurrentPrincipal+unknownMaturity);
+    if(Math.abs(scheduled-outstanding)>=0.01){
+      passifBlockingIssues.push("Écart entre le capital restant dû de l’emprunt "+String(loan.magnisa_reference||loan.id)+" et son échéancier : "+round(scheduled-outstanding)+" "+(org?.currency||"MGA")+".");
+    }
+    loanAccountCodes.add(accountCode);
+    scheduledByAccount.set(accountCode,round((scheduledByAccount.get(accountCode)||0)+scheduled));
+    const label="Emprunt • "+String(loan.magnisa_reference||loan.lender_name||loan.id);
+    if(currentPrincipal>=0.005)loanScheduleLines.push({code:accountCode,label,debit:0,credit:currentPrincipal,balance:currentPrincipal,maturity:"current"});
+    if(nonCurrentPrincipal>=0.005)loanScheduleLines.push({code:accountCode,label,debit:0,credit:nonCurrentPrincipal,balance:nonCurrentPrincipal,maturity:"non_current"});
+    if(unknownMaturity>=0.005)loanScheduleLines.push({code:accountCode,label,debit:0,credit:unknownMaturity,balance:unknownMaturity});
+  }
+  const loanGapLines:BalanceSheetLedgerLine[]=[];
+  for(const [accountCode,scheduled] of scheduledByAccount){
+    const ledger=liabilities.find((line:any)=>line.code===accountCode)?.balance||0;
+    const difference=round(ledger-scheduled);
+    if(Math.abs(difference)>=0.01){
+      const code="__LOAN_RECONCILIATION_"+accountCode.replace(/[^A-Za-z0-9]/g,"_")+"__";
+      loanGapLines.push({code,label:"Écart échéancier / grand livre • compte "+accountCode,debit:Math.abs(difference),credit:0,balance:Math.abs(difference)});
+      loanScheduleRules.push({account_code:code,section:"review",line_key:"loan_schedule_reconciliation",normal_side:"both",requires_maturity:false,contra_equity:false});
+    }
+  }
+  const currentYearResultLine:BalanceSheetLedgerLine[]=
+    year.status!=="closed"&&Math.abs(profit)>=0.005
+      ? [{code:"__CURRENT_YEAR_RESULT__",label:"Résultat de l’exercice",debit:Math.max(-profit,0),credit:Math.max(profit,0),balance:profit}]
+      : [];
+  const currentYearResultRule:PassifRule[]=[{
+    account_code:"__CURRENT_YEAR_RESULT__",section:"equity",line_key:"equity_current_result",
+    normal_side:"both",requires_maturity:false,contra_equity:false,
+  }];
+  const passifLines:BalanceSheetLedgerLine[]=[
+    ...equity,
+    ...liabilities.filter((line:any)=>!loanAccountCodes.has(line.code)),
+    ...loanScheduleLines,
+    ...loanGapLines,
+    ...currentYearResultLine,
+  ];
+  const passifPresentation=buildPassifPresentation(
+    passifLines,
+    [...(passifRules||[]),...loanScheduleRules,...currentYearResultRule],
+    passifBlockingIssues,
+  );
+  const passifPresentationReady=passifRulesAvailable&&passifPresentation.ready
+    &&Math.abs(passifPresentation.totals.passif-(totalEquity+totalLiabilities+(year.status==="closed"?0:profit)))<0.01;
   const balanceDifference=round(totalAssets-totalLiabilities-totalEquity-(year.status==="closed"?0:profit));
   const equityCodes=new Set<string>((accounts||[]).filter((a:any)=>a.kind==="equity").map((a:any)=>String(a.code)));
   const equityChanges=[...equityCodes].map(code=>{
@@ -390,10 +484,10 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     "Les créances clients du compte 411 sont ventilées selon les échéances contractuelles des factures et rapprochées des règlements confirmés et du grand livre. Les autres créances nécessitent leurs justificatifs d’échéance. La présentation réglementaire complète du bilan et du compte de résultat reste à valider."
   ];
   return {organization:{...org,...settings},year,currency:org?.currency||"MGA",accounts:accounts||[],
-    assets,liabilities,equity,expenses,income,equityChanges,cashFlows,assetPresentation,cashReconciliation,inventoryValuation,
+    assets,liabilities,equity,expenses,income,equityChanges,cashFlows,assetPresentation,passifPresentation,cashReconciliation,inventoryValuation,
     openingCash:round(openingCash),closingCash:round(closingCash),profit,priorYearLabel:priorYear?.label||null,
     totals:{assets:totalAssets,liabilities:totalLiabilities,equity:totalEquity,balanceDifference},
-    controls:{unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,operatingCashFlowReconciliationReady,pcgPresentationReady,assetPresentationReady:assetPresentationControlsReady,cashReconciliationReady,inventoryCountReady,isClosed:year.status==="closed",notesReady,ready},notes};
+    controls:{unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,operatingCashFlowReconciliationReady,pcgPresentationReady,assetPresentationReady:assetPresentationControlsReady,passifPresentationReady,cashReconciliationReady,inventoryCountReady,isClosed:year.status==="closed",notesReady,ready},notes};
 }
 
 export async function getFiscalStatementContext(yearId:string){
