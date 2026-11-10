@@ -310,6 +310,101 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
 
   const passifBlockingIssues:string[]=[];
   if(!passifRulesAvailable)passifBlockingIssues.push("Référentiel de présentation du passif PCG 2005 indisponible.");
+
+  // Supplier payables are reconciled against invoice/payment subledgers before presentation.
+  const supplierPassifLines:BalanceSheetLedgerLine[]=[];
+  const supplierPassifRules:PassifRule[]=[];
+  const supplierAccountCodes=new Set<string>();
+  const {data:supplierInvoices,error:supplierInvoicesError}=await supabase.from("supplier_invoices")
+    .select("id,supplier_number,invoice_date,due_date,status")
+    .eq("organization_id",organizationId).lte("invoice_date",year.period_end);
+  const {data:supplierReconRows,error:supplierReconError}=await supabase.from("magnisa_supplier_reconciliation")
+    .select("supplier_invoice_id,balance_due,payment_difference,allocation_difference,reconciliation_status")
+    .eq("organization_id",organizationId);
+  if(supplierInvoicesError||supplierReconError){
+    passifBlockingIssues.push("Rapprochement des dettes fournisseurs indisponible : "+(supplierInvoicesError?.message||supplierReconError?.message));
+  }else{
+    const supplierReconMap=new Map((supplierReconRows||[]).map((row:any)=>[row.supplier_invoice_id,row]));
+    let supplierSubledgerBalance=0;
+    const activeSupplierInvoices=(supplierInvoices||[]).filter((invoice:any)=>!["cancelled","canceled","void","annulee","annulée"].includes(String(invoice.status||"").toLowerCase()));
+    for(const invoice of activeSupplierInvoices){
+      const reconciliation:any=supplierReconMap.get(invoice.id);
+      if(!reconciliation){
+        passifBlockingIssues.push("Facture fournisseur "+String(invoice.supplier_number||invoice.id)+" absente du rapprochement auxiliaire.");
+        continue;
+      }
+      if(reconciliation.reconciliation_status!=="ok"||Math.abs(n(reconciliation.payment_difference))>=0.01||Math.abs(n(reconciliation.allocation_difference))>=0.01){
+        passifBlockingIssues.push("Rapprochement paiement / facture à corriger pour le fournisseur "+String(invoice.supplier_number||invoice.id)+".");
+      }
+      const balance=round(n(reconciliation.balance_due));
+      supplierSubledgerBalance=round(supplierSubledgerBalance+balance);
+      if(Math.abs(balance)>=0.005){
+        const maturity=classifyReceivableMaturity(invoice.due_date?String(invoice.due_date):null,String(year.period_end));
+        supplierPassifLines.push({
+          code:"401",label:"Fournisseur • "+String(invoice.supplier_number||invoice.id),
+          debit:Math.max(-balance,0),credit:Math.max(balance,0),balance,
+          ...(maturity?{maturity}:{}),
+        });
+      }
+    }
+    if(activeSupplierInvoices.length)supplierAccountCodes.add("401");
+    const supplierLedgerBalance=liabilities.find((line:any)=>line.code==="401")?.balance||0;
+    const supplierGap=round(supplierLedgerBalance-supplierSubledgerBalance);
+    if(Math.abs(supplierGap)>=0.01){
+      const code="__SUPPLIER_RECONCILIATION__";
+      supplierPassifLines.push({code,label:"Écart dettes fournisseurs auxiliaire / grand livre",debit:Math.abs(supplierGap),credit:0,balance:Math.abs(supplierGap)});
+      supplierPassifRules.push({account_code:code,section:"review",line_key:"supplier_payables_reconciliation",normal_side:"both",requires_maturity:false,contra_equity:false});
+      passifBlockingIssues.push("Les factures fournisseurs ne correspondent pas au solde PCG 401 : écart de "+supplierGap+" "+(org?.currency||"MGA")+".");
+    }
+  }
+
+  // Payroll net payables are reconciled to payslips and actual payroll payments.
+  const payrollPassifLines:BalanceSheetLedgerLine[]=[];
+  const payrollPassifRules:PassifRule[]=[];
+  const payrollAccountCodes=new Set<string>();
+  const {data:payrollRuns,error:payrollRunsError}=await supabase.from("payroll_runs")
+    .select("id,period_start,period_end,status")
+    .eq("organization_id",organizationId).gte("period_start",year.period_start).lte("period_end",year.period_end);
+  if(payrollRunsError){
+    passifBlockingIssues.push("Rapprochement des dettes de personnel indisponible : "+payrollRunsError.message);
+  }else{
+    const payrollRunIds=(payrollRuns||[]).map((run:any)=>run.id);
+    let payslipRows:any[]=[];
+    let payrollReconRows:any[]=[];
+    if(payrollRunIds.length){
+      const [{data:payslipsData,error:payslipsError},{data:payrollReconData,error:payrollReconError}]=await Promise.all([
+        supabase.from("payslips").select("id,payroll_run_id,net_pay,paid_amount,status,magnisa_reference").eq("organization_id",organizationId).in("payroll_run_id",payrollRunIds),
+        supabase.from("magnisa_payroll_reconciliation").select("payslip_id,payment_difference,reconciliation_status").eq("organization_id",organizationId),
+      ]);
+      if(payslipsError||payrollReconError)passifBlockingIssues.push("Détail des paies ou rapprochement des paiements indisponible : "+(payslipsError?.message||payrollReconError?.message));
+      else{payslipRows=payslipsData||[];payrollReconRows=payrollReconData||[];}
+    }
+    const payrollReconMap=new Map(payrollReconRows.map((row:any)=>[row.payslip_id,row]));
+    let payrollSubledgerBalance=0;
+    for(const payslip of payslipRows){
+      const balance=round(n(payslip.net_pay)-n(payslip.paid_amount));
+      if(Math.abs(balance)<0.005)continue;
+      const reconciliation:any=payrollReconMap.get(payslip.id);
+      if(!reconciliation||reconciliation.reconciliation_status!=="ok"||Math.abs(n(reconciliation.payment_difference))>=0.01){
+        passifBlockingIssues.push("Rapprochement des paiements de paie à corriger pour le bulletin "+String(payslip.magnisa_reference||payslip.id)+".");
+      }
+      payrollSubledgerBalance=round(payrollSubledgerBalance+balance);
+      payrollPassifLines.push({
+        code:"421",label:"Rémunération due • "+String(payslip.magnisa_reference||payslip.id),
+        debit:Math.max(-balance,0),credit:Math.max(balance,0),balance,maturity:"current",
+      });
+    }
+    if(payslipRows.length)payrollAccountCodes.add("421");
+    const payrollLedgerBalance=liabilities.find((line:any)=>line.code==="421")?.balance||0;
+    const payrollGap=round(payrollLedgerBalance-payrollSubledgerBalance);
+    if(Math.abs(payrollGap)>=0.01){
+      const code="__PAYROLL_RECONCILIATION__";
+      payrollPassifLines.push({code,label:"Écart paies dues / compte PCG 421",debit:Math.abs(payrollGap),credit:0,balance:Math.abs(payrollGap)});
+      payrollPassifRules.push({account_code:code,section:"review",line_key:"payroll_payables_reconciliation",normal_side:"both",requires_maturity:false,contra_equity:false});
+      passifBlockingIssues.push("Les rémunérations dues ne correspondent pas au solde PCG 421 : écart de "+payrollGap+" "+(org?.currency||"MGA")+".");
+    }
+  }
+
   const {data:loanRows,error:loanRowsError}=await supabase.from("loans")
     .select("id,lender_name,magnisa_reference,outstanding_principal,liability_account_code,active_schedule_version_id,status")
     .eq("organization_id",organizationId);
@@ -385,14 +480,16 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   }];
   const passifLines:BalanceSheetLedgerLine[]=[
     ...equity,
-    ...liabilities.filter((line:any)=>!loanAccountCodes.has(line.code)),
+    ...liabilities.filter((line:any)=>!loanAccountCodes.has(line.code)&&!supplierAccountCodes.has(line.code)&&!payrollAccountCodes.has(line.code)),
+    ...supplierPassifLines,
+    ...payrollPassifLines,
     ...loanScheduleLines,
     ...loanGapLines,
     ...currentYearResultLine,
   ];
   const passifPresentation=buildPassifPresentation(
     passifLines,
-    [...(passifRules||[]),...loanScheduleRules,...currentYearResultRule],
+    [...(passifRules||[]),...supplierPassifRules,...payrollPassifRules,...loanScheduleRules,...currentYearResultRule],
     passifBlockingIssues,
   );
   const passifPresentationReady=passifRulesAvailable&&passifPresentation.ready
