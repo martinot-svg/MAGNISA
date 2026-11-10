@@ -149,7 +149,9 @@ BEGIN
  FOR r IN SELECT * FROM public.invoice_lines WHERE organization_id=p_org AND invoice_id=i.id LOOP
   IF r.source_order_line_id IS NOT NULL THEN
    SELECT * INTO v_order_line FROM public.order_lines WHERE id=r.source_order_line_id AND organization_id=p_org FOR UPDATE;
-   IF NOT FOUND THEN RAISE EXCEPTION 'Ligne de commande source introuvable'; END IF;
+   IF NOT FOUND OR v_order_line.order_id IS DISTINCT FROM i.order_id THEN RAISE EXCEPTION 'Ligne de commande source introuvable ou étrangère à la commande de la facture'; END IF;
+   IF r.line_kind='service' AND v_order_line.service_id IS DISTINCT FROM r.service_id THEN RAISE EXCEPTION 'Prestation source incohérente'; END IF;
+   IF r.line_kind='merchandise' AND v_order_line.item_id IS DISTINCT FROM r.item_id THEN RAISE EXCEPTION 'Marchandise source incohérente'; END IF;
    SELECT COALESCE(SUM(il.quantity),0) INTO v_billed
     FROM public.invoice_lines il JOIN public.invoices inv ON inv.id=il.invoice_id AND inv.organization_id=il.organization_id
     WHERE il.organization_id=p_org AND il.source_order_line_id=r.source_order_line_id
