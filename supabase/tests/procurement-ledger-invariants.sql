@@ -129,12 +129,12 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='supplier_invoices' AND column_name='tax_document_reference') THEN
     RAISE EXCEPTION 'Supplier invoice tax evidence fields are missing';
   END IF;
-  SELECT pg_get_functiondef('public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text)'::regprocedure) INTO v_def;
+  SELECT pg_get_functiondef('public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text,text)'::regprocedure) INTO v_def;
   IF position('tax_total' in v_def)=0 OR position('p_tax_treatment' in v_def)=0 OR position('p_tax_document_reference' in v_def)=0 OR position('4456' in v_def)=0 THEN
     RAISE EXCEPTION 'Supplier invoice VAT split and recoverability posting are incomplete';
   END IF;
-  IF has_function_privilege('anon','public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text)','EXECUTE')
-     OR NOT has_function_privilege('authenticated','public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text)','EXECUTE') THEN
+  IF has_function_privilege('anon','public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text,text)','EXECUTE')
+     OR NOT has_function_privilege('authenticated','public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text,text)','EXECUTE') THEN
     RAISE EXCEPTION 'Supplier invoice tax RPC grants are incorrect';
   END IF;
   SELECT pg_get_functiondef('public.reconcile_supplier_invoice_multi_order(uuid,uuid,jsonb,text)'::regprocedure) INTO v_def;
