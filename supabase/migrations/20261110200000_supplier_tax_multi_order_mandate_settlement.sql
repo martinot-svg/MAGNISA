@@ -430,9 +430,6 @@ BEGIN
       - round(v_line.discount_amount*v_line.quantity_received/v_line.quantity_ordered,2)
       + round(v_line.additional_cost_amount*v_line.quantity_received/v_line.quantity_ordered,2))
       *v_line.tax_rate/100,2),2);
-  IF abs(v_expected-p_amount)>0.01 THEN
-    RAISE EXCEPTION 'Le débours doit correspondre au coût exact proratisé de la quantité mandatée réceptionnée (%).',v_expected;
-  END IF;
   IF v_line.mandate_supplier_document_reference<>trim(p_supplier_document_reference) THEN
     RAISE EXCEPTION 'La référence de la pièce fournisseur doit correspondre à celle du mandat validé.';
   END IF;
