@@ -1,3 +1,4 @@
+import { formatDateDisplay } from "@/lib/date-format";
 import { randomUUID } from "crypto";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
@@ -436,7 +437,7 @@ export default async function LoanDetails({ params }: { params: Promise<{ id: st
               <form action={addInstallmentCharges} className="form">
                 <input type="hidden" name="loan_id" value={loan.id} />
                 <input type="hidden" name="request_key" value={chargesRequestKey} />
-                <div className="field"><label>Échéance concernée</label><select name="installment_id" required defaultValue=""><option value="" disabled>Choisir une échéance</option>{openInstallments.map((row: any) => <option key={row.id} value={row.id}>Échéance {row.installment_number} · {row.due_date}</option>)}</select></div>
+                <div className="field"><label>Échéance concernée</label><select name="installment_id" required defaultValue=""><option value="" disabled>Choisir une échéance</option>{openInstallments.map((row: any) => <option key={row.id} value={row.id}>Échéance {row.installment_number} · {formatDateDisplay(row.due_date)}</option>)}</select></div>
                 <div className="grid2">
                   <div className="field"><label>Frais contractuels</label><input name="fee_amount" type="number" min="0" step="0.01" defaultValue="0" /></div>
                   <div className="field"><label>Pénalités</label><input name="penalty_amount" type="number" min="0" step="0.01" defaultValue="0" /></div>
