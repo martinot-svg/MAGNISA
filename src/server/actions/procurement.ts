@@ -95,7 +95,7 @@ export async function postPurchaseReceipt(formData: FormData) {
   await assertPermission(ctx,"inventory.manage");
   const orderId=z.string().uuid().parse(formData.get("purchase_order_id"));
   const orderLineId=z.string().uuid().parse(formData.get("purchase_order_line_id"));
-  const locationId=z.preprocess(v=>v===""?null:v,z.string().uuid().nullable()).parse(formData.get("stock_location_id"));
+  const locationId=z.preprocess(v=>v==null||v===""?null:v,z.string().uuid().nullable()).parse(formData.get("stock_location_id"));
   const quantity=z.coerce.number().finite().positive().parse(formData.get("quantity_received"));
   const unitCost=z.coerce.number().finite().nonnegative().parse(formData.get("unit_cost"));
   const reference=z.string().trim().max(160).parse(formData.get("supplier_delivery_reference")||"");
