@@ -60,3 +60,11 @@ Ces observations sont des données de départ, pas une validation de clôture. L
 ## Références normatives
 
 Les règles de classement et de présentation sont alignées sur le Plan comptable général 2005 de Madagascar, notamment les classes 1 à 5, les comptes correcteurs d'actif et les dispositions relatives aux créances et stocks. Toute décision de valorisation doit rester justifiée par les pièces et les méthodes autorisées.
+
+## Source-specific supplier invoice classification
+
+The generic `EXPENSE:SUPPLIER` key must never inherit a balance-sheet account such as 218 for every supplier invoice. The source-specific mapping layer records the supplier invoice independently of the generic key.
+
+Computer Store invoice 2030 (`DFO-00003`, MGA 30,000; source note: Achat de souris) is classified to PCG 2005 account 606, Achats non stockés de matières et fournitures. This is a low-value, non-stocked small-equipment purchase, not a fixed asset. The posted journal entry is not rewritten.
+
+The source record has no attached invoice (`attachment_url IS NULL`). The override therefore retains `evidence_status=record_only` and `requires_attachment=true`; the original invoice remains required audit support. Other generic supplier purchases remain unmapped until their nature is evidenced. The PCG 2005 Guide annoté, XI.23, identifies account 606 for non-stocked purchases and account 605 for purchases of materials, equipment and works.
