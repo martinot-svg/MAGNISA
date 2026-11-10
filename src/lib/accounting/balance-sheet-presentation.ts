@@ -108,6 +108,7 @@ const labels: Record<string, string> = {
   equity_current_result: "Résultat net de l’exercice",
   investment_grants: "Subventions d’investissement différées",
   deferred_tax_liability: "Impôts différés passif",
+  concession_obligations: "Obligations liées aux concessions",
   non_current_provisions: "Provisions non courantes",
   non_current_borrowings: "Emprunts et dettes financières non courants",
   participation_debts: "Dettes rattachées aux participations",
