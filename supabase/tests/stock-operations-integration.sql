@@ -53,7 +53,7 @@ VALUES(:'service_line_id'::uuid,:'org_id'::uuid,:'order_a'::uuid,:'service_id'::
 INSERT INTO public.suppliers(id,organization_id,name,supplier_type,is_active)
 VALUES(:'supplier_id'::uuid,:'org_id'::uuid,'CI router supplier','supplier',true);
 INSERT INTO public.purchase_orders(id,organization_id,supplier_id,number,status,order_date,currency,subtotal,tax_total,total,created_by)
-VALUES(:'purchase_order_id'::uuid,:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-RET-01','submitted',current_date,'MGA',50,0,50,:'user_id'::uuid);
+VALUES(:'purchase_order_id'::uuid,:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-RET-01','draft',current_date,'MGA',50,0,50,:'user_id'::uuid);
 INSERT INTO public.purchase_order_lines(id,organization_id,purchase_order_id,item_id,description,purchase_purpose,quantity_ordered,unit,unit_price,tax_rate,line_total,sort_order)
 VALUES(:'purchase_order_line_id'::uuid,:'org_id'::uuid,:'purchase_order_id'::uuid,:'item_id'::uuid,'CI supplier return stock','resale',1,'unit',50,0,50,0);
 INSERT INTO public.goods_receipts(id,organization_id,purchase_order_id,receipt_number,status,received_at,created_by)
@@ -82,15 +82,19 @@ VALUES
  ('e1000000-0000-4000-8000-000000000095',:'org_id'::uuid,'CI-MANDATE-BAD','Invalid mandate kit','equipment','unit','quantity');
 INSERT INTO public.purchase_orders(id,organization_id,supplier_id,number,status,order_date,currency,subtotal,tax_total,total,created_by)
 VALUES
- ('e1000000-0000-4000-8000-000000000080',:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-PARTIAL','submitted',current_date,'MGA',100,0,100,:'user_id'::uuid),
- ('e1000000-0000-4000-8000-000000000087',:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-MANDATE','submitted',current_date,'MGA',500,0,500,:'user_id'::uuid),
- ('e1000000-0000-4000-8000-000000000096',:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-MANDATE-BAD','submitted',current_date,'MGA',500,0,500,:'user_id'::uuid);
+ ('e1000000-0000-4000-8000-000000000080',:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-PARTIAL','draft',current_date,'MGA',100,0,100,:'user_id'::uuid),
+ ('e1000000-0000-4000-8000-000000000087',:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-MANDATE','draft',current_date,'MGA',500,0,500,:'user_id'::uuid),
+ ('e1000000-0000-4000-8000-000000000096',:'org_id'::uuid,:'supplier_id'::uuid,'CI-PO-MANDATE-BAD','draft',current_date,'MGA',500,0,500,:'user_id'::uuid);
 INSERT INTO public.purchase_order_lines(id,organization_id,purchase_order_id,item_id,description,purchase_purpose,quantity_ordered,unit,unit_price,tax_rate,line_total,sort_order)
 VALUES
  ('e1000000-0000-4000-8000-000000000081',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000080','e1000000-0000-4000-8000-000000000079','Two router units','resale',2,'unit',50,0,100,0),
  ('e1000000-0000-4000-8000-000000000088',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000087','e1000000-0000-4000-8000-000000000086','Customer kit under documented mandate','customer_mandate',1,'unit',500,0,500,0);
 INSERT INTO public.purchase_order_lines(id,organization_id,purchase_order_id,item_id,description,purchase_purpose,beneficiary_customer_id,mandate_confirmed,supplier_document_names_customer,company_bears_goods_risk,exact_cost_supported,mandate_supplier_document_reference,quantity_ordered,unit,unit_price,tax_rate,line_total,sort_order)
 VALUES ('e1000000-0000-4000-8000-000000000097',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000096','e1000000-0000-4000-8000-000000000095','Mandate without evidence','customer_mandate',:'customer_id'::uuid,false,false,true,false,NULL,1,'unit',500,0,500,0);
+
+UPDATE public.purchase_orders SET status='submitted'
+WHERE organization_id=:'org_id'::uuid
+  AND id IN (:'purchase_order_id'::uuid,'e1000000-0000-4000-8000-000000000080','e1000000-0000-4000-8000-000000000087','e1000000-0000-4000-8000-000000000096');
 INSERT INTO public.goods_receipts(id,organization_id,purchase_order_id,receipt_number,status,received_at,created_by)
 VALUES
  ('e1000000-0000-4000-8000-000000000082',:'org_id'::uuid,'e1000000-0000-4000-8000-000000000080','CI-GR-PARTIAL-1','draft',now(),:'user_id'::uuid),
