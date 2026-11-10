@@ -1,3 +1,14 @@
+const mixedBalanceAccountCodes = new Set(["422", "442", "443", "445", "451", "456", "458", "467"]);
+
+export function matchesStatementAccountKind(
+  code: string,
+  actualKind: string,
+  requestedKind: string,
+): boolean {
+  if (mixedBalanceAccountCodes.has(code)) return requestedKind === "clearing";
+  return actualKind === requestedKind;
+}
+
 export type BalanceSheetRule = {
   account_code: string;
   section: "non_current_assets" | "current_assets" | "non_current_liabilities" | "current_liabilities" | "equity" | "clearing" | "review";
