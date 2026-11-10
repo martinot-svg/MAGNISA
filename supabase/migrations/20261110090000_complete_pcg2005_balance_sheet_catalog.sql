@@ -227,6 +227,21 @@ FROM public.pcg2005_accounts
 WHERE code ~ '^(40|41|42|43|44|45|46|47|48|49)'
 ON CONFLICT (account_code) DO NOTHING;
 
+-- Mixed third-party accounts are assets on debit balances and liabilities on credit balances.
+-- The asset rule must therefore accept only the debit-side presentation; the passif
+-- catalogue below independently handles the corresponding credit-side presentation.
+UPDATE public.pcg2005_balance_sheet_rules
+SET section='current_assets',
+    line_key=CASE
+      WHEN account_code IN ('442','443','445') THEN 'tax_and_public_authority_balances'
+      WHEN account_code IN ('422','451','456','458','467') THEN 'other_receivables_and_payables'
+      ELSE line_key
+    END,
+    normal_side='debit',
+    requires_maturity=true,
+    contra_asset=false
+WHERE account_code IN ('422','442','443','445','451','456','458','467');
+
 -- Class 5: financial assets and cash. Internal transfers are never presented as cash.
 INSERT INTO public.pcg2005_balance_sheet_rules(account_code,section,line_key,normal_side,contra_asset)
 SELECT code,
