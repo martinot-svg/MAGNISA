@@ -438,53 +438,99 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   }
 
   const {data:loanRows,error:loanRowsError}=await supabase.from("loans")
-    .select("id,lender_name,magnisa_reference,outstanding_principal,liability_account_code,active_schedule_version_id,status")
+    .select("id,lender_name,magnisa_reference,liability_account_code")
     .eq("organization_id",organizationId);
   if(loanRowsError)passifBlockingIssues.push("Échéanciers d’emprunts indisponibles : "+loanRowsError.message);
-  const activeScheduleIds=[...new Set((loanRows||[]).map((loan:any)=>loan.active_schedule_version_id).filter(Boolean))] as string[];
+  const loanIds=(loanRows||[]).map((loan:any)=>loan.id);
+  let loanVersions:any[]=[];
   let loanInstallments:any[]=[];
-  if(activeScheduleIds.length){
+  let loanRepayments:any[]=[];
+  if(loanIds.length){
+    const [{data:versionRows,error:versionError},{data:repaymentRows,error:repaymentError}]=await Promise.all([
+      supabase.from("loan_schedule_versions")
+        .select("id,loan_id,version_number,status,effective_from,effective_until")
+        .eq("organization_id",organizationId).in("loan_id",loanIds),
+      supabase.from("loan_repayments")
+        .select("loan_id,installment_id,principal_paid,payment_date,journal_entry_id,reversal_journal_entry_id,reversed_at")
+        .eq("organization_id",organizationId).lte("payment_date",year.period_end),
+    ]);
+    if(versionError)passifBlockingIssues.push("Versions des échéanciers d’emprunts indisponibles : "+versionError.message);
+    else loanVersions=versionRows||[];
+    if(repaymentError)passifBlockingIssues.push("Historique des remboursements d’emprunts indisponible : "+repaymentError.message);
+    else loanRepayments=repaymentRows||[];
+  }
+  const selectedLoanVersions=new Map<string,any>();
+  for(const loan of loanRows||[]){
+    const candidates=loanVersions.filter((version:any)=>
+      version.loan_id===loan.id
+      &&["active","superseded"].includes(String(version.status||"").toLowerCase())
+      &&String(version.effective_from||"")<=String(year.period_end)
+      &&(!version.effective_until||String(version.effective_until)>=String(year.period_end))
+    ).sort((a:any,b:any)=>n(b.version_number)-n(a.version_number));
+    if(candidates.length===0){
+      if(n(loan.outstanding_principal)>0.005||loan.liability_account_code){
+        passifBlockingIssues.push("Aucune version d’échéancier approuvée ne couvre la clôture pour l’emprunt "+String(loan.magnisa_reference||loan.id)+".");
+      }
+      continue;
+    }
+    if(candidates.length>1)passifBlockingIssues.push("Plusieurs versions d’échéancier se chevauchent à la clôture pour l’emprunt "+String(loan.magnisa_reference||loan.id)+".");
+    selectedLoanVersions.set(loan.id,candidates[0]);
+  }
+  const selectedScheduleIds=[...selectedLoanVersions.values()].map((version:any)=>version.id);
+  if(selectedScheduleIds.length){
     const {data,error}=await supabase.from("loan_installments")
-      .select("loan_id,schedule_version_id,due_date,principal_due,status")
-      .eq("organization_id",organizationId).in("schedule_version_id",activeScheduleIds);
+      .select("id,loan_id,schedule_version_id,due_date,principal_due")
+      .eq("organization_id",organizationId).in("schedule_version_id",selectedScheduleIds);
     if(error)passifBlockingIssues.push("Détail des échéances d’emprunts indisponible : "+error.message);
     else loanInstallments=data||[];
+  }
+  const repaymentsByInstallment=new Map<string,number>();
+  const unallocatedRepaymentsByLoan=new Map<string,number>();
+  for(const repayment of loanRepayments){
+    if(!repayment.journal_entry_id||repayment.reversal_journal_entry_id||repayment.reversed_at)continue;
+    const principal=Math.max(0,n(repayment.principal_paid));
+    if(principal<0.005)continue;
+    if(repayment.installment_id){
+      repaymentsByInstallment.set(repayment.installment_id,round((repaymentsByInstallment.get(repayment.installment_id)||0)+principal));
+    }else{
+      unallocatedRepaymentsByLoan.set(repayment.loan_id,round((unallocatedRepaymentsByLoan.get(repayment.loan_id)||0)+principal));
+    }
   }
   const loanScheduleLines:BalanceSheetLedgerLine[]=[];
   const loanScheduleRules:PassifRule[]=[];
   const loanAccountCodes=new Set<string>();
   const scheduledByAccount=new Map<string,number>();
   for(const loan of loanRows||[]){
-    const outstanding=Math.max(0,n(loan.outstanding_principal));
-    if(outstanding<0.005)continue;
+    const version=selectedLoanVersions.get(loan.id);
+    if(!version)continue;
     const accountCode=String(loan.liability_account_code||"");
     if(!accountCode){
       passifBlockingIssues.push("Emprunt "+String(loan.magnisa_reference||loan.id)+" sans compte PCG de dette.");
       continue;
     }
-    const scheduleId=String(loan.active_schedule_version_id||"");
-    if(!scheduleId){
-      passifBlockingIssues.push("Emprunt "+String(loan.magnisa_reference||loan.id)+" sans échéancier approuvé actif.");
-      continue;
-    }
-    const rows=loanInstallments.filter((item:any)=>item.loan_id===loan.id&&item.schedule_version_id===scheduleId&&!["paid","cancelled","canceled","void","reversed"].includes(String(item.status||"").toLowerCase()));
+    const rows=loanInstallments.filter((item:any)=>item.loan_id===loan.id&&item.schedule_version_id===version.id);
     if(!rows.length){
       passifBlockingIssues.push("Échéancier vide pour l’emprunt "+String(loan.magnisa_reference||loan.id)+".");
       continue;
     }
     let currentPrincipal=0,nonCurrentPrincipal=0,unknownMaturity=0;
     for(const item of rows){
-      const amount=Math.max(0,n(item.principal_due));
-      if(amount<0.005)continue;
+      const scheduledPrincipal=Math.max(0,n(item.principal_due));
+      const paidPrincipal=repaymentsByInstallment.get(item.id)||0;
+      const remaining=round(scheduledPrincipal-paidPrincipal);
+      if(remaining < -0.01){
+        passifBlockingIssues.push("Remboursements supérieurs au principal prévu pour l’échéance "+String(item.id)+".");
+        continue;
+      }
+      if(remaining<0.005)continue;
       const maturity=classifyReceivableMaturity(item.due_date?String(item.due_date):null,String(year.period_end));
-      if(maturity==="current")currentPrincipal=round(currentPrincipal+amount);
-      else if(maturity==="non_current")nonCurrentPrincipal=round(nonCurrentPrincipal+amount);
-      else unknownMaturity=round(unknownMaturity+amount);
+      if(maturity==="current")currentPrincipal=round(currentPrincipal+remaining);
+      else if(maturity==="non_current")nonCurrentPrincipal=round(nonCurrentPrincipal+remaining);
+      else unknownMaturity=round(unknownMaturity+remaining);
     }
+    const unallocated=unallocatedRepaymentsByLoan.get(loan.id)||0;
+    if(unallocated>=0.01)passifBlockingIssues.push("Remboursement anticipé non affecté à une échéance pour l’emprunt "+String(loan.magnisa_reference||loan.id)+".");
     const scheduled=round(currentPrincipal+nonCurrentPrincipal+unknownMaturity);
-    if(Math.abs(scheduled-outstanding)>=0.01){
-      passifBlockingIssues.push("Écart entre le capital restant dû de l’emprunt "+String(loan.magnisa_reference||loan.id)+" et son échéancier : "+round(scheduled-outstanding)+" "+(org?.currency||"MGA")+".");
-    }
     loanAccountCodes.add(accountCode);
     scheduledByAccount.set(accountCode,round((scheduledByAccount.get(accountCode)||0)+scheduled));
     const label="Emprunt • "+String(loan.magnisa_reference||loan.lender_name||loan.id);
