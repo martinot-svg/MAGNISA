@@ -35,7 +35,7 @@ CREATE TABLE public.stock_return_lines(
  return_id uuid NOT NULL,
  source_line_type text NOT NULL CHECK(source_line_type IN ('sales_delivery_line','goods_receipt_line')),
  source_line_id uuid NOT NULL,
- source_invoice_line_id uuid,
+ source_invoice_line_id uuid REFERENCES public.invoice_lines(id) ON DELETE RESTRICT,
  item_id uuid NOT NULL,
  stock_location_id uuid NOT NULL,
  quantity numeric(18,4) NOT NULL CHECK(quantity>0),
@@ -43,11 +43,11 @@ CREATE TABLE public.stock_return_lines(
  stock_bucket text NOT NULL CHECK(stock_bucket IN ('resale','company_use','consumption','quarantine')),
  unit_cost numeric(18,2) NOT NULL CHECK(unit_cost>=0),
  created_at timestamptz NOT NULL DEFAULT now(),
- UNIQUE(organization_id,return_id,source_line_id),
+ UNIQUE(organization_id,return_id,source_line_type,source_line_id),
  FOREIGN KEY(return_id,organization_id) REFERENCES public.stock_returns(id,organization_id) ON DELETE RESTRICT,
  FOREIGN KEY(item_id,organization_id) REFERENCES public.catalog_items(id,organization_id) ON DELETE RESTRICT,
  FOREIGN KEY(stock_location_id,organization_id) REFERENCES public.stock_locations(id,organization_id) ON DELETE RESTRICT,
- FOREIGN KEY(source_invoice_line_id,organization_id) REFERENCES public.invoice_lines(id,organization_id) ON DELETE RESTRICT
+ 
 );
 CREATE TABLE public.stock_adjustments(
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
