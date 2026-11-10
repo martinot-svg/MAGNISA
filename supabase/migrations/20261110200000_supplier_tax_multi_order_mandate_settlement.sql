@@ -27,7 +27,7 @@ ON CONFLICT (code) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION public.record_supplier_invoice_with_tax(
   p_org uuid,p_supplier uuid,p_supplier_number text,p_invoice_date date,p_due_date date,
-  p_subtotal numeric,p_tax_total numeric,p_tax_treatment text,p_tax_document_reference text,p_notes text DEFAULT NULL
+  p_subtotal numeric,p_tax_total numeric,p_tax_treatment text,p_tax_document_reference text,p_notes text,p_reconciliation_scope text
 ) RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $function$
 DECLARE
@@ -52,8 +52,9 @@ BEGIN
   v_total:=round(p_subtotal+p_tax_total,2);
   IF v_total<=0 THEN RAISE EXCEPTION 'Le total de la facture doit être positif.'; END IF;
 
-  v_invoice:=public.record_supplier_invoice(
-    p_org,p_supplier,p_supplier_number,p_invoice_date,p_due_date,v_total,p_notes
+  IF p_reconciliation_scope NOT IN ('goods_procurement','service_or_other') THEN RAISE EXCEPTION 'Nature de facture fournisseur invalide.'; END IF;
+  v_invoice:=public.record_supplier_invoice_with_scope(
+    p_org,p_supplier,p_supplier_number,p_invoice_date,p_due_date,v_total,p_notes,p_reconciliation_scope
   );
   UPDATE public.supplier_invoices
     SET subtotal=round(p_subtotal,2),tax_total=round(p_tax_total,2),
@@ -93,8 +94,8 @@ BEGIN
   RETURN v_invoice;
 END;
 $function$;
-REVOKE ALL ON FUNCTION public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text) TO authenticated;
+REVOKE ALL ON FUNCTION public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text) TO authenticated;
 
 -- A single supplier invoice may now cover several purchase orders. One match header
 -- is stored per order, while the RPC validates the invoice subtotal across all lines.
