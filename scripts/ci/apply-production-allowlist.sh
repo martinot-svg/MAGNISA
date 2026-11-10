@@ -27,6 +27,11 @@ fi
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
+# Never apply a missing historical version behind the current remote head.
+# Supabase migration versions are fixed-width timestamps, so lexical order is chronological.
+REMOTE_MAX_VERSION="$(psql "$SUPABASE_DB_URL" -X -qAt -v ON_ERROR_STOP=1 \
+  -c "select coalesce(max(version)::text,'') from supabase_migrations.schema_migrations")"
+
 PENDING=0
 for version in "${ALLOWED_VERSIONS[@]}"; do
   if [[ ! "$version" =~ ^[0-9]{14}$ ]]; then
@@ -61,6 +66,12 @@ for version in "${ALLOWED_VERSIONS[@]}"; do
     fi
     echo "Already applied: $version $expected_name"
     continue
+  fi
+
+  if [[ -n "$REMOTE_MAX_VERSION" && "$version" < "$REMOTE_MAX_VERSION" ]]; then
+    echo "::error::Refusing out-of-order migration $version: remote ledger already contains $REMOTE_MAX_VERSION."
+    echo "::error::Create and validate a forward-only compatibility migration after the remote ledger head."
+    exit 1
   fi
 
   checksum="$(sha256sum "$file" | awk '{print $1}')"
