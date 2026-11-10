@@ -45,7 +45,6 @@ INSERT INTO public.pcg2005_accounts(code,label,kind) VALUES
  ('351','Produits intermédiaires','asset'),
  ('355','Produits finis','asset'),
  ('358','Produits résiduels ou matières de récupération','asset'),
- ('36','Compte disponible','asset'),
  ('37','Stocks de marchandises','asset'),
  ('38','Stocks à l’extérieur','asset'),
  ('39','Pertes de valeur sur stocks et en-cours','asset'),
