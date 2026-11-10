@@ -132,7 +132,7 @@ while IFS='|' read -r version remote_name local_file mapping_type evidence_ref e
   [[ -n "$version" && "$version" != \#* ]] || continue
   printf '%s\n' "$local_file" >> "$TMP_DIR/mapped-local-files"
 done < "$RECONCILIATION_FILE"
-awk -F '|' 'NR==FNR {mapped[$1]=1; next} !($3 in mapped) {print $1}' \
+awk -F '|' 'FILENAME==ARGV[1] {mapped[$1]=1; next} !($3 in mapped) {print $1}' \
   "$TMP_DIR/mapped-local-files" "$LOCAL" | sort > "$LOCAL_VERSIONS"
 comm -23 "$LOCAL_VERSIONS" "$REMOTE_VERSIONS" > "$LOCAL_ONLY"
 : > "$UNEXPECTED"
