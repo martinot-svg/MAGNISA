@@ -49,6 +49,14 @@ BEGIN
     OR NOT EXISTS(SELECT 1 FROM public.accounting_posting_rules WHERE operation_type='stock_adjustment_in' AND operation_key='merchandise_stock' AND debit_account_code='37' AND active) THEN
   RAISE EXCEPTION 'Return and inventory adjustment accounting rules are missing';
  END IF;
+ SELECT pg_get_functiondef('private.assign_stock_movement_bucket()'::regprocedure) INTO v_def;
+ IF position('stock_return_lines' in v_def)=0 OR position('stock_adjustment_lines' in v_def)=0 OR position('stock_transfer_cancel' in v_def)=0 THEN
+  RAISE EXCEPTION 'Compensating movement bucket provenance is incomplete';
+ END IF;
+ SELECT pg_get_functiondef('private.post_stock_movement_accounting()'::regprocedure) INTO v_def;
+ IF position('stock_supplier_return' in v_def)=0 OR position('stock_adjustment_in' in v_def)=0 OR position('delivery_cancel' in v_def)=0 THEN
+  RAISE EXCEPTION 'Return and adjustment events are not connected to the accounting outbox';
+ END IF;
  IF NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_lines' AND column_name='item_id') THEN
   RAISE EXCEPTION 'Order item linkage missing';
  END IF;
