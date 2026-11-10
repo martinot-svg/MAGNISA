@@ -43,5 +43,6 @@ describe("classifyCashFlowCounterpart",()=>{
   it("preserves operating and financing classifications for unrelated accounts",()=>{
     expect(classifyCashFlowCounterpart("401")).toBe("operating");
     expect(classifyCashFlowCounterpart("164")).toBe("financing");
+    expect(classifyCashFlowCounterpart("516")).toBe("financing");
   });
 });
