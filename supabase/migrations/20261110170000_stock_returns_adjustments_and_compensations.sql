@@ -288,3 +288,247 @@ BEGIN
  END LOOP;
  RETURN v_id;
 END $$;
+
+
+CREATE OR REPLACE FUNCTION public.post_customer_stock_return(
+ p_org uuid,p_delivery_line_id uuid,p_location_id uuid,p_quantity numeric,
+ p_condition text,p_request_key uuid,p_reason text
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $function$
+DECLARE dl public.sales_delivery_lines%rowtype;v_delivery public.sales_deliveries%rowtype;
+ v_bucket text;v_return uuid;v_line uuid;v_number text;v_cost numeric;v_returned numeric;v_invoice_line uuid;v_existing public.stock_returns%rowtype;
+BEGIN
+ PERFORM public.assert_org_access(p_org);PERFORM public.assert_org_permission(p_org,'inventory.manage');
+ IF p_quantity<=0 OR p_reason IS NULL OR length(trim(p_reason))<3 OR p_condition NOT IN ('resalable','quarantine','damaged') THEN RAISE EXCEPTION 'Paramètres de retour client invalides'; END IF;
+ SELECT * INTO v_existing FROM public.stock_returns WHERE organization_id=p_org AND request_key=p_request_key;
+ IF FOUND THEN
+  SELECT * INTO dl FROM public.sales_delivery_lines WHERE id=p_delivery_line_id AND organization_id=p_org;
+  IF NOT FOUND OR v_existing.return_type<>'customer' THEN RAISE EXCEPTION 'Clé de retour déjà utilisée'; END IF;
+  IF NOT EXISTS(SELECT 1 FROM public.stock_return_lines WHERE return_id=v_existing.id AND organization_id=p_org
+    AND source_line_id=p_delivery_line_id AND quantity=p_quantity AND return_condition=p_condition AND stock_location_id=p_location_id) THEN
+   RAISE EXCEPTION 'Clé de retour réutilisée avec des paramètres différents';
+  END IF;
+  RETURN v_existing.id;
+ END IF;
+ SELECT * INTO dl FROM public.sales_delivery_lines WHERE id=p_delivery_line_id AND organization_id=p_org FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Ligne de livraison introuvable'; END IF;
+ SELECT * INTO v_delivery FROM public.sales_deliveries WHERE id=dl.delivery_id AND organization_id=p_org FOR UPDATE;
+ IF NOT FOUND OR v_delivery.status<>'posted' THEN RAISE EXCEPTION 'La livraison source n’est pas active'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.stock_locations WHERE id=p_location_id AND organization_id=p_org AND is_active) THEN RAISE EXCEPTION 'Emplacement de retour invalide'; END IF;
+ SELECT COALESCE(SUM(rl.quantity),0) INTO v_returned
+ FROM public.stock_return_lines rl JOIN public.stock_returns sr ON sr.id=rl.return_id AND sr.organization_id=rl.organization_id
+ WHERE rl.organization_id=p_org AND rl.source_line_type='sales_delivery_line' AND rl.source_line_id=dl.id
+   AND sr.return_type='customer' AND sr.status='posted';
+ IF p_quantity>dl.quantity_delivered-v_returned+0.00000001 THEN RAISE EXCEPTION 'Le retour dépasse la quantité livrée non encore retournée'; END IF;
+ v_bucket:=CASE WHEN p_condition='resalable' THEN 'resale' ELSE 'quarantine' END;
+ v_cost:=dl.unit_cost;
+ SELECT il.id INTO v_invoice_line FROM public.invoice_lines il JOIN public.invoices inv ON inv.id=il.invoice_id AND inv.organization_id=il.organization_id
+ WHERE il.organization_id=p_org AND il.source_order_line_id=dl.order_line_id AND inv.status IN ('issued','partially_paid','paid')
+ ORDER BY inv.issue_date DESC,il.created_at DESC LIMIT 1;
+ v_return:=gen_random_uuid();v_line:=gen_random_uuid();
+ v_number:='CR-'||to_char(now(),'YYYYMMDD')||'-'||upper(substr(replace(v_return::text,'-',''),1,8));
+ INSERT INTO public.stock_returns(id,organization_id,return_number,return_type,source_document_id,request_key,reason,created_by)
+ VALUES(v_return,p_org,v_number,'customer',dl.delivery_id,p_request_key,trim(p_reason),auth.uid());
+ INSERT INTO public.stock_return_lines(id,organization_id,return_id,source_line_type,source_line_id,source_invoice_line_id,item_id,stock_location_id,quantity,return_condition,stock_bucket,unit_cost)
+ VALUES(v_line,p_org,v_return,'sales_delivery_line',dl.id,v_invoice_line,dl.item_id,p_location_id,p_quantity,p_condition,v_bucket,v_cost);
+ INSERT INTO public.stock_movements(organization_id,item_id,stock_location_id,stock_bucket,movement_kind,quantity_delta,unit_cost,currency,source_type,source_id,source_line_id,event_key,effective_at,created_by)
+ VALUES(p_org,dl.item_id,p_location_id,v_bucket,'customer_return',p_quantity,v_cost,'MGA','customer_return',v_return,v_line,'customer-return:'||v_line::text,now(),auth.uid());
+ PERFORM public.audit_event(p_org,'stock.customer_return_posted','stock_return',v_return,NULL,jsonb_build_object('delivery_line_id',dl.id,'quantity',p_quantity,'condition',p_condition,'bucket',v_bucket));
+ RETURN v_return;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.post_supplier_stock_return(
+ p_org uuid,p_receipt_line_id uuid,p_location_id uuid,p_quantity numeric,p_request_key uuid,p_reason text
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $function$
+DECLARE grl public.goods_receipt_lines%rowtype;gr public.goods_receipts%rowtype;pol public.purchase_order_lines%rowtype;
+ v_bucket text;v_cost numeric;v_returned numeric;v_on_hand numeric;v_reserved numeric;v_return uuid;v_line uuid;v_number text;v_existing public.stock_returns%rowtype;
+BEGIN
+ PERFORM public.assert_org_access(p_org);PERFORM public.assert_org_permission(p_org,'inventory.manage');
+ IF p_quantity<=0 OR p_reason IS NULL OR length(trim(p_reason))<3 THEN RAISE EXCEPTION 'Paramètres de retour fournisseur invalides'; END IF;
+ SELECT * INTO v_existing FROM public.stock_returns WHERE organization_id=p_org AND request_key=p_request_key;
+ IF FOUND THEN
+  IF v_existing.return_type<>'supplier' OR NOT EXISTS(SELECT 1 FROM public.stock_return_lines WHERE return_id=v_existing.id AND organization_id=p_org
+    AND source_line_type='goods_receipt_line' AND source_line_id=p_receipt_line_id AND quantity=p_quantity AND stock_location_id=p_location_id) THEN
+   RAISE EXCEPTION 'Clé de retour réutilisée avec des paramètres différents';
+  END IF;
+  RETURN v_existing.id;
+ END IF;
+ SELECT * INTO grl FROM public.goods_receipt_lines WHERE id=p_receipt_line_id AND organization_id=p_org FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Ligne de réception fournisseur introuvable'; END IF;
+ SELECT * INTO gr FROM public.goods_receipts WHERE id=grl.goods_receipt_id AND organization_id=p_org FOR UPDATE;
+ IF NOT FOUND OR gr.status<>'posted' THEN RAISE EXCEPTION 'La réception source n’est pas validée'; END IF;
+ SELECT * INTO pol FROM public.purchase_order_lines WHERE id=grl.purchase_order_line_id AND organization_id=p_org;
+ IF NOT FOUND OR pol.purchase_purpose='customer_mandate' THEN RAISE EXCEPTION 'Un achat sous mandat ne constitue pas un stock appartenant à l’entreprise'; END IF;
+ SELECT stock_bucket,unit_cost INTO v_bucket,v_cost FROM public.stock_movements
+ WHERE organization_id=p_org AND source_type='goods_receipt' AND source_line_id=grl.id AND movement_kind='receipt' LIMIT 1;
+ IF v_bucket IS NULL THEN RAISE EXCEPTION 'Mouvement d’entrée d’origine introuvable'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.stock_locations WHERE id=p_location_id AND organization_id=p_org AND is_active) THEN RAISE EXCEPTION 'Emplacement de retour invalide'; END IF;
+ SELECT COALESCE(SUM(rl.quantity),0) INTO v_returned
+ FROM public.stock_return_lines rl JOIN public.stock_returns sr ON sr.id=rl.return_id AND sr.organization_id=rl.organization_id
+ WHERE rl.organization_id=p_org AND rl.source_line_type='goods_receipt_line' AND rl.source_line_id=grl.id
+   AND sr.return_type='supplier' AND sr.status='posted';
+ IF p_quantity>grl.quantity_received-v_returned+0.00000001 THEN RAISE EXCEPTION 'Le retour dépasse la quantité reçue non encore retournée'; END IF;
+ SELECT COALESCE(SUM(quantity_delta),0) INTO v_on_hand FROM public.stock_movements
+ WHERE organization_id=p_org AND item_id=grl.item_id AND stock_location_id=p_location_id AND stock_bucket=v_bucket;
+ SELECT COALESCE(SUM(quantity_reserved-quantity_fulfilled-quantity_released),0) INTO v_reserved
+ FROM public.stock_reservations WHERE organization_id=p_org AND item_id=grl.item_id AND stock_location_id=p_location_id
+ AND stock_bucket='resale' AND status IN ('active','partially_fulfilled');
+ IF v_on_hand-v_reserved+0.00000001<p_quantity THEN RAISE EXCEPTION 'Stock physique disponible insuffisant pour le retour fournisseur'; END IF;
+ v_return:=gen_random_uuid();v_line:=gen_random_uuid();
+ v_number:='SR-'||to_char(now(),'YYYYMMDD')||'-'||upper(substr(replace(v_return::text,'-',''),1,8));
+ INSERT INTO public.stock_returns(id,organization_id,return_number,return_type,source_document_id,request_key,reason,created_by)
+ VALUES(v_return,p_org,v_number,'supplier',gr.id,p_request_key,trim(p_reason),auth.uid());
+ INSERT INTO public.stock_return_lines(id,organization_id,return_id,source_line_type,source_line_id,item_id,stock_location_id,quantity,return_condition,stock_bucket,unit_cost)
+ VALUES(v_line,p_org,v_return,'goods_receipt_line',grl.id,grl.item_id,p_location_id,p_quantity,'supplier_return',v_bucket,v_cost);
+ INSERT INTO public.stock_movements(organization_id,item_id,stock_location_id,stock_bucket,movement_kind,quantity_delta,unit_cost,currency,source_type,source_id,source_line_id,event_key,effective_at,created_by)
+ VALUES(p_org,grl.item_id,p_location_id,v_bucket,'supplier_return',-p_quantity,v_cost,'MGA','supplier_return',v_return,v_line,'supplier-return:'||v_line::text,now(),auth.uid());
+ PERFORM public.audit_event(p_org,'stock.supplier_return_posted','stock_return',v_return,NULL,jsonb_build_object('receipt_line_id',grl.id,'quantity',p_quantity,'bucket',v_bucket));
+ RETURN v_return;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.post_stock_adjustment(
+ p_org uuid,p_item_id uuid,p_location_id uuid,p_stock_bucket text,p_quantity_delta numeric,
+ p_unit_cost numeric,p_reason text,p_evidence_reference text,p_request_key uuid
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $function$
+DECLARE v_on_hand numeric;v_value numeric;v_reserved numeric;v_cost numeric;v_adjustment uuid;v_line uuid;v_number text;v_existing public.stock_adjustments%rowtype;
+BEGIN
+ PERFORM public.assert_org_access(p_org);PERFORM public.assert_org_permission(p_org,'inventory.manage');
+ IF p_quantity_delta=0 OR p_stock_bucket NOT IN ('resale','company_use','consumption','quarantine') OR p_reason IS NULL OR length(trim(p_reason))<3 THEN
+  RAISE EXCEPTION 'Paramètres de correction de stock invalides';
+ END IF;
+ SELECT * INTO v_existing FROM public.stock_adjustments WHERE organization_id=p_org AND request_key=p_request_key;
+ IF FOUND THEN
+  IF NOT EXISTS(SELECT 1 FROM public.stock_adjustment_lines WHERE adjustment_id=v_existing.id AND organization_id=p_org
+   AND item_id=p_item_id AND stock_location_id=p_location_id AND stock_bucket=p_stock_bucket AND quantity_delta=p_quantity_delta) THEN
+   RAISE EXCEPTION 'Clé de correction réutilisée avec des paramètres différents';
+  END IF;
+  RETURN v_existing.id;
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.catalog_items WHERE id=p_item_id AND organization_id=p_org AND tracking_mode='quantity') THEN
+  RAISE EXCEPTION 'Article non suivi en quantité';
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.stock_locations WHERE id=p_location_id AND organization_id=p_org AND is_active) THEN RAISE EXCEPTION 'Emplacement invalide'; END IF;
+ SELECT COALESCE(SUM(quantity_delta),0),COALESCE(SUM(quantity_delta*unit_cost),0)
+ INTO v_on_hand,v_value FROM public.stock_movements
+ WHERE organization_id=p_org AND item_id=p_item_id AND stock_location_id=p_location_id AND stock_bucket=p_stock_bucket;
+ IF p_quantity_delta<0 THEN
+  SELECT COALESCE(SUM(quantity_reserved-quantity_fulfilled-quantity_released),0) INTO v_reserved
+  FROM public.stock_reservations WHERE organization_id=p_org AND item_id=p_item_id AND stock_location_id=p_location_id
+   AND stock_bucket='resale' AND status IN ('active','partially_fulfilled');
+  IF v_on_hand-v_reserved+0.00000001<abs(p_quantity_delta) THEN RAISE EXCEPTION 'La correction ferait passer le stock disponible sous zéro'; END IF;
+  v_cost:=CASE WHEN v_on_hand>0 THEN round(v_value/v_on_hand,2) ELSE 0 END;
+ ELSE
+  v_cost:=COALESCE(NULLIF(p_unit_cost,0),CASE WHEN v_on_hand>0 THEN round(v_value/v_on_hand,2) ELSE NULL END);
+  IF v_cost IS NULL OR v_cost<0 THEN RAISE EXCEPTION 'Un coût unitaire justifié est obligatoire pour une entrée de correction sans coût moyen existant'; END IF;
+ END IF;
+ v_adjustment:=gen_random_uuid();v_line:=gen_random_uuid();
+ v_number:='ADJ-'||to_char(now(),'YYYYMMDD')||'-'||upper(substr(replace(v_adjustment::text,'-',''),1,8));
+ INSERT INTO public.stock_adjustments(id,organization_id,adjustment_number,request_key,reason,evidence_reference,created_by)
+ VALUES(v_adjustment,p_org,v_number,p_request_key,trim(p_reason),NULLIF(trim(COALESCE(p_evidence_reference,'')),''),auth.uid());
+ INSERT INTO public.stock_adjustment_lines(id,organization_id,adjustment_id,item_id,stock_location_id,stock_bucket,quantity_delta,unit_cost)
+ VALUES(v_line,p_org,v_adjustment,p_item_id,p_location_id,p_stock_bucket,p_quantity_delta,v_cost);
+ INSERT INTO public.stock_movements(organization_id,item_id,stock_location_id,stock_bucket,movement_kind,quantity_delta,unit_cost,currency,source_type,source_id,source_line_id,event_key,effective_at,created_by)
+ VALUES(p_org,p_item_id,p_location_id,p_stock_bucket,CASE WHEN p_quantity_delta>0 THEN 'adjustment_in' ELSE 'adjustment_out' END,
+  p_quantity_delta,v_cost,'MGA','stock_adjustment',v_adjustment,v_line,'stock-adjustment:'||v_line::text,now(),auth.uid());
+ UPDATE public.stock_adjustment_lines SET movement_id=(SELECT id FROM public.stock_movements WHERE organization_id=p_org AND event_key='stock-adjustment:'||v_line::text)
+ WHERE id=v_line AND organization_id=p_org;
+ PERFORM public.audit_event(p_org,'stock.adjustment_posted','stock_adjustment',v_adjustment,NULL,jsonb_build_object('item_id',p_item_id,'location_id',p_location_id,'bucket',p_stock_bucket,'quantity_delta',p_quantity_delta,'unit_cost',v_cost));
+ RETURN v_adjustment;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.cancel_stock_transfer(p_org uuid,p_transfer_id uuid,p_request_key uuid,p_reason text)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $function$
+DECLARE t public.stock_transfers%rowtype;l public.stock_transfer_lines%rowtype;v_on_hand numeric;v_reserved numeric;
+BEGIN
+ PERFORM public.assert_org_access(p_org);PERFORM public.assert_org_permission(p_org,'inventory.manage');
+ IF p_reason IS NULL OR length(trim(p_reason))<3 THEN RAISE EXCEPTION 'Motif d’annulation obligatoire'; END IF;
+ SELECT * INTO t FROM public.stock_transfers WHERE id=p_transfer_id AND organization_id=p_org FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Transfert introuvable'; END IF;
+ IF t.status='cancelled' THEN
+  IF t.cancellation_request_key=p_request_key THEN RETURN; END IF;
+  RAISE EXCEPTION 'Transfert déjà annulé avec une autre demande';
+ END IF;
+ FOR l IN SELECT * FROM public.stock_transfer_lines WHERE transfer_id=t.id AND organization_id=p_org FOR UPDATE LOOP
+  SELECT COALESCE(SUM(quantity_delta),0) INTO v_on_hand FROM public.stock_movements
+   WHERE organization_id=p_org AND item_id=l.item_id AND stock_location_id=t.destination_location_id AND stock_bucket=l.stock_bucket;
+  SELECT COALESCE(SUM(quantity_reserved-quantity_fulfilled-quantity_released),0) INTO v_reserved
+   FROM public.stock_reservations WHERE organization_id=p_org AND item_id=l.item_id AND stock_location_id=t.destination_location_id
+    AND stock_bucket='resale' AND status IN ('active','partially_fulfilled');
+  IF v_on_hand-v_reserved+0.00000001<l.quantity THEN RAISE EXCEPTION 'Le stock transféré n’est plus disponible à l’emplacement de destination'; END IF;
+  INSERT INTO public.stock_movements(organization_id,item_id,stock_location_id,stock_bucket,movement_kind,quantity_delta,unit_cost,currency,source_type,source_id,source_line_id,event_key,effective_at,created_by)
+  VALUES(p_org,l.item_id,t.destination_location_id,l.stock_bucket,'transfer_out',-l.quantity,l.unit_cost,'MGA','stock_transfer_cancel',t.id,l.id,'stock-transfer-cancel-out:'||l.id::text,now(),auth.uid()),
+        (p_org,l.item_id,t.source_location_id,l.stock_bucket,'transfer_in',l.quantity,l.unit_cost,'MGA','stock_transfer_cancel',t.id,l.id,'stock-transfer-cancel-in:'||l.id::text,now(),auth.uid());
+ END LOOP;
+ UPDATE public.stock_transfers SET status='cancelled',cancellation_request_key=p_request_key,cancellation_reason=trim(p_reason),cancelled_at=now()
+ WHERE id=t.id AND organization_id=p_org;
+ PERFORM public.audit_event(p_org,'stock.transfer_cancelled','stock_transfer',t.id,jsonb_build_object('status','posted'),jsonb_build_object('status','cancelled','reason',trim(p_reason)));
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.cancel_sales_delivery(p_org uuid,p_delivery_id uuid,p_request_key uuid,p_reason text)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $function$
+DECLARE d public.sales_deliveries%rowtype;l public.sales_delivery_lines%rowtype;
+BEGIN
+ PERFORM public.assert_org_access(p_org);PERFORM public.assert_org_permission(p_org,'inventory.manage');
+ IF p_reason IS NULL OR length(trim(p_reason))<3 THEN RAISE EXCEPTION 'Motif d’annulation obligatoire'; END IF;
+ SELECT * INTO d FROM public.sales_deliveries WHERE id=p_delivery_id AND organization_id=p_org FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Livraison introuvable'; END IF;
+ IF d.status='cancelled' THEN
+  IF d.cancellation_request_key=p_request_key THEN RETURN; END IF;
+  RAISE EXCEPTION 'Livraison déjà annulée avec une autre demande';
+ END IF;
+ IF EXISTS(
+  SELECT 1 FROM public.sales_delivery_lines dl
+  JOIN public.invoice_lines il ON il.source_order_line_id=dl.order_line_id AND il.organization_id=dl.organization_id
+  JOIN public.invoices inv ON inv.id=il.invoice_id AND inv.organization_id=il.organization_id
+  WHERE dl.delivery_id=d.id AND dl.organization_id=p_org AND inv.status<>'cancelled'
+ ) THEN RAISE EXCEPTION 'Une quantité de cette livraison est déjà facturée ou réservée dans un brouillon de facture. Utilise le workflow de retour et avoir.'; END IF;
+ IF EXISTS(SELECT 1 FROM public.stock_return_lines WHERE organization_id=p_org AND source_line_type='sales_delivery_line'
+   AND source_line_id IN (SELECT id FROM public.sales_delivery_lines WHERE delivery_id=d.id AND organization_id=p_org)) THEN
+  RAISE EXCEPTION 'Une livraison avec retour enregistré ne peut pas être annulée intégralement';
+ END IF;
+ FOR l IN SELECT * FROM public.sales_delivery_lines WHERE delivery_id=d.id AND organization_id=p_org FOR UPDATE LOOP
+  INSERT INTO public.stock_movements(organization_id,item_id,stock_location_id,stock_bucket,movement_kind,quantity_delta,unit_cost,currency,source_type,source_id,source_line_id,event_key,effective_at,created_by)
+  VALUES(p_org,l.item_id,l.stock_location_id,'resale','adjustment_in',l.quantity_delivered,l.unit_cost,'MGA','delivery_cancel',d.id,l.id,'delivery-cancel:'||l.id::text,now(),auth.uid());
+  UPDATE public.order_lines SET delivered_quantity=GREATEST(0,delivered_quantity-l.quantity_delivered)
+   WHERE id=l.order_line_id AND organization_id=p_org;
+  IF l.reservation_id IS NOT NULL THEN
+   UPDATE public.stock_reservations SET quantity_fulfilled=GREATEST(0,quantity_fulfilled-l.quantity_delivered),
+    status=CASE WHEN GREATEST(0,quantity_fulfilled-l.quantity_delivered)+quantity_released>=quantity_reserved THEN 'released' ELSE 'active' END
+   WHERE id=l.reservation_id AND organization_id=p_org;
+  END IF;
+ END LOOP;
+ UPDATE public.sales_deliveries SET status='cancelled',cancellation_request_key=p_request_key,cancellation_reason=trim(p_reason),cancelled_at=now()
+ WHERE id=d.id AND organization_id=p_org;
+ PERFORM public.audit_event(p_org,'sales.delivery_cancelled','sales_delivery',d.id,jsonb_build_object('status','posted'),jsonb_build_object('status','cancelled','reason',trim(p_reason)));
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.stock_balance_as_of(p_org uuid,p_as_of timestamptz)
+RETURNS TABLE(item_id uuid,stock_location_id uuid,stock_bucket text,quantity_on_hand numeric)
+LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path=public AS $function$
+BEGIN
+ PERFORM public.assert_org_access(p_org);PERFORM public.assert_org_permission(p_org,'inventory.view');
+ IF p_as_of IS NULL THEN RAISE EXCEPTION 'Date de référence obligatoire'; END IF;
+ RETURN QUERY
+ SELECT m.item_id,m.stock_location_id,m.stock_bucket,SUM(m.quantity_delta)::numeric
+ FROM public.stock_movements m
+ WHERE m.organization_id=p_org AND m.effective_at<=p_as_of
+ GROUP BY m.item_id,m.stock_location_id,m.stock_bucket;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.post_customer_stock_return(uuid,uuid,uuid,numeric,text,uuid,text) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.post_supplier_stock_return(uuid,uuid,uuid,numeric,uuid,text) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.post_stock_adjustment(uuid,uuid,uuid,text,numeric,numeric,text,text,uuid) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.cancel_stock_transfer(uuid,uuid,uuid,text) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.cancel_sales_delivery(uuid,uuid,uuid,text) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.stock_balance_as_of(uuid,timestamptz) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.post_customer_stock_return(uuid,uuid,uuid,numeric,text,uuid,text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.post_supplier_stock_return(uuid,uuid,uuid,numeric,uuid,text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.post_stock_adjustment(uuid,uuid,uuid,text,numeric,numeric,text,text,uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.cancel_stock_transfer(uuid,uuid,uuid,text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.cancel_sales_delivery(uuid,uuid,uuid,text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.stock_balance_as_of(uuid,timestamptz) TO authenticated;
