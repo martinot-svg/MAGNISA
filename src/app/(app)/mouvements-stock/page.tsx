@@ -10,14 +10,13 @@ export default async function StockOperationsPage(){
  const canManage=await hasPermission(ctx,"inventory.manage");
  const canManageOrders=await hasPermission(ctx,"orders.manage");
  const {supabase,organizationId}=ctx;
- const [{data:balances=[]},{data:items=[]},{data:locations=[]},{data:reservations=[]},{data:movements=[]},{data:transfers=[]},{data:org}] = await Promise.all([
+ const [{data:balances=[]},{data:items=[]},{data:locations=[]},{data:reservations=[]},{data:movements=[]} ,{data:transfers=[]}] = await Promise.all([
   supabase.from("stock_available").select("item_id,stock_location_id,quantity_on_hand,quantity_reserved,quantity_available").eq("organization_id",organizationId),
   supabase.from("catalog_items").select("id,sku,name,base_unit,tracking_mode").eq("organization_id",organizationId).eq("is_active",true).order("name"),
   supabase.from("stock_locations").select("id,code,name,location_kind").eq("organization_id",organizationId).eq("is_active",true).order("name"),
   supabase.from("stock_reservations").select("id,order_id,order_line_id,item_id,stock_location_id,quantity_reserved,quantity_fulfilled,quantity_released,status,created_at").eq("organization_id",organizationId).in("status",["active","partially_fulfilled"]).order("created_at",{ascending:false}).limit(100),
   supabase.from("stock_movements").select("id,item_id,stock_location_id,movement_kind,quantity_delta,unit_cost,currency,source_type,source_id,effective_at,created_by").eq("organization_id",organizationId).order("effective_at",{ascending:false}).limit(100),
   supabase.from("stock_transfers").select("id,transfer_number,source_location_id,destination_location_id,reason,transferred_at,status").eq("organization_id",organizationId).order("transferred_at",{ascending:false}).limit(50),
-  supabase.from("organizations").select("currency").eq("id",organizationId).single(),
  ]);
  const itemMap=new Map((items as any[]).map(x=>[x.id,x]));
  const locMap=new Map((locations as any[]).map(x=>[x.id,x]));
