@@ -249,7 +249,11 @@ describe("buildPassifPresentation", () => {
 
   it("presents the credit side of mixed tax accounts as current liabilities", () => {
     const result = buildPassifPresentation(
-      [line("442", 0, 125_000), line("443", 0, 30_000), line("445", 0, 75_000)],
+      [
+        {...line("442", 0, 125_000), balance:125_000},
+        {...line("443", 0, 30_000), balance:30_000},
+        {...line("445", 0, 75_000), balance:75_000},
+      ],
       [
         passifRule("442", "current_liabilities", "tax_payables"),
         passifRule("443", "current_liabilities", "tax_payables"),
