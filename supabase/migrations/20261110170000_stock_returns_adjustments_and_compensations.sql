@@ -77,7 +77,8 @@ CREATE TABLE public.stock_adjustment_lines(
  created_at timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(adjustment_id,organization_id) REFERENCES public.stock_adjustments(id,organization_id) ON DELETE RESTRICT,
  FOREIGN KEY(item_id,organization_id) REFERENCES public.catalog_items(id,organization_id) ON DELETE RESTRICT,
- FOREIGN KEY(stock_location_id,organization_id) REFERENCES public.stock_locations(id,organization_id) ON DELETE RESTRICT
+ FOREIGN KEY(stock_location_id,organization_id) REFERENCES public.stock_locations(id,organization_id) ON DELETE RESTRICT,
+ FOREIGN KEY(movement_id,organization_id) REFERENCES public.stock_movements(id,organization_id) ON DELETE RESTRICT
 );
 CREATE INDEX stock_returns_source_line_idx ON public.stock_return_lines(organization_id,source_line_type,source_line_id);
 CREATE INDEX stock_adjustment_lines_item_idx ON public.stock_adjustment_lines(organization_id,item_id,stock_location_id);
