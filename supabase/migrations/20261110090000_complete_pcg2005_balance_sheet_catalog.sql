@@ -102,6 +102,22 @@ INSERT INTO public.pcg2005_accounts(code,label,kind) VALUES
  ('594','Pertes de valeur sur régies d’avances et accréditifs','asset')
 ON CONFLICT (code) DO NOTHING;
 
+-- Split receivable/payable subaccounts used by the official PCG 2005 balance-sheet model.
+INSERT INTO public.pcg2005_accounts(code,label,kind) VALUES
+ ('4286','Personnel, charges à payer','liability'),
+ ('4287','Personnel, produits à recevoir','asset'),
+ ('4486','État, charges à payer','liability'),
+ ('4487','État, produits à recevoir','asset'),
+ ('4686','Divers charges à payer','liability'),
+ ('4687','Divers produits à recevoir','asset')
+ON CONFLICT (code) DO NOTHING;
+
+-- These PCG accounts can carry either a debit asset balance or a credit liability balance.
+UPDATE public.pcg2005_accounts
+SET kind='clearing'
+WHERE code IN ('422','442','443','445','451','456','458','467')
+  AND kind IS DISTINCT FROM 'clearing';
+
 CREATE TABLE IF NOT EXISTS public.pcg2005_balance_sheet_rules (
   account_code text PRIMARY KEY REFERENCES public.pcg2005_accounts(code) ON DELETE RESTRICT,
   section text NOT NULL CHECK (section IN (
@@ -174,7 +190,7 @@ SELECT code,'current_assets',
   CASE WHEN code ~ '^39' THEN 'credit' ELSE 'debit' END,
   code ~ '^39'
 FROM public.pcg2005_accounts
-WHERE code ~ '^(31|32|33|34|35|36|37|38|39)'
+WHERE code ~ '^(31|32|33|34|35|37|38|39)'
 ON CONFLICT (account_code) DO NOTHING;
 
 -- Class 4: third-party accounts. Maturity is mandatory; mixed/clearing accounts
@@ -182,17 +198,17 @@ ON CONFLICT (account_code) DO NOTHING;
 INSERT INTO public.pcg2005_balance_sheet_rules(account_code,section,line_key,normal_side,requires_maturity,contra_asset)
 SELECT code,
   CASE
-    WHEN code IN ('409','411','413','416','417','418','425','441','442','462','465','486') THEN 'current_assets'
-    WHEN code IN ('401','403','404','405','408','419','421','422','426','427','431','432','438','444','447','457','481','487') THEN 'current_liabilities'
+    WHEN code IN ('409','411','413','416','417','418','422','425','4287','441','442','443','445','4487','451','456','458','462','465','467','4687','486') THEN 'current_assets'
+    WHEN code IN ('401','403','404','405','408','419','421','426','427','431','432','438','444','447','457','481','487','4286','4486','4686') THEN 'current_liabilities'
     WHEN code ~ '^49' THEN 'current_assets'
-    WHEN code ~ '^47' OR code IN ('428','443','448','451','455','456','458','467','468') THEN 'review'
+    WHEN code ~ '^47' OR code IN ('428','448','468','455') THEN 'review'
     ELSE 'review'
   END,
   CASE
     WHEN code IN ('411','413','416','417','418','419') THEN 'trade_receivables'
     WHEN code IN ('409','425') THEN 'advances_and_deposits'
-    WHEN code IN ('441','442','443','444','445','447','448') THEN 'tax_and_public_authority_balances'
-    WHEN code IN ('462','464','465','467','468') THEN 'other_receivables_and_payables'
+    WHEN code IN ('441','442','443','444','445','447','448','4486','4487') THEN 'tax_and_public_authority_balances'
+    WHEN code IN ('422','4286','4287','462','464','465','451','456','458','467','468','4686','4687') THEN 'other_receivables_and_payables'
     WHEN code IN ('486','487') THEN 'accruals_and_deferred_income'
     WHEN code ~ '^49' THEN 'receivables_impairment'
     WHEN code ~ '^47' THEN 'suspense_and_transitory'
@@ -200,8 +216,8 @@ SELECT code,
   END,
   CASE
     WHEN code ~ '^49' THEN 'credit'
-    WHEN code IN ('409','411','413','416','417','418','425','441','442','462','465','486') THEN 'debit'
-    WHEN code IN ('401','403','404','405','408','419','421','422','426','427','431','432','438','444','447','457','481','487') THEN 'credit'
+    WHEN code IN ('409','411','413','416','417','418','422','425','4287','441','442','443','445','4487','451','456','458','462','465','467','4687','486') THEN 'debit'
+    WHEN code IN ('401','403','404','405','408','419','421','426','427','431','432','438','444','447','457','481','487','4286','4486','4686') THEN 'credit'
     ELSE 'both'
   END,
   true,
