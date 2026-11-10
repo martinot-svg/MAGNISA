@@ -93,6 +93,7 @@ INSERT INTO public.pcg2005_accounts(code,label,kind) VALUES
  ('509','Versements restant à effectuer sur VMP non libérées','asset'),
  ('515','Caisse du Trésor Public et établissements publics','asset'),
  ('518','Intérêts courus','asset'),
+ ('516','Échéances à moins d’un an des dettes à long terme','liability'),
  ('519','Concours bancaires courants','liability'),
  ('52','Instruments de trésorerie','asset'),
  ('54','Régies d’avances et accréditifs','asset'),
@@ -228,10 +229,11 @@ ON CONFLICT (account_code) DO NOTHING;
 -- Class 5: financial assets and cash. Internal transfers are never presented as cash.
 INSERT INTO public.pcg2005_balance_sheet_rules(account_code,section,line_key,normal_side,contra_asset)
 SELECT code,
-  CASE WHEN code='519' THEN 'current_liabilities'
+  CASE WHEN code IN ('516','519') THEN 'current_liabilities'
        WHEN code ~ '^58' THEN 'clearing'
        ELSE 'current_assets' END,
   CASE WHEN code='509' THEN 'unpaid_short_term_investments'
+       WHEN code='516' THEN 'current_portion_of_long_term_debt'
        WHEN code ~ '^50' THEN 'short_term_investments'
        WHEN code ~ '^51' THEN 'bank_and_financial_institutions'
        WHEN code='52' THEN 'treasury_instruments'
@@ -240,12 +242,88 @@ SELECT code,
        WHEN code ~ '^58' THEN 'internal_transfers_pending'
        WHEN code ~ '^59' THEN 'cash_impairment'
        ELSE 'unclassified_financial_asset' END,
-  CASE WHEN code IN ('509','519') OR code ~ '^(58|59)' THEN 'credit'
+  CASE WHEN code IN ('509','516','519') OR code ~ '^(58|59)' THEN 'credit'
        ELSE 'debit' END,
   code IN ('509') OR code ~ '^59'
 FROM public.pcg2005_accounts
 WHERE code ~ '^(50|51|52|53|54|58|59)'
 ON CONFLICT (account_code) DO NOTHING;
+
+
+-- Separate passif rules: a mixed PCG account may be an asset on its debit
+-- balance and a liability on its credit balance; one asset rule cannot express both.
+CREATE TABLE IF NOT EXISTS public.pcg2005_balance_sheet_passif_rules (
+  account_code text PRIMARY KEY REFERENCES public.pcg2005_accounts(code) ON DELETE RESTRICT,
+  section text NOT NULL CHECK (section IN ('equity','non_current_liabilities','current_liabilities','review')),
+  line_key text NOT NULL,
+  normal_side text NOT NULL CHECK (normal_side IN ('debit','credit','both')),
+  requires_maturity boolean NOT NULL DEFAULT false,
+  contra_equity boolean NOT NULL DEFAULT false,
+  source_reference text NOT NULL DEFAULT 'PCG 2005, Annexe II, bilan capitaux propres et passif'
+);
+ALTER TABLE public.pcg2005_balance_sheet_passif_rules ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS pcg2005_balance_sheet_passif_rules_read ON public.pcg2005_balance_sheet_passif_rules;
+CREATE POLICY pcg2005_balance_sheet_passif_rules_read
+  ON public.pcg2005_balance_sheet_passif_rules FOR SELECT TO authenticated USING (true);
+REVOKE ALL ON public.pcg2005_balance_sheet_passif_rules FROM PUBLIC, anon;
+GRANT SELECT ON public.pcg2005_balance_sheet_passif_rules TO authenticated;
+
+INSERT INTO public.pcg2005_balance_sheet_passif_rules
+  (account_code,section,line_key,normal_side,requires_maturity,contra_equity)
+SELECT code,
+  CASE
+    WHEN code IN ('101','104','105','106','107','108','109','110','119','120','129') THEN 'equity'
+    WHEN code IN ('131','132','134','138') OR code ~ '^15' OR code ~ '^(16|17)' THEN 'non_current_liabilities'
+    WHEN code IN ('401','403','404','405','408','419','421','422','426','427','4286','431','432','438','444','445','447','4486','451','455','456','457','458','464','467','4686','481','487','516','519') THEN 'current_liabilities'
+    ELSE 'review'
+  END,
+  CASE
+    WHEN code IN ('101','108','109') THEN 'equity_capital'
+    WHEN code IN ('104','106') THEN 'equity_premiums_and_reserves'
+    WHEN code='105' THEN 'equity_revaluation'
+    WHEN code='107' THEN 'equity_equivalence'
+    WHEN code IN ('110','119') THEN 'equity_retained_earnings'
+    WHEN code IN ('120','129') THEN 'equity_current_result'
+    WHEN code IN ('131','132') THEN 'investment_grants'
+    WHEN code IN ('134','138') THEN 'deferred_tax_liability'
+    WHEN code ~ '^15' THEN 'non_current_provisions'
+    WHEN code ~ '^16' THEN 'non_current_borrowings'
+    WHEN code ~ '^17' THEN 'participation_debts'
+    WHEN code IN ('401','403','408','419') THEN 'suppliers_and_attached'
+    WHEN code IN ('421','422','426','427','4286') THEN 'employee_payables'
+    WHEN code IN ('431','432','438') THEN 'social_payables'
+    WHEN code IN ('444','445','447','4486') THEN 'tax_payables'
+    WHEN code IN ('404','405') THEN 'other_debts'
+    WHEN code IN ('481','487') THEN 'provisions_and_deferred_income'
+    WHEN code='516' THEN 'current_portion_of_long_term_debt'
+    WHEN code='519' THEN 'bank_overdrafts'
+    WHEN code IN ('451','455','456','457','458','464','467','4686') THEN 'other_current_payables'
+    ELSE 'unclassified_passif'
+  END,
+  CASE WHEN code IN ('109','119','129') THEN 'debit'
+       WHEN code='108' THEN 'both'
+       ELSE 'credit' END,
+  code ~ '^(16|17)',
+  code IN ('109','119','129')
+FROM public.pcg2005_accounts
+WHERE kind IN ('liability','equity','clearing')
+ON CONFLICT (account_code) DO NOTHING;
+
+CREATE OR REPLACE VIEW public.pcg2005_balance_sheet_passif_mapping_gaps
+WITH (security_invoker=true) AS
+SELECT a.code,a.label,a.kind
+FROM public.pcg2005_accounts a
+LEFT JOIN public.pcg2005_balance_sheet_passif_rules r ON r.account_code=a.code
+WHERE a.kind IN ('liability','equity','clearing') AND r.account_code IS NULL;
+REVOKE ALL ON public.pcg2005_balance_sheet_passif_mapping_gaps FROM anon;
+GRANT SELECT ON public.pcg2005_balance_sheet_passif_mapping_gaps TO authenticated;
+
+DO $passif_assert$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.pcg2005_balance_sheet_passif_mapping_gaps) THEN
+    RAISE EXCEPTION 'PCG 2005 passif catalog contains accounts without explicit presentation rules';
+  END IF;
+END $passif_assert$;
 
 CREATE OR REPLACE VIEW public.pcg2005_balance_sheet_mapping_gaps
 WITH (security_invoker=true) AS
