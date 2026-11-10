@@ -172,6 +172,8 @@ DECLARE
  v_disbursement uuid;
  v_retry uuid;
  v_reimbursement uuid;
+ v_reimbursement_retry uuid;
+ v_disbursement_second uuid;
  v_invoice uuid;
  v_matches integer;
  v_balance numeric;
@@ -183,28 +185,36 @@ BEGIN
  -- Company-paid mandate is a customer receivable, not stock or supplier expense.
  v_disbursement:=public.record_customer_mandate_disbursement(
    v_org,'e1000000-0000-4000-8000-000000000088','CI-SUPPLIER-INVOICE-CUSTOMER-001',
-   current_date,500,'e1000000-0000-4000-8000-000000000104',current_date,
+   current_date,200,'e1000000-0000-4000-8000-000000000104',current_date,
    'e1000000-0000-4000-8000-000000000105');
  v_retry:=public.record_customer_mandate_disbursement(
    v_org,'e1000000-0000-4000-8000-000000000088','CI-SUPPLIER-INVOICE-CUSTOMER-001',
-   current_date,500,'e1000000-0000-4000-8000-000000000104',current_date,
+   current_date,200,'e1000000-0000-4000-8000-000000000104',current_date,
    'e1000000-0000-4000-8000-000000000105');
+ v_disbursement_second:=public.record_customer_mandate_disbursement(
+   v_org,'e1000000-0000-4000-8000-000000000088','CI-SUPPLIER-INVOICE-CUSTOMER-001',
+   current_date,300,'e1000000-0000-4000-8000-000000000104',current_date,
+   'e1000000-0000-4000-8000-000000000109');
  IF v_retry<>v_disbursement THEN RAISE EXCEPTION 'Mandate disbursement retry is not idempotent'; END IF;
- IF NOT EXISTS(SELECT 1 FROM public.journal_entries WHERE organization_id=v_org AND source_type='customer_mandate_disbursement' AND source_id=v_disbursement)
-    OR NOT EXISTS(SELECT 1 FROM public.journal_entry_lines WHERE account_key='PCG:467' AND debit=500 AND customer_id='e1000000-0000-4000-8000-000000000037') THEN
+ IF (SELECT sum(amount) FROM public.customer_mandate_disbursements WHERE purchase_order_line_id='e1000000-0000-4000-8000-000000000088')<>500
+    OR (SELECT sum(debit) FROM public.journal_entry_lines jl JOIN public.journal_entries je ON je.id=jl.journal_entry_id WHERE je.organization_id=v_org AND je.source_type='customer_mandate_disbursement' AND jl.account_key='PCG:467' AND jl.customer_id='e1000000-0000-4000-8000-000000000037')<>500 THEN
    RAISE EXCEPTION 'Mandate supplier payment did not post to the customer clearing account';
  END IF;
  v_reimbursement:=public.record_customer_mandate_reimbursement(
    v_org,v_disbursement,'e1000000-0000-4000-8000-000000000104',200,current_date,'CI-MANDATE-REIMB-1',
    'e1000000-0000-4000-8000-000000000106');
+ v_reimbursement_retry:=public.record_customer_mandate_reimbursement(
+   v_org,v_disbursement,'e1000000-0000-4000-8000-000000000104',200,current_date,'CI-MANDATE-REIMB-1',
+   'e1000000-0000-4000-8000-000000000106');
+ IF v_reimbursement_retry<>v_reimbursement THEN RAISE EXCEPTION 'Mandate reimbursement retry is not idempotent'; END IF;
  PERFORM public.record_customer_mandate_reimbursement(
-   v_org,v_disbursement,'e1000000-0000-4000-8000-000000000104',300,current_date,'CI-MANDATE-REIMB-2',
+   v_org,v_disbursement_second,'e1000000-0000-4000-8000-000000000104',300,current_date,'CI-MANDATE-REIMB-2',
    'e1000000-0000-4000-8000-000000000107');
- IF (SELECT sum(amount) FROM public.customer_mandate_reimbursements WHERE disbursement_id=v_disbursement)<>500 THEN
+ IF (SELECT sum(amount) FROM public.customer_mandate_reimbursements)<>500 THEN
    RAISE EXCEPTION 'Mandate customer reimbursements did not clear the exact disbursement';
  END IF;
  BEGIN
-   PERFORM public.record_customer_mandate_reimbursement(v_org,v_disbursement,'e1000000-0000-4000-8000-000000000104',1,current_date,'CI-OVER-REIMB',
+   PERFORM public.record_customer_mandate_reimbursement(v_org,v_disbursement_second,'e1000000-0000-4000-8000-000000000104',1,current_date,'CI-OVER-REIMB',
      'e1000000-0000-4000-8000-000000000108');
    RAISE EXCEPTION 'Over-reimbursement must be rejected';
  EXCEPTION WHEN OTHERS THEN
