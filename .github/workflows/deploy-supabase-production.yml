@@ -148,7 +148,7 @@ jobs:
         shell: bash
         run: |
           psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -At <<'SQL'
-          DO $
+          DO $$
           BEGIN
             IF to_regclass('public.pcg2005_balance_sheet_rules') IS NULL
               OR to_regclass('public.pcg2005_balance_sheet_passif_rules') IS NULL
@@ -268,7 +268,7 @@ jobs:
             ) <> 11 THEN
               RAISE EXCEPTION 'Production migration ledger does not contain all eleven approved versions';
             END IF;
-          END $;
+          END $$;
           SQL
 
                 GROUP BY organization_id,pcg_code
