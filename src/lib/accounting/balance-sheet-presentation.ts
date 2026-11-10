@@ -100,6 +100,26 @@ const labels: Record<string, string> = {
   cash_on_hand: "Caisse",
   cash_advances: "Régies d'avances et accréditifs",
   cash_impairment: "Dépréciations des comptes financiers",
+  equity_capital: "Capital émis",
+  equity_premiums_and_reserves: "Primes et réserves",
+  equity_revaluation: "Écarts d’évaluation",
+  equity_equivalence: "Écart d’équivalence",
+  equity_retained_earnings: "Report à nouveau",
+  equity_current_result: "Résultat net de l’exercice",
+  investment_grants: "Subventions d’investissement différées",
+  deferred_tax_liability: "Impôts différés passif",
+  non_current_provisions: "Provisions non courantes",
+  non_current_borrowings: "Emprunts et dettes financières non courants",
+  participation_debts: "Dettes rattachées aux participations",
+  suppliers_and_attached: "Fournisseurs et comptes rattachés",
+  employee_payables: "Dettes envers le personnel",
+  social_payables: "Dettes envers les organismes sociaux",
+  tax_payables: "Dettes fiscales",
+  other_current_payables: "Autres dettes courantes",
+  provisions_and_deferred_income: "Provisions et produits constatés d’avance courants",
+  other_debts: "Autres dettes",
+  current_portion_of_long_term_debt: "Part à court terme des dettes à long terme",
+  bank_overdrafts: "Découverts bancaires",
 };
 
 function bucketKey(rule: BalanceSheetRule): string {
@@ -221,6 +241,120 @@ export function buildAssetPresentation(
       currentNet,
       maturityPendingNet,
       identifiedNet,
+    },
+    ready: reviewRequired.size === 0 && unmapped.size === 0 && maturityPending.size === 0 && blockingIssues.length === 0,
+  };
+}
+
+
+export type PassifRule = {
+  account_code: string;
+  section: "equity" | "non_current_liabilities" | "current_liabilities" | "review";
+  line_key: string;
+  normal_side: "debit" | "credit" | "both";
+  requires_maturity: boolean;
+  contra_equity: boolean;
+};
+
+export type PassifPresentation = {
+  equity: AssetPresentationBucket[];
+  nonCurrentLiabilities: AssetPresentationBucket[];
+  currentLiabilities: AssetPresentationBucket[];
+  maturityPending: AssetPresentationBucket[];
+  reviewRequired: AssetPresentationBucket[];
+  unmapped: AssetPresentationBucket[];
+  blockingIssues: string[];
+  totals: {
+    equity: number;
+    nonCurrentLiabilities: number;
+    currentLiabilities: number;
+    maturityPending: number;
+    liabilities: number;
+    passif: number;
+  };
+  ready: boolean;
+};
+
+/** Builds the equity and liability side using the PCG 2005 passif rules. */
+export function buildPassifPresentation(
+  lines: BalanceSheetLedgerLine[],
+  rules: PassifRule[],
+  blockingIssues: string[] = [],
+): PassifPresentation {
+  const ruleMap = new Map(rules.map((rule) => [rule.account_code, rule]));
+  const equity = new Map<string, AssetPresentationBucket>();
+  const nonCurrentLiabilities = new Map<string, AssetPresentationBucket>();
+  const currentLiabilities = new Map<string, AssetPresentationBucket>();
+  const maturityPending = new Map<string, AssetPresentationBucket>();
+  const reviewRequired = new Map<string, AssetPresentationBucket>();
+  const unmapped = new Map<string, AssetPresentationBucket>();
+
+  let equityTotal = 0;
+  let nonCurrentTotal = 0;
+  let currentTotal = 0;
+  let maturityPendingTotal = 0;
+
+  for (const line of lines) {
+    if (!nonZero(line)) continue;
+    const rule = ruleMap.get(line.code);
+    if (!rule) {
+      addToBucket(unmapped, "unmapped_passif_account", line, line.balance);
+      continue;
+    }
+    if (rule.section === "review") {
+      addToBucket(reviewRequired, rule.line_key, line, line.balance);
+      continue;
+    }
+
+    const amount = round(line.balance);
+    const unexpectedSide =
+      (rule.normal_side === "credit" && amount < -0.005)
+      || (rule.normal_side === "debit" && amount > 0.005);
+    if (unexpectedSide) {
+      addToBucket(reviewRequired, "unexpected_passif_balance_" + rule.line_key, line, amount);
+      continue;
+    }
+
+    if (rule.requires_maturity && line.maturity !== "current" && line.maturity !== "non_current") {
+      addToBucket(maturityPending, rule.line_key, line, amount);
+      maturityPendingTotal = round(maturityPendingTotal + amount);
+      continue;
+    }
+
+    if (rule.section === "equity") {
+      addToBucket(equity, rule.line_key, line, amount);
+      equityTotal = round(equityTotal + amount);
+      continue;
+    }
+
+    const targetSection = rule.requires_maturity
+      ? line.maturity === "current" ? "current_liabilities" : "non_current_liabilities"
+      : rule.section;
+    if (targetSection === "current_liabilities") {
+      addToBucket(currentLiabilities, rule.line_key, line, amount);
+      currentTotal = round(currentTotal + amount);
+    } else {
+      addToBucket(nonCurrentLiabilities, rule.line_key, line, amount);
+      nonCurrentTotal = round(nonCurrentTotal + amount);
+    }
+  }
+
+  const liabilities = round(nonCurrentTotal + currentTotal + maturityPendingTotal);
+  return {
+    equity: [...equity.values()].sort((a, b) => a.key.localeCompare(b.key)),
+    nonCurrentLiabilities: [...nonCurrentLiabilities.values()].sort((a, b) => a.key.localeCompare(b.key)),
+    currentLiabilities: [...currentLiabilities.values()].sort((a, b) => a.key.localeCompare(b.key)),
+    maturityPending: [...maturityPending.values()].sort((a, b) => a.key.localeCompare(b.key)),
+    reviewRequired: [...reviewRequired.values()].sort((a, b) => a.key.localeCompare(b.key)),
+    unmapped: [...unmapped.values()].sort((a, b) => a.key.localeCompare(b.key)),
+    blockingIssues,
+    totals: {
+      equity: equityTotal,
+      nonCurrentLiabilities: nonCurrentTotal,
+      currentLiabilities: currentTotal,
+      maturityPending: maturityPendingTotal,
+      liabilities,
+      passif: round(equityTotal + liabilities),
     },
     ready: reviewRequired.size === 0 && unmapped.size === 0 && maturityPending.size === 0 && blockingIssues.length === 0,
   };
