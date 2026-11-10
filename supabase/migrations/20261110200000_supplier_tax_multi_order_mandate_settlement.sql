@@ -144,6 +144,9 @@ END;
 $function$;
 REVOKE ALL ON FUNCTION public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text) TO authenticated;
+-- Prevent the legacy gross-only RPC from bypassing explicit supplier VAT capture.
+REVOKE EXECUTE ON FUNCTION public.record_supplier_invoice(uuid,uuid,text,date,date,numeric,text) FROM authenticated;
+REVOKE EXECUTE ON FUNCTION public.record_supplier_invoice_with_scope(uuid,uuid,text,date,date,numeric,text,text) FROM authenticated;
 
 -- A single supplier invoice may now cover several purchase orders. One match header
 -- is stored per order, while the RPC validates the invoice subtotal across all lines.
