@@ -89,7 +89,7 @@ export async function postStockTransferAction(formData: FormData) {
   const destination=z.string().uuid().parse(formData.get("destination_location_id"));
   const item=z.string().uuid().parse(formData.get("item_id"));
   const quantity=z.coerce.number().finite().positive().parse(formData.get("quantity"));
-  const stockBucket=z.enum(["resale","company_use","consumption"]).parse(formData.get("stock_bucket")||"resale");
+  const stockBucket=z.enum(["resale","company_use","consumption","quarantine"]).parse(formData.get("stock_bucket")||"resale");
   const reason=z.string().trim().min(3).max(500).parse(formData.get("reason"));
   const requestKey=z.string().uuid().parse(formData.get("request_key"));
   const {data,error}=await ctx.supabase.rpc("post_stock_transfer",{
