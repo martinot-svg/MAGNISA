@@ -445,19 +445,25 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   let loanVersions:any[]=[];
   let loanInstallments:any[]=[];
   let loanRepayments:any[]=[];
+  let loanRepaymentSnapshots:any[]=[];
   if(loanIds.length){
-    const [{data:versionRows,error:versionError},{data:repaymentRows,error:repaymentError}]=await Promise.all([
+    const [{data:versionRows,error:versionError},{data:repaymentRows,error:repaymentError},{data:snapshotRows,error:snapshotsError}]=await Promise.all([
       supabase.from("loan_schedule_versions")
         .select("id,loan_id,version_number,status,effective_from,effective_until")
         .eq("organization_id",organizationId).in("loan_id",loanIds),
       supabase.from("loan_repayments")
-        .select("loan_id,installment_id,principal_paid,payment_date,journal_entry_id,reversal_journal_entry_id,reversed_at")
-        .eq("organization_id",organizationId).lte("payment_date",year.period_end),
+        .select("id,loan_id,installment_id,principal_paid,payment_date,journal_entry_id,reversal_journal_entry_id,reversed_at")
+        .eq("organization_id",organizationId),
+      supabase.from("loan_repayment_installment_snapshots")
+        .select("repayment_id,installment_id,principal_due")
+        .eq("organization_id",organizationId),
     ]);
     if(versionError)passifBlockingIssues.push("Versions des échéanciers d’emprunts indisponibles : "+versionError.message);
     else loanVersions=versionRows||[];
     if(repaymentError)passifBlockingIssues.push("Historique des remboursements d’emprunts indisponible : "+repaymentError.message);
     else loanRepayments=repaymentRows||[];
+    if(snapshotsError)passifBlockingIssues.push("Historique des versions d’échéances indisponible : "+snapshotsError.message);
+    else loanRepaymentSnapshots=snapshotRows||[];
   }
   const selectedLoanVersions=new Map<string,any>();
   for(const loan of loanRows||[]){
@@ -484,17 +490,24 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     if(error)passifBlockingIssues.push("Détail des échéances d’emprunts indisponible : "+error.message);
     else loanInstallments=data||[];
   }
+  const validLoanRepayments=loanRepayments.filter((repayment:any)=>
+    !!repayment.journal_entry_id&&!repayment.reversal_journal_entry_id&&!repayment.reversed_at
+  );
   const repaymentsByInstallment=new Map<string,number>();
-  const unallocatedRepaymentsByLoan=new Map<string,number>();
-  for(const repayment of loanRepayments){
-    if(!repayment.journal_entry_id||repayment.reversal_journal_entry_id||repayment.reversed_at)continue;
-    const principal=Math.max(0,n(repayment.principal_paid));
-    if(principal<0.005)continue;
-    if(repayment.installment_id){
+  const repaymentById=new Map(validLoanRepayments.map((repayment:any)=>[repayment.id,repayment]));
+  const postClosingSnapshotByInstallment=new Map<string,{paymentDate:string;principalDue:number}>();
+  for(const repayment of validLoanRepayments){
+    if(String(repayment.payment_date||"")<=String(year.period_end)&&repayment.installment_id){
+      const principal=Math.max(0,n(repayment.principal_paid));
       repaymentsByInstallment.set(repayment.installment_id,round((repaymentsByInstallment.get(repayment.installment_id)||0)+principal));
-    }else{
-      unallocatedRepaymentsByLoan.set(repayment.loan_id,round((unallocatedRepaymentsByLoan.get(repayment.loan_id)||0)+principal));
     }
+  }
+  for(const snapshot of loanRepaymentSnapshots){
+    const repayment:any=repaymentById.get(snapshot.repayment_id);
+    if(!repayment||String(repayment.payment_date||"")<=String(year.period_end))continue;
+    const candidate={paymentDate:String(repayment.payment_date),principalDue:n(snapshot.principal_due)};
+    const current=postClosingSnapshotByInstallment.get(snapshot.installment_id);
+    if(!current||candidate.paymentDate<current.paymentDate)postClosingSnapshotByInstallment.set(snapshot.installment_id,candidate);
   }
   const loanScheduleLines:BalanceSheetLedgerLine[]=[];
   const loanScheduleRules:PassifRule[]=[];
@@ -515,7 +528,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     }
     let currentPrincipal=0,nonCurrentPrincipal=0,unknownMaturity=0;
     for(const item of rows){
-      const scheduledPrincipal=Math.max(0,n(item.principal_due));
+      const scheduledPrincipal=Math.max(0,n(postClosingSnapshotByInstallment.get(item.id)?.principalDue??item.principal_due));
       const paidPrincipal=repaymentsByInstallment.get(item.id)||0;
       const remaining=round(scheduledPrincipal-paidPrincipal);
       if(remaining < -0.01){
@@ -528,8 +541,6 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
       else if(maturity==="non_current")nonCurrentPrincipal=round(nonCurrentPrincipal+remaining);
       else unknownMaturity=round(unknownMaturity+remaining);
     }
-    const unallocated=unallocatedRepaymentsByLoan.get(loan.id)||0;
-    if(unallocated>=0.01)passifBlockingIssues.push("Remboursement anticipé non affecté à une échéance pour l’emprunt "+String(loan.magnisa_reference||loan.id)+".");
     const scheduled=round(currentPrincipal+nonCurrentPrincipal+unknownMaturity);
     loanAccountCodes.add(accountCode);
     scheduledByAccount.set(accountCode,round((scheduledByAccount.get(accountCode)||0)+scheduled));
