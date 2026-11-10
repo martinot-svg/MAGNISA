@@ -80,6 +80,7 @@ CREATE TABLE public.sales_deliveries (
   status text NOT NULL DEFAULT 'posted' CHECK(status IN ('posted','cancelled')),
   request_key uuid NOT NULL,
   delivery_reference text,
+  request_fingerprint text NOT NULL,
   delivered_at timestamptz NOT NULL DEFAULT now(),
   created_by uuid NOT NULL REFERENCES auth.users(id),
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -115,6 +116,7 @@ CREATE TABLE public.stock_transfers (
   source_location_id uuid NOT NULL,
   destination_location_id uuid NOT NULL,
   request_key uuid NOT NULL,
+  request_fingerprint text NOT NULL,
   status text NOT NULL DEFAULT 'posted' CHECK(status IN ('posted','cancelled')),
   reason text NOT NULL,
   transferred_at timestamptz NOT NULL DEFAULT now(),
@@ -177,7 +179,7 @@ LANGUAGE plpgsql SECURITY DEFINER
 SET search_path=pg_catalog,public,private,auth
 AS $$
 DECLARE v_existing public.stock_reservations%rowtype; v_order public.orders%rowtype;
- v_line public.order_lines%rowtype; v_on_hand numeric; v_reserved numeric; v_id uuid;
+ v_line public.order_lines%rowtype; v_on_hand numeric; v_reserved numeric; v_line_reserved numeric; v_id uuid;
 BEGIN
  IF auth.uid() IS NULL OR NOT public.is_org_member(p_organization_id) THEN RAISE EXCEPTION 'Access denied.'; END IF;
  PERFORM public.assert_org_access(p_organization_id);
@@ -206,6 +208,9 @@ BEGIN
  SELECT COALESCE(SUM(quantity_reserved-quantity_fulfilled-quantity_released),0) INTO v_reserved
  FROM public.stock_reservations WHERE organization_id=p_organization_id AND item_id=p_item_id AND stock_location_id=p_stock_location_id
  AND status IN ('active','partially_fulfilled');
+ SELECT COALESCE(SUM(quantity_reserved-quantity_fulfilled-quantity_released),0) INTO v_line_reserved
+ FROM public.stock_reservations WHERE organization_id=p_organization_id AND order_line_id=p_order_line_id AND status IN ('active','partially_fulfilled');
+ IF v_line_reserved+p_quantity>v_line.quantity+0.00000001 THEN RAISE EXCEPTION 'Reservation exceeds the remaining ordered quantity.'; END IF;
  IF v_on_hand-v_reserved<p_quantity THEN RAISE EXCEPTION 'Insufficient available stock. Available: %',v_on_hand-v_reserved; END IF;
  INSERT INTO public.stock_reservations(organization_id,order_id,order_line_id,item_id,stock_location_id,quantity_reserved,request_key,created_by)
  VALUES(p_organization_id,p_order_id,p_order_line_id,p_item_id,p_stock_location_id,p_quantity,p_request_key,auth.uid())
@@ -239,21 +244,23 @@ AS $$
 DECLARE v_existing public.sales_deliveries%rowtype; v_order public.orders%rowtype;
  r jsonb; v_delivery_id uuid; v_line_id uuid; v_order_line public.order_lines%rowtype;
  v_res public.stock_reservations%rowtype; v_item uuid; v_loc uuid; v_qty numeric; v_cost numeric;
- v_on_hand numeric; v_reserved numeric; v_already numeric; v_remaining numeric; v_number text;
+ v_on_hand numeric; v_reserved numeric; v_already numeric; v_remaining numeric; v_number text; v_fingerprint text; v_currency text;
 BEGIN
  IF auth.uid() IS NULL OR NOT public.is_org_member(p_organization_id) THEN RAISE EXCEPTION 'Access denied.'; END IF;
  PERFORM public.assert_org_access(p_organization_id);
  PERFORM public.assert_org_permission(p_organization_id,'orders.manage');
  IF jsonb_typeof(p_lines)<>'array' OR jsonb_array_length(p_lines)=0 OR jsonb_array_length(p_lines)>100 THEN RAISE EXCEPTION 'Delivery requires 1 to 100 lines.'; END IF;
  PERFORM pg_advisory_xact_lock(hashtextextended(p_organization_id::text||':delivery:'||p_order_id::text,0));
+ v_fingerprint:=md5(p_order_id::text||':'||p_lines::text||':'||COALESCE(p_delivery_reference,''));
  SELECT * INTO v_existing FROM public.sales_deliveries WHERE organization_id=p_organization_id AND request_key=p_request_key;
- IF FOUND THEN RETURN v_existing.id; END IF;
+ IF FOUND THEN IF v_existing.request_fingerprint<>v_fingerprint THEN RAISE EXCEPTION 'Delivery request key reused with different payload.'; END IF; RETURN v_existing.id; END IF;
  SELECT * INTO v_order FROM public.orders WHERE id=p_order_id AND organization_id=p_organization_id FOR UPDATE;
  IF NOT FOUND OR v_order.status NOT IN ('confirmed','in_progress') THEN RAISE EXCEPTION 'Order is not eligible for delivery.'; END IF;
+ SELECT currency INTO v_currency FROM public.organizations WHERE id=p_organization_id;
  v_delivery_id:=gen_random_uuid();
  v_number:='DL-'||to_char(clock_timestamp(),'YYYYMMDD')||'-'||upper(substr(replace(v_delivery_id::text,'-',''),1,8));
- INSERT INTO public.sales_deliveries(id,organization_id,order_id,delivery_number,request_key,delivery_reference,created_by)
- VALUES(v_delivery_id,p_organization_id,p_order_id,v_number,p_request_key,nullif(trim(p_delivery_reference),''),auth.uid());
+ INSERT INTO public.sales_deliveries(id,organization_id,order_id,delivery_number,request_key,delivery_reference,request_fingerprint,created_by)
+ VALUES(v_delivery_id,p_organization_id,p_order_id,v_number,p_request_key,nullif(trim(p_delivery_reference),''),v_fingerprint,auth.uid());
  FOR r IN SELECT value FROM jsonb_array_elements(p_lines) LOOP
   v_item:=(r->>'item_id')::uuid; v_loc:=(r->>'stock_location_id')::uuid;
   v_qty:=(r->>'quantity')::numeric; v_cost:=COALESCE((r->>'unit_cost')::numeric,0);
@@ -286,7 +293,7 @@ BEGIN
    IF v_on_hand-v_reserved<v_qty THEN RAISE EXCEPTION 'Insufficient unreserved stock for delivery.'; END IF;
   END IF;
   INSERT INTO public.stock_movements(organization_id,item_id,stock_location_id,movement_kind,quantity_delta,unit_cost,currency,source_type,source_id,source_line_id,event_key,effective_at,created_by)
-  VALUES(p_organization_id,v_item,v_loc,'issue',-v_qty,v_cost,'MGA','sales_delivery',v_delivery_id,v_line_id,'sales-delivery:'||v_line_id::text,now(),auth.uid());
+  VALUES(p_organization_id,v_item,v_loc,'issue',-v_qty,v_cost,COALESCE(v_currency,'MGA'),'sales_delivery',v_delivery_id,v_line_id,'sales-delivery:'||v_line_id::text,now(),auth.uid());
   UPDATE public.order_lines SET delivered_quantity=delivered_quantity+v_qty WHERE id=v_order_line.id AND organization_id=p_organization_id;
  END LOOP;
  RETURN v_delivery_id;
@@ -299,7 +306,7 @@ LANGUAGE plpgsql SECURITY DEFINER
 SET search_path=pg_catalog,public,private,auth
 AS $$
 DECLARE v_existing public.stock_transfers%rowtype; v_id uuid; v_number text; r jsonb;
- v_item uuid; v_qty numeric; v_cost numeric; v_on_hand numeric; v_reserved numeric; v_line uuid;
+ v_item uuid; v_qty numeric; v_cost numeric; v_on_hand numeric; v_reserved numeric; v_line uuid; v_fingerprint text; v_currency text;
 BEGIN
  IF auth.uid() IS NULL OR NOT public.is_org_member(p_organization_id) THEN RAISE EXCEPTION 'Access denied.'; END IF;
  PERFORM public.assert_org_access(p_organization_id);
@@ -307,13 +314,15 @@ BEGIN
  IF p_source_location=p_destination_location OR nullif(trim(p_reason),'') IS NULL THEN RAISE EXCEPTION 'Transfer locations and reason are invalid.'; END IF;
  IF jsonb_typeof(p_lines)<>'array' OR jsonb_array_length(p_lines)=0 OR jsonb_array_length(p_lines)>100 THEN RAISE EXCEPTION 'Transfer requires 1 to 100 lines.'; END IF;
  PERFORM pg_advisory_xact_lock(hashtextextended(p_organization_id::text||':transfer:'||p_request_key::text,0));
+ v_fingerprint:=md5(p_source_location::text||':'||p_destination_location::text||':'||p_lines::text||':'||p_reason);
  SELECT * INTO v_existing FROM public.stock_transfers WHERE organization_id=p_organization_id AND request_key=p_request_key;
- IF FOUND THEN RETURN v_existing.id; END IF;
+ IF FOUND THEN IF v_existing.request_fingerprint<>v_fingerprint THEN RAISE EXCEPTION 'Transfer request key reused with different payload.'; END IF; RETURN v_existing.id; END IF;
  IF NOT EXISTS(SELECT 1 FROM public.stock_locations WHERE id=p_source_location AND organization_id=p_organization_id AND is_active)
  OR NOT EXISTS(SELECT 1 FROM public.stock_locations WHERE id=p_destination_location AND organization_id=p_organization_id AND is_active) THEN RAISE EXCEPTION 'Transfer location is invalid.'; END IF;
+ SELECT currency INTO v_currency FROM public.organizations WHERE id=p_organization_id;
  v_id:=gen_random_uuid();v_number:='TR-'||to_char(clock_timestamp(),'YYYYMMDD')||'-'||upper(substr(replace(v_id::text,'-',''),1,8));
- INSERT INTO public.stock_transfers(id,organization_id,transfer_number,source_location_id,destination_location_id,request_key,reason,created_by)
- VALUES(v_id,p_organization_id,v_number,p_source_location,p_destination_location,p_request_key,trim(p_reason),auth.uid());
+ INSERT INTO public.stock_transfers(id,organization_id,transfer_number,source_location_id,destination_location_id,request_key,request_fingerprint,reason,created_by)
+ VALUES(v_id,p_organization_id,v_number,p_source_location,p_destination_location,p_request_key,v_fingerprint,trim(p_reason),auth.uid());
  FOR r IN SELECT value FROM jsonb_array_elements(p_lines) LOOP
   v_item:=(r->>'item_id')::uuid;v_qty:=(r->>'quantity')::numeric;v_cost:=COALESCE((r->>'unit_cost')::numeric,0);
   IF v_qty<=0 OR v_cost<0 THEN RAISE EXCEPTION 'Invalid transfer quantity or cost.'; END IF;
@@ -326,8 +335,8 @@ BEGIN
   INSERT INTO public.stock_transfer_lines(id,organization_id,transfer_id,item_id,quantity,unit_cost)
   VALUES(v_line,p_organization_id,v_id,v_item,v_qty,v_cost);
   INSERT INTO public.stock_movements(organization_id,item_id,stock_location_id,movement_kind,quantity_delta,unit_cost,currency,source_type,source_id,source_line_id,event_key,effective_at,created_by)
-  VALUES(p_organization_id,v_item,p_source_location,'transfer_out',-v_qty,v_cost,'MGA','stock_transfer',v_id,v_line,'stock-transfer-out:'||v_line::text,now(),auth.uid()),
-        (p_organization_id,v_item,p_destination_location,'transfer_in',v_qty,v_cost,'MGA','stock_transfer',v_id,v_line,'stock-transfer-in:'||v_line::text,now(),auth.uid());
+  VALUES(p_organization_id,v_item,p_source_location,'transfer_out',-v_qty,v_cost,COALESCE(v_currency,'MGA'),'stock_transfer',v_id,v_line,'stock-transfer-out:'||v_line::text,now(),auth.uid()),
+        (p_organization_id,v_item,p_destination_location,'transfer_in',v_qty,v_cost,COALESCE(v_currency,'MGA'),'stock_transfer',v_id,v_line,'stock-transfer-in:'||v_line::text,now(),auth.uid());
  END LOOP;
  RETURN v_id;
 END $$;
