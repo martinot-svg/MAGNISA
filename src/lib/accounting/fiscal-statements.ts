@@ -143,16 +143,35 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   const paymentsMissingDateAmount=n(receivableData?.payments_missing_date_amount);
   const unallocatedCustomerPaymentsAmount=n(receivableData?.unallocated_customer_payments_amount);
   const lines:any[]=[];
-  for(let from=0;;from+=1000){
-    const {data,error}=await supabase.from("pcg2005_journal_lines")
-      .select("journal_entry_id,entry_date,reference,status,source_type,line_id,account_key,account_label,debit,credit,pcg_code,mapping_status")
+  const loadJournalLinePage=(from:number,includeMappingEvidence:boolean)=>{
+    const columns=includeMappingEvidence
+      ?"journal_entry_id,entry_date,reference,status,source_type,line_id,account_key,account_label,debit,credit,pcg_code,mapping_status,mapping_evidence_status,mapping_rationale,mapping_requires_attachment"
+      :"journal_entry_id,entry_date,reference,status,source_type,line_id,account_key,account_label,debit,credit,pcg_code,mapping_status";
+    return supabase.from("pcg2005_journal_lines").select(columns)
       .eq("organization_id",organizationId).eq("status","posted")
       .gte("entry_date",year.period_start).lte("entry_date",year.period_end)
       .order("entry_date").order("line_id").range(from,from+999);
-    if(error)throw new Error(error.message);
-    lines.push(...(data||[]));
-    if(!data||data.length<1000)break;
+  };
+  let supportsMappingEvidence=true;
+  for(let from=0;;from+=1000){
+    let result=await loadJournalLinePage(from,supportsMappingEvidence);
+    if(result.error&&supportsMappingEvidence&&(
+      result.error.code==="42703"||result.error.code==="PGRST204"
+      ||/mapping_evidence_status|mapping_rationale|mapping_requires_attachment/i.test(result.error.message)
+    )){
+      // Keep the app compatible with a rolling deployment where the application
+      // reaches production before the additive source-evidence migration.
+      supportsMappingEvidence=false;
+      result=await loadJournalLinePage(from,false);
+    }
+    if(result.error)throw new Error(result.error.message);
+    lines.push(...(result.data||[]));
+    if(!result.data||result.data.length<1000)break;
   }
+  const mappingEvidenceIssues=lines
+    .filter((line:any)=>line.mapping_requires_attachment===true)
+    .map((line:any)=>"Pièce justificative manquante pour "+String(line.reference||line.journal_entry_id)+
+      " : "+String(line.mapping_rationale||"justificatif fournisseur à joindre"));
   const {data:priorYear,error:priorYearError}=await supabase.from("accounting_fiscal_years")
     .select("id,label,period_start,period_end,status").eq("organization_id",organizationId)
     .lt("period_end",year.period_start).order("period_end",{ascending:false}).limit(1).maybeSingle();
@@ -375,7 +394,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   );
   const includeCurrentYearResult=year.status!=="closed"&&!currentResultAlreadyPosted;
 
-  const passifBlockingIssues:string[]=[];
+  const passifBlockingIssues:string[]=[...mappingEvidenceIssues];
   if(!passifRulesAvailable)passifBlockingIssues.push("Référentiel de présentation du passif PCG 2005 indisponible.");
 
   // Supplier payables are reconstructed as of the fiscal closing date.
@@ -856,6 +875,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     "Période : "+year.period_start+" au "+year.period_end+".",
     "Base de préparation : écritures comptables validées et imputées au PCG.",
     ...Object.entries(noteLabels).map(([k,label])=>label+" : "+(String(noteValues[k]||"").trim()||"À renseigner avant arrêté définitif.")),
+    ...mappingEvidenceIssues,
     "Le tableau des flux présente uniquement les mouvements bruts dont la contrepartie est unique. Le rapprochement du flux opérationnel avec le résultat avant impôt, requis par le PCG 2005 article 250-3, reste à construire et empêche l’arrêté définitif.",
     "Les créances clients du compte 411 sont ventilées selon les échéances contractuelles des factures et rapprochées des règlements confirmés et du grand livre. Les autres créances nécessitent leurs justificatifs d’échéance. La présentation réglementaire complète du bilan et du compte de résultat reste à valider."
   ];
