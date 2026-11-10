@@ -1,3 +1,4 @@
+import { formatDateTimeDisplay } from "@/lib/date-format";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireOrganization } from "@/lib/current-org";
@@ -122,7 +123,7 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
                     </span>
                   </div>
                   <div className="muted" style={{ fontSize: 12, marginTop: 5 }}>
-                    {mail.occurred_at ? new Date(mail.occurred_at).toLocaleString("fr-FR") : ""}
+                    {mail.occurred_at ? formatDateTimeDisplay(mail.occurred_at) : ""}
                   </div>
                   {mail.snippet && <p style={{ marginBottom: 4 }}>{mail.snippet}</p>}
                   {!!mail.attachment_names?.length && (
