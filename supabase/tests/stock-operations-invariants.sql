@@ -11,7 +11,27 @@ BEGIN
    RAISE EXCEPTION 'Anonymous access exposed on %',t;
   END IF;
  END LOOP;
- IF to_regclass('public.stock_available') IS NULL THEN RAISE EXCEPTION 'Stock available view missing'; END IF;
+ IF to_regclass('public.stock_available') IS NULL OR to_regclass('public.stock_on_hand_by_bucket') IS NULL THEN RAISE EXCEPTION 'Stock availability views missing'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='stock_movements' AND column_name='stock_bucket') THEN
+  RAISE EXCEPTION 'Stock purpose bucket is missing from persistent movements';
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='stock_movements_assign_bucket' AND NOT tgisinternal)
+    OR NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='stock_movements_accounting_post' AND NOT tgisinternal) THEN
+  RAISE EXCEPTION 'Stock bucket classification or accounting outbox trigger is missing';
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.pcg2005_accounts WHERE code='603')
+    OR NOT EXISTS(SELECT 1 FROM public.pcg2005_accounts WHERE code='707') THEN
+  RAISE EXCEPTION 'PCG 2005 stock variation or merchandise revenue account is missing';
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.accounting_posting_rules WHERE operation_type='stock_issue' AND operation_key='stock_variation' AND credit_account_code IS NULL AND active)
+    OR NOT EXISTS(SELECT 1 FROM public.accounting_posting_rules WHERE operation_type='invoice' AND operation_key='merchandise_revenue' AND credit_account_code='707' AND active)
+    OR NOT EXISTS(SELECT 1 FROM public.accounting_posting_rules WHERE operation_type='invoice' AND operation_key='service_revenue' AND credit_account_code='706' AND active) THEN
+  RAISE EXCEPTION 'Versioned stock and mixed invoice posting rules are missing';
+ END IF;
+ IF NOT has_function_privilege('authenticated','public.process_stock_accounting_event(uuid,uuid)','EXECUTE')
+    OR has_function_privilege('anon','public.process_stock_accounting_event(uuid,uuid)','EXECUTE') THEN
+  RAISE EXCEPTION 'Stock accounting outbox processing grants are incorrect';
+ END IF;
  IF NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_lines' AND column_name='item_id') THEN
   RAISE EXCEPTION 'Order item linkage missing';
  END IF;
