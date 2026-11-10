@@ -23,7 +23,7 @@ BEGIN
     OR NOT EXISTS(SELECT 1 FROM public.pcg2005_accounts WHERE code='707') THEN
   RAISE EXCEPTION 'PCG 2005 stock variation or merchandise revenue account is missing';
  END IF;
- IF NOT EXISTS(SELECT 1 FROM public.accounting_posting_rules WHERE operation_type='stock_issue' AND operation_key='stock_variation' AND credit_account_code IS NULL AND active)
+ IF NOT EXISTS(SELECT 1 FROM public.accounting_posting_rules WHERE operation_type='stock_issue' AND operation_key='stock_variation' AND debit_account_code='603' AND active)
     OR NOT EXISTS(SELECT 1 FROM public.accounting_posting_rules WHERE operation_type='invoice' AND operation_key='merchandise_revenue' AND credit_account_code='707' AND active)
     OR NOT EXISTS(SELECT 1 FROM public.accounting_posting_rules WHERE operation_type='invoice' AND operation_key='service_revenue' AND credit_account_code='706' AND active) THEN
   RAISE EXCEPTION 'Versioned stock and mixed invoice posting rules are missing';
