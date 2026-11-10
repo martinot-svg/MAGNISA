@@ -53,10 +53,10 @@ grep -q 'checksum mismatch' "$TMP/checksum.log" || fail "checksum failure reason
 # A renamed local SQL file that represents an already-applied remote migration
 # must not be treated as pending and re-executed by db push.
 mkdir -p "$TMP/mapped-source"
-printf 'CREATE TABLE migration_fixture(id integer);\\n' > "$TMP/mapped-source/20261102000000_local_name.sql"
+printf 'CREATE TABLE migration_fixture(id integer);\n' > "$TMP/mapped-source/20261102000000_local_name.sql"
 mapped_sha="$(sha256sum "$TMP/mapped-source/20261102000000_local_name.sql" | awk '{print $1}')"
-printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\\n20261101000000|remote_name|20261102000000_local_name.sql|renamed|https://github.com/example/repo/commit/def456|%s\\n' "$mapped_sha" > "$TMP/mapped-source-map"
-printf '20261101000000|remote_name\\n' > "$TMP/mapped-source-remote"
+printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\n20261101000000|remote_name|20261102000000_local_name.sql|renamed|https://github.com/example/repo/commit/def456|%s\n' "$mapped_sha" > "$TMP/mapped-source-map"
+printf '20261101000000|remote_name\n' > "$TMP/mapped-source-remote"
 run_guard "$TMP/mapped-source" "$TMP/empty-allow" "$TMP/mapped-source-map" "$TMP/mapped-source-remote" > "$TMP/mapped-source.log" 2>&1 || { cat "$TMP/mapped-source.log"; fail "mapped local-only migration must not be re-executed"; }
 grep -q 'Local versions not recorded remotely: 0' "$TMP/mapped-source.log" || fail "mapped source still counted as pending"
 \necho "Migration history guard fixtures passed."
