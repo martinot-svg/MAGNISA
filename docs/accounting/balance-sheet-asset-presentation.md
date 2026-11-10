@@ -79,3 +79,9 @@ The source ledger contains two paid expense records describing computer equipmen
 Their nature and amounts support a provisional PCG 218 classification as tangible equipment intended for durable use. The source records have no supplier name, invoice/document reference, in-service date or useful life. The migration therefore maps only these two journal sources to 218 with `evidence_status=record_only` and a mandatory-document flag. It does not create fixed-asset register records, invent depreciation periods, or alter posted journal entries. The resulting MGA 9,000,000 difference against the empty fixed-asset register remains visible and blocks asset readiness until the supporting invoices, in-service dates, useful lives and register records are completed.
 
 The remaining MGA 932,000 within the previously reported MGA 9,932,000 difference corresponds to two supplier invoices of MGA 900,000 and MGA 32,000 whose records contain no usable purchase description or invoice attachment. They remain unmapped rather than being guessed into either assets or expenses. The MGA 9,000,000 computer classification plus MGA 932,000 unclassified supplier purchases reconciles to the reported MGA 9,932,000 exposure.
+
+## Payment and internal-transfer controls
+
+The production snapshot contains four supplier payment records. Each payment has exactly one linked, balanced journal entry, and the paid amount on each supplier invoice equals the sum of its payment rows. The release verification asserts this relationship rather than deleting or regenerating historical payment entries.
+
+The four internal-transfer clearing lines form two balanced transfer pairs (MGA 4,000,000 and MGA 500,000). They are mapped to PCG 581, Virements de fonds, and the clearing account nets to zero. These are retained as valid paired transfers, not deleted as test data.
