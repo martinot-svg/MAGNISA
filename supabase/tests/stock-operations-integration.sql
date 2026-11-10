@@ -1,4 +1,4 @@
-END $block2$;END $block3$;-- Authenticated end-to-end tests for item orders, reservations, deliveries and transfers.
+-- Authenticated end-to-end tests for item orders, reservations, deliveries and transfers.
 -- Uses the disposable local Supabase database and rolls back all fixture data.
 \set ON_ERROR_STOP on
 \set org_id 'e1000000-0000-4000-8000-000000000001'
