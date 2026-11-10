@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTimeDisplay } from "@/lib/date-format";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Check, CheckCheck, Archive, ArrowUpRight, Filter } from "lucide-react";
@@ -92,7 +93,7 @@ export function NotificationCenter({ userId, organizationId }: { userId: string;
                 <span style={{ fontSize: 10, color: "#64748b" }}>{categoryLabels[item.category] ?? item.category}</span>
               </div>
               <p style={{ fontSize: 13, color: "var(--muted-foreground, #64748b)", lineHeight: 1.5, margin: "6px 0" }}>{item.body}</p>
-              <span style={{ fontSize: 11, color: "#94a3b8" }}>{new Date(item.created_at).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short", timeZone: "Indian/Antananarivo" })}</span>
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>{formatDateTimeDisplay(item.created_at)}</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               {item.action_url && <button type="button" title="Ouvrir le dossier" onClick={() => void openItem(item)} style={{ border: 0, background: "transparent", cursor: "pointer", padding: 7 }}><ArrowUpRight size={17} /></button>}
