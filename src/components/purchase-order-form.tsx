@@ -8,7 +8,7 @@ type Item={id:string;sku:string;name:string;base_unit:string;tracking_mode:strin
 type Customer={id:string;name:string};
 type Location={id:string;name:string;code:string};
 
-type Line={item_id:string;description:string;purchase_purpose:"resale"|"customer_mandate"|"company_use"|"consumption";beneficiary_customer_id:string;mandate_confirmed:boolean;supplier_document_names_customer:boolean;company_bears_goods_risk:boolean;exact_cost_supported:boolean;mandate_supplier_document_reference:string;quantity_ordered:number;unit:string;unit_price:number;tax_rate:number;stock_location_id:string};
+type Line={item_id:string;description:string;purchase_purpose:"resale"|"customer_mandate"|"company_use"|"consumption";beneficiary_customer_id:string;mandate_confirmed:boolean;supplier_document_names_customer:boolean;company_bears_goods_risk:boolean;exact_cost_supported:boolean;mandate_supplier_document_reference:string;quantity_ordered:number;unit:string;unit_price:number;tax_rate:number};
 
 export function PurchaseOrderForm({suppliers,items,customers,locations}:{suppliers:Supplier[];items:Item[];customers:Customer[];locations:Location[]}){
   const [lines,setLines]=useState<Line[]>([]);
@@ -18,7 +18,7 @@ export function PurchaseOrderForm({suppliers,items,customers,locations}:{supplie
   const [notes,setNotes]=useState("");
   const [error,setError]=useState("");
   const [busy,setBusy]=useState(false);
-  const addLine=()=>setLines(v=>[...v,{item_id:"",description:"",purchase_purpose:"resale",beneficiary_customer_id:"",mandate_confirmed:false,supplier_document_names_customer:false,company_bears_goods_risk:true,exact_cost_supported:false,mandate_supplier_document_reference:"",quantity_ordered:1,unit:"unité",unit_price:0,tax_rate:0,stock_location_id:locations[0]?.id||""}]);
+  const addLine=()=>setLines(v=>[...v,{item_id:"",description:"",purchase_purpose:"resale",beneficiary_customer_id:"",mandate_confirmed:false,supplier_document_names_customer:false,company_bears_goods_risk:true,exact_cost_supported:false,mandate_supplier_document_reference:"",quantity_ordered:1,unit:"unité",unit_price:0,tax_rate:0}]);
   const update=(i:number,patch:Partial<Line>)=>setLines(v=>v.map((l,n)=>n===i?{...l,...patch}:l));
   const total=useMemo(()=>lines.reduce((s,l)=>s+l.quantity_ordered*l.unit_price*(1+l.tax_rate/100),0),[lines]);
   const submit=async(formData:FormData)=>{
