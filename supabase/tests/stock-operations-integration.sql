@@ -248,6 +248,13 @@ BEGIN
  EXCEPTION WHEN OTHERS THEN
   IF SQLERRM='Customer return beyond delivered quantity should fail' THEN RAISE; END IF;
  END;
+ BEGIN
+  PERFORM public.create_invoice_draft(v_org,'e1000000-0000-4000-8000-000000000037',current_date+30,
+   jsonb_build_array(jsonb_build_object('line_kind','merchandise','item_id',v_item,'order_line_id',v_line_d,'quantity',0.1,'discount_pct',0,'unit_price',100)),v_order_d);
+  RAISE EXCEPTION 'Unbilled returned merchandise must not be invoiced';
+ EXCEPTION WHEN OTHERS THEN
+  IF SQLERRM='Unbilled returned merchandise must not be invoiced' THEN RAISE; END IF;
+ END;
 
  -- A not-yet-invoiced delivery can be cancelled only through compensating stock movements.
  v_line_e:=public.add_catalog_item_to_order(v_org,v_order_e,v_item,1,100,20,0);
