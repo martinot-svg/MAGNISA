@@ -3,6 +3,17 @@
 
 CREATE UNIQUE INDEX IF NOT EXISTS supplier_invoices_id_org_uidx ON public.supplier_invoices(id,organization_id);
 
+ALTER TABLE public.supplier_invoices
+  ADD COLUMN IF NOT EXISTS reconciliation_scope text NOT NULL DEFAULT 'service_or_other';
+DO $scope_constraint$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.supplier_invoices'::regclass AND conname='supplier_invoices_reconciliation_scope_check') THEN
+    ALTER TABLE public.supplier_invoices ADD CONSTRAINT supplier_invoices_reconciliation_scope_check
+      CHECK (reconciliation_scope IN ('goods_procurement','service_or_other'));
+  END IF;
+END
+$scope_constraint$;
+
 CREATE TABLE IF NOT EXISTS public.supplier_invoice_matches (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
@@ -214,6 +225,27 @@ $function$;
 REVOKE ALL ON FUNCTION public.reconcile_supplier_invoice_to_posted_receipts(uuid,uuid,uuid,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.reconcile_supplier_invoice_to_posted_receipts(uuid,uuid,uuid,text) TO authenticated;
 
+CREATE OR REPLACE FUNCTION public.record_supplier_invoice_with_scope(
+  p_org uuid,p_supplier uuid,p_supplier_number text,p_invoice_date date,p_due_date date,
+  p_total numeric,p_notes text,p_reconciliation_scope text
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $function$
+DECLARE v_invoice uuid;
+BEGIN
+  PERFORM public.assert_org_access(p_org);
+  PERFORM public.assert_org_permission(p_org,'suppliers.manage');
+  IF p_reconciliation_scope NOT IN ('goods_procurement','service_or_other') THEN
+    RAISE EXCEPTION 'Nature de facture fournisseur invalide.';
+  END IF;
+  v_invoice:=public.record_supplier_invoice(p_org,p_supplier,p_supplier_number,p_invoice_date,p_due_date,p_total,p_notes);
+  UPDATE public.supplier_invoices SET reconciliation_scope=p_reconciliation_scope,updated_at=now()
+   WHERE id=v_invoice AND organization_id=p_org;
+  RETURN v_invoice;
+END;
+$function$;
+REVOKE ALL ON FUNCTION public.record_supplier_invoice_with_scope(uuid,uuid,text,date,date,numeric,text,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.record_supplier_invoice_with_scope(uuid,uuid,text,date,date,numeric,text,text) TO authenticated;
+
 CREATE OR REPLACE VIEW public.magnisa_supplier_invoice_match_reconciliation
 WITH (security_invoker=true) AS
 SELECT si.organization_id,si.id supplier_invoice_id,si.supplier_number,si.supplier_id,si.total invoice_total,
@@ -228,6 +260,7 @@ LEFT JOIN public.purchase_orders po
   ON po.id=m.purchase_order_id AND po.organization_id=m.organization_id
 LEFT JOIN public.supplier_invoice_match_lines ml
   ON ml.match_id=m.id AND ml.organization_id=m.organization_id
+WHERE si.reconciliation_scope='goods_procurement'
 GROUP BY si.organization_id,si.id,si.supplier_number,si.supplier_id,si.total,si.subtotal,
          m.match_status,m.purchase_order_id,po.number,m.variance_reason,m.matched_at;
 REVOKE ALL ON public.magnisa_supplier_invoice_match_reconciliation FROM PUBLIC,anon;
