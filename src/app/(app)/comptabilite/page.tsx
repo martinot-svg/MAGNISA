@@ -56,6 +56,7 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
     { data: chart = [], error: catalogError },
     { data: invoiceReconciliation = [], error: invoiceReconciliationError },
     { data: supplierReconciliation = [], error: supplierReconciliationError },
+    { data: supplierMatchReconciliation = [], error: supplierMatchReconciliationError },
     { data: accountReconciliation = [], error: accountReconciliationError },
     { data: payrollReconciliation = [], error: payrollReconciliationError },
     { data: ledgerLines = [], error: ledgerError, count: ledgerCount },
@@ -73,14 +74,15 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
     supabase.from("pcg2005_accounts").select("code,label").order("code"),
     supabase.from("magnisa_invoice_reconciliation").select("invoice_id,number,reconciliation_status,payment_difference,allocation_difference").eq("organization_id", organizationId),
     supabase.from("magnisa_supplier_reconciliation").select("supplier_invoice_id,supplier_number,reconciliation_status,payment_difference,allocation_difference").eq("organization_id", organizationId),
+    supabase.from("magnisa_supplier_invoice_match_reconciliation").select("supplier_invoice_id,supplier_number,match_status,purchase_order_number,invoice_total,matched_subtotal,unmatched_subtotal,variance_reason").eq("organization_id", organizationId),
     supabase.from("magnisa_account_reconciliation").select("financial_account_id,name,reconciliation_status,balance_difference").eq("organization_id", organizationId),
     supabase.from("magnisa_payroll_reconciliation").select("payslip_id,reconciliation_status,payment_difference").eq("organization_id", organizationId),
     (() => { let q=supabase.from("journal_entry_lines").select("id,account_key,account_label,debit,credit,journal_entry_id,journal_entries!inner(entry_date,reference,description,status)",{count:"exact"}).eq("organization_id",organizationId);if(ledgerAccount)q=q.eq("account_key",ledgerAccount);return q.order("id",{ascending:true}).range((ledgerPage-1)*pageSize,ledgerPage*pageSize-1); })(),
   ]);
 
-  if (entryError || organizationError || balanceError || integrityError || catalogError || invoiceReconciliationError || supplierReconciliationError || accountReconciliationError || payrollReconciliationError || ledgerError) {
+  if (entryError || organizationError || balanceError || integrityError || catalogError || invoiceReconciliationError || supplierReconciliationError || supplierMatchReconciliationError || accountReconciliationError || payrollReconciliationError || ledgerError) {
     throw new Error("Impossible de charger la comptabilite PCG 2005 : " +
-      [entryError, organizationError, balanceError, integrityError, catalogError, invoiceReconciliationError, supplierReconciliationError, accountReconciliationError, payrollReconciliationError, ledgerError].filter(Boolean)
+      [entryError, organizationError, balanceError, integrityError, catalogError, invoiceReconciliationError, supplierReconciliationError, supplierMatchReconciliationError, accountReconciliationError, payrollReconciliationError, ledgerError].filter(Boolean)
         .map(e => e!.message).join(" ; "));
   }
 
@@ -105,9 +107,10 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
   const balanced = Math.abs(debit - credit) < 0.005;
   const invoiceGaps = (invoiceReconciliation || []).filter((r: any) => r.reconciliation_status !== "ok");
   const supplierGaps = (supplierReconciliation || []).filter((r: any) => r.reconciliation_status !== "ok");
+  const supplierMatchGaps = (supplierMatchReconciliation || []).filter((r: any) => r.match_status !== "matched");
   const accountGaps = (accountReconciliation || []).filter((r: any) => r.reconciliation_status !== "ok");
   const payrollGaps = (payrollReconciliation || []).filter((r: any) => r.reconciliation_status !== "ok");
-  const reconciliationCount = invoiceGaps.length + supplierGaps.length + accountGaps.length + payrollGaps.length;
+  const reconciliationCount = invoiceGaps.length + supplierGaps.length + supplierMatchGaps.length + accountGaps.length + payrollGaps.length;
 
   return <>
     <div className="pageHead">
@@ -139,7 +142,7 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
         <p className="muted">Contrôle indépendant entre soldes stockés et opérations enregistrées. Les écarts ne sont jamais corrigés automatiquement.</p>
         <div className="grid3">
           <div><strong>Factures clients</strong><p>{(invoiceReconciliation || []).length} vérifiées - {invoiceGaps.length} écart(s)</p></div>
-          <div><strong>Factures fournisseurs</strong><p>{(supplierReconciliation || []).length} vérifiées - {supplierGaps.length} écart(s)</p></div>
+          <div><strong>Factures fournisseurs</strong><p>{(supplierReconciliation || []).length} soldes vérifiés - {supplierGaps.length} écart(s)</p><p>{(supplierMatchReconciliation || []).length} rapprochées aux réceptions - {supplierMatchGaps.length} non rapprochée(s) ou avec écart</p></div>
           <div><strong>Comptes financiers</strong><p>{(accountReconciliation || []).length} vérifiés - {accountGaps.length} écart(s)</p></div>
           <div><strong>Bulletins de paie</strong><p>{(payrollReconciliation || []).length} vérifiés - {payrollGaps.length} écart(s)</p></div>
         </div>
@@ -147,7 +150,8 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
           <p><strong>{reconciliationCount} anomalie(s) à investiguer avant validation comptable.</strong></p>
           <ul>
             {invoiceGaps.map((r: any) => <li key={r.invoice_id}>Facture {r.number} : {r.reconciliation_status} ; écart règlements {money(r.payment_difference, currency)} ; écart solde {money(r.allocation_difference, currency)}</li>)}
-            {supplierGaps.map((r: any) => <li key={r.supplier_invoice_id}>Fournisseur {r.supplier_number} : {r.reconciliation_status} ; écart règlements {money(r.payment_difference, currency)}</li>)}
+            {supplierGaps.map((r: any) => <li key={"payment-"+r.supplier_invoice_id}>Fournisseur {r.supplier_number} : {r.reconciliation_status} ; écart règlements {money(r.payment_difference, currency)}</li>)}
+            {supplierMatchGaps.map((r: any) => <li key={"match-"+r.supplier_invoice_id}>Facture fournisseur {r.supplier_number} : {r.match_status} ; commande {r.purchase_order_number || "non liée"} ; reste non rapproché {money(r.unmatched_subtotal, currency)}{r.variance_reason ? " ; motif : "+r.variance_reason : ""}</li>)}
             {accountGaps.map((r: any) => <li key={r.financial_account_id}>Compte {r.name} : {r.reconciliation_status} ; écart {money(r.balance_difference, currency)}</li>)}
             {payrollGaps.map((r: any) => <li key={r.payslip_id}>Bulletin de paie {r.payslip_id} : {r.reconciliation_status} ; écart {money(r.payment_difference, currency)}</li>)}
           </ul>
