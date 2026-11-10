@@ -163,7 +163,7 @@ BEGIN
   EXECUTE format('GRANT SELECT ON public.%I TO authenticated',t);
   EXECUTE format('GRANT ALL ON public.%I TO service_role',t);
  END LOOP;
-END $$;
+END $rls$;
 
 CREATE OR REPLACE VIEW public.stock_available
 WITH(security_invoker=true)
