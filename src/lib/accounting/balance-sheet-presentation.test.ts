@@ -4,6 +4,9 @@ import { buildAssetPresentation, buildPassifPresentation, classifyReceivableMatu
 const line = (code: string, debit: number, credit = 0): BalanceSheetLedgerLine => ({
   code, label: code, debit, credit, balance: debit - credit,
 });
+const passifLine = (code: string, debit: number, credit = 0, maturity?: "current" | "non_current"): BalanceSheetLedgerLine => ({
+  code, label: code, debit, credit, balance: credit - debit, ...(maturity?{maturity}:{}),
+});
 const rule = (
   account_code: string,
   section: BalanceSheetRule["section"],
@@ -198,7 +201,7 @@ describe("buildPassifPresentation", () => {
 
   it("builds equity, non-current and current liabilities independently", () => {
     const result = buildPassifPresentation(
-      [line("101", 0, 1000), line("164", 0, 700), line("401", 0, 300)],
+      [passifLine("101", 0, 1000), passifLine("164", 0, 700), passifLine("401", 0, 300)],
       [
         passifRule("101", "equity", "equity_capital"),
         passifRule("164", "non_current_liabilities", "non_current_borrowings"),
@@ -214,7 +217,7 @@ describe("buildPassifPresentation", () => {
 
   it("treats debit-side equity deductions as negative equity", () => {
     const result = buildPassifPresentation(
-      [line("109", 250, 0)],
+      [passifLine("109", 250, 0)],
       [passifRule("109", "equity", "equity_capital", {normal_side:"debit",contra_equity:true})],
     );
     expect(result.totals.equity).toBe(-250);
@@ -223,7 +226,7 @@ describe("buildPassifPresentation", () => {
 
   it("blocks liabilities without required contractual maturity", () => {
     const result = buildPassifPresentation(
-      [line("164", 0, 900)],
+      [passifLine("164", 0, 900)],
       [passifRule("164", "non_current_liabilities", "non_current_borrowings", {requires_maturity:true})],
     );
     expect(result.totals.maturityPending).toBe(900);
@@ -233,8 +236,8 @@ describe("buildPassifPresentation", () => {
   it("splits loan principal by current and non-current maturity", () => {
     const result = buildPassifPresentation(
       [
-        {...line("164", 0, 400), maturity:"current"},
-        {...line("164", 0, 600), maturity:"non_current"},
+        passifLine("164", 0, 400, "current"),
+        passifLine("164", 0, 600, "non_current"),
       ],
       [passifRule("164", "non_current_liabilities", "non_current_borrowings", {requires_maturity:true})],
     );
@@ -245,7 +248,7 @@ describe("buildPassifPresentation", () => {
 
   it("does not hide unmapped passif accounts or review balances", () => {
     const result = buildPassifPresentation(
-      [line("471", 0, 50), line("999", 0, 20)],
+      [passifLine("471", 0, 50), passifLine("999", 0, 20)],
       [passifRule("471", "review", "suspense_and_transitory")],
     );
     expect(result.reviewRequired).toHaveLength(1);
