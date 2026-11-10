@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
@@ -110,4 +111,52 @@ export async function processStockAccountingEventAction(formData: FormData) {
   });
   if(error) throw new Error("Événement comptable non traité : "+error.message);
   revalidatePath("/mouvements-stock");revalidatePath("/comptabilite/journaux");
+}
+
+export async function postCustomerStockReturnAction(formData:FormData){
+ const ctx=await requireOrganization();await assertPermission(ctx,"inventory.manage");
+ const parsed=z.object({delivery_line_id:z.string().uuid(),stock_location_id:z.string().uuid(),quantity:z.coerce.number().finite().positive(),
+  return_condition:z.enum(["resalable","quarantine","damaged"]),reason:z.string().trim().min(3).max(500)}).parse({
+  delivery_line_id:formData.get("delivery_line_id"),stock_location_id:formData.get("stock_location_id"),quantity:formData.get("quantity"),
+  return_condition:formData.get("return_condition"),reason:formData.get("reason")});
+ const {error}=await ctx.supabase.rpc("post_customer_stock_return",{p_org:ctx.organizationId,p_delivery_line_id:parsed.delivery_line_id,
+  p_location_id:parsed.stock_location_id,p_quantity:parsed.quantity,p_condition:parsed.return_condition,p_request_key:randomUUID(),p_reason:parsed.reason});
+ if(error)throw new Error("Retour client non enregistré : "+error.message);
+ revalidatePath("/mouvements-stock");revalidatePath("/articles");
+}
+export async function postSupplierStockReturnAction(formData:FormData){
+ const ctx=await requireOrganization();await assertPermission(ctx,"inventory.manage");
+ const parsed=z.object({receipt_line_id:z.string().uuid(),stock_location_id:z.string().uuid(),quantity:z.coerce.number().finite().positive(),reason:z.string().trim().min(3).max(500)}).parse({
+  receipt_line_id:formData.get("receipt_line_id"),stock_location_id:formData.get("stock_location_id"),quantity:formData.get("quantity"),reason:formData.get("reason")});
+ const {error}=await ctx.supabase.rpc("post_supplier_stock_return",{p_org:ctx.organizationId,p_receipt_line_id:parsed.receipt_line_id,
+  p_location_id:parsed.stock_location_id,p_quantity:parsed.quantity,p_request_key:randomUUID(),p_reason:parsed.reason});
+ if(error)throw new Error("Retour fournisseur non enregistré : "+error.message);
+ revalidatePath("/mouvements-stock");revalidatePath("/articles");
+}
+export async function postStockAdjustmentAction(formData:FormData){
+ const ctx=await requireOrganization();await assertPermission(ctx,"inventory.manage");
+ const parsed=z.object({item_id:z.string().uuid(),stock_location_id:z.string().uuid(),stock_bucket:z.enum(["resale","company_use","consumption","quarantine"]),
+  quantity_delta:z.coerce.number().finite().refine(v=>v!==0),unit_cost:z.coerce.number().finite().nonnegative().default(0),
+  reason:z.string().trim().min(3).max(500),evidence_reference:z.string().trim().max(240).optional()}).parse({
+  item_id:formData.get("item_id"),stock_location_id:formData.get("stock_location_id"),stock_bucket:formData.get("stock_bucket"),
+  quantity_delta:formData.get("quantity_delta"),unit_cost:formData.get("unit_cost")||0,reason:formData.get("reason"),evidence_reference:formData.get("evidence_reference")||""});
+ const {error}=await ctx.supabase.rpc("post_stock_adjustment",{p_org:ctx.organizationId,p_item_id:parsed.item_id,p_location_id:parsed.stock_location_id,
+  p_stock_bucket:parsed.stock_bucket,p_quantity_delta:parsed.quantity_delta,p_unit_cost:parsed.unit_cost,p_reason:parsed.reason,
+  p_evidence_reference:parsed.evidence_reference||null,p_request_key:randomUUID()});
+ if(error)throw new Error("Correction de stock non enregistrée : "+error.message);
+ revalidatePath("/mouvements-stock");revalidatePath("/articles");
+}
+export async function cancelStockTransferAction(formData:FormData){
+ const ctx=await requireOrganization();await assertPermission(ctx,"inventory.manage");
+ const transferId=z.string().uuid().parse(formData.get("transfer_id"));const reason=z.string().trim().min(3).max(500).parse(formData.get("reason"));
+ const {error}=await ctx.supabase.rpc("cancel_stock_transfer",{p_org:ctx.organizationId,p_transfer_id:transferId,p_request_key:randomUUID(),p_reason:reason});
+ if(error)throw new Error("Annulation du transfert refusée : "+error.message);
+ revalidatePath("/mouvements-stock");revalidatePath("/articles");
+}
+export async function cancelSalesDeliveryAction(formData:FormData){
+ const ctx=await requireOrganization();await assertPermission(ctx,"inventory.manage");
+ const deliveryId=z.string().uuid().parse(formData.get("delivery_id"));const reason=z.string().trim().min(3).max(500).parse(formData.get("reason"));
+ const {error}=await ctx.supabase.rpc("cancel_sales_delivery",{p_org:ctx.organizationId,p_delivery_id:deliveryId,p_request_key:randomUUID(),p_reason:reason});
+ if(error)throw new Error("Annulation de livraison refusée : "+error.message);
+ revalidatePath("/mouvements-stock");revalidatePath("/commandes");revalidatePath("/articles");
 }
