@@ -87,8 +87,13 @@ BEGIN
     JOIN public.supplier_invoices si ON si.id=sm.supplier_invoice_id
     JOIN public.suppliers s ON s.id=si.supplier_id
     WHERE s.name='Computer Store'
-      AND si.supplier_number='2030'
-      AND si.magnisa_reference='DFO-00003'
+      AND (
+        (si.supplier_number='2030' AND si.magnisa_reference='DFO-00003' AND si.total=30000
+          AND lower(trim(coalesce(si.notes,'')))='achat de souris')
+        OR
+        (si.supplier_number='2031' AND si.magnisa_reference='DFO-00004' AND si.total=50000
+          AND lower(trim(coalesce(si.notes,'')))='achat d''encre')
+      )
       AND sm.account_key='EXPENSE:SUPPLIER'
       AND sm.pcg_code='606'
       AND sm.evidence_status='record_only'
