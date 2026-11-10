@@ -15,6 +15,8 @@ ALTER TABLE public.sales_deliveries ADD COLUMN cancellation_reason text;
 ALTER TABLE public.sales_deliveries ADD COLUMN cancelled_at timestamptz;
 CREATE UNIQUE INDEX sales_deliveries_cancel_request_uidx ON public.sales_deliveries(organization_id,cancellation_request_key) WHERE cancellation_request_key IS NOT NULL;
 
+CREATE UNIQUE INDEX IF NOT EXISTS invoice_lines_id_organization_uidx ON public.invoice_lines(id,organization_id);
+
 CREATE TABLE public.stock_returns(
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT,
@@ -35,7 +37,7 @@ CREATE TABLE public.stock_return_lines(
  return_id uuid NOT NULL,
  source_line_type text NOT NULL CHECK(source_line_type IN ('sales_delivery_line','goods_receipt_line')),
  source_line_id uuid NOT NULL,
- source_invoice_line_id uuid REFERENCES public.invoice_lines(id) ON DELETE RESTRICT,
+ source_invoice_line_id uuid,
  item_id uuid NOT NULL,
  stock_location_id uuid NOT NULL,
  quantity numeric(18,4) NOT NULL CHECK(quantity>0),
@@ -46,7 +48,8 @@ CREATE TABLE public.stock_return_lines(
  UNIQUE(organization_id,return_id,source_line_type,source_line_id),
  FOREIGN KEY(return_id,organization_id) REFERENCES public.stock_returns(id,organization_id) ON DELETE RESTRICT,
  FOREIGN KEY(item_id,organization_id) REFERENCES public.catalog_items(id,organization_id) ON DELETE RESTRICT,
- FOREIGN KEY(stock_location_id,organization_id) REFERENCES public.stock_locations(id,organization_id) ON DELETE RESTRICT
+ FOREIGN KEY(stock_location_id,organization_id) REFERENCES public.stock_locations(id,organization_id) ON DELETE RESTRICT,
+ FOREIGN KEY(source_invoice_line_id,organization_id) REFERENCES public.invoice_lines(id,organization_id) ON DELETE RESTRICT
 );
 CREATE TABLE public.stock_adjustments(
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
