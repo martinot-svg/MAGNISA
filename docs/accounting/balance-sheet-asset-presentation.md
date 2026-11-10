@@ -11,7 +11,8 @@ La nomenclature et les règles de présentation sont stockées dans `pcg2005_acc
 - Actif brut : solde débiteur des comptes d'actif, calculé comme débit moins crédit.
 - Amortissements et dépréciations correctrices : comptes créditeurs présentés en diminution de l'actif, sans les reclasser en passif.
 - Valeur nette : valeur brute moins amortissements cumulés et dépréciations.
-- Comptes à solde anormal, comptes transitoires et comptes mixtes : isolés dans les contrôles; jamais compensés artificiellement.
+- Les comptes PCG à solde débiteur ou créditeur possible (422, 442, 443, 445, 451, 456, 458 et 467) sont ventilés selon leur solde réel entre actif et passif, sans compensation artificielle. Les comptes transitoires restent bloqués jusqu’à justification.
+- Le compte 36, indiqué comme disponible dans le PCG 2005, n’est pas retenu comme compte de stock dans le bilan.
 - Chaque ligne de présentation conserve les codes et libellés des comptes ou pièces auxiliaires qui la composent.
 
 ## Immobilisations
