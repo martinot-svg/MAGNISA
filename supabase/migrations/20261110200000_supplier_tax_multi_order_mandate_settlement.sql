@@ -326,6 +326,8 @@ DECLARE
   v_order public.purchase_orders%rowtype;
   v_account public.financial_accounts%rowtype;
   v_id uuid;
+  v_existing public.customer_mandate_disbursements%rowtype;
+  v_expected numeric(18,2);
   v_ref text;
   v_entry uuid;
   v_lines jsonb;
@@ -334,6 +336,17 @@ BEGIN
   PERFORM public.assert_org_permission(p_org,'suppliers.manage');
   IF p_request_key IS NULL OR p_amount<=0 OR nullif(trim(coalesce(p_supplier_document_reference,'')),'') IS NULL THEN
     RAISE EXCEPTION 'Justificatif, montant et clé de demande obligatoires.';
+  END IF;
+  SELECT * INTO v_existing FROM public.customer_mandate_disbursements
+   WHERE organization_id=p_org AND request_key=p_request_key FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.purchase_order_line_id=p_purchase_order_line
+       AND v_existing.supplier_document_reference=trim(p_supplier_document_reference)
+       AND v_existing.amount=p_amount AND v_existing.financial_account_id=p_account
+       AND v_existing.disbursed_at=p_disbursed_at AND v_existing.document_date=p_document_date THEN
+      RETURN v_existing.id;
+    END IF;
+    RAISE EXCEPTION 'Clé de demande déjà utilisée pour un autre débours.';
   END IF;
   SELECT * INTO v_line FROM public.purchase_order_lines
    WHERE id=p_purchase_order_line AND organization_id=p_org FOR UPDATE;
@@ -346,8 +359,19 @@ BEGIN
   SELECT * INTO v_order FROM public.purchase_orders
    WHERE id=v_line.purchase_order_id AND organization_id=p_org;
   IF NOT FOUND THEN RAISE EXCEPTION 'Commande de mandat introuvable.'; END IF;
-  IF v_line.quantity_received<=0 OR abs(v_line.line_total-p_amount)>0.01 THEN
-    RAISE EXCEPTION 'Le débours doit correspondre au coût exact de la ligne mandatée effectivement reçue.';
+  IF v_line.quantity_received<=0 OR v_line.quantity_ordered<=0 THEN
+    RAISE EXCEPTION 'La ligne mandatée doit être réceptionnée avant son paiement.';
+  END IF;
+  v_expected:=round(
+    round(v_line.quantity_received*v_line.unit_price,2)
+    - round(v_line.discount_amount*v_line.quantity_received/v_line.quantity_ordered,2)
+    + round(v_line.additional_cost_amount*v_line.quantity_received/v_line.quantity_ordered,2)
+    + round((round(v_line.quantity_received*v_line.unit_price,2)
+      - round(v_line.discount_amount*v_line.quantity_received/v_line.quantity_ordered,2)
+      + round(v_line.additional_cost_amount*v_line.quantity_received/v_line.quantity_ordered,2))
+      *v_line.tax_rate/100,2),2);
+  IF abs(v_expected-p_amount)>0.01 THEN
+    RAISE EXCEPTION 'Le débours doit correspondre au coût exact proratisé de la quantité mandatée réceptionnée (%).',v_expected;
   END IF;
   IF v_line.mandate_supplier_document_reference<>trim(p_supplier_document_reference) THEN
     RAISE EXCEPTION 'La référence de la pièce fournisseur doit correspondre à celle du mandat validé.';
@@ -394,6 +418,7 @@ CREATE OR REPLACE FUNCTION public.record_customer_mandate_reimbursement(
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $function$
 DECLARE
   v_disbursement public.customer_mandate_disbursements%rowtype;
+  v_existing public.customer_mandate_reimbursements%rowtype;
   v_account public.financial_accounts%rowtype;
   v_reimbursed numeric(18,2);
   v_id uuid;
@@ -404,6 +429,16 @@ BEGIN
   PERFORM public.assert_org_access(p_org);
   PERFORM public.assert_org_permission(p_org,'payments.record');
   IF p_request_key IS NULL OR p_amount<=0 THEN RAISE EXCEPTION 'Montant et clé de demande obligatoires.'; END IF;
+  SELECT * INTO v_existing FROM public.customer_mandate_reimbursements
+   WHERE organization_id=p_org AND request_key=p_request_key FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.disbursement_id=p_disbursement AND v_existing.financial_account_id=p_account
+       AND v_existing.amount=p_amount AND v_existing.reimbursement_date=p_date
+       AND coalesce(v_existing.reference,'')=coalesce(nullif(trim(p_reference),''),'REMB-MANDAT-'||upper(substr(replace(p_request_key::text,'-',''),1,12))) THEN
+      RETURN v_existing.id;
+    END IF;
+    RAISE EXCEPTION 'Clé de demande déjà utilisée pour un autre remboursement.';
+  END IF;
   SELECT * INTO v_disbursement FROM public.customer_mandate_disbursements
    WHERE id=p_disbursement AND organization_id=p_org FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Débours de mandat introuvable.'; END IF;
