@@ -82,6 +82,15 @@ BEGIN
   IF to_regclass('public.magnisa_supplier_invoice_match_reconciliation') IS NULL THEN
     RAISE EXCEPTION 'Supplier invoice matching diagnostic view is missing';
   END IF;
+  SELECT pg_get_functiondef('public.reconcile_supplier_invoice_to_posted_receipts(uuid,uuid,uuid,text)'::regprocedure) INTO v_def;
+  IF position('goods_receipt_lines' in v_def)=0 OR position('quantity_remaining' in v_def)=0
+     OR position('reconcile_supplier_invoice_to_receipts' in v_def)=0 THEN
+    RAISE EXCEPTION 'Automatic supplier invoice matching from posted receipts is incomplete';
+  END IF;
+  IF has_function_privilege('anon','public.reconcile_supplier_invoice_to_posted_receipts(uuid,uuid,uuid,text)','EXECUTE')
+     OR NOT has_function_privilege('authenticated','public.reconcile_supplier_invoice_to_posted_receipts(uuid,uuid,uuid,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'Automatic supplier invoice matching RPC grants are incorrect';
+  END IF;
 END
 $supplier_match$;
 
