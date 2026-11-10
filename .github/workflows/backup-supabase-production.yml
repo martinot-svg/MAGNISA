@@ -267,8 +267,8 @@ jobs:
               FROM public.fixed_asset_register_reconciliation
               WHERE account_code='218'
                 AND organization_id IN (SELECT DISTINCT organization_id FROM public.expenses WHERE magnisa_reference IN ('DEP-00003','DEP-00004'))
-            ) <> 9000000 THEN
-              RAISE EXCEPTION 'The 9,000,000 MGA computer asset register gap must remain visible and unmasked';
+            ) <> 9932000 THEN
+              RAISE EXCEPTION 'After reclassifying FOUR-2030 and FOUR-2031, the remaining 9,932,000 MGA PCG 218 balance must reconcile to the fixed-asset register';
             END IF;
             IF EXISTS (
               SELECT 1 FROM public.journal_entries
