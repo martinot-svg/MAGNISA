@@ -50,7 +50,17 @@ fi
 grep -q 'checksum mismatch' "$TMP/checksum.log" || fail "checksum failure reason missing"
 
 
-# A renamed local SQL file that represents an already-applied remote migration
+
+# An empty reconciliation manifest must not silently discard the first local migration.
+mkdir -p "$TMP/empty-map"
+: > "$TMP/empty-map/20261103000000_unapproved.sql"
+printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\\n' > "$TMP/empty-map-manifest"
+printf '20261101000000|exact\\n' > "$TMP/empty-map-remote"
+if run_guard "$TMP/empty-map" "$TMP/empty-allow" "$TMP/empty-map-manifest" "$TMP/empty-map-remote" > "$TMP/empty-map.log" 2>&1; then
+  fail "empty reconciliation manifest unexpectedly hid a pending migration"
+fi
+grep -q 'Unreviewed pending local versions: 1' "$TMP/empty-map.log" || fail "empty manifest pending migration was not detected"
+\n# A renamed local SQL file that represents an already-applied remote migration
 # must not be treated as pending and re-executed by db push.
 mkdir -p "$TMP/mapped-source"
 printf 'CREATE TABLE migration_fixture(id integer);\n' > "$TMP/mapped-source/20261102000000_local_name.sql"
