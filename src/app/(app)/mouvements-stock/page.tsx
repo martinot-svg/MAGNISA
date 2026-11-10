@@ -26,7 +26,7 @@ export default async function StockOperationsPage({searchParams}:{searchParams:P
   supabase.from("goods_receipts").select("id,receipt_number,purchase_order_id,status,received_at").eq("organization_id",organizationId).order("received_at",{ascending:false}).limit(50),
   supabase.from("goods_receipt_lines").select("id,goods_receipt_id,item_id,quantity_received,unit_cost,stock_location_id").eq("organization_id",organizationId),
   supabase.from("stock_returns").select("id,return_number,return_type,source_document_id,reason,status,created_at").eq("organization_id",organizationId).order("created_at",{ascending:false}).limit(50),
-  supabase.from("stock_return_lines").select("return_id,item_id,quantity,return_condition,stock_bucket,unit_cost").eq("organization_id",organizationId),
+  supabase.from("stock_return_lines").select("return_id,source_line_type,source_line_id,item_id,quantity,return_condition,stock_bucket,unit_cost").eq("organization_id",organizationId),
   supabase.from("stock_adjustments").select("id,adjustment_number,reason,evidence_reference,status,created_at").eq("organization_id",organizationId).order("created_at",{ascending:false}).limit(50),
   supabase.from("stock_adjustment_lines").select("adjustment_id,item_id,stock_location_id,stock_bucket,quantity_delta,unit_cost").eq("organization_id",organizationId),
  ]);
@@ -34,6 +34,9 @@ export default async function StockOperationsPage({searchParams}:{searchParams:P
  const locMap=new Map((locations as any[]).map(x=>[x.id,x]));
  const deliveryMap=new Map((deliveries as any[]).map(x=>[x.id,x]));
  const receiptMap=new Map((receipts as any[]).map(x=>[x.id,x]));
+ const returnMap=new Map((returns as any[]).map(x=>[x.id,x]));
+ const customerReturned=(lineId:string)=> (returnLines as any[]).filter(l=>l.source_line_type==="sales_delivery_line"&&l.source_line_id===lineId&&returnMap.get(l.return_id)?.return_type==="customer").reduce((sum,l)=>sum+Number(l.quantity),0);
+ const supplierReturned=(lineId:string)=> (returnLines as any[]).filter(l=>l.source_line_type==="goods_receipt_line"&&l.source_line_id===lineId&&returnMap.get(l.return_id)?.return_type==="supplier").reduce((sum,l)=>sum+Number(l.quantity),0);
   const asOf=params.asOf&&/^\d{4}-\d{2}-\d{2}$/.test(params.asOf)?params.asOf:null;
  const {data:historicalData}=asOf?await supabase.rpc("stock_balance_as_of",{p_org:organizationId,p_as_of:new Date(asOf+"T23:59:59+03:00").toISOString()}):{data:[] as any[]};
  const historical=historicalData||[];
@@ -65,7 +68,7 @@ export default async function StockOperationsPage({searchParams}:{searchParams:P
   {canManage&&<section className="section grid2">
    <div className="card"><h2>Retour client</h2><p className="muted">Le retour est relié à une ligne de livraison. Un article revendable revient dans le stock de revente; un article endommagé ou à contrôler entre en quarantaine. Cette action enregistre le retour physique, pas encore l'avoir ni le remboursement.</p>
     <form action={postCustomerStockReturnAction} className="form"><input type="hidden" name="request_key" value={randomUUID()}/>
-     <div className="field"><label>Ligne de livraison d'origine</label><select name="delivery_line_id" required defaultValue=""><option value="" disabled>Choisir</option>{(deliveryLines as any[]).filter(l=>deliveryMap.get(l.delivery_id)?.status==="posted").map(l=><option key={l.id} value={l.id}>{deliveryMap.get(l.delivery_id)?.delivery_number} · {itemMap.get(l.item_id)?.name||l.item_id} · livré {Number(l.quantity_delivered)}</option>)}</select></div>
+     <div className="field"><label>Ligne de livraison d'origine</label><select name="delivery_line_id" required defaultValue=""><option value="" disabled>Choisir</option>{(deliveryLines as any[]).filter(l=>deliveryMap.get(l.delivery_id)?.status==="posted"&&Number(l.quantity_delivered)>customerReturned(l.id)).map(l=><option key={l.id} value={l.id}>{deliveryMap.get(l.delivery_id)?.delivery_number} · {itemMap.get(l.item_id)?.name||l.item_id} · reste {Number(l.quantity_delivered)-customerReturned(l.id)}</option>)}</select></div>
      <div className="grid2"><div className="field"><label>Emplacement de retour</label><select name="stock_location_id" required defaultValue=""><option value="" disabled>Choisir</option>{(locations as any[]).map(l=><option key={l.id} value={l.id}>{l.code} · {l.name}</option>)}</select></div><div className="field"><label>Quantité retournée</label><input name="quantity" type="number" min="0.0001" step="0.0001" required/></div></div>
      <div className="field"><label>État de l'article</label><select name="return_condition" defaultValue="resalable"><option value="resalable">Revendre</option><option value="quarantine">À contrôler</option><option value="damaged">Endommagé</option></select></div>
      <div className="field"><label>Motif et justificatif</label><input name="reason" minLength={3} maxLength={500} required/></div><button className="button">Enregistrer le retour client</button>
@@ -73,7 +76,7 @@ export default async function StockOperationsPage({searchParams}:{searchParams:P
    </div>
    <div className="card"><h2>Retour fournisseur</h2><p className="muted">Le retour est limité à une réception d'origine et au stock physique disponible. Le coût est repris au CUMP courant de l'emplacement. L'avoir fournisseur et le règlement restent à rapprocher séparément.</p>
     <form action={postSupplierStockReturnAction} className="form"><input type="hidden" name="request_key" value={randomUUID()}/>
-     <div className="field"><label>Ligne de réception d'origine</label><select name="receipt_line_id" required defaultValue=""><option value="" disabled>Choisir</option>{(receiptLines as any[]).filter(l=>receiptMap.get(l.goods_receipt_id)?.status==="posted").map(l=><option key={l.id} value={l.id}>{receiptMap.get(l.goods_receipt_id)?.receipt_number} · {itemMap.get(l.item_id)?.name||l.item_id} · reçu {Number(l.quantity_received)}</option>)}</select></div>
+     <div className="field"><label>Ligne de réception d'origine</label><select name="receipt_line_id" required defaultValue=""><option value="" disabled>Choisir</option>{(receiptLines as any[]).filter(l=>receiptMap.get(l.goods_receipt_id)?.status==="posted"&&Number(l.quantity_received)>supplierReturned(l.id)).map(l=><option key={l.id} value={l.id}>{receiptMap.get(l.goods_receipt_id)?.receipt_number} · {itemMap.get(l.item_id)?.name||l.item_id} · reste {Number(l.quantity_received)-supplierReturned(l.id)}</option>)}</select></div>
      <div className="grid2"><div className="field"><label>Emplacement de sortie</label><select name="stock_location_id" required defaultValue=""><option value="" disabled>Choisir</option>{(locations as any[]).map(l=><option key={l.id} value={l.id}>{l.code} · {l.name}</option>)}</select></div><div className="field"><label>Quantité retournée</label><input name="quantity" type="number" min="0.0001" step="0.0001" required/></div></div>
      <div className="field"><label>Motif et justificatif</label><input name="reason" minLength={3} maxLength={500} required/></div><button className="button">Enregistrer le retour fournisseur</button>
     </form>
