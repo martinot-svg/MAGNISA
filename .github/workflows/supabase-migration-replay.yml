@@ -149,6 +149,9 @@ jobs:
       - name: Test authenticated CRM UI actions
         if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
         run: node scripts/ci/crm-ui-smoke.mjs
+      - name: Test authenticated stock reservation and delivery UI actions
+        if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
+        run: node scripts/ci/stock-ui-smoke.mjs
       - name: Stop MAGNISA local server
         if: always()
         run: |
