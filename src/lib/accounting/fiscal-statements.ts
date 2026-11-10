@@ -51,6 +51,20 @@ const n=(v:any)=>Number(v||0);
 const round=(v:number)=>Math.round((v+Number.EPSILON)*100)/100;
 const cashCodes=/^(511|512|513|514|515|517|518|53|54|58)/;
 
+export function isInventoryCountReady(input: {
+  inventoryAvailable: boolean;
+  hasStockBalance: boolean;
+  hasApprovedCount: boolean;
+  grossLedgerGap: number;
+  impairmentLedgerGap: number;
+}): boolean {
+  if (!input.inventoryAvailable) return false;
+  if (!input.hasStockBalance) return true;
+  return input.hasApprovedCount
+    && Math.abs(input.grossLedgerGap) < 0.01
+    && Math.abs(input.impairmentLedgerGap) < 0.01;
+}
+
 export function isLoanRepaymentEffectiveAtDate(
   status: string,
   paymentDate: string,
@@ -100,9 +114,6 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     gross_gaps:[],impairment_gaps:[],
   }) as any;
   const hasApprovedInventoryCount=!inventoryError&&inventoryValuation.count_available===true;
-  const inventoryCountReady=hasApprovedInventoryCount
-    &&n(inventoryValuation.gross_ledger_gap)<0.01
-    &&n(inventoryValuation.impairment_ledger_gap)<0.01;
   const cashReconciliation=(cashReconciliationData||{
     accounts:[],comparisons:[],account_movement_gap:0,gl_reconciliation_gap:0,
     unknown_account_count:0,unknown_current_balance:0,
@@ -158,6 +169,15 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   }
   const accountMap=new Map((accounts||[]).map((a:any)=>[a.code,a]));
   const aggregate=new Map<string,{debit:number;credit:number;kind:string;label:string}>();
+  const hasStockLedgerBalance=lines.some((line:any)=>!!line.pcg_code&&/^3/.test(String(line.pcg_code))
+    &&Math.abs(n(line.debit)-n(line.credit))>=0.005);
+  const inventoryCountReady=isInventoryCountReady({
+    inventoryAvailable:!inventoryError,
+    hasStockBalance:hasStockLedgerBalance,
+    hasApprovedCount:hasApprovedInventoryCount,
+    grossLedgerGap:n(inventoryValuation.gross_ledger_gap),
+    impairmentLedgerGap:n(inventoryValuation.impairment_ledger_gap),
+  });
   let unmapped=0;
   for(const l of lines){
     if(!l.pcg_code||l.mapping_status==="a_mapper"){unmapped++;continue;}
@@ -261,7 +281,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   const cashBlockingIssues:string[]=[];
   if(!cashReconciliationAvailable)cashBlockingIssues.push("Rapprochement de trésorerie indisponible : RPC ou migration PCG manquante.");
   if(inventoryError)cashBlockingIssues.push("Sous-grand-livre d’inventaire indisponible : migration ou RPC manquante.");
-  else if(!hasApprovedInventoryCount)cashBlockingIssues.push("Inventaire physique approuvé manquant à la date de clôture : les stocks ne peuvent pas être validés.");
+  else if(hasStockLedgerBalance&&!hasApprovedInventoryCount)cashBlockingIssues.push("Inventaire physique approuvé manquant à la date de clôture : les stocks ne peuvent pas être validés.");
   if(hasApprovedInventoryCount&&n(inventoryValuation.gross_ledger_gap)>=0.01)cashBlockingIssues.push("La valeur brute de l’inventaire physique ne correspond pas aux comptes de stocks du grand livre.");
   if(hasApprovedInventoryCount&&n(inventoryValuation.impairment_ledger_gap)>=0.01)cashBlockingIssues.push("Les dépréciations d’inventaire ne correspondent pas aux comptes 39 du grand livre.");
   if(n(cashReconciliation.unknown_account_count)>0)cashBlockingIssues.push(String(cashReconciliation.unknown_account_count)+" compte(s) financier(s) sans correspondance PCG 5.");
