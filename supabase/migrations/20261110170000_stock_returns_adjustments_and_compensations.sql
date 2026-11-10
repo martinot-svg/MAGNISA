@@ -509,7 +509,7 @@ $function$;
 
 CREATE OR REPLACE FUNCTION public.stock_balance_as_of(p_org uuid,p_as_of timestamptz)
 RETURNS TABLE(item_id uuid,stock_location_id uuid,stock_bucket text,quantity_on_hand numeric)
-LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path=public AS $function$
+LANGUAGE plpgsql SECURITY INVOKER SET search_path=public AS $function$
 BEGIN
  PERFORM public.assert_org_access(p_org);PERFORM public.assert_org_permission(p_org,'inventory.view');
  IF p_as_of IS NULL THEN RAISE EXCEPTION 'Date de référence obligatoire'; END IF;
