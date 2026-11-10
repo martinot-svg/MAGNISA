@@ -130,7 +130,7 @@ done < "$RECONCILIATION_FILE"
 : > "$TMP_DIR/mapped-local-files"
 while IFS='|' read -r version remote_name local_file mapping_type evidence_ref expected_sha; do
   [[ -n "$version" && "$version" != \\#* ]] || continue
-  printf '%s\\n' "$local_file" >> "$TMP_DIR/mapped-local-files"
+  printf '%s\n' "$local_file" >> "$TMP_DIR/mapped-local-files"
 done < "$RECONCILIATION_FILE"
 awk -F '|' 'NR==FNR {mapped[$1]=1; next} !($3 in mapped) {print $1}' \
   "$TMP_DIR/mapped-local-files" "$LOCAL" | sort > "$LOCAL_VERSIONS"
@@ -138,7 +138,7 @@ comm -23 "$LOCAL_VERSIONS" "$REMOTE_VERSIONS" > "$LOCAL_ONLY"
 : > "$UNEXPECTED"
 while IFS= read -r version; do
   [[ -n "$version" ]] || continue
-  grep -Fxq "$version" "$ALLOW" || printf '%s\\n' "$version" >> "$UNEXPECTED"
+  grep -Fxq "$version" "$ALLOW" || printf '%s\n' "$version" >> "$UNEXPECTED"
 done < "$LOCAL_ONLY"
 
 : > "$TMP_DIR/name-mismatch-unmapped"
