@@ -45,7 +45,7 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
    <Text style={styles.note}>Actif non courant net classé : {money(s.assetPresentation.totals.nonCurrentNet,s.currency)} • Actif courant net classé : {money(s.assetPresentation.totals.currentNet,s.currency)} • Créances en attente d'échéance : {money(s.assetPresentation.totals.maturityPendingNet,s.currency)}</Text>
    {[{title:"Actif non courant",items:s.assetPresentation.nonCurrent},{title:"Actif courant",items:s.assetPresentation.current},{title:"Créances à ventiler selon leur échéance",items:s.assetPresentation.maturityPending},{title:"Comptes à justifier ou reclasser",items:s.assetPresentation.reviewRequired},{title:"Comptes sans règle PCG",items:s.assetPresentation.unmapped}].map(group=><View key={group.title}>
     <Text style={styles.note}>{group.title}</Text>
-    {group.items.map(item=><View style={styles.row} key={item.key}><Text style={styles.cell}>{item.label} • {item.accounts.map((a:any)=>a.code+" "+a.label).join("; ")}</Text><Text style={styles.right}>{money(item.amount,s.currency)}</Text></View>)}
+    {group.items.map(item=><View style={styles.row} key={item.key}><Text style={styles.cell}>{item.label} • {item.accounts.map((a:any)=>a.code+" "+a.label+" • "+((a.sourceEntries||[]).map((e:any)=>e.reference||e.entryId).join(", ")||a.label)).join("; ")}</Text><Text style={styles.right}>{money(item.amount,s.currency)}</Text></View>)}
     {!group.items.length&&<Text style={styles.note}>Aucun montant identifié.</Text>}
    </View>)}
    {s.assetPresentation.blockingIssues.map((issue:string,i:number)=><Text style={styles.warning} key={i}>{issue}</Text>)}
