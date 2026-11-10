@@ -1,3 +1,4 @@
+import { formatDateDisplay } from "@/lib/date-format";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
@@ -440,7 +441,7 @@ export default async function Payroll({searchParams}:{searchParams:Promise<{draf
       <section className="card section" aria-label="Situation de la paie">
         <h2>Suivi de la paie</h2>
         <div className="grid3">
-          <div><span className="muted">Dernière période enregistrée</span><p><strong>{latestRun ? `${latestRun.period_start} au ${latestRun.period_end}` : "Aucune période"}</strong></p></div>
+          <div><span className="muted">Dernière période enregistrée</span><p><strong>{latestRun ? `${formatDateDisplay(latestRun.period_start)} au ${formatDateDisplay(latestRun.period_end)}` : "Aucune période"}</strong></p></div>
           <div><span className="muted">Bulletins calculés à valider</span><p><strong>{toValidate}</strong></p></div>
           <div><span className="muted">Bulletins avec solde à régler</span><p><strong>{remainingToPay}</strong></p></div>
         </div>
