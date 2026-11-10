@@ -2,7 +2,7 @@ import { requireOrganization } from "@/lib/current-org";
 import { requirePermission } from "@/lib/permissions";
 import { buildAssetPresentation, buildPassifPresentation, classifyReceivableMaturity, matchesStatementAccountKind, type AssetPresentation, type BalanceSheetLedgerLine, type BalanceSheetRule, type PassifPresentation, type PassifRule } from "./balance-sheet-presentation";
 
-export type StatementLine = { code: string; label: string; debit: number; credit: number; balance: number; comparativeBalance: number };
+export type StatementLine = { code: string; label: string; debit: number; credit: number; balance: number; comparativeBalance: number; sourceEntries?: {entryId:string;reference:string|null;sourceType:string|null;lineId:string}[]; sourceEntryCount?: number };
 export type FiscalStatements = {
   organization: any; year: any; currency: string; accounts: any[];
   assets: StatementLine[]; liabilities: StatementLine[]; equity: StatementLine[];
