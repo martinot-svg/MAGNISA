@@ -78,6 +78,7 @@ BEGIN
   IF v_total<=0 THEN RAISE EXCEPTION 'Le total de la facture doit être positif.'; END IF;
   v_ref:=nullif(trim(coalesce(p_supplier_number,'')),'');
   IF v_ref IS NULL THEN RAISE EXCEPTION 'Numéro de facture fournisseur requis.'; END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_org::text||':'||p_supplier::text||':'||v_ref,0));
   SELECT name INTO v_supplier_name FROM public.suppliers
    WHERE id=p_supplier AND organization_id=p_org AND is_active FOR SHARE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Fournisseur introuvable ou inactif.'; END IF;
@@ -88,7 +89,8 @@ BEGIN
        AND v_existing.subtotal=round(p_subtotal,2) AND v_existing.tax_total=round(p_tax_total,2)
        AND v_existing.tax_treatment=p_tax_treatment
        AND coalesce(v_existing.tax_document_reference,'')=coalesce(nullif(trim(p_tax_document_reference),''),'')
-       AND v_existing.reconciliation_scope=p_reconciliation_scope THEN
+       AND coalesce(v_existing.notes,'')=coalesce(nullif(trim(p_notes),''),'')
+       AND v_existing.reconciliation_scope=p_reconciliation_scope AND v_existing.status<>'cancelled' THEN
       RETURN v_existing.id;
     END IF;
     RAISE EXCEPTION 'Ce numéro de facture fournisseur existe déjà avec des données différentes.';
