@@ -467,7 +467,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
       passifBlockingIssues.push("Emprunt "+String(loan.magnisa_reference||loan.id)+" sans échéancier approuvé actif.");
       continue;
     }
-    const rows=loanInstallments.filter((item:any)=>item.loan_id===loan.id&&item.schedule_version_id===scheduleId&&String(item.status||"").toLowerCase()!=="paid");
+    const rows=loanInstallments.filter((item:any)=>item.loan_id===loan.id&&item.schedule_version_id===scheduleId&&!["paid","cancelled","canceled","void","reversed"].includes(String(item.status||"").toLowerCase()));
     if(!rows.length){
       passifBlockingIssues.push("Échéancier vide pour l’emprunt "+String(loan.magnisa_reference||loan.id)+".");
       continue;
