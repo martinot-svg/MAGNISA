@@ -174,6 +174,46 @@ $function$;
 REVOKE ALL ON FUNCTION public.reconcile_supplier_invoice_to_receipts(uuid,uuid,uuid,jsonb,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.reconcile_supplier_invoice_to_receipts(uuid,uuid,uuid,jsonb,text) TO authenticated;
 
+
+CREATE OR REPLACE FUNCTION public.reconcile_supplier_invoice_to_posted_receipts(
+  p_org uuid,p_supplier_invoice uuid,p_purchase_order uuid,p_variance_reason text DEFAULT NULL
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $function$
+DECLARE v_allocations jsonb;
+BEGIN
+  PERFORM public.assert_org_access(p_org);
+  PERFORM public.assert_org_permission(p_org,'suppliers.manage');
+  SELECT jsonb_agg(jsonb_build_object(
+    'goods_receipt_line_id',x.goods_receipt_line_id,
+    'quantity',x.quantity_remaining,
+    'unit_price',x.unit_cost
+  ) ORDER BY x.goods_receipt_line_id)
+  INTO v_allocations
+  FROM (
+    SELECT grl.id goods_receipt_line_id,
+           (grl.quantity_received-coalesce(sum(ml.quantity_invoiced),0))::numeric(18,4) quantity_remaining,
+           grl.unit_cost
+    FROM public.goods_receipt_lines grl
+    JOIN public.goods_receipts gr ON gr.id=grl.goods_receipt_id AND gr.organization_id=grl.organization_id
+    LEFT JOIN public.supplier_invoice_match_lines ml
+      ON ml.goods_receipt_line_id=grl.id AND ml.organization_id=grl.organization_id
+    LEFT JOIN public.supplier_invoice_matches sm
+      ON sm.id=ml.match_id AND sm.organization_id=ml.organization_id
+    WHERE grl.organization_id=p_org AND gr.purchase_order_id=p_purchase_order AND gr.status='posted'
+    GROUP BY grl.id,grl.quantity_received,grl.unit_cost
+    HAVING grl.quantity_received-coalesce(sum(ml.quantity_invoiced),0)>0.00000001
+  ) x;
+  IF coalesce(jsonb_array_length(v_allocations),0)=0 THEN
+    RAISE EXCEPTION 'Aucune quantité reçue non encore rapprochée pour cette commande.';
+  END IF;
+  RETURN public.reconcile_supplier_invoice_to_receipts(
+    p_org,p_supplier_invoice,p_purchase_order,v_allocations,p_variance_reason
+  );
+END;
+$function$;
+REVOKE ALL ON FUNCTION public.reconcile_supplier_invoice_to_posted_receipts(uuid,uuid,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.reconcile_supplier_invoice_to_posted_receipts(uuid,uuid,text) TO authenticated;
+
 CREATE OR REPLACE VIEW public.magnisa_supplier_invoice_match_reconciliation
 WITH (security_invoker=true) AS
 SELECT si.organization_id,si.id supplier_invoice_id,si.supplier_number,si.supplier_id,si.total invoice_total,
