@@ -205,6 +205,82 @@ BEGIN
   RAISE EXCEPTION 'Reservation release retry changed the quantity more than once';
  END IF;
 
+ -- Compensate the posted transfer without editing its original movement history.
+ PERFORM public.release_stock_reservation(v_org,v_res,2,'e1000000-0000-4000-8000-000000000060');
+ PERFORM public.cancel_stock_transfer(v_org,v_transfer,'e1000000-0000-4000-8000-000000000061','CI cancellation of transfer');
+ PERFORM public.cancel_stock_transfer(v_org,v_transfer,'e1000000-0000-4000-8000-000000000061','CI cancellation of transfer');
+ IF (SELECT SUM(quantity_delta) FROM public.stock_movements WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='resale')<>5
+ OR (SELECT SUM(quantity_delta) FROM public.stock_movements WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_b AND stock_bucket='resale')<>0 THEN
+  RAISE EXCEPTION 'Transfer cancellation did not restore source and destination balances';
+ END IF;
+
+ -- A real supplier receipt is posted, then partially returned twice against the same source line.
+ PERFORM public.post_goods_receipt('e1000000-0000-4000-8000-000000000055');
+ v_supplier_return:=public.post_supplier_stock_return(v_org,'e1000000-0000-4000-8000-000000000056',v_loc_a,0.5,'e1000000-0000-4000-8000-000000000062','CI partial supplier return');
+ IF public.post_supplier_stock_return(v_org,'e1000000-0000-4000-8000-000000000056',v_loc_a,0.5,'e1000000-0000-4000-8000-000000000062','CI partial supplier return')<>v_supplier_return THEN
+  RAISE EXCEPTION 'Supplier return retry is not idempotent';
+ END IF;
+ PERFORM public.post_supplier_stock_return(v_org,'e1000000-0000-4000-8000-000000000056',v_loc_a,0.5,'e1000000-0000-4000-8000-000000000063','CI final supplier return');
+ BEGIN
+  PERFORM public.post_supplier_stock_return(v_org,'e1000000-0000-4000-8000-000000000056',v_loc_a,0.1,'e1000000-0000-4000-8000-000000000064','CI over return');
+  RAISE EXCEPTION 'Supplier return beyond received quantity should fail';
+ EXCEPTION WHEN OTHERS THEN
+  IF SQLERRM='Supplier return beyond received quantity should fail' THEN RAISE; END IF;
+ END;
+
+ -- Partial customer returns split resalable and quarantined goods without changing the original delivery.
+ v_line_d:=public.add_catalog_item_to_order(v_org,v_order_d,v_item,1,100,20,0);
+ v_res_d:=public.reserve_stock(v_org,v_order_d,v_line_d,v_item,v_loc_a,1,'e1000000-0000-4000-8000-000000000065');
+ v_delivery:=jsonb_build_array(jsonb_build_object('order_line_id',v_line_d,'item_id',v_item,'stock_location_id',v_loc_a,'quantity',1,'reservation_id',v_res_d));
+ v_del_d:=public.post_sales_delivery(v_org,v_order_d,v_delivery,'e1000000-0000-4000-8000-000000000066','CI-DL-D');
+ v_return:=public.post_customer_stock_return(v_org,(SELECT id FROM public.sales_delivery_lines WHERE delivery_id=v_del_d LIMIT 1),v_loc_a,0.5,'damaged','e1000000-0000-4000-8000-000000000067','CI damaged partial customer return');
+ IF public.post_customer_stock_return(v_org,(SELECT id FROM public.sales_delivery_lines WHERE delivery_id=v_del_d LIMIT 1),v_loc_a,0.5,'damaged','e1000000-0000-4000-8000-000000000067','CI damaged partial customer return')<>v_return THEN
+  RAISE EXCEPTION 'Customer return retry is not idempotent';
+ END IF;
+ PERFORM public.post_customer_stock_return(v_org,(SELECT id FROM public.sales_delivery_lines WHERE delivery_id=v_del_d LIMIT 1),v_loc_a,0.5,'resalable','e1000000-0000-4000-8000-000000000068','CI resalable partial customer return');
+ IF (SELECT quantity_on_hand FROM public.stock_available WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='quarantine')<>0.5
+ OR (SELECT quantity_available FROM public.stock_available WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='quarantine')<>0 THEN
+  RAISE EXCEPTION 'Damaged customer returns must be physically tracked but unavailable for sale';
+ END IF;
+ BEGIN
+  PERFORM public.post_customer_stock_return(v_org,(SELECT id FROM public.sales_delivery_lines WHERE delivery_id=v_del_d LIMIT 1),v_loc_a,0.1,'resalable','e1000000-0000-4000-8000-000000000069','CI over return');
+  RAISE EXCEPTION 'Customer return beyond delivered quantity should fail';
+ EXCEPTION WHEN OTHERS THEN
+  IF SQLERRM='Customer return beyond delivered quantity should fail' THEN RAISE; END IF;
+ END;
+
+ -- A not-yet-invoiced delivery can be cancelled only through compensating stock movements.
+ v_line_e:=public.add_catalog_item_to_order(v_org,v_order_e,v_item,1,100,20,0);
+ v_res_e:=public.reserve_stock(v_org,v_order_e,v_line_e,v_item,v_loc_a,1,'e1000000-0000-4000-8000-000000000070');
+ v_delivery:=jsonb_build_array(jsonb_build_object('order_line_id',v_line_e,'item_id',v_item,'stock_location_id',v_loc_a,'quantity',1,'reservation_id',v_res_e));
+ v_del_e:=public.post_sales_delivery(v_org,v_order_e,v_delivery,'e1000000-0000-4000-8000-000000000071','CI-DL-E');
+ PERFORM public.cancel_sales_delivery(v_org,v_del_e,'e1000000-0000-4000-8000-000000000072','CI cancellation before invoice');
+ PERFORM public.cancel_sales_delivery(v_org,v_del_e,'e1000000-0000-4000-8000-000000000072','CI cancellation before invoice');
+ IF (SELECT delivered_quantity FROM public.order_lines WHERE id=v_line_e)<>0
+ OR (SELECT quantity_fulfilled FROM public.stock_reservations WHERE id=v_res_e)<>0 THEN
+  RAISE EXCEPTION 'Delivery cancellation did not reverse order and reservation quantities';
+ END IF;
+ PERFORM public.release_stock_reservation(v_org,v_res_e,1,'e1000000-0000-4000-8000-000000000073');
+
+ -- Inventory corrections are signed, idempotent, CUMP-valued and preserved in the as-of ledger.
+ v_adjustment:=public.post_stock_adjustment(v_org,v_item,v_loc_a,'resale',1,50,'CI positive count correction','CI-count-2026-01','e1000000-0000-4000-8000-000000000074');
+ IF public.post_stock_adjustment(v_org,v_item,v_loc_a,'resale',1,50,'CI positive count correction','CI-count-2026-01','e1000000-0000-4000-8000-000000000074')<>v_adjustment THEN
+  RAISE EXCEPTION 'Stock adjustment retry is not idempotent';
+ END IF;
+ PERFORM public.post_stock_adjustment(v_org,v_item,v_loc_a,'resale',-0.5,0,'CI negative count correction','CI-count-2026-02','e1000000-0000-4000-8000-000000000075');
+ BEGIN
+  PERFORM public.post_stock_adjustment(v_org,v_item,v_loc_a,'resale',-100,0,'CI invalid negative count','CI-count-invalid','e1000000-0000-4000-8000-000000000076');
+  RAISE EXCEPTION 'Negative adjustment beyond available stock should fail';
+ EXCEPTION WHEN OTHERS THEN
+  IF SQLERRM='Negative adjustment beyond available stock should fail' THEN RAISE; END IF;
+ END;
+ SELECT quantity_on_hand INTO v_asof FROM public.stock_balance_as_of(v_org,now()+interval '1 day')
+ WHERE item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='resale';
+ IF v_asof<>5 THEN RAISE EXCEPTION 'As-of stock balance does not match the persistent movement ledger'; END IF;
+ IF (SELECT COUNT(*) FROM public.accounting_event_outbox WHERE organization_id=v_org AND event_type IN ('stock_return','stock_supplier_return','stock_adjustment_in','stock_adjustment_out'))<6 THEN
+  RAISE EXCEPTION 'Return and adjustment accounting events were not durably recorded';
+ END IF;
+
  -- Tenant isolation: authenticated user has no membership in the other organization.
  SELECT count(*) INTO v_count FROM public.stock_movements WHERE organization_id='e2000000-0000-4000-8000-000000000001';
  IF v_count<>0 THEN RAISE EXCEPTION 'Stock ledger leaked rows across organizations'; END IF;
