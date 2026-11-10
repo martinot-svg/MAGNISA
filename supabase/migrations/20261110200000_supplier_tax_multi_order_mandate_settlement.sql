@@ -72,6 +72,7 @@ BEGIN
   IF p_invoice_date IS NULL OR (p_due_date IS NOT NULL AND p_due_date<p_invoice_date) THEN
     RAISE EXCEPTION 'Date ou échéance de facture invalide.';
   END IF;
+  PERFORM public.magnisa_assert_accounting_period_open(p_org,p_invoice_date);
   v_total:=round(p_subtotal+p_tax_total,2);
   IF v_total<=0 THEN RAISE EXCEPTION 'Le total de la facture doit être positif.'; END IF;
   v_ref:=nullif(trim(coalesce(p_supplier_number,'')),'');
