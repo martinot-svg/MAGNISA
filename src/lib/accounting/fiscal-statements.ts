@@ -29,6 +29,8 @@ export type FiscalStatementReadinessInput = {
   notesReady: boolean;
   operatingCashFlowReconciliationReady: boolean;
   pcgPresentationReady: boolean;
+  assetPresentationReady: boolean;
+  passifPresentationReady: boolean;
 };
 
 export function isFiscalStatementReady(input: FiscalStatementReadinessInput): boolean {
@@ -40,7 +42,9 @@ export function isFiscalStatementReady(input: FiscalStatementReadinessInput): bo
     && Math.abs(input.balanceDifference) < 0.01
     && input.notesReady
     && input.operatingCashFlowReconciliationReady
-    && input.pcgPresentationReady;
+    && input.pcgPresentationReady
+    && input.assetPresentationReady
+    && input.passifPresentationReady;
 }
 
 const n=(v:any)=>Number(v||0);
@@ -691,7 +695,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   // Never label these statements as finalized until those PCG controls exist.
   const operatingCashFlowReconciliationReady=false;
   const pcgPresentationReady=false;
-  const ready=isFiscalStatementReady({isClosed:year.status==="closed",unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,balanceDifference,notesReady,operatingCashFlowReconciliationReady,pcgPresentationReady});
+  const ready=isFiscalStatementReady({isClosed:year.status==="closed",unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,balanceDifference,notesReady,operatingCashFlowReconciliationReady,pcgPresentationReady,assetPresentationReady:assetPresentationControlsReady,passifPresentationReady});
   const notes=[
     "Référentiel comptable : Plan Comptable Général 2005 de Madagascar.",
     "Devise de présentation : "+(org?.currency||"MGA")+".",
