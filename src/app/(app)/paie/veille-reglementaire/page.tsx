@@ -1,3 +1,4 @@
+import { formatDateTimeDisplay } from "@/lib/date-format";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -106,7 +107,7 @@ async function createHealthCeilingDraft(fd: FormData) {
 }
 
 function dateTime(value?: string | null) {
-  return value ? new Date(value).toLocaleString("fr-FR", { timeZone: "Indian/Antananarivo" }) : "Jamais";
+  return value ? formatDateTimeDisplay(value) : "Jamais";
 }
 
 export default async function RegulatoryWatchPage({ searchParams }: { searchParams: Promise<{ updated?: string; draft?: string; source_updated?: string; reviewed?: string }> }) {
