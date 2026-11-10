@@ -239,6 +239,7 @@ BEGIN
  IF auth.uid() IS NULL OR NOT public.is_org_member(p_organization_id) THEN RAISE EXCEPTION 'Access denied.'; END IF;
  PERFORM public.assert_org_access(p_organization_id);
  PERFORM public.assert_org_permission(p_organization_id,'orders.manage');
+ PERFORM pg_advisory_xact_lock(hashtextextended(p_organization_id::text||':reservation-release:'||p_request_key::text,0));
  SELECT * INTO e FROM public.stock_reservation_events WHERE organization_id=p_organization_id AND request_key=p_request_key;
  IF FOUND THEN
   IF e.reservation_id<>p_reservation_id OR e.quantity<>p_quantity OR e.event_kind<>'release' THEN RAISE EXCEPTION 'Release request key reused with different data.'; END IF;
