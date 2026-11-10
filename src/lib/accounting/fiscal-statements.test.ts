@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyCashFlowCounterpart, isFiscalStatementReady, isLoanRepaymentEffectiveAtDate, type FiscalStatementReadinessInput } from "./fiscal-statements";
+import { classifyCashFlowCounterpart, isFiscalStatementReady, isInventoryCountReady, isLoanRepaymentEffectiveAtDate, type FiscalStatementReadinessInput } from "./fiscal-statements";
 
 const valid: FiscalStatementReadinessInput = {
   isClosed:true,
@@ -72,5 +72,37 @@ describe("isLoanRepaymentEffectiveAtDate", () => {
   it("does not count draft or pending repayments", () => {
     expect(isLoanRepaymentEffectiveAtDate("pending", "2026-06-30", null, "2026-12-31")).toBe(false);
     expect(isLoanRepaymentEffectiveAtDate("draft", "2026-06-30", null, "2026-12-31")).toBe(false);
+  });
+});
+
+
+describe("isInventoryCountReady", () => {
+  it("does not require an inventory count when the ledger has no stock balance", () => {
+    expect(isInventoryCountReady({
+      inventoryAvailable:true,hasStockBalance:false,hasApprovedCount:false,
+      grossLedgerGap:0,impairmentLedgerGap:0,
+    })).toBe(true);
+  });
+  it("requires an approved count when stock accounts carry a balance", () => {
+    expect(isInventoryCountReady({
+      inventoryAvailable:true,hasStockBalance:true,hasApprovedCount:false,
+      grossLedgerGap:0,impairmentLedgerGap:0,
+    })).toBe(false);
+  });
+  it("requires both gross and impairment balances to reconcile", () => {
+    expect(isInventoryCountReady({
+      inventoryAvailable:true,hasStockBalance:true,hasApprovedCount:true,
+      grossLedgerGap:0.02,impairmentLedgerGap:0,
+    })).toBe(false);
+    expect(isInventoryCountReady({
+      inventoryAvailable:true,hasStockBalance:true,hasApprovedCount:true,
+      grossLedgerGap:0,impairmentLedgerGap:0,
+    })).toBe(true);
+  });
+  it("blocks when the inventory valuation service is unavailable", () => {
+    expect(isInventoryCountReady({
+      inventoryAvailable:false,hasStockBalance:false,hasApprovedCount:false,
+      grossLedgerGap:0,impairmentLedgerGap:0,
+    })).toBe(false);
   });
 });
