@@ -165,10 +165,10 @@ BEGIN
  IF (SELECT status FROM public.goods_receipts WHERE id='e1000000-0000-4000-8000-000000000098')<>'draft'
  OR (SELECT quantity_received FROM public.purchase_order_lines WHERE id='e1000000-0000-4000-8000-000000000097')<>0 THEN
   RAISE EXCEPTION 'Rejected mandate receipt must leave no partial write';
- END DO $block2$
+ END IF;
 END $partial$;
 
-DO $
+DO $block2$
 DECLARE
  v_org uuid:='e1000000-0000-4000-8000-000000000001';
  v_disbursement uuid;
@@ -268,7 +268,7 @@ BEGIN
      AND total_debit=165 AND total_credit=165 AND status='posted') THEN
    RAISE EXCEPTION 'Supplier invoice VAT posting is not balanced and posted';
  END IF;
-END $;
+END $block2$;
 
 DO $block3$
 DECLARE
@@ -489,6 +489,6 @@ BEGIN
  -- Tenant isolation: authenticated user has no membership in the other organization.
  SELECT count(*) INTO v_count FROM public.stock_movements WHERE organization_id='e2000000-0000-4000-8000-000000000001';
  IF v_count<>0 THEN RAISE EXCEPTION 'Stock ledger leaked rows across organizations'; END IF;
-END $$;
+END $block3$;
 
 ROLLBACK;
