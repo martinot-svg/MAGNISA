@@ -53,9 +53,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes postgresql-client
 
-      - name: Install pinned Supabase CLI
-        run: npm install --global supabase@3.0.0
-
       - name: Build an encoded direct database URL
         shell: bash
         run: |
@@ -80,9 +77,6 @@ jobs:
       - name: Validate and dry-run only the approved migration allowlist
         run: bash scripts/ci/apply-production-allowlist.sh dry-run
 
-      - name: Verify Supabase CLI migration list
-        run: supabase migration list --db-url "$SUPABASE_DB_URL"
-
   apply:
     name: Apply production migrations (explicit approval)
     if: github.event_name == 'workflow_dispatch' && inputs.confirm_production == 'APPLY'
@@ -105,9 +99,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes postgresql-client
-
-      - name: Install pinned Supabase CLI
-        run: npm install --global supabase@3.0.0
 
       - name: Build an encoded direct database URL
         shell: bash
