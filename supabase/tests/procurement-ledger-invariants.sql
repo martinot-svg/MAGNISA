@@ -105,4 +105,54 @@ BEGIN
 END
 $supplier_match$;
 
+
+DO $supplier_tax_multi_mandate$
+DECLARE v_def text; v_table text;
+BEGIN
+  FOREACH v_table IN ARRAY ARRAY['customer_mandate_disbursements','customer_mandate_reimbursements'] LOOP
+    IF to_regclass('public.'||v_table) IS NULL THEN RAISE EXCEPTION 'Missing mandate settlement table %',v_table; END IF;
+    IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid=to_regclass('public.'||v_table)) THEN RAISE EXCEPTION 'RLS disabled on %',v_table; END IF;
+    IF has_table_privilege('anon','public.'||v_table,'SELECT') OR has_table_privilege('anon','public.'||v_table,'INSERT')
+       OR has_table_privilege('anon','public.'||v_table,'UPDATE') OR has_table_privilege('anon','public.'||v_table,'DELETE') THEN
+      RAISE EXCEPTION 'Anonymous access exposed on %',v_table;
+    END IF;
+  END LOOP;
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='supplier_invoice_matches_invoice_order_uidx') THEN
+    RAISE EXCEPTION 'Supplier invoice matching must support multiple purchase orders';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='supplier_invoices' AND column_name='tax_treatment')
+     OR NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='supplier_invoices' AND column_name='tax_document_reference') THEN
+    RAISE EXCEPTION 'Supplier invoice tax evidence fields are missing';
+  END IF;
+  SELECT pg_get_functiondef('public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text)'::regprocedure) INTO v_def;
+  IF position('tax_total' in v_def)=0 OR position('TAX:SUPPLIER_INPUT' in v_def)=0 OR position('4456' in v_def)=0 THEN
+    RAISE EXCEPTION 'Supplier invoice VAT split and recoverability posting are incomplete';
+  END IF;
+  IF has_function_privilege('anon','public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text)','EXECUTE')
+     OR NOT has_function_privilege('authenticated','public.record_supplier_invoice_with_tax(uuid,uuid,text,date,date,numeric,numeric,text,text,text,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'Supplier invoice tax RPC grants are incorrect';
+  END IF;
+  SELECT pg_get_functiondef('public.reconcile_supplier_invoice_multi_order(uuid,uuid,jsonb,text)'::regprocedure) INTO v_def;
+  IF position('purchase_order_id' in v_def)=0 OR position('quantity_invoiced' in v_def)=0
+     OR position('v_invoice.subtotal' in v_def)=0 OR position('FOR UPDATE' in v_def)=0
+     OR position('customer_mandate' in v_def)=0 THEN
+    RAISE EXCEPTION 'Multi-order supplier invoice matching controls are incomplete';
+  END IF;
+  IF has_function_privilege('anon','public.reconcile_supplier_invoice_multi_order(uuid,uuid,jsonb,text)','EXECUTE')
+     OR NOT has_function_privilege('authenticated','public.reconcile_supplier_invoice_multi_order(uuid,uuid,jsonb,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'Multi-order supplier invoice matching RPC grants are incorrect';
+  END IF;
+  SELECT pg_get_functiondef('public.record_customer_mandate_disbursement(uuid,uuid,text,date,numeric,uuid,date,uuid)'::regprocedure) INTO v_def;
+  IF position('exact_cost_supported' in v_def)=0 OR position('467' in v_def)=0
+     OR position('financial_transactions' in v_def)=0 OR position('FOR UPDATE' in v_def)=0 THEN
+    RAISE EXCEPTION 'Customer mandate supplier disbursement accounting is incomplete';
+  END IF;
+  SELECT pg_get_functiondef('public.record_customer_mandate_reimbursement(uuid,uuid,uuid,numeric,date,text,uuid)'::regprocedure) INTO v_def;
+  IF position('customer_mandate_reimbursements' in v_def)=0 OR position('467' in v_def)=0
+     OR position('financial_transactions' in v_def)=0 OR position('v_disbursement.amount-v_reimbursed' in v_def)=0 THEN
+    RAISE EXCEPTION 'Customer mandate reimbursement accounting is incomplete';
+  END IF;
+END
+$supplier_tax_multi_mandate$;
+
 ROLLBACK;
