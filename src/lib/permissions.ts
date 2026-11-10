@@ -82,7 +82,7 @@ const defaults: Record<string, Set<Permission>> = {
     ...contributorPermissions, ...salesWorkflowPermissions, ...teamCommissionPermissions, ...financeCommissionPermissions
   ]),
   sales: new Set<Permission>([
-    "customers.create","services.create","quotes.create","quotes.edit","sales.view","inventory.view","billing.view",
+    "customers.create","services.create","quotes.create","quotes.edit","orders.manage","sales.view","inventory.view","billing.view",
     ...contributorPermissions, ...salesWorkflowPermissions
   ]),
   cashier: new Set<Permission>([
