@@ -47,7 +47,7 @@ export async function createPurchaseOrder(formData: FormData) {
   const {data:supplier,error:supplierError}=await ctx.supabase.from("suppliers").select("id").eq("id",supplierId).eq("organization_id",ctx.organizationId).maybeSingle();
   if(supplierError||!supplier) throw new Error("Fournisseur introuvable dans cette entreprise.");
   const itemIds=[...new Set(lines.map(l=>l.item_id))];
-  const {data:items,error:itemError}=await ctx.supabase.from("catalog_items").select("id,name,base_unit,tracking_mode,is_active").eq("organization_id",ctx.organizationId).in("id",itemIds);
+  const {data:items,error:itemError}=await ctx.supabase.from("catalog_items").select("id,name,base_unit,item_kind,tracking_mode,is_active").eq("organization_id",ctx.organizationId).in("id",itemIds);
   if(itemError||!items||items.length!==itemIds.length||items.some((i:any)=>!i.is_active)) throw new Error("Un ou plusieurs articles sont absents, archivés ou hors de cette entreprise.");
   const customerIds=[...new Set(lines.flatMap(l=>l.beneficiary_customer_id?[l.beneficiary_customer_id]:[]))];
   if(customerIds.length){
@@ -58,6 +58,7 @@ export async function createPurchaseOrder(formData: FormData) {
   for(const line of lines){
     const item:any=itemById.get(line.item_id);
     if(line.purchase_purpose==="resale" && item.tracking_mode!=="quantity") throw new Error("Un article destiné à la revente doit être suivi en quantité.");
+    if(line.purchase_purpose==="company_use" && item.item_kind==="equipment") throw new Error("Cet équipement destiné à l’usage durable doit être qualifié dans le registre des immobilisations avant tout achat. Le flux immobilisation n’est pas encore raccordé aux approvisionnements.");
     if(item.tracking_mode==="serial") throw new Error("Le suivi par numéro de série n'est pas encore pris en charge.");
   }
   const subtotal=lines.reduce((s,l)=>s+l.quantity_ordered*l.unit_price-l.discount_amount+l.additional_cost_amount,0);
