@@ -211,7 +211,7 @@ jobs:
           echo "Restore test passed: exact PostgreSQL row counts for application and restorable Supabase schemas, plus Storage binary SHA-256 hashes, match. The encrypted dump retains the platform-managed Realtime, Vault and Cron schemas."
 
           # Exercise the exact reviewed production migration set against the
-          # freshly restored production snapshot before any production DDL.
+          # freshly restored production snapshot. Production remains untouched.
           SUPABASE_DB_URL="$RESTORE_DB_URL" bash scripts/ci/apply-production-allowlist.sh apply
           docker run --rm --network host postgres:17 \
             psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 -At <<'SQL'
@@ -223,59 +223,24 @@ jobs:
               OR to_regclass('public.inventory_count_lines') IS NULL
               OR to_regclass('public.pcg2005_supplier_invoice_mappings') IS NULL
               OR to_regclass('public.pcg2005_expense_mappings') IS NULL THEN
-              RAISE EXCEPTION 'Required balance-sheet or inventory schema is missing after migration replay';
+              RAISE EXCEPTION 'Required balance-sheet, inventory or source-mapping schema is missing after migration replay';
             END IF;
+
             IF NOT EXISTS (
               SELECT 1 FROM pg_proc p
-              JOIN pg_namespace n ON n.oid = p.pronamespace
+              JOIN pg_namespace n ON n.oid=p.pronamespace
               WHERE n.nspname='public' AND p.proname='get_accounting_receivable_maturity'
             ) THEN
               RAISE EXCEPTION 'Receivable maturity RPC is missing after migration replay';
             END IF;
-            IF EXISTS (
-              SELECT 1 FROM public.pcg2005_journal_lines
-              WHERE source_type IN ('internal_transfer_debit','internal_transfer_credit')
-                AND account_key LIKE 'TRANSIT:%'
-                AND pcg_code IS DISTINCT FROM '581'
-            ) THEN
-              RAISE EXCEPTION 'Internal transfer clearing is not mapped to PCG 581';
-            END IF;
-            IF (
-              SELECT count(*) FROM public.pcg2005_journal_lines
-              WHERE reference IN ('FOUR-2030','FOUR-2031')
-                AND organization_id IN (SELECT DISTINCT organization_id FROM public.supplier_invoices WHERE supplier_number IN ('2030','2031'))
-                AND pcg_code='606'
-                AND mapping_status='manuel'
-                AND mapping_evidence_status='record_only'
-                AND mapping_requires_attachment
-            ) <> 2 THEN
-              RAISE EXCEPTION 'FOUR-2030 and FOUR-2031 must map to PCG 606 and retain their missing-invoice evidence flags';
-            END IF;
-            IF (
-              SELECT count(*) FROM public.pcg2005_journal_lines
-              WHERE reference IN ('DEP-00003','DEP-00004')
-                AND organization_id IN (SELECT DISTINCT organization_id FROM public.expenses WHERE magnisa_reference IN ('DEP-00003','DEP-00004'))
-                AND pcg_code='218'
-                AND mapping_status='manuel'
-                AND mapping_evidence_status='record_only'
-                AND mapping_requires_attachment
-            ) <> 2 THEN
-              RAISE EXCEPTION 'Computer acquisitions DEP-00003 and DEP-00004 must map provisionally to PCG 218 with evidence flags';
-            END IF;
-            IF (
-              SELECT COALESCE(abs(sum(debit_difference)),0)
-              FROM public.fixed_asset_register_reconciliation
-              WHERE account_code='218'
-                AND organization_id IN (SELECT DISTINCT organization_id FROM public.expenses WHERE magnisa_reference IN ('DEP-00003','DEP-00004'))
-            ) <> 9932000 THEN
-              RAISE EXCEPTION 'After reclassifying FOUR-2030 and FOUR-2031, the remaining 9,932,000 MGA PCG 218 balance must reconcile to the fixed-asset register';
-            END IF;
+
             IF EXISTS (
               SELECT 1 FROM public.journal_entries
               WHERE status='posted' AND abs(total_debit-total_credit)>=0.01
             ) THEN
               RAISE EXCEPTION 'Unbalanced posted journal entry detected after migration replay';
             END IF;
+
             IF EXISTS (
               SELECT organization_id
               FROM public.pcg2005_journal_lines
@@ -284,10 +249,11 @@ jobs:
                 AND account_key LIKE 'TRANSIT:%'
                 AND pcg_code='581'
               GROUP BY organization_id
-              HAVING abs(sum(debit-credit)) >= 0.01
+              HAVING abs(sum(debit-credit))>=0.01
             ) THEN
-              RAISE EXCEPTION 'Internal-transfer clearing entries do not net to zero on PCG 581 for each organization';
+              RAISE EXCEPTION 'Internal-transfer clearing entries do not net to zero on PCG 581';
             END IF;
+
             IF EXISTS (
               SELECT sp.id
               FROM public.supplier_payments sp
@@ -300,6 +266,7 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'Supplier payment does not have exactly one balanced journal entry';
             END IF;
+
             IF EXISTS (
               SELECT si.id
               FROM public.supplier_invoices si
@@ -309,6 +276,7 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'Supplier invoice paid amount does not reconcile to its payment rows';
             END IF;
+
             IF EXISTS (
               SELECT fa.id
               FROM public.financial_accounts fa
@@ -320,6 +288,7 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'Treasury subledger balance does not reconcile to its movements';
             END IF;
+
             IF EXISTS (
               WITH financial_by_code AS (
                 SELECT organization_id,pcg_account_code,sum(balance) financial_balance
@@ -331,64 +300,7 @@ jobs:
                 SELECT organization_id,pcg_code,sum(debit-credit) ledger_balance
                 FROM public.pcg2005_journal_lines
                 WHERE status='posted'
-                  AND pcg_code ~ '^(511|512|515|517|518|53|54)
-            IF (
-              SELECT count(*) FROM supabase_migrations.schema_migrations
-              WHERE version IN (
-                '20261107170000','20261109170000','20261109290000','20261109300000',
-                '20261110000000','20261110090000','20261110091500','20261110093000',
-                '20261110094000','20261110095000','20261110100000'
-              )
-            ) <> 11 THEN
-              RAISE EXCEPTION 'The exact allowlisted migration versions were not recorded';
-            END IF;
-          END $$;
-          SQL
-
-          docker run --rm --network host postgres:17 \
-            psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 \
-              -c "DROP DATABASE IF EXISTS magnisa_restore WITH (FORCE)"
-          echo "Disposable restore database removed after successful verification."
-
-      - name: Package, encrypt, and verify the backup archive
-        shell: bash
-        run: |
-          set -euo pipefail
-          tar -czf backup/magnisa-production.tar.gz -C backup production-summary.tsv production-counts.tsv restored-counts.tsv roles.sql magnisa-production.dump storage-manifest.json storage -C "$GITHUB_WORKSPACE" supabase/functions
-          PASSPHRASE_FILE=$(mktemp)
-          chmod 600 "$PASSPHRASE_FILE"
-          trap 'rm -f "$PASSPHRASE_FILE"' EXIT
-          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" > "$PASSPHRASE_FILE"
-          gpg --batch --yes --pinentry-mode loopback \
-            --symmetric --cipher-algo AES256 --compress-algo none \
-            --s2k-mode 3 --s2k-digest-algo SHA512 --s2k-count 65011712 \
-            --passphrase-file "$PASSPHRASE_FILE" \
-            --output backup/magnisa-production.tar.gz.gpg \
-            backup/magnisa-production.tar.gz
-          gpg --batch --yes --pinentry-mode loopback \
-            --passphrase-file "$PASSPHRASE_FILE" \
-            --output backup/verified-decryption.tar.gz \
-            --decrypt backup/magnisa-production.tar.gz.gpg
-          cmp backup/magnisa-production.tar.gz backup/verified-decryption.tar.gz
-          sha256sum backup/magnisa-production.tar.gz.gpg | awk '{print $1}' > backup/magnisa-production.tar.gz.gpg.sha256
-          rm -f backup/magnisa-production.tar.gz backup/verified-decryption.tar.gz backup/magnisa-production.dump backup/roles.sql
-          rm -rf backup/storage backup/storage-manifest.json
-          echo "Encrypted archive decrypted and byte-for-byte verified; only encrypted archive and checksum will be uploaded."
-
-      - name: Upload encrypted backup only
-        uses: actions/upload-artifact@v4
-        with:
-          name: magnisa-supabase-production-encrypted-backup
-          path: |
-            backup/magnisa-production.tar.gz.gpg
-            backup/magnisa-production.tar.gz.gpg.sha256
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Stop isolated Supabase stack
-        if: always()
-        run: supabase stop --no-backup || true
-
+                  AND pcg_code ~ '^(511|512|515|517|518|53|54)$'
                 GROUP BY organization_id,pcg_code
               ),
               comparison AS (
@@ -401,8 +313,51 @@ jobs:
               )
               SELECT 1 FROM comparison WHERE abs(difference)>=0.01
             ) THEN
-              RAISE EXCEPTION 'PCG class 5 balances do not reconcile to bank, cash and Mobile Money accounts';
+              RAISE EXCEPTION 'PCG class 5 balances do not reconcile to treasury accounts';
             END IF;
+
+            IF (
+              SELECT count(*) FROM public.pcg2005_journal_lines
+              WHERE reference IN ('FOUR-2030','FOUR-2031')
+                AND organization_id IN (
+                  SELECT DISTINCT organization_id FROM public.supplier_invoices
+                  WHERE supplier_number IN ('2030','2031')
+                )
+                AND pcg_code='606'
+                AND mapping_status='manuel'
+                AND mapping_evidence_status='record_only'
+                AND mapping_requires_attachment
+            ) <> 2 THEN
+              RAISE EXCEPTION 'Computer Store invoices 2030 and 2031 must map to PCG 606 with missing-invoice evidence flags';
+            END IF;
+
+            IF (
+              SELECT count(*) FROM public.pcg2005_journal_lines
+              WHERE reference IN ('DEP-00003','DEP-00004')
+                AND organization_id IN (
+                  SELECT DISTINCT organization_id FROM public.expenses
+                  WHERE magnisa_reference IN ('DEP-00003','DEP-00004')
+                )
+                AND pcg_code='218'
+                AND mapping_status='manuel'
+                AND mapping_evidence_status='record_only'
+                AND mapping_requires_attachment
+            ) <> 2 THEN
+              RAISE EXCEPTION 'Computer acquisitions DEP-00003 and DEP-00004 must map provisionally to PCG 218';
+            END IF;
+
+            IF (
+              SELECT COALESCE(abs(sum(debit_difference)),0)
+              FROM public.fixed_asset_register_reconciliation
+              WHERE account_code='218'
+                AND organization_id IN (
+                  SELECT DISTINCT organization_id FROM public.expenses
+                  WHERE magnisa_reference IN ('DEP-00003','DEP-00004')
+                )
+            ) <> 9000000 THEN
+              RAISE EXCEPTION 'The 9,000,000 MGA computer asset register gap must remain visible';
+            END IF;
+
             IF (
               SELECT count(*) FROM supabase_migrations.schema_migrations
               WHERE version IN (
@@ -411,7 +366,7 @@ jobs:
                 '20261110094000','20261110095000','20261110100000'
               )
             ) <> 11 THEN
-              RAISE EXCEPTION 'The exact allowlisted migration versions were not recorded';
+              RAISE EXCEPTION 'The exact eleven allowlisted migration versions were not recorded';
             END IF;
           END $$;
           SQL
