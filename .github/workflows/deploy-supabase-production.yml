@@ -9,6 +9,7 @@ on:
       - "scripts/ci/check-production-migration-history.sh"
       - "scripts/ci/apply-production-allowlist.sh"
       - ".github/workflows/deploy-supabase-production.yml"
+      - ".github/workflows/backup-supabase-production.yml"
   workflow_dispatch:
     inputs:
       confirm_production:
