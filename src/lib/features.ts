@@ -17,6 +17,7 @@ export const FEATURE_CATALOG=[
   {key:"inventory",label:"Articles & stocks",href:"/articles",required:false,group:"Achats & fournisseurs",description:"Catalogue général des articles, emplacements et quantités en stock."},
   {key:"stock_operations",label:"Mouvements de stock",href:"/mouvements-stock",required:false,group:"Achats & fournisseurs",description:"Disponibilités, réservations, livraisons, transferts et historique des mouvements."},
   {key:"procurement",label:"Approvisionnements",href:"/approvisionnements",required:false,group:"Achats & fournisseurs",description:"Commandes fournisseurs, réceptions partielles et suivi des achats physiques."},
+  {key:"customer_mandates",label:"Mandats clients",href:"/mandats-clients",required:false,group:"Achats & fournisseurs",description:"Débours fournisseur pour compte client, créances de mandat et remboursements."},
   {key:"expenses",label:"Charges & dépenses",href:"/depenses",required:false,group:"Achats & fournisseurs",description:"Coûts d'exploitation et décaissements."},
   {key:"treasury",label:"Trésorerie",href:"/tresorerie",required:false,group:"Trésorerie",description:"Banque, caisse, Mobile Money, transferts et rapprochements."},
   {key:"debts",label:"Dettes & engagements",href:"/dettes",required:false,group:"Financements & associés",description:"Obligations fournisseurs, fiscales, sociales et financières."},
