@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { requireOrganization } from "@/lib/current-org";
 import { requirePermission,hasPermission } from "@/lib/permissions";
 import { EmptyState } from "@/components/empty-state";
-import { postStockTransferAction,releaseStockReservationAction,processStockAccountingEventAction,postCustomerStockReturnAction,postSupplierStockReturnAction,postStockAdjustmentAction,cancelStockTransferAction,cancelSalesDeliveryAction } from "@/server/actions/stock-operations";
+import { postStockTransferAction,releaseStockReservationAction,processStockAccountingEventAction,postCustomerStockReturnAction,postSupplierStockReturnAction,postStockAdjustmentAction,releaseStockFromQuarantineAction,cancelStockTransferAction,cancelSalesDeliveryAction } from "@/server/actions/stock-operations";
 
 export default async function StockOperationsPage({searchParams}:{searchParams:Promise<{asOf?:string}>}){
  const params=await searchParams;
@@ -58,6 +58,19 @@ export default async function StockOperationsPage({searchParams}:{searchParams:P
     <div className="grid2"><div className="field"><label>Depuis</label><select name="source_location_id" required defaultValue=""><option value="" disabled>Choisir</option>{(locations as any[]).map(l=><option key={l.id} value={l.id}>{l.code} · {l.name}</option>)}</select></div><div className="field"><label>Vers</label><select name="destination_location_id" required defaultValue=""><option value="" disabled>Choisir</option>{(locations as any[]).map(l=><option key={l.id} value={l.id}>{l.code} · {l.name}</option>)}</select></div></div>
     <div className="field"><label>Motif</label><input name="reason" minLength={3} maxLength={500} required placeholder="Ex. Réapprovisionnement du point de vente"/></div>
     <input type="hidden" name="request_key" value={randomUUID()}/><button className="button primary">Valider le transfert</button>
+   </form>
+  </section>}
+  {canManage&&<section className="section card"><h2>Contrôle et libération de quarantaine</h2>
+   <p className="muted">Après inspection, transfère les articles acceptés vers leur destination définitive. La sortie de quarantaine et l'entrée dans le nouveau compartiment sont enregistrées ensemble, au même coût moyen, sans modifier la valeur totale du stock.</p>
+   <form action={releaseStockFromQuarantineAction} className="form">
+    <div className="grid2"><div className="field"><label>Article contrôlé</label><select name="item_id" required defaultValue=""><option value="" disabled>Choisir</option>{(items as any[]).filter(i=>i.tracking_mode==="quantity").map(i=><option key={i.id} value={i.id}>{i.sku} · {i.name}</option>)}</select></div>
+     <div className="field"><label>Quantité libérée</label><input name="quantity" type="number" min="0.0001" step="0.0001" required/></div>
+     <div className="field"><label>Emplacement de quarantaine</label><select name="source_location_id" required defaultValue=""><option value="" disabled>Choisir</option>{(locations as any[]).map(l=><option key={l.id} value={l.id}>{l.code} · {l.name}</option>)}</select></div>
+     <div className="field"><label>Emplacement de destination</label><select name="destination_location_id" required defaultValue=""><option value="" disabled>Choisir</option>{(locations as any[]).map(l=><option key={l.id} value={l.id}>{l.code} · {l.name}</option>)}</select></div>
+     <div className="field"><label>Classement après contrôle</label><select name="destination_bucket" required defaultValue="resale"><option value="resale">Marchandise revendable</option><option value="company_use">Usage interne</option><option value="consumption">Consommable</option></select></div>
+    </div>
+    <div className="field"><label>Compte rendu d'inspection / motif</label><input name="reason" minLength={3} maxLength={500} required placeholder="Ex. Contrôle qualité conforme, emballage intact"/></div>
+    <input type="hidden" name="request_key" value={randomUUID()}/><button className="button primary">Valider la libération</button>
    </form>
   </section>}
   <section className="section"><div className="pageHead"><div><h2>Réservations actives</h2><p>Une réservation immobilise du disponible mais ne diminue pas le stock physique.</p></div></div>
