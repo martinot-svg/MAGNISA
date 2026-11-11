@@ -40,7 +40,7 @@ if [[ -f "$REPLAY_ONLY_FILE" ]]; then
 else
   : > "$REPLAY_ONLY"
 fi
-awk '$1 !~ /^[0-9]{14}$/ {print "Invalid local replay-only version at line " NR ": " $0; bad=1} END {exit bad}' "$REPLAY_ONLY_FILE" 2>/dev/null || {
+awk '$0 ~ /^[[:space:]]*#/ || $0 ~ /^[[:space:]]*$/ {next} $1 !~ /^[0-9]{14}$/ {print "Invalid local replay-only version at line " NR ": " $0; bad=1} END {exit bad}' "$REPLAY_ONLY_FILE" 2>/dev/null || {
   [[ -f "$REPLAY_ONLY_FILE" ]] && exit 1
 }
 if [[ -s "$REPLAY_ONLY" ]]; then
