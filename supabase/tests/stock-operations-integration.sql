@@ -224,6 +224,14 @@ BEGIN
  IF (SELECT sum(amount) FROM public.customer_mandate_reimbursements)<>500 THEN
    RAISE EXCEPTION 'Mandate customer reimbursements did not clear the exact disbursement';
  END IF;
+ IF (SELECT count(*) FROM public.financial_transactions
+     WHERE source_type='customer_mandate_disbursement' AND kind='expense')<>2
+    OR (SELECT count(*) FROM public.financial_transactions
+     WHERE source_type='customer_mandate_reimbursement' AND kind='reimbursement')<>2
+    OR EXISTS (SELECT 1 FROM public.financial_transactions
+     WHERE source_type='customer_mandate_reimbursement' AND kind='income') THEN
+   RAISE EXCEPTION 'Mandate disbursement/reimbursement transaction kinds are not aligned with the financial ledger constraint';
+ END IF;
  BEGIN
    PERFORM public.record_customer_mandate_reimbursement(v_org,v_disbursement_second,'e1000000-0000-4000-8000-000000000104',1,current_date,'CI-OVER-REIMB',
      'e1000000-0000-4000-8000-000000000108');
