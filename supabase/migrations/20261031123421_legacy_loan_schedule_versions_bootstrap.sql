@@ -1,5 +1,6 @@
 -- Local replay-only restoration of a pre-existing production schema object.
 -- Keep this schema aligned with the read-only production catalog; never deploy it.
+-- The release executor explicitly rejects this version through the replay-only manifest.
 -- The production migration ledger has no create-table migration for this object,
 -- but later recorded migrations depend on it. This local-only version sorts
 -- after the loan foundation and is excluded from production deployment.
