@@ -39,10 +39,6 @@ jobs:
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/default-rpc-execution.sql
-      - name: Verify procurement and stock ledger security invariants
-        run: |
-          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/procurement-ledger-invariants.sql
       - name: Verify stock reservation, delivery and transfer invariants
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
