@@ -362,6 +362,7 @@ AS $function$
 DECLARE
   v_note public.credit_notes%rowtype;
   v_account public.financial_accounts%rowtype;
+  v_existing public.credit_note_refunds%rowtype;
   v_refund uuid;
   v_journal uuid;
   v_lines jsonb;
@@ -377,9 +378,19 @@ BEGIN
      OR nullif(trim(coalesce(p_reference,'')),'') IS NULL THEN
     RAISE EXCEPTION 'Paramètres de remboursement invalides.';
   END IF;
-  SELECT id INTO v_refund FROM public.credit_note_refunds
+  SELECT * INTO v_existing FROM public.credit_note_refunds
   WHERE organization_id=p_org AND request_key=p_request_key;
-  IF FOUND THEN RETURN v_refund; END IF;
+  IF FOUND THEN
+    IF v_existing.credit_note_id<>p_credit_note_id
+       OR v_existing.financial_account_id<>p_financial_account_id
+       OR v_existing.amount<>round(p_amount,2)
+       OR v_existing.refund_date<>p_refund_date
+       OR v_existing.method<>p_method
+       OR v_existing.reference<>trim(p_reference) THEN
+      RAISE EXCEPTION 'Clé de remboursement réutilisée avec des paramètres différents.';
+    END IF;
+    RETURN v_existing.id;
+  END IF;
 
   SELECT * INTO v_note FROM public.credit_notes
   WHERE id=p_credit_note_id AND organization_id=p_org AND status IN ('issued','applied')
