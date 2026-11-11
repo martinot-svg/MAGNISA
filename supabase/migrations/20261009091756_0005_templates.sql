@@ -1,0 +1,1 @@
+alter table public.document_templates add constraint document_templates_org_type_name_unique unique(organization_id,document_type,name);

@@ -136,8 +136,7 @@ begin
   v_emp_social := round(least(new.gross_pay, v_rule.cnaps_monthly_ceiling) * v_rule.cnaps_employer_rate, 2);
   v_emp_health := round(least(new.gross_pay, v_rule.health_monthly_ceiling) * v_rule.health_employer_rate, 2);
 
-  -- Employer-funded supplementary pension is taxable for IRSA but is not part of gross cash pay.
-  v_taxable := floor(greatest(0, new.gross_pay + coalesce(new.taxable_supplementary_pension, 0) - v_social - v_deductible_health) / 100) * 100;
+  v_taxable := floor(greatest(0, new.gross_pay - v_social - v_deductible_health) / 100) * 100;
 
   for v_b in select value from jsonb_array_elements(v_rule.irsa_brackets) loop
     v_rate := (v_b->>'rate')::numeric;

@@ -1,0 +1,134 @@
+create or replace function public.run_loan_deadline_notifications(p_run_date date default current_date)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private
+as $$
+declare
+  v_installment record;
+  v_paid numeric;
+  v_remaining numeric;
+  v_days integer;
+  v_rule_key text;
+  v_priority text;
+  v_title text;
+  v_body text;
+  v_dedupe text;
+  v_notification_id uuid;
+  v_created integer := 0;
+  v_skipped integer := 0;
+  v_org_member record;
+  v_channels jsonb;
+  v_pref record;
+begin
+  if p_run_date is null then p_run_date := current_date; end if;
+
+  for v_installment in
+    select li.id, li.organization_id, li.loan_id, li.installment_number, li.due_date, li.total_due,
+           l.lender_name, l.magnisa_reference
+    from public.loan_installments li
+    join public.loans l on l.id = li.loan_id
+    where li.due_date <= p_run_date
+      and coalesce(li.total_due,0) > 0
+      and coalesce(l.status,'') not in ('closed','cancelled','canceled','settled')
+  loop
+    select coalesce(sum(lr.amount),0) into v_paid
+    from public.loan_repayments lr
+    where lr.installment_id = v_installment.id
+      and lr.status = 'posted'
+      and lr.reversed_at is null;
+
+    v_remaining := greatest(coalesce(v_installment.total_due,0) - v_paid, 0);
+    if v_remaining <= 0 then
+      v_skipped := v_skipped + 1;
+      continue;
+    end if;
+
+    v_days := p_run_date - v_installment.due_date;
+
+    if v_days = -7 then
+      v_rule_key := 'loan_installment_due_7d';
+      v_priority := 'attention';
+      v_title := 'Échéance d’emprunt dans 7 jours';
+      v_body := format('Une échéance d’emprunt est prévue dans 7 jours. Consulte les dossiers auxquels tu as accès.');
+    elsif v_days = -3 then
+      v_rule_key := 'loan_installment_due_3d';
+      v_priority := 'attention';
+      v_title := 'Échéance d’emprunt dans 3 jours';
+      v_body := 'Une échéance d’emprunt est prévue dans 3 jours. Consulte les dossiers auxquels tu as accès.';
+    elsif v_days = -1 then
+      v_rule_key := 'loan_installment_due_1d';
+      v_priority := 'urgent';
+      v_title := 'Échéance d’emprunt demain';
+      v_body := 'Une échéance d’emprunt est prévue demain. Consulte les dossiers auxquels tu as accès.';
+    elsif v_days = 0 then
+      v_rule_key := 'loan_installment_due_today';
+      v_priority := 'urgent';
+      v_title := 'Échéance d’emprunt aujourd’hui';
+      v_body := 'Une échéance d’emprunt arrive à échéance aujourd’hui. Consulte les dossiers auxquels tu as accès.';
+    elsif v_days = 1 then
+      v_rule_key := 'loan_installment_overdue';
+      v_priority := 'critical';
+      v_title := 'Échéance d’emprunt en retard';
+      v_body := 'Une échéance d’emprunt n’a pas été soldée à la date prévue. Consulte les dossiers auxquels tu as accès.';
+    else
+      continue;
+    end if;
+
+    if v_paid > 0 then
+      v_priority := case when v_days > 0 then 'critical' else 'urgent' end;
+      v_title := case when v_days > 0 then 'Échéance d’emprunt partiellement réglée et en retard' else 'Échéance d’emprunt partiellement réglée' end;
+      v_body := 'Une échéance d’emprunt reste partiellement réglée. Consulte les dossiers auxquels tu as accès.';
+    end if;
+
+    v_dedupe := format('loan-installment:%s:%s', v_installment.id, v_rule_key);
+
+    for v_org_member in
+      select om.user_id
+      from public.organization_members om
+      where om.organization_id = v_installment.organization_id
+        and om.status = 'active'
+    loop
+      if exists (select 1 from public.notifications n where n.recipient_user_id = v_org_member.user_id and n.organization_id = v_installment.organization_id and n.dedupe_key = v_dedupe) then
+        v_skipped := v_skipped + 1;
+        continue;
+      end if;
+
+      insert into public.notifications (
+        organization_id, recipient_user_id, category, priority, title, body,
+        action_url, entity_type, entity_id, metadata, dedupe_key, expires_at
+      ) values (
+        v_installment.organization_id, v_org_member.user_id, 'loan', v_priority, v_title, v_body,
+        '/emprunts', 'loan_installment', v_installment.id,
+        jsonb_build_object('loan_id', v_installment.loan_id, 'installment_id', v_installment.id, 'installment_number', v_installment.installment_number, 'due_date', v_installment.due_date, 'days_from_due', v_days),
+        v_dedupe, now() + interval '30 days'
+      ) returning id into v_notification_id;
+
+      select * into v_pref from public.notification_preferences np
+      where np.organization_id = v_installment.organization_id and np.user_id = v_org_member.user_id;
+
+      if coalesce(v_pref.email_enabled,true) then
+        insert into public.notification_deliveries (notification_id, organization_id, recipient_user_id, channel)
+        values (v_notification_id, v_installment.organization_id, v_org_member.user_id, 'email') on conflict do nothing;
+      end if;
+      if coalesce(v_pref.push_enabled,true) then
+        insert into public.notification_deliveries (notification_id, organization_id, recipient_user_id, channel)
+        values (v_notification_id, v_installment.organization_id, v_org_member.user_id, 'push') on conflict do nothing;
+      end if;
+      v_created := v_created + 1;
+    end loop;
+  end loop;
+
+  return jsonb_build_object('run_date',p_run_date,'created',v_created,'skipped',v_skipped);
+end;
+$$;
+
+revoke all on function public.run_loan_deadline_notifications(date) from public, anon, authenticated;
+grant execute on function public.run_loan_deadline_notifications(date) to service_role;
+
+create unique index if not exists notifications_recipient_dedupe_uidx
+  on public.notifications (organization_id, recipient_user_id, dedupe_key)
+  where dedupe_key is not null;
+
+create unique index if not exists notification_deliveries_channel_uidx
+  on public.notification_deliveries (notification_id, recipient_user_id, channel);

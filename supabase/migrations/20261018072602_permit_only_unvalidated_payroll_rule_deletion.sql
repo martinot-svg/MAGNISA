@@ -1,0 +1,1 @@
+create policy payroll_rule_delete_pending on public.payroll_rule_sets for delete to authenticated using (public.has_org_permission(organization_id,'payroll.manage') and status in ('draft','pending_review'));

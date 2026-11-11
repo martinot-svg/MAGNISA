@@ -1,0 +1,4 @@
+create trigger capture_invoice_appearance after insert or update of status on public.invoices for each row execute function public.capture_document_appearance('invoice','issued,partially_paid,paid');
+create trigger capture_quote_appearance after insert or update of status on public.quotes for each row execute function public.capture_document_appearance('quote','accepted,converted');
+create trigger capture_payslip_appearance after insert or update of status on public.payslips for each row execute function public.capture_document_appearance('payslip','validated,partially_paid,paid');
+create policy document_appearance_read on public.document_appearance_snapshots for select to authenticated using(exists(select 1 from public.organization_members m where m.organization_id=document_appearance_snapshots.organization_id and m.user_id=auth.uid() and m.status='active'));
