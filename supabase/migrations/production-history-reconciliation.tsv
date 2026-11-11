@@ -1,3 +1,4 @@
 # remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256
-# All 197 production migrations have been restored from supabase_migrations.schema_migrations.
-# The preflight verifies the exact SHA-256 of every local SQL file against production statements.
+# Read-only reconciliation snapshot: all 197 production version/name pairs have exact local counterparts.
+# The CI preflight verifies version/name coverage and blocks any unreviewed pending or out-of-order migration.
+# No renamed, recovered, or absorbed production migration currently requires a mapping entry.
