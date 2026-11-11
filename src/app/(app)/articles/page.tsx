@@ -10,7 +10,6 @@ import {
   createStockLocation,
   setStockLocationActive,
   setCatalogItemInternalExpenseAccountAction,
-  setCatalogItemInternalExpenseAccountAction,
 } from "@/server/actions/catalog";
 
 const KIND_LABELS: Record<string,string> = {
