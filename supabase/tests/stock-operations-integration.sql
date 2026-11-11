@@ -600,4 +600,122 @@ BEGIN
  IF v_count<>0 THEN RAISE EXCEPTION 'Stock ledger leaked rows across organizations'; END IF;
 END $block3$;
 
+DO $internal_stock_accounting$
+DECLARE
+  v_org uuid:='e1000000-0000-4000-8000-000000000001';
+  v_supplier uuid:='e1000000-0000-4000-8000-000000000052';
+  v_item uuid:='e1000000-0000-4000-8000-000000000120';
+  v_po_internal uuid:='e1000000-0000-4000-8000-000000000121';
+  v_po_consumption uuid:='e1000000-0000-4000-8000-000000000122';
+  v_line_internal uuid:='e1000000-0000-4000-8000-000000000123';
+  v_line_consumption uuid:='e1000000-0000-4000-8000-000000000124';
+  v_receipt_internal uuid:='e1000000-0000-4000-8000-000000000125';
+  v_receipt_consumption uuid:='e1000000-0000-4000-8000-000000000126';
+  v_receipt_line_internal uuid:='e1000000-0000-4000-8000-000000000127';
+  v_receipt_line_consumption uuid:='e1000000-0000-4000-8000-000000000128';
+  v_invoice uuid;
+  v_matches integer;
+  v_movement uuid;
+  v_event uuid;
+  v_issue uuid;
+  v_retry uuid;
+  v_journal uuid;
+BEGIN
+  INSERT INTO public.catalog_items(
+    id,organization_id,sku,name,item_kind,base_unit,tracking_mode,internal_expense_account_code
+  ) VALUES(v_item,v_org,'CI-INTERNAL-01','CI internal supplies','consumable','unit','quantity','606');
+
+  INSERT INTO public.purchase_orders(id,organization_id,supplier_id,number,status,order_date,currency,subtotal,tax_total,total,created_by)
+  VALUES
+    (v_po_internal,v_org,v_supplier,'CI-PO-INTERNAL-01','draft',current_date,'MGA',160,0,160,auth.uid()),
+    (v_po_consumption,v_org,v_supplier,'CI-PO-CONSUMPTION-01','draft',current_date,'MGA',80,0,80,auth.uid());
+  INSERT INTO public.purchase_order_lines(
+    id,organization_id,purchase_order_id,item_id,description,purchase_purpose,
+    quantity_ordered,unit,unit_price,tax_rate,line_total,sort_order
+  ) VALUES
+    (v_line_internal,v_org,v_po_internal,v_item,'Internal-use supplies','company_use',2,'unit',80,0,160,0),
+    (v_line_consumption,v_org,v_po_consumption,v_item,'Consumable supplies','consumption',1,'unit',80,0,80,0);
+  UPDATE public.purchase_orders SET status='submitted'
+  WHERE organization_id=v_org AND id IN (v_po_internal,v_po_consumption);
+  INSERT INTO public.goods_receipts(id,organization_id,purchase_order_id,receipt_number,status,received_at,created_by)
+  VALUES
+    (v_receipt_internal,v_org,v_po_internal,'CI-GR-INTERNAL-01','draft',now(),auth.uid()),
+    (v_receipt_consumption,v_org,v_po_consumption,'CI-GR-CONSUMPTION-01','draft',now(),auth.uid());
+  INSERT INTO public.goods_receipt_lines(
+    id,organization_id,goods_receipt_id,purchase_order_line_id,stock_location_id,quantity_received,unit_cost
+  ) VALUES
+    (v_receipt_line_internal,v_org,v_receipt_internal,v_line_internal,'e1000000-0000-4000-8000-000000000032',2,80),
+    (v_receipt_line_consumption,v_org,v_receipt_consumption,v_line_consumption,'e1000000-0000-4000-8000-000000000032',1,80);
+
+  PERFORM public.post_goods_receipt(v_receipt_internal);
+  PERFORM public.post_goods_receipt(v_receipt_consumption);
+
+  SELECT id INTO v_movement FROM public.stock_movements
+  WHERE organization_id=v_org AND source_type='goods_receipt' AND source_line_id=v_receipt_line_internal
+    AND movement_kind='receipt' AND stock_bucket='company_use';
+  SELECT id INTO v_event FROM public.accounting_event_outbox
+  WHERE organization_id=v_org AND source_type='stock_movement' AND source_id=v_movement
+    AND event_type='stock_internal_receipt' AND status='posted' AND journal_entry_id IS NOT NULL;
+  IF v_movement IS NULL OR v_event IS NULL THEN
+    RAISE EXCEPTION 'Internal-use receipt did not create a posted inventory reclassification journal';
+  END IF;
+  IF (SELECT count(*) FROM public.pcg2005_journal_lines
+      WHERE journal_entry_id=(SELECT journal_entry_id FROM public.accounting_event_outbox WHERE id=v_event)
+        AND ((pcg_code='32' AND debit=160 AND credit=0)
+          OR (pcg_code='606' AND debit=0 AND credit=160)))<>2 THEN
+    RAISE EXCEPTION 'Internal-use receipt must debit PCG 32 and credit its selected expense account 606';
+  END IF;
+
+  v_invoice:=public.record_supplier_invoice_with_tax(
+    v_org,v_supplier,'CI-SUPPLIER-INTERNAL-001',current_date,current_date+30,
+    240,0,'not_applicable',NULL,'CI internal and consumable supplies',
+    'goods_procurement','606'
+  );
+  v_matches:=public.reconcile_supplier_invoice_multi_order(v_org,v_invoice,jsonb_build_array(
+    jsonb_build_object('goods_receipt_line_id',v_receipt_line_internal,'quantity',2,'unit_price',80),
+    jsonb_build_object('goods_receipt_line_id',v_receipt_line_consumption,'quantity',1,'unit_price',80)
+  ),NULL);
+  IF v_matches<>2 THEN RAISE EXCEPTION 'Internal and consumable supplies must reconcile to both purchase orders'; END IF;
+
+  v_issue:=public.post_internal_stock_issue(v_org,v_item,
+    'e1000000-0000-4000-8000-000000000032','company_use',1,
+    'CI internal issue to administration','e1000000-0000-4000-8000-000000000129');
+  v_retry:=public.post_internal_stock_issue(v_org,v_item,
+    'e1000000-0000-4000-8000-000000000032','company_use',1,
+    'CI internal issue to administration','e1000000-0000-4000-8000-000000000129');
+  IF v_issue<>v_retry OR (SELECT count(*) FROM public.stock_internal_issue_lines WHERE issue_id=v_issue)<>1 THEN
+    RAISE EXCEPTION 'Internal stock issue retry must be idempotent';
+  END IF;
+  SELECT movement_id INTO v_movement FROM public.stock_internal_issue_lines
+  WHERE organization_id=v_org AND issue_id=v_issue;
+  SELECT journal_entry_id INTO v_journal FROM public.accounting_event_outbox
+  WHERE organization_id=v_org AND source_id=v_movement AND event_type='stock_internal_issue' AND status='posted';
+  IF v_journal IS NULL OR (SELECT count(*) FROM public.pcg2005_journal_lines
+      WHERE journal_entry_id=v_journal
+        AND ((pcg_code='606' AND debit=80 AND credit=0)
+          OR (pcg_code='32' AND debit=0 AND credit=80)))<>2 THEN
+    RAISE EXCEPTION 'Internal stock issue must debit the selected expense and credit PCG 32';
+  END IF;
+
+  v_issue:=public.post_internal_stock_issue(v_org,v_item,
+    'e1000000-0000-4000-8000-000000000032','consumption',1,
+    'CI consumption issue','e1000000-0000-4000-8000-000000000130');
+  SELECT movement_id INTO v_movement FROM public.stock_internal_issue_lines
+  WHERE organization_id=v_org AND issue_id=v_issue;
+  IF NOT EXISTS(SELECT 1 FROM public.accounting_event_outbox
+    WHERE organization_id=v_org AND source_id=v_movement AND event_type='stock_internal_issue'
+      AND status='posted' AND journal_entry_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'Consumption issue did not create a posted expense journal';
+  END IF;
+  IF (SELECT quantity_on_hand FROM public.stock_available
+      WHERE organization_id=v_org AND item_id=v_item
+        AND stock_location_id='e1000000-0000-4000-8000-000000000032' AND stock_bucket='company_use')<>1
+     OR (SELECT quantity_on_hand FROM public.stock_available
+      WHERE organization_id=v_org AND item_id=v_item
+        AND stock_location_id='e1000000-0000-4000-8000-000000000032' AND stock_bucket='consumption')<>0 THEN
+    RAISE EXCEPTION 'Internal and consumable stock balances did not reflect issued quantities';
+  END IF;
+END;
+$internal_stock_accounting$;
+
 ROLLBACK;
