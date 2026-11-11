@@ -20,7 +20,8 @@ export function PurchaseOrderForm({suppliers,items,customers}:{suppliers:Supplie
   const [busy,setBusy]=useState(false);
   const addLine=()=>setLines(v=>[...v,{item_id:"",description:"",purchase_purpose:"resale",beneficiary_customer_id:"",mandate_confirmed:false,supplier_document_names_customer:false,company_bears_goods_risk:true,exact_cost_supported:false,mandate_supplier_document_reference:"",quantity_ordered:1,unit:"unité",unit_price:0,discount_amount:0,additional_cost_amount:0,tax_rate:0}]);
   const update=(i:number,patch:Partial<Line>)=>setLines(v=>v.map((l,n)=>n===i?{...l,...patch}:l));
-  const total=useMemo(()=>lines.reduce((s,l)=>(s+l.quantity_ordered*l.unit_price-l.discount_amount+l.additional_cost_amount)*(1+l.tax_rate/100),0),[lines]);
+  // Apply VAT to each line independently; never re-tax the accumulated subtotal.
+  const total=useMemo(()=>lines.reduce((sum,l)=>sum+(l.quantity_ordered*l.unit_price-l.discount_amount+l.additional_cost_amount)*(1+l.tax_rate/100),0),[lines]);
   const submit=async(formData:FormData)=>{
     setBusy(true);setError("");
     try{
