@@ -38,6 +38,10 @@ WHERE i.credited_amount=0
     WHERE cn.organization_id=i.organization_id AND cn.invoice_id=i.id
       AND cn.status IN ('issued','applied'));
 
+CREATE UNIQUE INDEX IF NOT EXISTS credit_notes_id_org_uidx ON public.credit_notes(id,organization_id);
+CREATE UNIQUE INDEX IF NOT EXISTS invoice_lines_id_org_uidx ON public.invoice_lines(id,organization_id);
+CREATE UNIQUE INDEX IF NOT EXISTS stock_return_lines_id_org_uidx ON public.stock_return_lines(id,organization_id);
+
 CREATE TABLE public.credit_note_lines (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT,
@@ -56,6 +60,17 @@ CREATE TABLE public.credit_note_lines (
   UNIQUE (organization_id,credit_note_id,source_invoice_line_id),
   CHECK (abs(total-subtotal-tax_total) <= 0.01)
 );
+ALTER TABLE public.credit_note_lines
+  ADD CONSTRAINT credit_note_lines_note_org_fkey
+    FOREIGN KEY (credit_note_id,organization_id)
+    REFERENCES public.credit_notes(id,organization_id) ON DELETE RESTRICT,
+  ADD CONSTRAINT credit_note_lines_invoice_line_org_fkey
+    FOREIGN KEY (source_invoice_line_id,organization_id)
+    REFERENCES public.invoice_lines(id,organization_id) ON DELETE RESTRICT,
+  ADD CONSTRAINT credit_note_lines_return_line_org_fkey
+    FOREIGN KEY (stock_return_line_id,organization_id)
+    REFERENCES public.stock_return_lines(id,organization_id) ON DELETE RESTRICT;
+
 CREATE INDEX credit_note_lines_source_invoice_line_idx
   ON public.credit_note_lines(organization_id,source_invoice_line_id);
 
@@ -76,6 +91,11 @@ CREATE TABLE public.credit_note_refunds (
   FOREIGN KEY (financial_account_id) REFERENCES public.financial_accounts(id) ON DELETE RESTRICT,
   UNIQUE (organization_id,request_key)
 );
+
+ALTER TABLE public.credit_note_refunds
+  ADD CONSTRAINT credit_note_refunds_note_org_fkey
+    FOREIGN KEY (credit_note_id,organization_id)
+    REFERENCES public.credit_notes(id,organization_id) ON DELETE RESTRICT;
 
 ALTER TABLE public.credit_note_lines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.credit_note_refunds ENABLE ROW LEVEL SECURITY;
