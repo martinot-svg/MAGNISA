@@ -132,6 +132,20 @@ export async function postSupplierStockReturnAction(formData:FormData){
  if(error)throw new Error("Retour fournisseur non enregistré : "+error.message);
  revalidatePath("/mouvements-stock");revalidatePath("/articles");
 }
+export async function releaseStockFromQuarantineAction(formData:FormData){
+ const ctx=await requireOrganization();await assertPermission(ctx,"inventory.manage");
+ const parsed=z.object({item_id:z.string().uuid(),source_location_id:z.string().uuid(),destination_location_id:z.string().uuid(),
+  quantity:z.coerce.number().finite().positive(),destination_bucket:z.enum(["resale","company_use","consumption"]),
+  request_key:z.string().uuid(),reason:z.string().trim().min(3).max(500)}).parse({
+  item_id:formData.get("item_id"),source_location_id:formData.get("source_location_id"),
+  destination_location_id:formData.get("destination_location_id"),quantity:formData.get("quantity"),
+  destination_bucket:formData.get("destination_bucket"),request_key:formData.get("request_key"),reason:formData.get("reason")});
+ const {error}=await ctx.supabase.rpc("release_stock_from_quarantine",{p_org:ctx.organizationId,p_item_id:parsed.item_id,
+  p_source_location_id:parsed.source_location_id,p_destination_location_id:parsed.destination_location_id,
+  p_quantity:parsed.quantity,p_destination_bucket:parsed.destination_bucket,p_request_key:parsed.request_key,p_reason:parsed.reason});
+ if(error)throw new Error("Libération de quarantaine refusée : "+error.message);
+ revalidatePath("/mouvements-stock");revalidatePath("/articles");
+}
 export async function postStockAdjustmentAction(formData:FormData){
  const ctx=await requireOrganization();await assertPermission(ctx,"inventory.manage");
  const parsed=z.object({item_id:z.string().uuid(),stock_location_id:z.string().uuid(),stock_bucket:z.enum(["resale","company_use","consumption","quarantine"]),
