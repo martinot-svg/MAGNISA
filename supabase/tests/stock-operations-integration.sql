@@ -33,6 +33,9 @@
 BEGIN;
 INSERT INTO public.customers(id,organization_id,name,is_active)
 VALUES(:'customer_id'::uuid,:'org_id'::uuid,'Stock workflow CI customer',true);
+INSERT INTO public.number_sequences(organization_id,document_type,prefix,next_value,padding)
+VALUES(:'org_id'::uuid,'invoice','CI-FAC-',1,5)
+ON CONFLICT (organization_id,document_type) DO NOTHING;
 INSERT INTO public.catalog_items(id,organization_id,sku,name,item_kind,base_unit,tracking_mode,default_sale_price)
 VALUES(:'item_id'::uuid,:'org_id'::uuid,'CI-STOCK-01','CI tracked router','merchandise','unit','quantity',100);
 INSERT INTO public.stock_locations(id,organization_id,code,name,location_kind)
