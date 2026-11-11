@@ -165,6 +165,9 @@ BEGIN
      OR position('financial_transactions' in v_def)=0 OR position('v_disbursement.amount-v_reimbursed' in v_def)=0 THEN
     RAISE EXCEPTION 'Customer mandate reimbursement accounting is incomplete';
   END IF;
+  IF position('''reimbursement''' in v_def)=0 OR position('''income''' in v_def)>0 THEN
+    RAISE EXCEPTION 'Customer mandate reimbursement must use the permitted reimbursement transaction kind';
+  END IF;
 END
 $supplier_tax_multi_mandate$;
 
