@@ -247,7 +247,7 @@ BEGIN
       AND invoice_id=v_invoice.id AND organization_id=p_org FOR UPDATE;
     IF NOT FOUND THEN RAISE EXCEPTION 'Ligne de facture introuvable.'; END IF;
 
-    SELECT COALESCE(sum(quantity),0),COALESCE(sum(subtotal),0),COALESCE(sum(tax_total),0)
+    SELECT COALESCE(sum(cnl.quantity),0),COALESCE(sum(cnl.subtotal),0),COALESCE(sum(cnl.tax_total),0)
     INTO v_remaining_qty,v_prev_subtotal,v_prev_tax
     FROM public.credit_note_lines cnl
     JOIN public.credit_notes cn ON cn.id=cnl.credit_note_id
