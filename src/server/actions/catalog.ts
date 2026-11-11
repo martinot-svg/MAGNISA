@@ -15,6 +15,7 @@ const itemSchema = z.object({
   default_purchase_price: z.coerce.number().finite().nonnegative(),
   default_sale_price: z.coerce.number().finite().nonnegative(),
   default_tax_rate: z.coerce.number().finite().min(0).max(100),
+  internal_expense_account_code: z.preprocess(v=>v===""||v==null?undefined:v,z.string().trim().regex(/^6\\d{0,4}$/).optional()),
 });
 
 const activeSchema = z.object({
@@ -33,7 +34,7 @@ export async function createCatalogItem(formData: FormData) {
   await assertPermission(ctx, "inventory.manage");
   const parsed = itemSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Vérifie les informations de l'article.");
-  const { error } = await ctx.supabase.from("catalog_items").insert({
+  if (parsed.data.internal_expense_account_code) {\n    const {data:account,error:accountError}=await ctx.supabase.from("pcg2005_accounts").select("code,kind").eq("code",parsed.data.internal_expense_account_code).maybeSingle();\n    if(accountError||account?.kind!=="expense") throw new Error("Le compte interne doit être un compte de charge PCG valide.");\n  }\n  const { error } = await ctx.supabase.from("catalog_items").insert({
     organization_id: ctx.organizationId,
     ...parsed.data,
     description: parsed.data.description || null,
@@ -43,6 +44,19 @@ export async function createCatalogItem(formData: FormData) {
     throw new Error("Impossible de créer l'article. Vérifie les informations puis réessaie.");
   }
   revalidatePath("/articles");
+}
+
+export async function setCatalogItemInternalExpenseAccountAction(formData:FormData) {
+  const ctx=await requireOrganization();
+  await assertPermission(ctx,"inventory.manage");
+  const parsed=z.object({id:z.string().uuid(),internal_expense_account_code:z.string().trim().regex(/^6\\d{0,4}$/)}).safeParse(Object.fromEntries(formData));
+  if(!parsed.success) throw new Error("Compte de charge interne invalide.");
+  const {data:account,error:accountError}=await ctx.supabase.from("pcg2005_accounts").select("code,kind").eq("code",parsed.data.internal_expense_account_code).maybeSingle();
+  if(accountError||account?.kind!=="expense") throw new Error("Le compte sélectionné n'est pas une charge PCG.");
+  const {error}=await ctx.supabase.from("catalog_items").update({internal_expense_account_code:parsed.data.internal_expense_account_code})
+    .eq("organization_id",ctx.organizationId).eq("id",parsed.data.id);
+  if(error) throw new Error("Impossible d'enregistrer le compte de charge interne.");
+  revalidatePath("/articles");revalidatePath("/approvisionnements");
 }
 
 export async function setCatalogItemActive(formData: FormData) {
