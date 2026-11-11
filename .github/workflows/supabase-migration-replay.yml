@@ -35,6 +35,7 @@ jobs:
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/supplier-invoice-matching-invariants.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/procurement-ledger-invariants.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/customer-credit-notes.sql
       - name: Verify public RPC execution grants
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
