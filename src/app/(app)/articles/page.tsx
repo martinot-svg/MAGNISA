@@ -8,7 +8,9 @@ import {
   createCatalogItem,
   setCatalogItemActive,
   createStockLocation,
-  setStockLocationActive,\n  setCatalogItemInternalExpenseAccountAction,
+  setStockLocationActive,
+  setCatalogItemInternalExpenseAccountAction,
+  setCatalogItemInternalExpenseAccountAction,
 } from "@/server/actions/catalog";
 
 const KIND_LABELS: Record<string,string> = {
