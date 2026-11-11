@@ -176,7 +176,7 @@ while IFS='|' read -r version local_name local_file; do
   [[ -n "$remote_sha" ]] || continue
   local_sha="$(sha256sum "$MIGRATIONS_DIR/$local_file" | awk '{print $1}')"
   if [[ "$local_sha" != "$remote_sha" ]]; then
-    printf '%s local=%s remote_sha=%s local_sha=%s\\n' "$version" "$local_file" "$remote_sha" "$local_sha" >> "$DIRECT_HASH_MISMATCH"
+    printf '%s local=%s remote_sha=%s local_sha=%s\n' "$version" "$local_file" "$remote_sha" "$local_sha" >> "$DIRECT_HASH_MISMATCH"
   fi
 done < "$LOCAL"
 if [[ -s "$DIRECT_HASH_MISMATCH" ]]; then
