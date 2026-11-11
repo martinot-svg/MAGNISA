@@ -1,4 +1,5 @@
 name: Encrypted Supabase Production Backup Verification
+# Re-run marker: 2026-11-11 post-SSL-fix verification.
 
 on:
   workflow_dispatch:
