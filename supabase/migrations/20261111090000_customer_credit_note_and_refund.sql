@@ -166,6 +166,7 @@ DECLARE
   v_journal uuid;
   v_number text;
   v_fingerprint text;
+  v_existing_fingerprint text;
   v_qty numeric(18,4);
   v_remaining_qty numeric(18,4);
   v_prev_subtotal numeric(18,2);
@@ -201,11 +202,11 @@ BEGIN
   PERFORM public.magnisa_assert_accounting_period_open(p_org,p_issue_date);
   v_fingerprint:=md5(p_invoice_id::text||':'||p_issue_date::text||':'||p_lines::text||':'||trim(p_reason));
 
-  SELECT id,request_fingerprint INTO v_note,v_fingerprint
+  SELECT id,request_fingerprint INTO v_note,v_existing_fingerprint
   FROM public.credit_notes
   WHERE organization_id=p_org AND request_key=p_request_key;
   IF FOUND THEN
-    IF v_fingerprint IS DISTINCT FROM md5(p_invoice_id::text||':'||p_issue_date::text||':'||p_lines::text||':'||trim(p_reason)) THEN
+    IF v_existing_fingerprint IS DISTINCT FROM v_fingerprint THEN
       RAISE EXCEPTION 'Clé d''idempotence déjà utilisée avec un contenu différent.';
     END IF;
     RETURN v_note;
