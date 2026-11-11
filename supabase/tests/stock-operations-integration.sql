@@ -471,8 +471,8 @@ BEGIN
  WHERE organization_id=v_org AND invoice_id=v_invoice_d AND source_order_line_id=v_line_d;
  PERFORM public.issue_invoice(v_org,v_invoice_d);
  SELECT total INTO v_invoice_total FROM public.invoices WHERE id=v_invoice_d AND organization_id=v_org;
- v_payment:=public.record_invoice_payment(v_org,v_invoice_d,'e1000000-0000-4000-8000-000000000104',
-   v_invoice_total,current_date,'bank_transfer','CI-CREDIT-NOTE-PAY-001');
+ v_payment:=public.record_customer_payment_with_fee_v3(v_org,v_invoice_d,'e1000000-0000-4000-8000-000000000104',
+   v_invoice_total,current_date,'bank_transfer','CI-CREDIT-NOTE-PAY-001',gen_random_uuid(),NULL,0,'none');
  IF (SELECT status FROM public.invoices WHERE id=v_invoice_d)<>'paid' THEN
   RAISE EXCEPTION 'Credit-note fixture invoice was not fully settled before return';
  END IF;
