@@ -18,16 +18,17 @@ run_guard() {
 # Exact match, one historical baseline file, and one explicitly allowlisted pending migration.
 mkdir -p "$TMP/exact"
 : > "$TMP/exact/0000_recovered_core_history.sql"
-: > "$TMP/exact/20261101000000_exact.sql"
+printf 'CREATE TABLE migration_fixture(id integer);\n' > "$TMP/exact/20261101000000_exact.sql"
 : > "$TMP/exact/20261102000000_pending.sql"
+exact_sha="$(sha256sum "$TMP/exact/20261101000000_exact.sql" | awk '{print $1}')"
 printf '20261102000000\n' > "$TMP/allow"
 printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\n' > "$TMP/map"
-printf '20261101000000|exact\n' > "$TMP/remote"
+printf '20261101000000|exact|%s\n' "$exact_sha" > "$TMP/remote"
 run_guard "$TMP/exact" "$TMP/allow" "$TMP/map" "$TMP/remote" > "$TMP/exact.log" || fail "exact-match fixture should pass"
 grep -q 'Migration ledger preflight passed' "$TMP/exact.log" || fail "success message missing"
 
 # A remote-only version must fail closed without a provenance mapping.
-printf '20261001000000|historic_remote\n20261101000000|exact\n' > "$TMP/remote-missing"
+printf '20261001000000|historic_remote|%064d\n20261101000000|exact|%s\n' 0 "$exact_sha" > "$TMP/remote-missing"
 if run_guard "$TMP/exact" "$TMP/allow" "$TMP/map" "$TMP/remote-missing" > "$TMP/missing.log" 2>&1; then
   fail "remote-only history without mapping unexpectedly passed"
 fi
@@ -38,7 +39,7 @@ mkdir -p "$TMP/renamed"
 printf 'CREATE TABLE migration_fixture(id integer);\n' > "$TMP/renamed/20261101000000_local_name.sql"
 sha="$(sha256sum "$TMP/renamed/20261101000000_local_name.sql" | awk '{print $1}')"
 printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\n20261101000000|remote_name|20261101000000_local_name.sql|renamed|https://github.com/example/repo/commit/abc123|%s\n' "$sha" > "$TMP/renamed-map"
-printf '20261101000000|remote_name\n' > "$TMP/renamed-remote"
+printf '20261101000000|remote_name|%s\n' "$sha" > "$TMP/renamed-remote"
 : > "$TMP/empty-allow"
 run_guard "$TMP/renamed" "$TMP/empty-allow" "$TMP/renamed-map" "$TMP/renamed-remote" > "$TMP/renamed.log" 2>&1 || { cat "$TMP/renamed.log"; fail "checksum-verified rename fixture should pass"; }
 
@@ -67,7 +68,7 @@ mkdir -p "$TMP/mapped-source"
 printf 'CREATE TABLE migration_fixture(id integer);\n' > "$TMP/mapped-source/20261102000000_local_name.sql"
 mapped_sha="$(sha256sum "$TMP/mapped-source/20261102000000_local_name.sql" | awk '{print $1}')"
 printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\n20261101000000|remote_name|20261102000000_local_name.sql|renamed|https://github.com/example/repo/commit/def456|%s\n' "$mapped_sha" > "$TMP/mapped-source-map"
-printf '20261101000000|remote_name\n' > "$TMP/mapped-source-remote"
+printf '20261101000000|remote_name|%s\n' "$mapped_sha" > "$TMP/mapped-source-remote"
 run_guard "$TMP/mapped-source" "$TMP/empty-allow" "$TMP/mapped-source-map" "$TMP/mapped-source-remote" > "$TMP/mapped-source.log" 2>&1 || { cat "$TMP/mapped-source.log"; fail "mapped local-only migration must not be re-executed"; }
 grep -q 'Local versions not recorded remotely: 0' "$TMP/mapped-source.log" || fail "mapped source still counted as pending"
 
@@ -77,7 +78,7 @@ mkdir -p "$TMP/out-of-order"
 : > "$TMP/out-of-order/20261102000000_remote_head.sql"
 printf '20261101000000\n' > "$TMP/out-of-order-allow"
 printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\n' > "$TMP/out-of-order-map"
-printf '20261102000000|remote_head\n' > "$TMP/out-of-order-remote"
+printf '20261102000000|remote_head|%064d\n' 0 > "$TMP/out-of-order-remote"
 if run_guard "$TMP/out-of-order" "$TMP/out-of-order-allow" "$TMP/out-of-order-map" "$TMP/out-of-order-remote" > "$TMP/out-of-order.log" 2>&1; then
   fail "out-of-order local migration unexpectedly passed"
 fi
