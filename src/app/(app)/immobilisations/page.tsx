@@ -17,6 +17,7 @@ import {
   reverseFixedAssetIfrsAdjustment,
   reverseFixedAssetImpairment,
   transferFixedAsset,
+  reclassifySupplierInvoiceToFixedAssetAction,
 } from "@/server/actions/fixed-assets";
 
 export default async function FixedAssets() {
@@ -33,6 +34,7 @@ export default async function FixedAssets() {
     { data: commissionings = [], error: commissioningError },
     { data: ifrsAdjustments = [] },
     { data: reconciliation = [], error: reconciliationError },
+    { data: supplierInvoices = [] },
   ] = await Promise.all([
     ctx.supabase.from("fixed_assets")
       .select("id,asset_code,name,category,acquisition_date,in_service_date,acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,depreciation_method,pcg_asset_account_code,pcg_acquisition_counterpart_account_code,acquisition_journal_entry_id,source_supplier_invoice_id,supplier_name,invoice_reference,legacy_accounting_origin,parent_asset_id,component_reference,accumulated_depreciation,net_book_value,impairment_loss,status,magnisa_reference,location,custodian")
@@ -59,6 +61,8 @@ export default async function FixedAssets() {
     ctx.supabase.from("fixed_asset_register_reconciliation")
       .select("account_code,register_debit,register_credit,ledger_debit,ledger_credit,debit_difference,credit_difference,reconciliation_status")
       .eq("organization_id", ctx.organizationId).order("account_code"),
+    ctx.supabase.from("supplier_invoices").select("id,supplier_number,invoice_date,subtotal,tax_total,total,tax_treatment,expense_account_code,accounting_treatment,status,suppliers(name)")
+      .eq("organization_id",ctx.organizationId).eq("accounting_treatment","expense").neq("status","cancelled").order("invoice_date",{ascending:false}),
   ]);
   if (error) throw new Error("Impossible de charger le registre des immobilisations : " + error.message);
   if (assetAccountsError) throw new Error("Impossible de charger le plan comptable PCG : " + assetAccountsError.message);
