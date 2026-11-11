@@ -314,7 +314,7 @@ DECLARE
  v_line_a uuid;v_line_b uuid;v_line_c uuid;v_res uuid;v_del1 uuid;v_del2 uuid;v_transfer uuid;v_invoice_a uuid;v_invoice_b uuid;
  v_before numeric;v_after numeric;v_count integer;v_line_d uuid;v_line_e uuid;v_res_d uuid;v_res_e uuid;v_del_d uuid;v_del_e uuid;v_return uuid;v_supplier_return uuid;v_adjustment uuid;v_asof numeric;
  v_delivery jsonb;
- v_invoice_d uuid;v_invoice_line_d uuid;v_credit_note uuid;v_return_line uuid;
+ v_invoice_d uuid;v_invoice_line_d uuid;v_credit_note uuid;v_credit_note_retry uuid;v_return_line uuid;
  v_payment uuid;v_refund uuid;v_refund_retry uuid;v_credit_request uuid;v_refund_request uuid;v_invoice_total numeric;
  v_quarantine_release uuid;v_quarantine_release_retry uuid;v_quarantine_request uuid;
 BEGIN
@@ -488,6 +488,10 @@ BEGIN
  v_credit_note:=public.issue_customer_credit_note(v_org,v_invoice_d,current_date,
   jsonb_build_array(jsonb_build_object('invoice_line_id',v_invoice_line_d,'stock_return_line_id',v_return_line,'quantity',0.5)),
   'CI damaged merchandise credit note',v_credit_request);
+ v_credit_note_retry:=public.issue_customer_credit_note(v_org,v_invoice_d,current_date,
+  jsonb_build_array(jsonb_build_object('invoice_line_id',v_invoice_line_d,'stock_return_line_id',v_return_line,'quantity',0.5)),
+  'CI damaged merchandise credit note',v_credit_request);
+ IF v_credit_note_retry<>v_credit_note THEN RAISE EXCEPTION 'Customer credit note retry is not idempotent'; END IF;
  IF (SELECT total FROM public.credit_notes WHERE id=v_credit_note)<>60
     OR (SELECT refundable_amount FROM public.credit_notes WHERE id=v_credit_note)<>60
     OR (SELECT applied_amount FROM public.credit_notes WHERE id=v_credit_note)<>0
