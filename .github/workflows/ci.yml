@@ -53,8 +53,24 @@ jobs:
       - name: Unit tests (Vitest)
         run: npm test
 
-      - name: Install PDF inspection tools
-        run: command -v pdftotext || (sudo apt-get update && sudo apt-get install -y poppler-utils)
+      - name: Install isolated PDF inspection tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull minidocks/poppler:latest
+          POPPLER_IMAGE="$(docker image inspect --format '{{index .RepoDigests 0}}' minidocks/poppler:latest)"
+          test -n "$POPPLER_IMAGE"
+          mkdir -p "$HOME/.local/bin"
+          for tool in pdfinfo pdftotext pdftoppm pdfimages; do
+            cat > "$HOME/.local/bin/$tool" <<EOF
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec docker run --rm --network none --user "$(id -u):$(id -g)" -v "$PWD:/app" -w /app "$POPPLER_IMAGE" "$tool" "\$@"
+          EOF
+            chmod 0755 "$HOME/.local/bin/$tool"
+          done
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "Poppler tools pinned to the pulled image digest: $POPPLER_IMAGE"
 
       - name: Inspect all 33 PDF files and render first-page screenshots
         run: python3 tests/integration/inspect-pdfs.py
