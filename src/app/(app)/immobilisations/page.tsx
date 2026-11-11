@@ -35,7 +35,7 @@ export default async function FixedAssets() {
     { data: reconciliation = [], error: reconciliationError },
   ] = await Promise.all([
     ctx.supabase.from("fixed_assets")
-      .select("id,asset_code,name,category,acquisition_date,in_service_date,acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,depreciation_method,pcg_asset_account_code,pcg_acquisition_counterpart_account_code,acquisition_journal_entry_id,legacy_accounting_origin,parent_asset_id,component_reference,accumulated_depreciation,net_book_value,impairment_loss,status,magnisa_reference,location,custodian")
+      .select("id,asset_code,name,category,acquisition_date,in_service_date,acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,depreciation_method,pcg_asset_account_code,pcg_acquisition_counterpart_account_code,acquisition_journal_entry_id,source_supplier_invoice_id,supplier_name,invoice_reference,legacy_accounting_origin,parent_asset_id,component_reference,accumulated_depreciation,net_book_value,impairment_loss,status,magnisa_reference,location,custodian")
       .eq("organization_id", ctx.organizationId)
       .order("acquisition_date", { ascending: false }),
     ctx.supabase.from("organizations").select("currency").eq("id", ctx.organizationId).single(),
@@ -135,7 +135,7 @@ export default async function FixedAssets() {
             <td className="right">{money(Number(asset.accumulated_depreciation || 0), currency)}</td>
             <td className="right">{money(Number(asset.impairment_loss || 0), currency)}</td>
             <td className="right">{money(Number(asset.net_book_value || 0), currency)}</td><td>{asset.status}</td>
-            <td>{asset.acquisition_journal_entry_id ? "Comptabilisée" : asset.parent_asset_id ? "Composant reclassé" : asset.legacy_accounting_origin ? "Historique à rapprocher" : canManage === true ? <form action={postFixedAssetAcquisition}><input type="hidden" name="asset_id" value={asset.id}/><button className="button" type="submit">Comptabiliser</button></form> : "En attente"}</td>
+            <td>{asset.acquisition_journal_entry_id ? (asset.source_supplier_invoice_id ? "Facture fournisseur reclassée" : "Comptabilisée") : asset.parent_asset_id ? "Composant reclassé" : asset.legacy_accounting_origin ? "Historique à rapprocher" : canManage === true ? (()=>{const candidates=(supplierInvoices as any[]).filter(inv=>inv.supplier_number===asset.invoice_reference&&String(Array.isArray(inv.suppliers)?inv.suppliers[0]?.name:inv.suppliers?.name||"").trim().toLowerCase()===String(asset.supplier_name||"").trim().toLowerCase());return candidates.length>0?<form action={reclassifySupplierInvoiceToFixedAssetAction} className="stack"><input type="hidden" name="asset_id" value={asset.id}/><select name="supplier_invoice_id" required defaultValue=""><option value="" disabled>Facture fournisseur correspondante</option>{candidates.map(inv=><option key={inv.id} value={inv.id}>{inv.supplier_number} · {inv.invoice_date} · {money(Number(inv.total||0),currency)}</option>)}</select><button className="button" type="submit">Rattacher et reclasser</button></form>:<form action={postFixedAssetAcquisition}><input type="hidden" name="asset_id" value={asset.id}/><button className="button" type="submit">Comptabiliser l’acquisition</button></form>;})() : "En attente"}</td>
           </tr>;
         })}</tbody></table></div>}
     </section>
