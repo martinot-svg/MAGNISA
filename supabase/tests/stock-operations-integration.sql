@@ -276,6 +276,28 @@ BEGIN
      AND total_debit=165 AND total_credit=165 AND status='posted') THEN
    RAISE EXCEPTION 'Supplier invoice VAT posting is not balanced and posted';
  END IF;
+ v_invoice:=public.record_supplier_invoice_with_tax(
+   v_org,'e1000000-0000-4000-8000-000000000052','CI-SUPPLIER-NONREC-001',current_date,current_date+30,
+   100,10,'nonrecoverable','CI-VAT-NONREC-001','Nonrecoverable supplier VAT','service_or_other','606');
+ IF NOT EXISTS(SELECT 1 FROM public.journal_entry_lines jl JOIN public.journal_entries je ON je.id=jl.journal_entry_id
+   WHERE je.source_type='supplier_invoice' AND je.source_id=v_invoice AND jl.account_key='EXPENSE:SUPPLIER' AND jl.debit=110)
+    OR EXISTS(SELECT 1 FROM public.journal_entry_lines jl JOIN public.journal_entries je ON je.id=jl.journal_entry_id
+   WHERE je.source_type='supplier_invoice' AND je.source_id=v_invoice AND jl.account_key='TAX:SUPPLIER_INPUT') THEN
+   RAISE EXCEPTION 'Nonrecoverable supplier VAT must be included in the expense base, not separated as deductible VAT';
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.journal_entries
+   WHERE source_type='supplier_invoice' AND source_id=v_invoice AND total_debit=110 AND total_credit=110 AND status='posted') THEN
+   RAISE EXCEPTION 'Nonrecoverable supplier invoice posting is not balanced';
+ END IF;
+ v_invoice:=public.record_supplier_invoice_with_tax(
+   v_org,'e1000000-0000-4000-8000-000000000052','CI-SUPPLIER-NOVAT-001',current_date,current_date+30,
+   100,0,'not_applicable',NULL,'Supplier invoice without VAT','service_or_other','606');
+ IF (SELECT tax_total FROM public.supplier_invoices WHERE id=v_invoice)<>0
+    OR (SELECT total FROM public.supplier_invoices WHERE id=v_invoice)<>100
+    OR NOT EXISTS(SELECT 1 FROM public.journal_entries WHERE source_type='supplier_invoice'
+      AND source_id=v_invoice AND total_debit=100 AND total_credit=100 AND status='posted') THEN
+   RAISE EXCEPTION 'Supplier invoice without VAT was not recorded consistently';
+ END IF;
 END $block2$;
 
 DO $block3$
