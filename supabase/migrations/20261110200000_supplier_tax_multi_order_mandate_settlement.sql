@@ -532,7 +532,7 @@ BEGIN
   UPDATE public.financial_accounts SET balance=balance+p_amount,updated_at=now() WHERE id=p_account;
   INSERT INTO public.financial_transactions(
     organization_id,financial_account_id,transaction_date,amount,kind,source_type,source_id,reference,description
-  ) VALUES(p_org,p_account,p_date,p_amount,'income','customer_mandate_reimbursement',v_id,v_ref,
+  ) VALUES(p_org,p_account,p_date,p_amount,'reimbursement','customer_mandate_reimbursement',v_id,v_ref,
     'Remboursement débours de mandat client');
   v_lines:=jsonb_build_array(
     jsonb_build_object('account_kind','treasury','financial_account_id',p_account::text,'account_label',v_account.name,'debit',p_amount,'credit',0,'customer_id',v_disbursement.customer_id),
