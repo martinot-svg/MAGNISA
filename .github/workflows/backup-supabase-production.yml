@@ -10,6 +10,7 @@ on:
       - .github/workflows/backup-supabase-production.yml
       - supabase/migrations/**
       - scripts/ci/apply-production-allowlist.sh
+      - .github/workflows/deploy-supabase-production.yml
 
 permissions:
   contents: read
