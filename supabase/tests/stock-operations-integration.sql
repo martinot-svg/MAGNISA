@@ -722,19 +722,50 @@ DO $supplier_asset_reclassification$
 DECLARE
   v_org uuid:='e1000000-0000-4000-8000-000000000001';
   v_supplier uuid:='e1000000-0000-4000-8000-000000000052';
+  v_item uuid:='e1000000-0000-4000-8000-000000000132';
+  v_order uuid:='e1000000-0000-4000-8000-000000000133';
+  v_order_line uuid:='e1000000-0000-4000-8000-000000000134';
+  v_receipt uuid:='e1000000-0000-4000-8000-000000000135';
+  v_receipt_line uuid:='e1000000-0000-4000-8000-000000000136';
   v_invoice uuid;
   v_asset uuid:='e1000000-0000-4000-8000-000000000131';
   v_journal uuid;
   v_retry uuid;
+  v_matches integer;
   v_supplier_name text;
 BEGIN
   SELECT name INTO v_supplier_name FROM public.suppliers
   WHERE id=v_supplier AND organization_id=v_org;
   IF v_supplier_name IS NULL THEN RAISE EXCEPTION 'Fixed-asset test supplier fixture is missing'; END IF;
+
+  INSERT INTO public.catalog_items(id,organization_id,sku,name,item_kind,base_unit,tracking_mode)
+  VALUES(v_item,v_org,'CI-ASSET-EQUIP-01','CI equipment asset','equipment','unit','none');
+  INSERT INTO public.purchase_orders(id,organization_id,supplier_id,number,status,order_date,currency,subtotal,tax_total,total,created_by)
+  VALUES(v_order,v_org,v_supplier,'CI-PO-ASSET-01','draft',current_date,'MGA',5000000,500000,5500000,auth.uid());
+  INSERT INTO public.purchase_order_lines(
+    id,organization_id,purchase_order_id,item_id,description,purchase_purpose,
+    quantity_ordered,unit,unit_price,tax_rate,line_total,sort_order
+  ) VALUES(v_order_line,v_org,v_order,v_item,'CI durable equipment','company_use',1,'unit',5000000,10,5500000,0);
+  UPDATE public.purchase_orders SET status='submitted' WHERE id=v_order AND organization_id=v_org;
+  INSERT INTO public.goods_receipts(id,organization_id,purchase_order_id,receipt_number,status,received_at,created_by)
+  VALUES(v_receipt,v_org,v_order,'CI-GR-ASSET-01','draft',now(),auth.uid());
+  INSERT INTO public.goods_receipt_lines(
+    id,organization_id,goods_receipt_id,purchase_order_line_id,stock_location_id,quantity_received,unit_cost
+  ) VALUES(v_receipt_line,v_org,v_receipt,v_order_line,NULL,1,5000000);
+  PERFORM public.post_goods_receipt(v_receipt);
+  IF EXISTS(SELECT 1 FROM public.stock_movements WHERE organization_id=v_org AND item_id=v_item) THEN
+    RAISE EXCEPTION 'A non-stocked durable equipment receipt must not enter consumable stock';
+  END IF;
+
   v_invoice:=public.record_supplier_invoice_with_tax(
     v_org,v_supplier,'CI-SUPPLIER-ASSET-001',current_date,current_date+30,
-    5000000,500000,'nonrecoverable',NULL,'CI fixed asset invoice','service_or_other','606'
+    5000000,500000,'nonrecoverable',NULL,'CI fixed asset invoice','goods_procurement','606'
   );
+  v_matches:=public.reconcile_supplier_invoice_multi_order(v_org,v_invoice,jsonb_build_array(
+    jsonb_build_object('goods_receipt_line_id',v_receipt_line,'quantity',1,'unit_price',5000000)
+  ),NULL);
+  IF v_matches<>1 THEN RAISE EXCEPTION 'Durable equipment invoice must reconcile to its single purchase order'; END IF;
+
   INSERT INTO public.fixed_assets(
     id,organization_id,asset_code,name,category,acquisition_date,in_service_date,
     acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,depreciation_method,
