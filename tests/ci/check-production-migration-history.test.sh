@@ -35,7 +35,7 @@ cat > "$TMP/fake-bin/psql" <<'PSQL'
 #!/usr/bin/env bash
 query="$*"
 if [[ "$query" == *"cardinality(statements)=1"* && "$query" == *"substr(statements[1],2)"* ]]; then
-  printf '20261101000000|exact|%s\\n' "${EXPECTED_LOCAL_SHA:?}"
+  printf '20261101000000|exact|%s\n' "${EXPECTED_LOCAL_SHA:?}"
   exit 0
 fi
 echo "Expected checksum normalization query was not used" >&2
