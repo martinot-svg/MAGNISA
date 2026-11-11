@@ -2221,6 +2221,12 @@ BEGIN
 END;
 $function$;
 
+-- Permission checks are safe to expose as void-returning predicates: they
+-- validate auth.uid() and never return organization data. Invoker RPCs such as
+-- stock_balance_as_of must be able to call the shared permission guard.
+REVOKE ALL ON FUNCTION public.assert_org_permission(uuid,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.assert_org_permission(uuid,text) TO authenticated,service_role;
+
 CREATE OR REPLACE FUNCTION public.stock_balance_as_of(p_org uuid,p_as_of timestamptz)
 RETURNS TABLE(item_id uuid,stock_location_id uuid,stock_bucket text,quantity_on_hand numeric)
 LANGUAGE plpgsql SECURITY INVOKER SET search_path=public AS $function$
