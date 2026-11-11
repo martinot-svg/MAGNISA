@@ -37,10 +37,7 @@ CREATE TABLE public.stock_quarantine_release_lines (
     REFERENCES public.stock_locations(id,organization_id) ON DELETE RESTRICT,
   FOREIGN KEY (destination_location_id,organization_id)
     REFERENCES public.stock_locations(id,organization_id) ON DELETE RESTRICT,
-  FOREIGN KEY (source_movement_id,organization_id)
-    REFERENCES public.stock_movements(id,organization_id) ON DELETE RESTRICT,
-  FOREIGN KEY (destination_movement_id,organization_id)
-    REFERENCES public.stock_movements(id,organization_id) ON DELETE RESTRICT,
+  -- Movement IDs are immutable ledger references; stock_movements has a single-column PK.
   UNIQUE (organization_id,source_movement_id),
   UNIQUE (organization_id,destination_movement_id)
 );
