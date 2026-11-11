@@ -41,6 +41,11 @@ BEGIN
       WHERE operation_type='customer_credit_note' AND operation_key='customer_receivable'
         AND credit_account_code='411' AND active)
      OR NOT EXISTS (SELECT 1 FROM public.accounting_posting_rules
+      WHERE operation_type='customer_credit_note' AND operation_key='customer_refund_receivable'
+        AND debit_account_code='411' AND active) THEN
+    RAISE EXCEPTION 'Customer credit-note refund receivable debit rule is missing';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.accounting_posting_rules
       WHERE operation_type='customer_credit_note' AND operation_key='tax_payable'
         AND debit_account_code='4457' AND active) THEN
     RAISE EXCEPTION 'Customer credit-note PCG posting rules are missing';
