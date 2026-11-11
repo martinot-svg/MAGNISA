@@ -5,40 +5,31 @@ import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
 
-const creditNoteLinesSchema = z.array(z.object({
-  invoice_line_id: z.string().uuid(),
-  quantity: z.coerce.number().finite().positive(),
-  stock_return_line_id: z.string().uuid().optional(),
-})).min(1).max(100);
-
 export async function issueCustomerCreditNoteAction(formData: FormData) {
   const ctx = await requireOrganization();
   await assertPermission(ctx, "invoices.issue");
-  const rawLines = z.string().min(2).parse(formData.get("lines"));
-  let parsedLines: unknown;
-  try {
-    parsedLines = JSON.parse(rawLines);
-  } catch {
-    throw new Error("Les lignes de l'avoir ne sont pas un JSON valide.");
-  }
   const parsed = z.object({
     invoice_id: z.string().uuid(),
     issue_date: z.string().date(),
     reason: z.string().trim().min(3).max(500),
     request_key: z.string().uuid(),
-    lines: creditNoteLinesSchema,
+    invoice_line_id: z.string().uuid(),
+    quantity: z.coerce.number().finite().positive(),
+    stock_return_line_id: z.string().uuid().optional(),
   }).parse({
     invoice_id: formData.get("invoice_id"),
     issue_date: formData.get("issue_date"),
     reason: formData.get("reason"),
     request_key: formData.get("request_key"),
-    lines: parsedLines,
+    invoice_line_id: formData.get("invoice_line_id"),
+    quantity: formData.get("quantity"),
+    stock_return_line_id: formData.get("stock_return_line_id") || undefined,
   });
   const { data, error } = await ctx.supabase.rpc("issue_customer_credit_note", {
     p_org: ctx.organizationId,
     p_invoice_id: parsed.invoice_id,
     p_issue_date: parsed.issue_date,
-    p_lines: parsed.lines,
+    p_lines: [{invoice_line_id:parsed.invoice_line_id,quantity:parsed.quantity,...(parsed.stock_return_line_id?{stock_return_line_id:parsed.stock_return_line_id}:{})}],
     p_reason: parsed.reason,
     p_request_key: parsed.request_key,
   });
