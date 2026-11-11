@@ -4,6 +4,7 @@ on:
     paths:
       - "supabase/**"
       - ".github/workflows/supabase-migration-replay.yml"
+      - ".github/workflows/supabase-migration-replay.yml"
       - "scripts/ci/**"
   push:
     branches:
