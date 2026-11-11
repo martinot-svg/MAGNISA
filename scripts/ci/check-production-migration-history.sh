@@ -69,25 +69,6 @@ if [[ -s "$DUPLICATE_REMOTE" ]]; then
   exit 1
 fi
 
-# When the remote ledger exposes its stored SQL statements, verify every direct
-# version/name match byte-for-byte. Two-column fixtures remain supported.
-: > "$DIRECT_HASH_MISMATCH"
-while IFS='|' read -r version local_name local_file; do
-  remote_name="$(awk -F '|' -v v="$version" '$1==v {print $2}' "$REMOTE")"
-  [[ "$remote_name" == "$local_name" ]] || continue
-  remote_sha="$(awk -F '|' -v v="$version" '$1==v {print $3}' "$REMOTE")"
-  [[ -n "$remote_sha" ]] || continue
-  local_sha="$(sha256sum "$MIGRATIONS_DIR/$local_file" | awk '{print $1}')"
-  if [[ "$local_sha" != "$remote_sha" ]]; then
-    printf '%s local=%s remote_sha=%s local_sha=%s\\n' "$version" "$local_file" "$remote_sha" "$local_sha" >> "$DIRECT_HASH_MISMATCH"
-  fi
-done < "$LOCAL"
-if [[ -s "$DIRECT_HASH_MISMATCH" ]]; then
-  echo "::error::Local SQL checksum differs from production for exact version/name matches:"
-  cat "$DIRECT_HASH_MISMATCH"
-  exit 1
-fi
-
 comm -23 "$LOCAL_VERSIONS" "$REMOTE_VERSIONS" > "$LOCAL_ONLY"
 comm -13 "$LOCAL_VERSIONS" "$REMOTE_VERSIONS" > "$REMOTE_ONLY"
 join -t '|' -1 1 -2 1 "$LOCAL" "$REMOTE" \
@@ -147,6 +128,26 @@ while IFS='|' read -r version remote_name local_file mapping_type evidence_ref e
   fi
   printf '%s\n' "$version" >> "$USED_MAP"
 done < "$RECONCILIATION_FILE"
+
+# When the remote ledger exposes its stored SQL statements, verify every direct
+# version/name match byte-for-byte. Two-column fixtures remain supported.
+: > "$DIRECT_HASH_MISMATCH"
+while IFS='|' read -r version local_name local_file; do
+  grep -Fxq "$version" "$USED_MAP" && continue
+  remote_name="$(awk -F '|' -v v="$version" '$1==v {print $2}' "$REMOTE")"
+  [[ "$remote_name" == "$local_name" ]] || continue
+  remote_sha="$(awk -F '|' -v v="$version" '$1==v {print $3}' "$REMOTE")"
+  [[ -n "$remote_sha" ]] || continue
+  local_sha="$(sha256sum "$MIGRATIONS_DIR/$local_file" | awk '{print $1}')"
+  if [[ "$local_sha" != "$remote_sha" ]]; then
+    printf '%s local=%s remote_sha=%s local_sha=%s\\n' "$version" "$local_file" "$remote_sha" "$local_sha" >> "$DIRECT_HASH_MISMATCH"
+  fi
+done < "$LOCAL"
+if [[ -s "$DIRECT_HASH_MISMATCH" ]]; then
+  echo "::error::Local SQL checksum differs from production for exact version/name matches:"
+  cat "$DIRECT_HASH_MISMATCH"
+  exit 1
+fi
 
 # A checksum-verified reconciliation source is already represented by a remote
 # migration. Do not let db push re-run that local file under its different version.
