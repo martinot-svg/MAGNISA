@@ -10,6 +10,13 @@ SET search_path=pg_catalog,public
 AS $function$
 DECLARE v_kind text;
 BEGIN
+  IF TG_OP='UPDATE'
+     AND NEW.internal_expense_account_code IS DISTINCT FROM OLD.internal_expense_account_code
+     AND EXISTS(SELECT 1 FROM public.stock_movements
+       WHERE organization_id=OLD.organization_id AND item_id=OLD.id
+         AND stock_bucket IN ('company_use','consumption')) THEN
+    RAISE EXCEPTION 'Le compte de charge d’un article déjà mouvementé est verrouillé pour préserver la piste d’audit.';
+  END IF;
   IF NEW.internal_expense_account_code IS NOT NULL THEN
     SELECT kind INTO v_kind FROM public.pcg2005_accounts
     WHERE code=NEW.internal_expense_account_code;
