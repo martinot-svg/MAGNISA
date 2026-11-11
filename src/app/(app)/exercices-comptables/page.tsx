@@ -1,3 +1,4 @@
+import { formatDateDisplay } from "@/lib/date-format";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, requirePermission } from "@/lib/permissions";
@@ -124,7 +125,7 @@ export default async function FiscalYears({ searchParams }: { searchParams: Prom
       {!years?.length ? <p className="muted">Aucun exercice comptable n'est encore créé.</p> : <div className="tableWrap"><table>
         <thead><tr><th>Exercice</th><th>Ouverture</th><th>Clôture</th><th>Statut</th><th>Pièce d'ouverture</th><th></th></tr></thead>
         <tbody>{(years as any[]).map((year) => <tr key={year.id}>
-          <td><a href={`/exercices-comptables?year=${year.id}`}>{year.label}</a></td><td>{year.period_start}</td><td>{year.period_end}</td>
+          <td><a href={`/exercices-comptables?year=${year.id}`}>{year.label}</a></td><td>{formatDateDisplay(year.period_start)}</td><td>{formatDateDisplay(year.period_end)}</td>
           <td><span className={year.status === "closed" ? "badge success" : "badge"}>{year.status === "closed" ? "Clôturé" : "Ouvert"}</span></td>
           <td>{year.opening_entry_id ? "Générée" : "Absente"}</td>
           <td>{year.status === "open" && <form action={closeFiscalYear}><input type="hidden" name="fiscal_year_id" value={year.id} /><button className="button">Clôturer</button></form>}</td>

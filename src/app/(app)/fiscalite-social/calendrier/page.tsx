@@ -3,6 +3,7 @@ import { CalendarRuleDialog } from "@/components/calendar-rule-dialog";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, requirePermission } from "@/lib/permissions";
+import { formatDateDisplay } from "@/lib/date-format";
 
 type CalendarRuleRow = {
   id: string;
@@ -119,7 +120,7 @@ async function archiveRule(fd: FormData) {
 
 function dateLabel(value: string | null | undefined) {
   if (!value) return "Sans date de fin";
-  return new Date(value + "T00:00:00Z").toLocaleDateString("fr-FR", { timeZone: "UTC" });
+  return formatDateDisplay(value);
 }
 
 function dueLabel(rule: Record<string, unknown>) {

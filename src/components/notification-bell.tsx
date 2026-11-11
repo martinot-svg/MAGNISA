@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTimeDisplay } from "@/lib/date-format";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -162,7 +163,7 @@ export function NotificationBell({ userId, organizationId, initialUnread = 0 }: 
                 <span style={{ width: 7, height: 7, borderRadius: 20, background: priorityColor[item.priority] }} />
               </span>
               <span style={{ display: "block", fontSize: 12, color: "var(--muted-foreground, #64748b)", lineHeight: 1.45, marginTop: 5 }}>{item.body}</span>
-              <span style={{ display: "block", fontSize: 10, color: "#94a3b8", marginTop: 6 }}>{new Date(item.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Indian/Antananarivo" })}</span>
+              <span style={{ display: "block", fontSize: 10, color: "#94a3b8", marginTop: 6 }}>{formatDateTimeDisplay(item.created_at)}</span>
             </button>)}
         </div>
         <Link href="/notifications" onClick={() => setOpen(false)} style={{ padding: 13, display: "flex", justifyContent: "center", gap: 7, color: "var(--primary, #2563eb)", textDecoration: "none", fontSize: 12, fontWeight: 650 }}>

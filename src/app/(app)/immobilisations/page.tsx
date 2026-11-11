@@ -1,3 +1,4 @@
+import { formatDateDisplay } from "@/lib/date-format";
 import { requireOrganization } from "@/lib/current-org";
 import { requirePermission } from "@/lib/permissions";
 import { EmptyState } from "@/components/empty-state";
@@ -200,7 +201,7 @@ export default async function FixedAssets() {
         <div className="tableWrap"><table><thead><tr><th>Bien</th><th>Période</th><th className="right">Dotation</th><th className="right">VNC après dotation</th><th>Action</th></tr></thead><tbody>
           {depreciationEntries.map((entry: any) => {
             const asset = assets.find((a: any) => a.id === entry.fixed_asset_id);
-            return <tr key={entry.id}><td>{asset?.asset_code || asset?.name || entry.fixed_asset_id}</td><td>{entry.period_start} au {entry.period_end}</td><td className="right">{money(Number(entry.depreciation_charge), currency)}</td><td className="right">{money(Number(entry.closing_net_book_value), currency)}</td><td><form action={postFixedAssetDepreciation}><input type="hidden" name="depreciation_entry_id" value={entry.id}/><button className="button primary" type="submit">Comptabiliser</button></form></td></tr>;
+            return <tr key={entry.id}><td>{asset?.asset_code || asset?.name || entry.fixed_asset_id}</td><td>{formatDateDisplay(entry.period_start)} au {formatDateDisplay(entry.period_end)}</td><td className="right">{money(Number(entry.depreciation_charge), currency)}</td><td className="right">{money(Number(entry.closing_net_book_value), currency)}</td><td><form action={postFixedAssetDepreciation}><input type="hidden" name="depreciation_entry_id" value={entry.id}/><button className="button primary" type="submit">Comptabiliser</button></form></td></tr>;
           })}
         </tbody></table></div>}
       {postedDepreciationEntries.length > 0 && <>
