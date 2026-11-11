@@ -314,6 +314,8 @@ DECLARE
  v_line_a uuid;v_line_b uuid;v_line_c uuid;v_res uuid;v_del1 uuid;v_del2 uuid;v_transfer uuid;v_invoice_a uuid;v_invoice_b uuid;
  v_before numeric;v_after numeric;v_count integer;v_line_d uuid;v_line_e uuid;v_res_d uuid;v_res_e uuid;v_del_d uuid;v_del_e uuid;v_return uuid;v_supplier_return uuid;v_adjustment uuid;v_asof numeric;
  v_delivery jsonb;
+ v_invoice_d uuid;v_invoice_line_d uuid;v_credit_note uuid;v_return_line uuid;
+ v_payment uuid;v_refund uuid;v_refund_retry uuid;v_credit_request uuid;v_refund_request uuid;v_invoice_total numeric;
 BEGIN
  IF auth.uid() IS NULL OR NOT public.is_org_member(v_org) THEN RAISE EXCEPTION 'Authenticated tenant fixture is not active'; END IF;
  v_line_a:=public.add_catalog_item_to_order(v_org,v_order_a,v_item,5,100,20,0);
@@ -461,11 +463,62 @@ BEGIN
  v_res_d:=public.reserve_stock(v_org,v_order_d,v_line_d,v_item,v_loc_a,1,'e1000000-0000-4000-8000-000000000065');
  v_delivery:=jsonb_build_array(jsonb_build_object('order_line_id',v_line_d,'item_id',v_item,'stock_location_id',v_loc_a,'quantity',1,'reservation_id',v_res_d));
  v_del_d:=public.post_sales_delivery(v_org,v_order_d,v_delivery,'e1000000-0000-4000-8000-000000000066','CI-DL-D');
+ v_invoice_d:=public.create_invoice_draft(v_org,:'customer_id'::uuid,current_date+30,
+  jsonb_build_array(jsonb_build_object('line_kind','merchandise','item_id',v_item,'order_line_id',v_line_d,
+    'quantity',1,'discount_pct',0,'unit_price',100)),v_order_d);
+ SELECT id INTO v_invoice_line_d FROM public.invoice_lines
+ WHERE organization_id=v_org AND invoice_id=v_invoice_d AND source_order_line_id=v_line_d;
+ PERFORM public.issue_invoice(v_org,v_invoice_d);
+ SELECT total INTO v_invoice_total FROM public.invoices WHERE id=v_invoice_d AND organization_id=v_org;
+ v_payment:=public.record_invoice_payment(v_org,v_invoice_d,'e1000000-0000-4000-8000-000000000104',
+   v_invoice_total,current_date,'bank_transfer','CI-CREDIT-NOTE-PAY-001');
+ IF (SELECT status FROM public.invoices WHERE id=v_invoice_d)<>'paid' THEN
+  RAISE EXCEPTION 'Credit-note fixture invoice was not fully settled before return';
+ END IF;
  v_return:=public.post_customer_stock_return(v_org,(SELECT id FROM public.sales_delivery_lines WHERE delivery_id=v_del_d LIMIT 1),v_loc_a,0.5,'damaged','e1000000-0000-4000-8000-000000000067','CI damaged partial customer return');
  IF public.post_customer_stock_return(v_org,(SELECT id FROM public.sales_delivery_lines WHERE delivery_id=v_del_d LIMIT 1),v_loc_a,0.5,'damaged','e1000000-0000-4000-8000-000000000067','CI damaged partial customer return')<>v_return THEN
   RAISE EXCEPTION 'Customer return retry is not idempotent';
  END IF;
  PERFORM public.post_customer_stock_return(v_org,(SELECT id FROM public.sales_delivery_lines WHERE delivery_id=v_del_d LIMIT 1),v_loc_a,0.5,'resalable','e1000000-0000-4000-8000-000000000068','CI resalable partial customer return');
+ SELECT id INTO v_return_line FROM public.stock_return_lines
+ WHERE organization_id=v_org AND return_id=v_return AND source_invoice_line_id=v_invoice_line_d;
+ IF v_return_line IS NULL THEN RAISE EXCEPTION 'Customer return lost its source invoice line'; END IF;
+ v_credit_request:=gen_random_uuid();
+ v_credit_note:=public.issue_customer_credit_note(v_org,v_invoice_d,current_date,
+  jsonb_build_array(jsonb_build_object('invoice_line_id',v_invoice_line_d,'stock_return_line_id',v_return_line,'quantity',0.5)),
+  'CI damaged merchandise credit note',v_credit_request);
+ IF (SELECT total FROM public.credit_notes WHERE id=v_credit_note)<>60
+    OR (SELECT refundable_amount FROM public.credit_notes WHERE id=v_credit_note)<>60
+    OR (SELECT applied_amount FROM public.credit_notes WHERE id=v_credit_note)<>0
+    OR (SELECT status FROM public.credit_notes WHERE id=v_credit_note)<>'issued' THEN
+  RAISE EXCEPTION 'Credit note must reverse the returned half quantity and expose the exact refundable balance';
+ END IF;
+ v_refund_request:=gen_random_uuid();
+ v_refund:=public.record_customer_credit_note_refund(v_org,v_credit_note,
+  'e1000000-0000-4000-8000-000000000104',60,current_date,'bank_transfer',
+  'CI-CREDIT-NOTE-REFUND-001',v_refund_request);
+ v_refund_retry:=public.record_customer_credit_note_refund(v_org,v_credit_note,
+  'e1000000-0000-4000-8000-000000000104',60,current_date,'bank_transfer',
+  'CI-CREDIT-NOTE-REFUND-001',v_refund_request);
+ IF v_refund_retry<>v_refund
+    OR (SELECT refunded_amount FROM public.credit_notes WHERE id=v_credit_note)<>60
+    OR (SELECT status FROM public.credit_notes WHERE id=v_credit_note)<>'applied'
+    OR (SELECT count(*) FROM public.credit_note_refunds WHERE credit_note_id=v_credit_note)<>1
+    OR (SELECT count(*) FROM public.financial_transactions WHERE source_type='credit_note_refund' AND source_id=v_refund AND kind='customer_refund')<>1 THEN
+  RAISE EXCEPTION 'Customer refund was not posted exactly once to the financial ledger';
+ END IF;
+ IF (SELECT count(*) FROM public.journal_entries WHERE source_type='credit_note' AND source_id=v_credit_note AND status='posted')<>1
+    OR (SELECT count(*) FROM public.journal_entries WHERE source_type='credit_note_refund' AND source_id=v_refund AND status='posted')<>1 THEN
+  RAISE EXCEPTION 'Credit note and cash refund must each create one posted journal';
+ END IF;
+ BEGIN
+  PERFORM public.record_customer_credit_note_refund(v_org,v_credit_note,
+   'e1000000-0000-4000-8000-000000000104',0.01,current_date,'bank_transfer',
+   'CI-CREDIT-NOTE-OVER-REFUND',gen_random_uuid());
+  RAISE EXCEPTION 'Over-refund against a settled credit note must fail';
+ EXCEPTION WHEN OTHERS THEN
+  IF SQLERRM='Over-refund against a settled credit note must fail' THEN RAISE; END IF;
+ END;
  IF (SELECT quantity_on_hand FROM public.stock_available WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='quarantine')<>0.5
  OR (SELECT quantity_available FROM public.stock_available WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='quarantine')<>0 THEN
   RAISE EXCEPTION 'Damaged customer returns must be physically tracked but unavailable for sale';
