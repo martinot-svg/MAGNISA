@@ -21,10 +21,10 @@ export default async function InvoiceDetail({params}:{params:Promise<{id:string}
  if(!i)notFound();
  const merchandiseLineIds=(lines as any[]).filter(l=>l.line_kind==="merchandise").map(l=>l.id);
  const [{data:creditNotes=[]},{data:financialAccounts=[]},{data:stockReturnLines=[]}] = await Promise.all([
-  supabase.from("credit_notes").select("id,number,total,status,applied_amount,refundable_amount,refunded_amount,journal_entry_id").eq("organization_id",organizationId).eq("invoice_id",id).order("issue_date",{ascending:false}),
+  supabase.from("credit_notes" as any).select("id,number,total,status,applied_amount,refundable_amount,refunded_amount,journal_entry_id").eq("organization_id",organizationId).eq("invoice_id",id).order("issue_date",{ascending:false}),
   supabase.from("financial_accounts").select("id,name,type,balance").eq("organization_id",organizationId).eq("is_active",true).order("name"),
   merchandiseLineIds.length
-   ? supabase.from("stock_return_lines").select("id,source_invoice_line_id,quantity,stock_bucket,return_id").eq("organization_id",organizationId).in("source_invoice_line_id",merchandiseLineIds)
+   ? supabase.from("stock_return_lines" as any).select("id,source_invoice_line_id,quantity,stock_bucket,return_id").eq("organization_id",organizationId).in("source_invoice_line_id",merchandiseLineIds)
    : Promise.resolve({data:[] as any[]})
  ]);
  const creditNoteIds=(creditNotes as any[]).map(n=>n.id);
