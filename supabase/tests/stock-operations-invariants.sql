@@ -116,5 +116,5 @@ BEGIN
     OR position('request_key' in v_def)=0 THEN
   RAISE EXCEPTION 'Quarantine release lacks locking, provenance, reclassification or idempotency controls';
  END IF;
-END $;
+END $$;
 ROLLBACK;
