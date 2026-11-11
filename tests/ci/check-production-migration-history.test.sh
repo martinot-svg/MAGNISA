@@ -92,6 +92,17 @@ printf '20261101000000|remote_name\n' > "$TMP/mapped-source-remote"
 run_guard "$TMP/mapped-source" "$TMP/empty-allow" "$TMP/mapped-source-map" "$TMP/mapped-source-remote" > "$TMP/mapped-source.log" 2>&1 || { cat "$TMP/mapped-source.log"; fail "mapped local-only migration must not be re-executed"; }
 grep -q 'Local versions not recorded remotely: 0' "$TMP/mapped-source.log" || fail "mapped source still counted as pending"
 
+# Local replay-only migrations are applied after their prerequisite schema exists,
+# but must be excluded from production reconciliation and deployment.
+mkdir -p "$TMP/replay-only"
+: > "$TMP/replay-only/20261101000000_local_bootstrap.sql"
+: > "$TMP/replay-only/20261102000000_remote_head.sql"
+printf '20261101000000\n' > "$TMP/replay-only-versions"
+: > "$TMP/empty-allow"
+printf '# remote_version|remote_name\n20261102000000|remote_head\n' > "$TMP/replay-only-remote"
+run_guard "$TMP/replay-only" "$TMP/empty-allow" "$TMP/empty-map-manifest" "$TMP/replay-only-remote" "$TMP/replay-only-versions" > "$TMP/replay-only.log" || { cat "$TMP/replay-only.log"; fail "local replay-only migration should be excluded from production reconciliation"; }
+grep -q 'Local replay-only migration excluded from production ledger' "$TMP/replay-only.log" || fail "replay-only exclusion was not reported"
+
 # A missing local migration older than the current remote head must fail even when allowlisted.
 mkdir -p "$TMP/out-of-order"
 : > "$TMP/out-of-order/20261101000000_older_pending.sql"
