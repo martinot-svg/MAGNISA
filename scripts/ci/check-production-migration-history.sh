@@ -20,6 +20,7 @@ DUPLICATE_REMOTE="$TMP_DIR/duplicate-remote.txt"
 UNEXPECTED="$TMP_DIR/unexpected.txt"
 OUT_OF_ORDER="$TMP_DIR/out-of-order.txt"
 UNMAPPED="$TMP_DIR/unmapped.txt"
+DIRECT_HASH_MISMATCH="$TMP_DIR/direct-hash-mismatch.txt"
 USED_MAP="$TMP_DIR/used-map.txt"
 ALLOW="$TMP_DIR/allow.txt"
 
@@ -65,6 +66,25 @@ fi
 if [[ -s "$DUPLICATE_REMOTE" ]]; then
   echo "::error::Duplicate remote migration versions:"
   cat "$DUPLICATE_REMOTE"
+  exit 1
+fi
+
+# When the remote ledger exposes its stored SQL statements, verify every direct
+# version/name match byte-for-byte. Two-column fixtures remain supported.
+: > "$DIRECT_HASH_MISMATCH"
+while IFS='|' read -r version local_name local_file; do
+  remote_name="$(awk -F '|' -v v="$version" '$1==v {print $2}' "$REMOTE")"
+  [[ "$remote_name" == "$local_name" ]] || continue
+  remote_sha="$(awk -F '|' -v v="$version" '$1==v {print $3}' "$REMOTE")"
+  [[ -n "$remote_sha" ]] || continue
+  local_sha="$(sha256sum "$MIGRATIONS_DIR/$local_file" | awk '{print $1}')"
+  if [[ "$local_sha" != "$remote_sha" ]]; then
+    printf '%s local=%s remote_sha=%s local_sha=%s\\n' "$version" "$local_file" "$remote_sha" "$local_sha" >> "$DIRECT_HASH_MISMATCH"
+  fi
+done < "$LOCAL"
+if [[ -s "$DIRECT_HASH_MISMATCH" ]]; then
+  echo "::error::Local SQL checksum differs from production for exact version/name matches:"
+  cat "$DIRECT_HASH_MISMATCH"
   exit 1
 fi
 
