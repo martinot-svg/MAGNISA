@@ -28,6 +28,26 @@ printf '20261101000000|exact\n' > "$TMP/remote"
 run_guard "$TMP/exact" "$TMP/allow" "$TMP/map" "$TMP/remote" > "$TMP/exact.log" || fail "exact-match fixture should pass"
 grep -q 'Migration ledger preflight passed' "$TMP/exact.log" || fail "success message missing"
 
+# Production's statement ledger has a known one-character serialization prefix.
+# The guard must request the normalized statement digest, not compare the prefixed bytes.
+mkdir -p "$TMP/fake-bin"
+cat > "$TMP/fake-bin/psql" <<'PSQL'
+#!/usr/bin/env bash
+query="$*"
+if [[ "$query" == *"cardinality(statements)=1"* && "$query" == *"substr(statements[1],2)"* ]]; then
+  printf '20261101000000|exact|%s\\n' "${EXPECTED_LOCAL_SHA:?}"
+  exit 0
+fi
+echo "Expected checksum normalization query was not used" >&2
+exit 2
+PSQL
+chmod +x "$TMP/fake-bin/psql"
+EXPECTED_LOCAL_SHA="$exact_sha" SUPABASE_DB_URL=mock PATH="$TMP/fake-bin:$PATH" \
+  MIGRATIONS_DIR="$TMP/exact" ALLOWLIST="$TMP/allow" \
+  RECONCILIATION_FILE="$TMP/map" REPLAY_ONLY_FILE="$TMP/exact/production-local-replay-only.txt" \
+  bash "$GUARD" > "$TMP/normalized-ledger.log" 2>&1 || { cat "$TMP/normalized-ledger.log"; fail "normalized production ledger checksum should pass"; }
+grep -q 'Migration ledger preflight passed' "$TMP/normalized-ledger.log" || fail "normalized ledger success message missing"
+
 # A direct version/name match must also match the production SQL statement hash.
 mkdir -p "$TMP/direct-hash-mismatch"
 printf 'CREATE TABLE migration_fixture(id integer);\n' > "$TMP/direct-hash-mismatch/20261101000000_exact.sql"
