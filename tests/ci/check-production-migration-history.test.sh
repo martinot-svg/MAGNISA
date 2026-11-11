@@ -56,11 +56,11 @@ run_guard "$TMP/renamed" "$TMP/empty-allow" "$TMP/renamed-map" "$TMP/renamed-rem
 # An explicit recovered source may preserve the production SQL while a local
 # replay-only compatibility wrapper guards an absent historical prerequisite.
 mkdir -p "$TMP/compat"
-printf 'local replay compatibility\\n' > "$TMP/compat/20261101000000_local_name.sql"
-printf 'CREATE TABLE migration_fixture(id integer);\\n' > "$TMP/compat/archive_original.sql"
+printf 'local replay compatibility\n' > "$TMP/compat/20261101000000_local_name.sql"
+printf 'CREATE TABLE migration_fixture(id integer);\n' > "$TMP/compat/archive_original.sql"
 compat_sha="$(sha256sum "$TMP/compat/archive_original.sql" | awk '{print $1}')"
-printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\\n20261101000000|remote_name|archive_original.sql|recovered|archived production SQL|%s\\n' "$compat_sha" > "$TMP/compat-map"
-printf '20261101000000|remote_name|%s\\n' "$compat_sha" > "$TMP/compat-remote"
+printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\n20261101000000|remote_name|archive_original.sql|recovered|archived production SQL|%s\n' "$compat_sha" > "$TMP/compat-map"
+printf '20261101000000|remote_name|%s\n' "$compat_sha" > "$TMP/compat-remote"
 run_guard "$TMP/compat" "$TMP/empty-allow" "$TMP/compat-map" "$TMP/compat-remote" > "$TMP/compat.log" 2>&1 || { cat "$TMP/compat.log"; fail "verified replay compatibility mapping should pass"; }
 
 # A checksum mismatch must fail closed.
