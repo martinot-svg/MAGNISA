@@ -111,7 +111,10 @@ for version in "${ALLOWED_VERSIONS[@]}"; do
       printf '%s]::text[],current_user)\nON CONFLICT (version) DO NOTHING;\nCOMMIT;\n' "$tag"
     } > "$wrapper"
 
-    psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f "$wrapper"
+    test -s "$wrapper" || { echo "::error::Migration transaction wrapper was not generated."; exit 1; }
+    # The production backup workflow may provide psql through Docker. Feed SQL
+    # on stdin so the client can read the host-generated temporary wrapper.
+    psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 < "$wrapper"
     verified_name="$(psql "$SUPABASE_DB_URL" -X -qAt -v ON_ERROR_STOP=1 \
       -c "select coalesce(name,'') from supabase_migrations.schema_migrations where version = '$version'")"
     if [[ "$verified_name" != "$expected_name" ]]; then
