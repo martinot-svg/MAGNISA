@@ -30,8 +30,11 @@ if [[ -n "${REMOTE_LEDGER_FILE:-}" ]]; then
   cp "$REMOTE_LEDGER_FILE" "$REMOTE"
 else
   : "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required for the read-only migration ledger check}"
+  # Supabase stores the affected single-statement payloads with one leading
+  # serialization comma. Strip exactly that character before hashing; the
+  # normalized digest must match the complete local SQL file byte-for-byte.
   psql "$SUPABASE_DB_URL" -X -qAt -F '|' \
-    -c "select version::text, name, encode(digest(convert_to(array_to_string(statements,E'\\n'),'UTF8'),'sha256'),'hex') from supabase_migrations.schema_migrations order by version" > "$REMOTE"
+    -c "select version::text, name, encode(digest(convert_to(case when cardinality(statements)=1 and left(statements[1],1)=',' then substr(statements[1],2) else array_to_string(statements,E'\\\\n') end,'UTF8'),'sha256'),'hex') from supabase_migrations.schema_migrations order by version" > "$REMOTE"
 fi
 
 : > "$LOCAL"
