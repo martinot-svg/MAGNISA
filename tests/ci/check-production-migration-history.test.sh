@@ -29,9 +29,9 @@ grep -q 'Migration ledger preflight passed' "$TMP/exact.log" || fail "success me
 
 # A direct version/name match must also match the production SQL statement hash.
 mkdir -p "$TMP/direct-hash-mismatch"
-printf 'CREATE TABLE migration_fixture(id integer);\\n' > "$TMP/direct-hash-mismatch/20261101000000_exact.sql"
-wrong_sha="$(printf 'different SQL\\n' | sha256sum | awk '{print $1}')"
-printf '20261101000000|exact|%s\\n' "$wrong_sha" > "$TMP/direct-hash-mismatch-remote"
+printf 'CREATE TABLE migration_fixture(id integer);\n' > "$TMP/direct-hash-mismatch/20261101000000_exact.sql"
+wrong_sha="$(printf 'different SQL\n' | sha256sum | awk '{print $1}')"
+printf '20261101000000|exact|%s\n' "$wrong_sha" > "$TMP/direct-hash-mismatch-remote"
 if run_guard "$TMP/direct-hash-mismatch" "$TMP/empty-allow" "$TMP/map" "$TMP/direct-hash-mismatch-remote" > "$TMP/direct-hash-mismatch.log" 2>&1; then
   fail "direct migration with a different production SQL hash unexpectedly passed"
 fi
