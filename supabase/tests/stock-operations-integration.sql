@@ -718,4 +718,55 @@ BEGIN
 END;
 $internal_stock_accounting$;
 
+DO $supplier_asset_reclassification$
+DECLARE
+  v_org uuid:='e1000000-0000-4000-8000-000000000001';
+  v_supplier uuid:='e1000000-0000-4000-8000-000000000052';
+  v_invoice uuid;
+  v_asset uuid:='e1000000-0000-4000-8000-000000000131';
+  v_journal uuid;
+  v_retry uuid;
+  v_supplier_name text;
+BEGIN
+  SELECT name INTO v_supplier_name FROM public.suppliers
+  WHERE id=v_supplier AND organization_id=v_org;
+  IF v_supplier_name IS NULL THEN RAISE EXCEPTION 'Fixed-asset test supplier fixture is missing'; END IF;
+  v_invoice:=public.record_supplier_invoice_with_tax(
+    v_org,v_supplier,'CI-SUPPLIER-ASSET-001',current_date,current_date+30,
+    5000000,500000,'nonrecoverable',NULL,'CI fixed asset invoice','service_or_other','606'
+  );
+  INSERT INTO public.fixed_assets(
+    id,organization_id,asset_code,name,category,acquisition_date,in_service_date,
+    acquisition_cost,directly_attributable_cost,residual_value,useful_life_months,depreciation_method,
+    pcg_asset_account_code,pcg_acquisition_counterpart_account_code,
+    pcg_accumulated_depreciation_account_code,pcg_depreciation_expense_account_code,
+    supplier_name,invoice_reference,accumulated_depreciation,impairment_loss,net_book_value,status
+  ) VALUES(
+    v_asset,v_org,'CI-IMM-SUPPLIER-01','CI fixed asset from supplier invoice','IT equipment',
+    current_date,current_date,5500000,0,0,60,'straight_line','218','401','281','681',
+    v_supplier_name,'CI-SUPPLIER-ASSET-001',0,0,5500000,'active'
+  );
+  v_journal:=public.magnisa_reclassify_supplier_invoice_to_fixed_asset(v_org,v_invoice,v_asset);
+  v_retry:=public.magnisa_reclassify_supplier_invoice_to_fixed_asset(v_org,v_invoice,v_asset);
+  IF v_journal IS NULL OR v_retry<>v_journal
+     OR (SELECT accounting_treatment FROM public.supplier_invoices WHERE id=v_invoice)<>'fixed_asset'
+     OR (SELECT source_supplier_invoice_id FROM public.fixed_assets WHERE id=v_asset)<>v_invoice
+     OR (SELECT acquisition_journal_entry_id FROM public.fixed_assets WHERE id=v_asset)<>v_journal THEN
+    RAISE EXCEPTION 'Supplier invoice to fixed-asset reclassification is not linked or idempotent';
+  END IF;
+  IF (SELECT count(*) FROM public.pcg2005_journal_lines
+      WHERE journal_entry_id=v_journal
+        AND ((pcg_code='218' AND debit=5500000 AND credit=0)
+          OR (pcg_code='606' AND debit=0 AND credit=5500000)))<>2 THEN
+    RAISE EXCEPTION 'Nonrecoverable VAT must be capitalized and expense account 606 reclassified to asset account 218';
+  END IF;
+  IF public.magnisa_post_fixed_asset_acquisition(v_org,v_asset)<>v_journal
+     OR (SELECT count(*) FROM public.journal_entries
+       WHERE organization_id=v_org AND source_type='supplier_invoice_fixed_asset_reclass'
+         AND source_id=v_asset AND status='posted')<>1 THEN
+    RAISE EXCEPTION 'Fixed-asset acquisition retry created a duplicate supplier payable or journal';
+  END IF;
+END;
+$supplier_asset_reclassification$;
+
 ROLLBACK;
