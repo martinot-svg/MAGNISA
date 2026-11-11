@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MIGRATIONS_DIR="${MIGRATIONS_DIR:-$ROOT/supabase/migrations}"
 ALLOWLIST="${ALLOWLIST:-$MIGRATIONS_DIR/production-pending-allowlist.txt}"
 RECONCILIATION_FILE="${RECONCILIATION_FILE:-$MIGRATIONS_DIR/production-history-reconciliation.tsv}"
+REPLAY_ONLY_FILE="${REPLAY_ONLY_FILE:-$MIGRATIONS_DIR/production-local-replay-only.txt}"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -23,6 +24,7 @@ UNMAPPED="$TMP_DIR/unmapped.txt"
 DIRECT_HASH_MISMATCH="$TMP_DIR/direct-hash-mismatch.txt"
 USED_MAP="$TMP_DIR/used-map.txt"
 ALLOW="$TMP_DIR/allow.txt"
+REPLAY_ONLY="$TMP_DIR/replay-only.txt"
 
 if [[ -n "${REMOTE_LEDGER_FILE:-}" ]]; then
   cp "$REMOTE_LEDGER_FILE" "$REMOTE"
@@ -33,12 +35,33 @@ else
 fi
 
 : > "$LOCAL"
+if [[ -f "$REPLAY_ONLY_FILE" ]]; then
+  awk 'NF && $1 !~ /^#/ {print $1}' "$REPLAY_ONLY_FILE" | sort -u > "$REPLAY_ONLY"
+else
+  : > "$REPLAY_ONLY"
+fi
+awk '$1 !~ /^[0-9]{14}$/ {print "Invalid local replay-only version at line " NR ": " $0; bad=1} END {exit bad}' "$REPLAY_ONLY_FILE" 2>/dev/null || {
+  [[ -f "$REPLAY_ONLY_FILE" ]] && exit 1
+}
+if [[ -s "$REPLAY_ONLY" ]]; then
+  awk 'NF && $1 !~ /^#/ {print $1}' "$REPLAY_ONLY_FILE" | sort | uniq -d > "$TMP_DIR/duplicate-replay-only"
+  if [[ -s "$TMP_DIR/duplicate-replay-only" ]]; then
+    echo "::error::Duplicate local replay-only versions:"
+    cat "$TMP_DIR/duplicate-replay-only"
+    exit 1
+  fi
+fi
 LEGACY_COUNT=0
 for file in "$MIGRATIONS_DIR"/*.sql; do
   [[ -f "$file" ]] || continue
   filename="${file##*/}"
   if [[ "$filename" =~ ^([0-9]{14})_(.+)\.sql$ ]]; then
-    printf '%s|%s|%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "$filename" >> "$LOCAL"
+    version="${BASH_REMATCH[1]}"
+    if grep -Fxq "$version" "$REPLAY_ONLY"; then
+      printf 'Local replay-only migration excluded from production ledger: %s\n' "$filename"
+      continue
+    fi
+    printf '%s|%s|%s\n' "$version" "${BASH_REMATCH[2]}" "$filename" >> "$LOCAL"
   else
     LEGACY_COUNT=$((LEGACY_COUNT + 1))
     printf 'Historical non-versioned file excluded from direct deployment: %s\n' "$filename"
@@ -52,6 +75,13 @@ if [[ ! -s "$LOCAL" ]]; then
 fi
 
 sort -t '|' -k1,1 -o "$REMOTE" "$REMOTE"
+while IFS= read -r replay_version; do
+  [[ -n "$replay_version" ]] || continue
+  if grep -Fxq "$replay_version" <(cut -d '|' -f1 "$REMOTE"); then
+    echo "::error::Local replay-only version is already recorded in production: $replay_version"
+    exit 1
+  fi
+done < "$REPLAY_ONLY"
 awk -F '|' '(NF != 2 && NF != 3) || $1 !~ /^[0-9]{14}$/ || $2 == "" || (NF == 3 && $3 !~ /^[0-9a-f]{64}$/) {print "Invalid remote ledger row at line " NR ": " $0; bad=1} END {exit bad}' "$REMOTE"
 cut -d '|' -f1 "$LOCAL" | sort > "$LOCAL_VERSIONS"
 cut -d '|' -f1 "$REMOTE" | sort > "$REMOTE_VERSIONS"
@@ -78,6 +108,12 @@ if [[ -f "$ALLOWLIST" ]]; then
   awk 'NF && $1 !~ /^#/ {print $1}' "$ALLOWLIST" | sort -u > "$ALLOW"
 else
   : > "$ALLOW"
+fi
+comm -12 "$REPLAY_ONLY" "$ALLOW" > "$TMP_DIR/replay-only-allowlist-overlap"
+if [[ -s "$TMP_DIR/replay-only-allowlist-overlap" ]]; then
+  echo "::error::Local replay-only migrations must never appear in the production pending allowlist:"
+  cat "$TMP_DIR/replay-only-allowlist-overlap"
+  exit 1
 fi
 
 : > "$UNMAPPED"
