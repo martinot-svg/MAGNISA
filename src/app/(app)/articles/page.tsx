@@ -75,7 +75,8 @@ export default async function Articles({
                   <div className="field"><label>Prix d'achat indicatif</label><input name="default_purchase_price" type="number" min="0" step="0.01" defaultValue="0" required/></div>
                   <div className="field"><label>Prix de vente indicatif</label><input name="default_sale_price" type="number" min="0" step="0.01" defaultValue="0" required/></div>
                 </div>
-                <div className="field"><label>Taux de taxe indicatif (%)</label><input name="default_tax_rate" type="number" min="0" max="100" step="0.01" defaultValue="0" required/></div>\n                <div className="field"><label>Compte de charge pour usage interne / consommation</label><select name="internal_expense_account_code" defaultValue=""><option value="">À définir avant un achat interne</option>{(expenseAccounts as any[]).map((a:any)=><option key={a.code} value={a.code}>{a.code} · {a.label}</option>)}</select><p className="muted">Ce compte sera utilisé lors de la consommation ou de la sortie interne et doit correspondre au compte de la facture fournisseur rapprochée.</p></div>
+                <div className="field"><label>Taux de taxe indicatif (%)</label><input name="default_tax_rate" type="number" min="0" max="100" step="0.01" defaultValue="0" required/></div>
+                <div className="field"><label>Compte de charge pour usage interne / consommation</label><select name="internal_expense_account_code" defaultValue=""><option value="">À définir avant un achat interne</option>{(expenseAccounts as any[]).map((a:any)=><option key={a.code} value={a.code}>{a.code} · {a.label}</option>)}</select><p className="muted">Ce compte sera utilisé lors de la consommation ou de la sortie interne et doit correspondre au compte de la facture fournisseur rapprochée.</p></div>
                 <button className="button primary" type="submit">Créer l'article</button>
               </form>
             </FormDialog>
