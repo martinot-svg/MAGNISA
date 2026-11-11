@@ -759,7 +759,7 @@ BEGIN
 
   v_invoice:=public.record_supplier_invoice_with_tax(
     v_org,v_supplier,'CI-SUPPLIER-ASSET-001',current_date,current_date+30,
-    5000000,500000,'nonrecoverable',NULL,'CI fixed asset invoice','goods_procurement','606'
+    5000000,500000,'nonrecoverable','CI-TAX-DOC-ASSET-001','CI fixed asset invoice','goods_procurement','606'
   );
   v_matches:=public.reconcile_supplier_invoice_multi_order(v_org,v_invoice,jsonb_build_array(
     jsonb_build_object('goods_receipt_line_id',v_receipt_line,'quantity',1,'unit_price',5000000)
