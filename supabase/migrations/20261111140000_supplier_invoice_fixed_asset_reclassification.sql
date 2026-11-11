@@ -53,6 +53,8 @@ DECLARE
   v_asset_kind text;
   v_accumulated_kind text;
   v_depreciation_kind text;
+  v_match_count integer;
+  v_matched_quantity numeric;
   v_lines jsonb;
 BEGIN
   PERFORM public.assert_org_access(p_org);
@@ -85,6 +87,30 @@ BEGIN
   END IF;
   IF v_asset.acquisition_date<>v_invoice.invoice_date THEN
     RAISE EXCEPTION 'La date d’acquisition de la fiche doit correspondre à la date de facture.';
+  END IF;
+  IF v_invoice.reconciliation_scope='goods_procurement' THEN
+    SELECT count(*),COALESCE(sum(sml.quantity_invoiced),0)
+    INTO v_match_count,v_matched_quantity
+    FROM public.supplier_invoice_matches sim
+    JOIN public.supplier_invoice_match_lines sml
+      ON sml.match_id=sim.id AND sml.organization_id=sim.organization_id
+    WHERE sim.organization_id=p_org AND sim.supplier_invoice_id=p_supplier_invoice;
+    IF v_match_count<>1 OR v_matched_quantity<>1 OR EXISTS(
+      SELECT 1
+      FROM public.supplier_invoice_matches sim
+      JOIN public.supplier_invoice_match_lines sml
+        ON sml.match_id=sim.id AND sml.organization_id=sim.organization_id
+      JOIN public.goods_receipt_lines grl
+        ON grl.id=sml.goods_receipt_line_id AND grl.organization_id=sml.organization_id
+      JOIN public.purchase_order_lines pol
+        ON pol.id=grl.purchase_order_line_id AND pol.organization_id=grl.organization_id
+      JOIN public.catalog_items ci
+        ON ci.id=pol.item_id AND ci.organization_id=pol.organization_id
+      WHERE sim.organization_id=p_org AND sim.supplier_invoice_id=p_supplier_invoice
+        AND (pol.purchase_purpose<>'company_use' OR ci.item_kind<>'equipment' OR ci.tracking_mode<>'none')
+    ) THEN
+      RAISE EXCEPTION 'Une facture d’achat de biens ne peut être capitalisée ici que si elle rapproche exactement un équipement non suivi en stock, pour une unité.';
+    END IF;
   END IF;
   IF v_asset.directly_attributable_cost<>0 THEN
     RAISE EXCEPTION 'Les coûts directement attribuables doivent être justifiés et rattachés séparément avant cette reclassification.';
