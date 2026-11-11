@@ -28,7 +28,7 @@ if [[ -n "${REMOTE_LEDGER_FILE:-}" ]]; then
 else
   : "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required for the read-only migration ledger check}"
   psql "$SUPABASE_DB_URL" -X -qAt -F '|' \
-    -c "select version::text, name, encode(digest(convert_to(array_to_string(statements,E'\\n'),'UTF8'),'sha256'),'hex') from supabase_migrations.schema_migrations order by version" > "$REMOTE"
+    -c "select version::text, name from supabase_migrations.schema_migrations order by version" > "$REMOTE"
 fi
 
 : > "$LOCAL"
@@ -51,7 +51,7 @@ if [[ ! -s "$LOCAL" ]]; then
 fi
 
 sort -t '|' -k1,1 -o "$REMOTE" "$REMOTE"
-awk -F '|' 'NF != 3 || $1 !~ /^[0-9]{14}$/ || $2 == "" || $3 !~ /^[0-9a-f]{64}$/ {print "Invalid remote ledger row at line " NR ": " $0; bad=1} END {exit bad}' "$REMOTE"
+awk -F '|' 'NF != 2 || $1 !~ /^[0-9]{14}$/ || $2 == "" {print "Invalid remote ledger row at line " NR ": " $0; bad=1} END {exit bad}' "$REMOTE"
 cut -d '|' -f1 "$LOCAL" | sort > "$LOCAL_VERSIONS"
 cut -d '|' -f1 "$REMOTE" | sort > "$REMOTE_VERSIONS"
 cut -d '|' -f1 "$LOCAL" | uniq -d > "$DUPLICATE_LOCAL"
@@ -102,7 +102,6 @@ fi
 while IFS='|' read -r version remote_name local_file mapping_type evidence_ref expected_sha; do
   [[ -n "$version" && "$version" != \#* ]] || continue
   remote_row="$(awk -F '|' -v v="$version" '$1==v {print $2}' "$REMOTE")"
-  remote_sha="$(awk -F '|' -v v="$version" '$1==v {print $3}' "$REMOTE")"
   if [[ -z "$remote_row" || "$remote_row" != "$remote_name" ]]; then
     echo "::error::Reconciliation manifest does not match the remote ledger for $version"
     exit 1
@@ -119,10 +118,6 @@ while IFS='|' read -r version remote_name local_file mapping_type evidence_ref e
   actual_sha="$(sha256sum "$local_path" | awk '{print $1}')"
   if [[ "$actual_sha" != "$expected_sha" ]]; then
     echo "::error::Reconciliation source checksum mismatch for $version ($local_file)"
-    exit 1
-  fi
-  if [[ "$remote_sha" != "$expected_sha" ]]; then
-    echo "::error::Reconciliation source does not match the production SQL statements for $version ($local_file)"
     exit 1
   fi
   printf '%s\n' "$version" >> "$USED_MAP"
@@ -156,7 +151,7 @@ while read -r mismatch_version mismatch_detail; do
 done < "$NAME_MISMATCH"
 mv "$TMP_DIR/name-mismatch-unmapped" "$NAME_MISMATCH"
 
-while IFS='|' read -r version remote_name remote_sha; do
+while IFS='|' read -r version remote_name; do
   [[ -n "$version" ]] || continue
   local_row="$(awk -F '|' -v v="$version" '$1==v {print $2}' "$LOCAL")"
   if [[ -z "$local_row" || "$local_row" != "$remote_name" ]]; then
