@@ -93,7 +93,9 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npx --yes npm@11.19.1 install --no-save --package-lock=false playwright
-          npx playwright install --with-deps chromium
+          # GitHub-hosted Ubuntu runners already include Chromium system libraries.
+          # Avoid apt repository dependency here; install only the pinned browser binary.
+          npx playwright install chromium
       - name: Syntax-check encrypted backup and Storage restore scripts
         run: |
           node --check scripts/backup/export-supabase-storage.mjs
