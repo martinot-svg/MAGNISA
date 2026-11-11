@@ -10,6 +10,7 @@ esac
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MIGRATIONS_DIR="$ROOT/supabase/migrations"
 ALLOWLIST="$MIGRATIONS_DIR/production-pending-allowlist.txt"
+REPLAY_ONLY_FILE="$MIGRATIONS_DIR/production-local-replay-only.txt"
 : "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}"
 command -v psql >/dev/null
 test -f "$ALLOWLIST"
@@ -22,6 +23,15 @@ fi
 if printf '%s\n' "${ALLOWED_VERSIONS[@]}" | uniq -d | grep -q .; then
   echo "::error::Duplicate versions in production-pending-allowlist.txt"
   exit 1
+fi
+if [[ -f "$REPLAY_ONLY_FILE" ]]; then
+  while IFS= read -r replay_version; do
+    [[ -n "$replay_version" ]] || continue
+    if printf '%s\n' "${ALLOWED_VERSIONS[@]}" | grep -Fxq "$replay_version"; then
+      echo "::error::Local replay-only migration $replay_version cannot be applied to production."
+      exit 1
+    fi
+  done < <(awk 'NF && $1 !~ /^#/ {print $1}' "$REPLAY_ONLY_FILE")
 fi
 
 TMP_DIR="$(mktemp -d)"
