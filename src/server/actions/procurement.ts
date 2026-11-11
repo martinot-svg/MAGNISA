@@ -59,7 +59,7 @@ export async function createPurchaseOrder(formData: FormData) {
   for(const line of lines){
     const item:any=itemById.get(line.item_id);
     if(line.purchase_purpose==="resale" && item.tracking_mode!=="quantity") throw new Error("Un article destiné à la revente doit être suivi en quantité.");
-    if(line.purchase_purpose==="company_use" && item.item_kind==="equipment") throw new Error("Cet équipement destiné à l’usage durable doit être qualifié dans le registre des immobilisations avant tout achat. Le flux immobilisation n’est pas encore raccordé aux approvisionnements.");
+    if(["company_use","consumption"].includes(line.purchase_purpose) && item.item_kind==="equipment") throw new Error("Cet équipement destiné à l’usage durable doit être qualifié dans le registre des immobilisations avant tout achat. Le flux immobilisation n’est pas encore raccordé aux approvisionnements.");
     if(["company_use","consumption"].includes(line.purchase_purpose) && !item.internal_expense_account_code) throw new Error("Définis d’abord un compte de charge PCG sur la fiche article avant de créer cet achat interne ou consommable.");
     if(item.tracking_mode==="serial") throw new Error("Le suivi par numéro de série n'est pas encore pris en charge.");
   }
