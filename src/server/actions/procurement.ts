@@ -108,7 +108,7 @@ export async function postPurchaseReceipt(formData: FormData) {
   const reference=z.string().trim().max(160).parse(formData.get("supplier_delivery_reference")||"");
   const {data:order,error:orderError}=await ctx.supabase.from("purchase_orders").select("id,currency,status").eq("id",orderId).eq("organization_id",ctx.organizationId).maybeSingle();
   if(orderError||!order||!["submitted","partially_received"].includes(order.status)) throw new Error("Commande introuvable ou non ouverte à la réception.");
-  const {data:line,error:lineError}=await ctx.supabase.from("purchase_order_lines").select("id,item_id,purchase_purpose,quantity_ordered,quantity_received").eq("id",orderLineId).eq("purchase_order_id",orderId).eq("organization_id",ctx.organizationId).maybeSingle();
+  const {data:line,error:lineError}=await ctx.supabase.from("purchase_order_lines").select("id,item_id,purchase_purpose,quantity_ordered,quantity_received,catalog_items(tracking_mode)").eq("id",orderLineId).eq("purchase_order_id",orderId).eq("organization_id",ctx.organizationId).maybeSingle();
   if(lineError||!line) throw new Error("Ligne de commande introuvable.");
   if(Number(line.quantity_received)+quantity>Number(line.quantity_ordered)+1e-8) {
     // A previously posted request is checked below before the remaining-quantity guard.
@@ -116,7 +116,8 @@ export async function postPurchaseReceipt(formData: FormData) {
     if(already?.status==="posted") return;
     throw new Error("La quantité dépasse le reliquat à recevoir.");
   }
-  if(line.purchase_purpose!=="customer_mandate" && !locationId) throw new Error("Un emplacement est obligatoire pour une réception appartenant à l'entreprise.");
+  const itemTrackingMode=Array.isArray((line as any).catalog_items)?(line as any).catalog_items[0]?.tracking_mode:(line as any).catalog_items?.tracking_mode;
+  if(line.purchase_purpose!=="customer_mandate" && itemTrackingMode==="quantity" && !locationId) throw new Error("Un emplacement est obligatoire pour une réception suivie en quantité.");
 
   let {data:receipt,error:lookupError}=await ctx.supabase.from("goods_receipts")
     .select("id,status").eq("organization_id",ctx.organizationId).eq("request_key",requestKey).maybeSingle();
