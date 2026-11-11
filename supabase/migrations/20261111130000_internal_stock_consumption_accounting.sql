@@ -352,18 +352,22 @@ DECLARE
   v_expense_code text;
   v_purpose text;
   v_internal_code text;
+  v_item_kind text;
+  v_tracking_mode text;
 BEGIN
   SELECT supplier_invoice_id INTO v_invoice FROM public.supplier_invoice_matches
   WHERE id=NEW.match_id AND organization_id=NEW.organization_id;
   SELECT expense_account_code INTO v_expense_code FROM public.supplier_invoices
   WHERE id=v_invoice AND organization_id=NEW.organization_id;
-  SELECT pol.purchase_purpose,ci.internal_expense_account_code
-  INTO v_purpose,v_internal_code
+  SELECT pol.purchase_purpose,ci.internal_expense_account_code,ci.item_kind,ci.tracking_mode
+  INTO v_purpose,v_internal_code,v_item_kind,v_tracking_mode
   FROM public.goods_receipt_lines grl
   JOIN public.purchase_order_lines pol ON pol.id=grl.purchase_order_line_id AND pol.organization_id=grl.organization_id
   JOIN public.catalog_items ci ON ci.id=pol.item_id AND ci.organization_id=pol.organization_id
   WHERE grl.id=NEW.goods_receipt_line_id AND grl.organization_id=NEW.organization_id;
-  IF v_purpose IN ('company_use','consumption') THEN
+  IF v_purpose='company_use' AND v_item_kind='equipment' AND v_tracking_mode='none' THEN
+    RETURN NEW;
+  ELSIF v_purpose IN ('company_use','consumption') THEN
     IF v_internal_code IS NULL OR v_expense_code IS DISTINCT FROM v_internal_code THEN
       RAISE EXCEPTION 'Le compte de charge de la facture doit correspondre au compte d’usage interne défini sur chaque article rapproché.';
     END IF;
