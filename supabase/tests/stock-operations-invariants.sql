@@ -91,5 +91,30 @@ BEGIN
  OR has_function_privilege('anon','public.post_stock_transfer(uuid,uuid,uuid,jsonb,uuid,text)','EXECUTE') THEN
   RAISE EXCEPTION 'Anonymous execution of stock operation RPCs is exposed';
  END IF;
-END $$;
+ IF to_regclass('public.stock_quarantine_releases') IS NULL
+    OR to_regclass('public.stock_quarantine_release_lines') IS NULL THEN
+  RAISE EXCEPTION 'Quarantine inspection and release ledger tables are missing';
+ END IF;
+ IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid='public.stock_quarantine_releases'::regclass)
+    OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid='public.stock_quarantine_release_lines'::regclass)
+    OR has_table_privilege('anon','public.stock_quarantine_releases','SELECT')
+    OR has_table_privilege('anon','public.stock_quarantine_release_lines','SELECT') THEN
+  RAISE EXCEPTION 'Quarantine release RLS or anonymous access controls are incorrect';
+ END IF;
+ IF NOT has_function_privilege('authenticated',
+    'public.release_stock_from_quarantine(uuid,uuid,uuid,uuid,numeric,text,uuid,text)','EXECUTE')
+    OR has_function_privilege('anon',
+    'public.release_stock_from_quarantine(uuid,uuid,uuid,uuid,numeric,text,uuid,text)','EXECUTE') THEN
+  RAISE EXCEPTION 'Quarantine release RPC grants are incorrect';
+ END IF;
+ SELECT pg_get_functiondef('public.release_stock_from_quarantine(uuid,uuid,uuid,uuid,numeric,text,uuid,text)'::regprocedure)
+ INTO v_def;
+ IF position('pg_advisory_xact_lock' in v_def)=0
+    OR position('stock_bucket=''quarantine''' in v_def)=0
+    OR position('quarantine_reclassification' in v_def)=0
+    OR position('destination_bucket' in v_def)=0
+    OR position('request_key' in v_def)=0 THEN
+  RAISE EXCEPTION 'Quarantine release lacks locking, provenance, reclassification or idempotency controls';
+ END IF;
+END $;
 ROLLBACK;
