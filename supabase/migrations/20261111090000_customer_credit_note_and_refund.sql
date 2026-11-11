@@ -29,10 +29,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS credit_notes_request_key_uidx
 -- do not yet have detailed lines.
 UPDATE public.invoices i
 SET credited_amount=LEAST(i.total,COALESCE((
-  SELECT sum(cn.total) FROM public.credit_notes cn
-  WHERE cn.organization_id=i.organization_id AND cn.invoice_id=i.id
-    AND cn.status IN ('issued','applied')
-),0))
+      SELECT sum(cn.total) FROM public.credit_notes cn
+      WHERE cn.organization_id=i.organization_id AND cn.invoice_id=i.id
+        AND cn.status IN ('issued','applied')
+    ),0)),
+    balance_due=GREATEST(0,i.total-i.paid_amount-LEAST(i.total,COALESCE((
+      SELECT sum(cn.total) FROM public.credit_notes cn
+      WHERE cn.organization_id=i.organization_id AND cn.invoice_id=i.id
+        AND cn.status IN ('issued','applied')
+    ),0))),
+    status=CASE
+      WHEN GREATEST(0,i.total-i.paid_amount-LEAST(i.total,COALESCE((
+        SELECT sum(cn.total) FROM public.credit_notes cn
+        WHERE cn.organization_id=i.organization_id AND cn.invoice_id=i.id
+          AND cn.status IN ('issued','applied')
+      ),0)))=0 THEN 'paid'
+      WHEN i.due_date IS NOT NULL AND i.due_date<current_date THEN 'overdue'
+      WHEN i.paid_amount>0 THEN 'partially_paid' ELSE 'issued' END,
+    updated_at=now()
 WHERE i.credited_amount=0
   AND EXISTS (SELECT 1 FROM public.credit_notes cn
     WHERE cn.organization_id=i.organization_id AND cn.invoice_id=i.id
