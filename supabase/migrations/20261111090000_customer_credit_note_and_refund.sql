@@ -312,6 +312,9 @@ BEGIN
   END LOOP;
 
   IF v_seen=0 OR v_note_total<=0 THEN RAISE EXCEPTION 'L''avoir doit comporter un montant positif.'; END IF;
+  IF v_note_total>v_invoice.total-v_invoice.credited_amount+0.01 THEN
+    RAISE EXCEPTION 'Le cumul des avoirs dépasserait le montant TTC de la facture.';
+  END IF;
   v_applied:=LEAST(v_note_total,GREATEST(0,v_invoice.balance_due));
   v_refundable:=v_note_total-v_applied;
 
