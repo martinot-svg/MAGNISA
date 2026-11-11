@@ -15,7 +15,7 @@ const itemSchema = z.object({
   default_purchase_price: z.coerce.number().finite().nonnegative(),
   default_sale_price: z.coerce.number().finite().nonnegative(),
   default_tax_rate: z.coerce.number().finite().min(0).max(100),
-  internal_expense_account_code: z.preprocess(v=>v===""||v==null?undefined:v,z.string().trim().regex(/^6\\d{0,4}$/).optional()),
+  internal_expense_account_code: z.preprocess(v=>v===""||v==null?undefined:v,z.string().trim().regex(/^6[0-9]{0,4}$/).optional()),
 });
 
 const activeSchema = z.object({
@@ -49,7 +49,7 @@ export async function createCatalogItem(formData: FormData) {
 export async function setCatalogItemInternalExpenseAccountAction(formData:FormData) {
   const ctx=await requireOrganization();
   await assertPermission(ctx,"inventory.manage");
-  const parsed=z.object({id:z.string().uuid(),internal_expense_account_code:z.string().trim().regex(/^6\\d{0,4}$/)}).safeParse(Object.fromEntries(formData));
+  const parsed=z.object({id:z.string().uuid(),internal_expense_account_code:z.string().trim().regex(/^6[0-9]{0,4}$/)}).safeParse(Object.fromEntries(formData));
   if(!parsed.success) throw new Error("Compte de charge interne invalide.");
   const {data:account,error:accountError}=await ctx.supabase.from("pcg2005_accounts").select("code,kind").eq("code",parsed.data.internal_expense_account_code).maybeSingle();
   if(accountError||account?.kind!=="expense") throw new Error("Le compte sélectionné n'est pas une charge PCG.");
