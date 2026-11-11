@@ -432,8 +432,8 @@ BEGIN
 
   IF p_method='cash' AND v_account.type<>'cash' THEN
     RAISE EXCEPTION 'Un remboursement en espèces doit utiliser un compte Caisse.';
-  ELSIF p_method='cheque' AND v_account.type<>'cheque_clearing' THEN
-    RAISE EXCEPTION 'Un remboursement par chèque doit utiliser un compte de chèques à payer.';
+  ELSIF p_method='cheque' AND v_account.type<>'bank' THEN
+    RAISE EXCEPTION 'Un chèque émis doit être rattaché au compte bancaire payeur.';
   ELSIF p_method='mobile_money' AND v_account.type<>'mobile_money' THEN
     RAISE EXCEPTION 'Le remboursement mobile money exige un compte mobile money.';
   ELSIF p_method IN ('bank_transfer','card') AND v_account.type<>'bank' THEN
