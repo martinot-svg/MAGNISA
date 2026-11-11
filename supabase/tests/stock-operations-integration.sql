@@ -580,6 +580,16 @@ BEGIN
  IF (SELECT COUNT(*) FROM public.accounting_event_outbox WHERE organization_id=v_org AND event_type IN ('stock_return','stock_supplier_return','stock_adjustment_in','stock_adjustment_out'))<6 THEN
   RAISE EXCEPTION 'Return and adjustment accounting events were not durably recorded';
  END IF;
+ IF EXISTS(
+   SELECT 1 FROM public.accounting_event_outbox e
+   LEFT JOIN public.journal_entries je
+     ON je.organization_id=e.organization_id AND je.source_type='stock_movement' AND je.source_id=e.source_id
+   WHERE e.organization_id=v_org
+     AND e.event_type IN ('stock_return','stock_supplier_return','stock_adjustment_in','stock_adjustment_out')
+     AND (e.status<>'posted' OR je.id IS NULL OR e.journal_entry_id IS DISTINCT FROM je.id)
+ ) THEN
+  RAISE EXCEPTION 'Every customer return, supplier return and stock adjustment must have exactly one posted journal';
+ END IF;
 
  -- Tenant isolation: authenticated user has no membership in the other organization.
  SELECT count(*) INTO v_count FROM public.stock_movements WHERE organization_id='e2000000-0000-4000-8000-000000000001';
