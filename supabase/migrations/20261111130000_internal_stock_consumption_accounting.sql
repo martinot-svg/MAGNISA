@@ -40,18 +40,22 @@ CREATE OR REPLACE FUNCTION private.validate_purchase_order_internal_account()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
 SET search_path=pg_catalog,public
 AS $function$
-DECLARE v_kind text;v_account text;
+DECLARE v_kind text;v_account text;v_tracking_mode text;
 BEGIN
   IF NEW.purchase_purpose IN ('company_use','consumption') THEN
-    SELECT internal_expense_account_code,item_kind INTO v_account,v_kind
+    SELECT internal_expense_account_code,item_kind,tracking_mode
+      INTO v_account,v_kind,v_tracking_mode
     FROM public.catalog_items WHERE id=NEW.item_id AND organization_id=NEW.organization_id;
+    IF v_kind='equipment' THEN
+      IF NEW.purchase_purpose='company_use' AND v_tracking_mode='none' AND v_account IS NULL THEN
+        RETURN NEW;
+      END IF;
+      RAISE EXCEPTION 'Un équipement durable doit être suivi hors stock consommable et enregistré dans le registre des immobilisations.';
+    END IF;
     IF v_account IS NULL OR NOT EXISTS(
       SELECT 1 FROM public.pcg2005_accounts WHERE code=v_account AND kind='expense'
     ) THEN
       RAISE EXCEPTION 'Un compte de charge PCG doit être défini sur l’article avant un achat interne ou consommable.';
-    END IF;
-    IF v_kind='equipment' THEN
-      RAISE EXCEPTION 'Un équipement durable doit être traité comme immobilisation, pas comme fourniture de stock interne.';
     END IF;
   END IF;
   RETURN NEW;
