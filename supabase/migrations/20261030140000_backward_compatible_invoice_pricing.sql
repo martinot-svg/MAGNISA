@@ -1,5 +1,3 @@
--- Keep the invoice draft RPC compatible with older clients that do not send unit_price.
--- New clients send an override; legacy clients continue using the active catalogue price.
 create or replace function public.create_invoice_draft(p_org uuid,p_customer uuid,p_due_date date,p_lines jsonb,p_order uuid default null)
 returns uuid language plpgsql security definer set search_path=public as $function$
 declare v_invoice uuid;v_number text;r jsonb;s public.services%rowtype;q numeric;d numeric;unit_price numeric;gross numeric;disc numeric;taxable numeric;tax numeric;total numeric;v_sub numeric:=0;v_disc numeric:=0;v_tax numeric:=0;v_total numeric:=0;v_sort integer:=1;
