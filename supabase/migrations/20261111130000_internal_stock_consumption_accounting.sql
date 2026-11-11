@@ -29,6 +29,33 @@ BEFORE INSERT OR UPDATE OF internal_expense_account_code,item_kind
 ON public.catalog_items
 FOR EACH ROW EXECUTE FUNCTION private.validate_catalog_internal_expense_account();
 
+CREATE OR REPLACE FUNCTION private.validate_purchase_order_internal_account()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=pg_catalog,public
+AS $function$
+DECLARE v_kind text;v_account text;
+BEGIN
+  IF NEW.purchase_purpose IN ('company_use','consumption') THEN
+    SELECT internal_expense_account_code,item_kind INTO v_account,v_kind
+    FROM public.catalog_items WHERE id=NEW.item_id AND organization_id=NEW.organization_id;
+    IF v_account IS NULL OR NOT EXISTS(
+      SELECT 1 FROM public.pcg2005_accounts WHERE code=v_account AND kind='expense'
+    ) THEN
+      RAISE EXCEPTION 'Un compte de charge PCG doit être défini sur l’article avant un achat interne ou consommable.';
+    END IF;
+    IF v_kind='equipment' THEN
+      RAISE EXCEPTION 'Un équipement durable doit être traité comme immobilisation, pas comme fourniture de stock interne.';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+DROP TRIGGER IF EXISTS purchase_order_lines_validate_internal_account ON public.purchase_order_lines;
+CREATE TRIGGER purchase_order_lines_validate_internal_account
+BEFORE INSERT OR UPDATE OF purchase_purpose,item_id
+ON public.purchase_order_lines
+FOR EACH ROW EXECUTE FUNCTION private.validate_purchase_order_internal_account();
+
 CREATE TABLE public.stock_internal_issues (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT,
