@@ -34,7 +34,11 @@ export async function createCatalogItem(formData: FormData) {
   await assertPermission(ctx, "inventory.manage");
   const parsed = itemSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Vérifie les informations de l'article.");
-  if (parsed.data.internal_expense_account_code) {\n    const {data:account,error:accountError}=await ctx.supabase.from("pcg2005_accounts").select("code,kind").eq("code",parsed.data.internal_expense_account_code).maybeSingle();\n    if(accountError||account?.kind!=="expense") throw new Error("Le compte interne doit être un compte de charge PCG valide.");\n  }\n  const { error } = await ctx.supabase.from("catalog_items").insert({
+  if (parsed.data.internal_expense_account_code) {
+    const {data:account,error:accountError}=await ctx.supabase.from("pcg2005_accounts").select("code,kind").eq("code",parsed.data.internal_expense_account_code).maybeSingle();
+    if(accountError||account?.kind!=="expense") throw new Error("Le compte interne doit être un compte de charge PCG valide.");
+  }
+  const { error } = await ctx.supabase.from("catalog_items").insert({
     organization_id: ctx.organizationId,
     ...parsed.data,
     description: parsed.data.description || null,
