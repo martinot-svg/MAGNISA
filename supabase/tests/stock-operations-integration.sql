@@ -316,6 +316,7 @@ DECLARE
  v_delivery jsonb;
  v_invoice_d uuid;v_invoice_line_d uuid;v_credit_note uuid;v_return_line uuid;
  v_payment uuid;v_refund uuid;v_refund_retry uuid;v_credit_request uuid;v_refund_request uuid;v_invoice_total numeric;
+ v_quarantine_release uuid;v_quarantine_release_retry uuid;v_quarantine_request uuid;
 BEGIN
  IF auth.uid() IS NULL OR NOT public.is_org_member(v_org) THEN RAISE EXCEPTION 'Authenticated tenant fixture is not active'; END IF;
  v_line_a:=public.add_catalog_item_to_order(v_org,v_order_a,v_item,5,100,20,0);
@@ -522,6 +523,17 @@ BEGIN
  IF (SELECT quantity_on_hand FROM public.stock_available WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='quarantine')<>0.5
  OR (SELECT quantity_available FROM public.stock_available WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='quarantine')<>0 THEN
   RAISE EXCEPTION 'Damaged customer returns must be physically tracked but unavailable for sale';
+ END IF;
+ v_quarantine_request:=gen_random_uuid();
+ v_quarantine_release:=public.release_stock_from_quarantine(v_org,v_item,v_loc_a,v_loc_b,0.25,
+  'resale',v_quarantine_request,'CI inspection passed: release half of quarantined quantity');
+ v_quarantine_release_retry:=public.release_stock_from_quarantine(v_org,v_item,v_loc_a,v_loc_b,0.25,
+  'resale',v_quarantine_request,'CI inspection passed: release half of quarantined quantity');
+ IF v_quarantine_release_retry<>v_quarantine_release
+    OR (SELECT quantity_on_hand FROM public.stock_available WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_a AND stock_bucket='quarantine')<>0.25
+    OR (SELECT quantity_on_hand FROM public.stock_available WHERE organization_id=v_org AND item_id=v_item AND stock_location_id=v_loc_b AND stock_bucket='resale')<>0.25
+    OR (SELECT count(*) FROM public.stock_quarantine_release_lines WHERE release_id=v_quarantine_release)<>1 THEN
+  RAISE EXCEPTION 'Quarantine release did not preserve stock, provenance or idempotency';
  END IF;
  BEGIN
   PERFORM public.post_customer_stock_return(v_org,(SELECT id FROM public.sales_delivery_lines WHERE delivery_id=v_del_d LIMIT 1),v_loc_a,0.1,'resalable','e1000000-0000-4000-8000-000000000069','CI over return');
