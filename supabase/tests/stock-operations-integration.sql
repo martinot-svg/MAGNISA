@@ -463,7 +463,7 @@ BEGIN
  v_res_d:=public.reserve_stock(v_org,v_order_d,v_line_d,v_item,v_loc_a,1,'e1000000-0000-4000-8000-000000000065');
  v_delivery:=jsonb_build_array(jsonb_build_object('order_line_id',v_line_d,'item_id',v_item,'stock_location_id',v_loc_a,'quantity',1,'reservation_id',v_res_d));
  v_del_d:=public.post_sales_delivery(v_org,v_order_d,v_delivery,'e1000000-0000-4000-8000-000000000066','CI-DL-D');
- v_invoice_d:=public.create_invoice_draft(v_org,:'customer_id'::uuid,current_date+30,
+ v_invoice_d:=public.create_invoice_draft(v_org,'e1000000-0000-4000-8000-000000000037'::uuid,current_date+30,
   jsonb_build_array(jsonb_build_object('line_kind','merchandise','item_id',v_item,'order_line_id',v_line_d,
     'quantity',1,'discount_pct',0,'unit_price',100)),v_order_d);
  SELECT id INTO v_invoice_line_d FROM public.invoice_lines
