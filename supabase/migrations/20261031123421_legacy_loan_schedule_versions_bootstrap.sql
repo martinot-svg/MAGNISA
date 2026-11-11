@@ -1,6 +1,6 @@
 -- Local replay-only restoration of a pre-existing production schema object.
 -- The production migration ledger has no create-table migration for this object,
--- but later recorded migrations depend on it. This non-14-digit version sorts
+-- but later recorded migrations depend on it. This local-only version sorts
 -- after the loan foundation and is excluded from production deployment.
 begin;
 
