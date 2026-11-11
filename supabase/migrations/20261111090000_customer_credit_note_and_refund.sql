@@ -28,11 +28,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS credit_notes_request_key_uidx
 -- invoice-level credited balance. These historical notes remain visible even if they
 -- do not yet have detailed lines.
 UPDATE public.invoices i
-SET credited_amount=COALESCE((
+SET credited_amount=LEAST(i.total,COALESCE((
   SELECT sum(cn.total) FROM public.credit_notes cn
   WHERE cn.organization_id=i.organization_id AND cn.invoice_id=i.id
     AND cn.status IN ('issued','applied')
-),0)
+),0))
 WHERE i.credited_amount=0
   AND EXISTS (SELECT 1 FROM public.credit_notes cn
     WHERE cn.organization_id=i.organization_id AND cn.invoice_id=i.id
@@ -274,6 +274,8 @@ BEGIN
       IF v_qty>v_return.quantity-v_credited_return_qty+0.00000001 THEN
         RAISE EXCEPTION 'La quantité créditée dépasse la quantité retournée et contrôlée.';
       END IF;
+    ELSIF nullif(v_input->>'stock_return_line_id','') IS NOT NULL THEN
+      RAISE EXCEPTION 'Une prestation ne peut pas référencer une ligne de retour de marchandise.';
     END IF;
 
     INSERT INTO public.credit_note_lines(
@@ -367,6 +369,7 @@ DECLARE
   v_journal uuid;
   v_lines jsonb;
   v_refunded numeric(18,2);
+  v_amount numeric(18,2);
 BEGIN
   IF auth.uid() IS NULL OR NOT public.is_org_member(p_org) THEN
     RAISE EXCEPTION 'Accès refusé.';
@@ -392,6 +395,9 @@ BEGIN
     RETURN v_existing.id;
   END IF;
 
+  v_amount:=round(p_amount,2);
+  IF v_amount<=0 THEN RAISE EXCEPTION 'Le montant du remboursement est inférieur au centime.'; END IF;
+
   SELECT * INTO v_note FROM public.credit_notes
   WHERE id=p_credit_note_id AND organization_id=p_org AND status IN ('issued','applied')
   FOR UPDATE;
@@ -403,11 +409,21 @@ BEGIN
   SELECT COALESCE(sum(amount),0) INTO v_refunded
   FROM public.credit_note_refunds
   WHERE organization_id=p_org AND credit_note_id=v_note.id;
-  IF p_amount>v_note.refundable_amount-v_refunded+0.00000001 THEN
+  IF v_amount>v_note.refundable_amount-v_refunded+0.00000001 THEN
     RAISE EXCEPTION 'Le remboursement dépasse le montant restant dû au client.';
   END IF;
-  IF v_account.balance<p_amount THEN
+  IF v_account.balance<v_amount THEN
     RAISE EXCEPTION 'Solde du compte financier insuffisant pour ce remboursement.';
+  END IF;
+
+  IF p_method='cash' AND v_account.type<>'cash' THEN
+    RAISE EXCEPTION 'Un remboursement en espèces doit utiliser un compte Caisse.';
+  ELSIF p_method='cheque' AND v_account.type<>'cheque_clearing' THEN
+    RAISE EXCEPTION 'Un remboursement par chèque doit utiliser un compte de chèques à payer.';
+  ELSIF p_method='mobile_money' AND v_account.type<>'mobile_money' THEN
+    RAISE EXCEPTION 'Le remboursement mobile money exige un compte mobile money.';
+  ELSIF p_method IN ('bank_transfer','card') AND v_account.type<>'bank' THEN
+    RAISE EXCEPTION 'Ce mode de remboursement exige un compte bancaire.';
   END IF;
 
   v_refund:=gen_random_uuid();
@@ -419,29 +435,29 @@ BEGIN
     p_method,trim(p_reference),p_request_key,auth.uid()
   );
 
-  UPDATE public.financial_accounts SET balance=balance-round(p_amount,2),updated_at=now()
+  UPDATE public.financial_accounts SET balance=balance-v_amount,updated_at=now()
   WHERE id=v_account.id AND organization_id=p_org;
   INSERT INTO public.financial_transactions(
     organization_id,financial_account_id,transaction_date,amount,kind,source_type,
     source_id,reference,description
   ) VALUES (
-    p_org,v_account.id,p_refund_date,round(p_amount,2),'customer_refund',
+    p_org,v_account.id,p_refund_date,v_amount,'customer_refund',
     'credit_note_refund',v_refund,trim(p_reference),'Remboursement avoir client '||v_note.number
   );
 
   v_lines:=jsonb_build_array(
     jsonb_build_object('pcg_code',public.magnisa_resolve_pcg_account(p_org,'customer_credit_note','recognition','customer_receivable','debit'),
-      'debit',round(p_amount,2),'credit',0),
+      'debit',v_amount,'credit',0),
     jsonb_build_object('account_kind','treasury','financial_account_id',v_account.id,
-      'account_label',v_account.name,'debit',0,'credit',round(p_amount,2))
+      'account_label',v_account.name,'debit',0,'credit',v_amount)
   );
   v_journal:=public.magnisa_post_journal(
     p_org,p_refund_date,trim(p_reference),'Remboursement avoir client '||v_note.number,
     'credit_note_refund',v_refund,v_lines
   );
   UPDATE public.credit_note_refunds SET journal_entry_id=v_journal WHERE id=v_refund;
-  UPDATE public.credit_notes SET refunded_amount=refunded_amount+round(p_amount,2),
-    status=CASE WHEN refunded_amount+round(p_amount,2)>=refundable_amount THEN 'applied' ELSE 'issued' END
+  UPDATE public.credit_notes SET refunded_amount=refunded_amount+v_amount,
+    status=CASE WHEN refunded_amount+v_amount>=refundable_amount THEN 'applied' ELSE 'issued' END
   WHERE id=v_note.id AND organization_id=p_org;
 
   PERFORM public.audit_event(p_org,'credit_note.refunded','credit_note_refund',v_refund,NULL,
