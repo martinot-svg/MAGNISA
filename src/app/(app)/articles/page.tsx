@@ -40,6 +40,7 @@ export default async function Articles({
     supabase.from("stock_on_hand").select("item_id,stock_location_id,quantity_on_hand")
       .eq("organization_id", organizationId),
     supabase.from("organizations").select("currency").eq("id", organizationId).single(),
+    supabase.from("pcg2005_accounts").select("code,label").eq("kind","expense").order("code"),
   ]);
 
   const currency = org?.currency || "MGA";
