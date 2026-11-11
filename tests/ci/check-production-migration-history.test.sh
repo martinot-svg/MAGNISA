@@ -98,7 +98,7 @@ grep -q 'Local versions not recorded remotely: 0' "$TMP/mapped-source.log" || fa
 mkdir -p "$TMP/replay-only"
 : > "$TMP/replay-only/20261101000000_local_bootstrap.sql"
 : > "$TMP/replay-only/20261102000000_remote_head.sql"
-printf '20261101000000\n' > "$TMP/replay-only-versions"
+printf '# local replay-only versions\n20261101000000\n' > "$TMP/replay-only-versions"
 : > "$TMP/empty-allow"
 printf '20261102000000|remote_head\n' > "$TMP/replay-only-remote"
 run_guard "$TMP/replay-only" "$TMP/empty-allow" "$TMP/empty-map-manifest" "$TMP/replay-only-remote" "$TMP/replay-only-versions" > "$TMP/replay-only.log" || { cat "$TMP/replay-only.log"; fail "local replay-only migration should be excluded from production reconciliation"; }
