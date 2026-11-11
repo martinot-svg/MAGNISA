@@ -121,6 +121,14 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='supplier_invoice_matches_invoice_order_uidx') THEN
     RAISE EXCEPTION 'Supplier invoice matching must support multiple purchase orders';
   END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid='public.supplier_invoice_matches'::regclass
+      AND contype='u'
+      AND pg_get_constraintdef(oid)='UNIQUE (organization_id, supplier_invoice_id)'
+  ) THEN
+    RAISE EXCEPTION 'Legacy invoice-only uniqueness still prevents matching one invoice to multiple orders';
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code='467')
      OR NOT EXISTS (SELECT 1 FROM public.pcg2005_accounts WHERE code='4456') THEN
     RAISE EXCEPTION 'Customer mandate clearing or recoverable supplier VAT PCG accounts are missing';
