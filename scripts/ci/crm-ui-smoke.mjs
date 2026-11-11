@@ -93,10 +93,14 @@ try {
   await page.getByRole("button", { name: "Enregistrer l'intervention" }).click();
 
   const intervention = await waitForRow(async () => admin.from("prospect_interventions")
-    .select("id,stage_status,validation_status").eq("organization_id", membership.organization_id)
+    .select("id,stage_status,validation_status,contributor_user_id,created_by").eq("organization_id", membership.organization_id)
     .eq("prospect_id", prospect.id).eq("description", contributionDescription).maybeSingle());
   assert(intervention.validation_status === "pending", "A newly declared contribution must remain pending.");
-  assert(await page.getByRole("button", { name: "Valider" }).count() >= 1,
+  const reviewButtonCount = await page.getByRole("button", { name: "Valider" }).count();
+  console.log("CRM REVIEW DEBUG", JSON.stringify({ userId, collaboratorId, intervention, reviewButtonCount,
+    rowVisible: await page.locator("tr").filter({ hasText: contributionDescription }).count(),
+    bodyTail: (await page.locator("body").innerText()).slice(-1800) }));
+  assert(reviewButtonCount >= 1,
     "An independent owner must be offered validation for another contributor.");
   const pendingRow = page.locator("tr").filter({ hasText: contributionDescription });
   const validationForm = pendingRow.locator("form").filter({ has: page.getByRole("button", { name: "Valider" }) });
