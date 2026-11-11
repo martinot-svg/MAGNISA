@@ -90,7 +90,7 @@ export default async function FixedAssets() {
     {canManage === true && <>
     <section className="card section">
       <h2>Enregistrer une immobilisation</h2>
-      <p className="muted">Cette opération crée la fiche du registre. Elle ne comptabilise pas l'acquisition et ne génère pas encore de dotation automatique.</p>
+      <p className="muted">Cette opération crée la fiche du registre. Si une facture fournisseur existe déjà, renseigne exactement le fournisseur et son numéro : tu pourras ensuite la rattacher dans la colonne Acquisition. Le système reclassera alors la charge vers le compte d’immobilisation sans recréer la dette fournisseur.</p>
       <form action={createFixedAsset} className="form">
         <div className="grid3">
           <div className="field"><label>Code immobilisation</label><input name="asset_code" required maxLength={40} placeholder="IMO-00001"/></div>
