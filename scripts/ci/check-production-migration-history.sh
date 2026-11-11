@@ -176,7 +176,7 @@ while read -r mismatch_version mismatch_detail; do
 done < "$NAME_MISMATCH"
 mv "$TMP_DIR/name-mismatch-unmapped" "$NAME_MISMATCH"
 
-while IFS='|' read -r version remote_name; do
+while IFS='|' read -r version remote_name remote_sha; do
   [[ -n "$version" ]] || continue
   local_row="$(awk -F '|' -v v="$version" '$1==v {print $2}' "$LOCAL")"
   if [[ -z "$local_row" || "$local_row" != "$remote_name" ]]; then
