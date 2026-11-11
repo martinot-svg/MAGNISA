@@ -146,6 +146,21 @@ export async function releaseStockFromQuarantineAction(formData:FormData){
  if(error)throw new Error("Libération de quarantaine refusée : "+error.message);
  revalidatePath("/mouvements-stock");revalidatePath("/articles");
 }
+export async function postInternalStockIssueAction(formData:FormData){
+ const ctx=await requireOrganization();await assertPermission(ctx,"inventory.manage");
+ const parsed=z.object({item_id:z.string().uuid(),stock_location_id:z.string().uuid(),
+  stock_bucket:z.enum(["company_use","consumption"]),quantity:z.coerce.number().finite().positive(),
+  request_key:z.string().uuid(),reason:z.string().trim().min(3).max(500)}).parse({
+  item_id:formData.get("item_id"),stock_location_id:formData.get("stock_location_id"),
+  stock_bucket:formData.get("stock_bucket"),quantity:formData.get("quantity"),
+  request_key:formData.get("request_key"),reason:formData.get("reason")});
+ const {error}=await ctx.supabase.rpc("post_internal_stock_issue",{p_org:ctx.organizationId,
+  p_item_id:parsed.item_id,p_location_id:parsed.stock_location_id,p_stock_bucket:parsed.stock_bucket,
+  p_quantity:parsed.quantity,p_reason:parsed.reason,p_request_key:parsed.request_key});
+ if(error)throw new Error("Sortie interne non comptabilisée : "+error.message);
+ revalidatePath("/mouvements-stock");revalidatePath("/articles");revalidatePath("/comptabilite/journaux");
+}
+
 export async function postStockAdjustmentAction(formData:FormData){
  const ctx=await requireOrganization();await assertPermission(ctx,"inventory.manage");
  const parsed=z.object({item_id:z.string().uuid(),stock_location_id:z.string().uuid(),stock_bucket:z.enum(["resale","company_use","consumption","quarantine"]),
