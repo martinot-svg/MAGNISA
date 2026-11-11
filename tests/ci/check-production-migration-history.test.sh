@@ -12,6 +12,7 @@ run_guard() {
   ALLOWLIST="$2" \
   RECONCILIATION_FILE="$3" \
   REMOTE_LEDGER_FILE="$4" \
+  REPLAY_ONLY_FILE="${5:-$1/production-local-replay-only.txt}" \
     bash "$GUARD"
 }
 
