@@ -1,103 +1,97 @@
 # MAGNISA — Universal commercial and operational model
 
-## Architectural rule
+## Architecture
 
 Commercial documents, operational execution and accounting events are separate layers.
 
-- Commercial: quote, contract, order, invoice, credit note and customer relationship.
-- Operational: procurement, receipt, reservation, delivery, service execution, consumption, subcontracting, return and warranty.
-- Accounting: dated economic events, evidence, tax treatment, versioned PCG posting rules, journal entries and settlements.
+- **Commercial:** quotes, contracts, orders, invoices, credit notes and customer relationships.
+- **Operational:** procurement, receipts, reservations, deliveries, transfers, consumption, subcontracting, returns, quarantine and warranty.
+- **Accounting:** dated economic events, supporting evidence, tax treatment, versioned PCG posting rules, journal entries and settlements.
 
-A commercial label alone must never select a PCG account.
+A commercial label alone never selects a PCG account. Posting is determined by the underlying economic event, supporting documents, organization-specific configuration and the versioned accounting engine.
 
-## Reuse found in the current application
+## Operation and ownership classification
 
-The application already has organization-scoped customers, suppliers, services, quotes, orders, invoices, payments, supplier invoices, recurring service contracts, expenses, financial transactions, journal entries, versioned accounting posting rules and organization feature flags.
+The operation registry distinguishes service delivery, merchandise resale, third-party mandates, customer-supplied goods, mixed supply, procurement, inventory, subcontracting, rental, recurring contracts, advances, guarantees, returns, reimbursable expenses, foreign currency and internal transfers.
 
-Commercial document lines currently reference the service catalogue. The production schema has no general product/item catalogue or operational stock movement ledger. The inventory_counts and inventory_count_lines tables are year-end physical count and valuation records, not a day-to-day stock subledger.
+The classification is not a chart of accounts. One order or invoice can contain lines with different operational and accounting treatment.
 
-Therefore, the existing quote/order/invoice flow is reusable for services, but does not yet prove that merchandise sales, mixed product/service documents, purchase-order receipt and perpetual stock are operationally supported.
+Key controls:
 
-## Operation families
+- Merchandise resale requires evidence that the organization acts as principal and owns goods acquired for resale.
+- A customer mandate requires a documented mandate, supplier evidence in the customer's name, no substantive goods risk borne by the organization and exact-cost reconciliation.
+- Customer-owned goods do not become company inventory.
+- Customer advances, refundable deposits, guarantees, third-party reimbursements and service fees remain distinct events.
+- Physical receipts and stock movements do not automatically create supplier expense or inventory journals. Supplier invoices and the configured inventory method determine accounting recognition.
 
-The domain registry covers service delivery, merchandise trade, third-party mandates, customer-supplied goods, mixed supply, procurement, inventory, subcontracting, rental, recurring contracts, customer and supplier advances, guarantees, returns/after-sales, reimbursable expenses, foreign currency and internal transfers.
+## Procurement and supplier accounting
 
-These are operational classifications, not a chart of accounts. A single operation may contain multiple lines with different treatments.
+The organization-scoped catalogue, supplier purchase orders and goods-receipt workflow support partial receipts and immutable receipt traceability.
 
-## Accounting classification guardrails
+- Purchase purposes distinguish resale, customer mandate, company use and consumption.
+- Goods receipts validate organization access, purchase-order state, remaining quantities and over-receipt.
+- Customer-mandate receipts are excluded from company-owned stock.
+- Supplier invoices can be matched to receipts and purchase-order lines, with quantity and value variance controls and explicit variance reasons.
+- One supplier invoice can reconcile against several purchase orders. HT, VAT and TTC amounts are retained for the matching and settlement process.
+- Customer-mandate settlement reconciles the named customer, supplier document, exact supplier cost and related payment flows.
+- The catalogue supports a configurable PCG expense account by item. Fixed-asset reclassification remains explicit and evidence-based; an ordinary supplier invoice is not automatically treated as an asset acquisition.
 
-- Merchandise resale requires evidence that the company acts as principal and owns the goods for resale.
-- A third-party purchase is treated as clearing only when a real mandate is evidenced, the supplier document is in the customer's name, the company does not bear substantive goods risk, and the exact amount is reconcilable.
-- If the supplier document is issued in the company's name or the company bears the goods risk, the operation must be reviewed rather than automatically netted as a mandate.
-- Customer-supplied goods are not company inventory when ownership remains with the customer.
-- A customer advance, refundable deposit, guarantee, exact third-party reimbursement and service fee are distinct events.
-- The accounting posting engine and organization-specific, versioned PCG rules remain the only place that selects debit and credit accounts.
+## Stock subledger
 
-## Procurement and stock foundation in this branch
+The stock ledger is append-only. Corrections use compensating movements rather than editing or deleting historical movements.
 
-The forward-only migration `20261110180000_universal_commercial_stock_cycle.sql` introduces the additive procurement and stock foundation:
+- Reservations and deliveries are separate from invoices. Reservations are serialized with transaction-scoped advisory locks and checked against both available stock and undelivered order quantities.
+- Partial and full deliveries create stock movements and fulfil the related reservations atomically.
+- Transfers create paired outgoing and incoming movements and cannot consume reserved stock.
+- Stock quantities are separated into resale, company-use, consumption and quarantine buckets. Customer-mandate receipts do not increase company-owned stock.
+- Moving weighted-average cost (CUMP) is calculated by item, location and purpose bucket. This implementation does not claim FIFO valuation.
+- Internal issues for company use or consumption use the expense account configured on the catalogue item and create accounting events.
+- Quarantine disposition is controlled. A release records inspection/reclassification evidence and transfers quantity to resale, company use or consumption without rewriting the original movement.
+- Customer and supplier returns are linked to the originating delivery or receipt, enforce quantity limits, create compensating stock movements and post the corresponding accounting events.
+- Stock adjustments and delivery/transfer cancellations are represented by traceable compensating movements.
+- Historical stock balances can be reconstructed as of a timestamp from the movement ledger.
 
-- catalog_items: organization-scoped SKU catalogue, item kind, base unit, tracking mode and default commercial prices.
-- stock_locations: organization-scoped stores, warehouses and transit locations.
-- purchase_orders and purchase_order_lines: supplier orders with explicit purchase purpose and beneficiary.
-- goods_receipts and goods_receipt_lines: partial deliveries against a submitted purchase order.
-- stock_movements: append-only quantity ledger with unique event keys.
-- stock_on_hand: tenant-protected quantity view derived from stock movements.
+## Customer credits, refunds and mixed invoices
 
-Purchase purposes are deliberately limited to physical goods:
-- resale: goods acquired and owned by the company for resale; a tracked receipt increases company stock.
-- customer_mandate: goods procured for a named customer; receipt is recorded but never increases company-owned stock.
-- company_use / consumption: goods for the company's own use; quantity tracking follows the item configuration.
+Customer credit notes and full or partial refunds are controlled against the source invoice and outstanding refundable balance. The workflow is idempotent and posts accounting entries through the accounting engine.
 
-Subcontracted services remain in the existing supplier/expense workflow and are not mixed into physical goods purchase orders.
+The commercial model supports service and merchandise lines with source-order traceability and price/tax snapshots. Merchandise invoicing is limited to eligible delivered, not-yet-invoiced quantities. A stock return, by itself, is not a credit note or a cash refund: the credit and settlement steps remain separate accounting events.
 
-A customer-mandate receipt is blocked unless the purchase line records a confirmed mandate, supplier document in the customer's name, no company-borne goods risk, exact-cost support and a supplier-document reference. The company must still reconcile the customer funds, supplier payment and exact supplier cost before closing the mandate.
+## Accounting and security
 
-The post_goods_receipt workflow is atomic and retry-safe. It checks organization membership, purchase-order state, partial quantities and over-receipt; creates an immutable stock movement only for stock-tracked company goods; and updates received quantities and order status. Direct insert/update/delete access to the stock ledger is restricted. Corrections must be represented by compensating movements.
+- Stock accounting events use a durable outbox and idempotent processing. Physical operations are not silently discarded because an accounting period or mapping is unavailable; unresolved posting events remain visible for correction and retry.
+- PCG postings use the existing versioned accounting posting rules and journal engine. No generic commercial category is allowed to choose accounts by itself.
+- Organization isolation, authenticated RPC checks, RLS, restricted anonymous grants, idempotency keys and immutable movement traceability apply to the new workflows.
+- Treasury, supplier payments, journals and stock valuation retain separate reconciliation controls.
 
-The receipt workflow intentionally does not create a journal. The supplier invoice and versioned PCG posting engine remain responsible for accounting recognition. A purchase order or physical receipt must not be mistaken for a supplier invoice, expense or inventory journal without the organization's configured inventory method and tax evidence.
+## Database migration history
 
-The catalogue and stock overview are available at /articles behind the optional inventory feature. Item creation and stock-location management use inventory.manage; read access uses inventory.view. This page displays quantities only and does not claim inventory valuation.
+The production Supabase ledger was inspected read-only and contained **197 migration records**, with head `20261110100000`.
 
-## Operational stock subledger increment
+- All 197 production versions have exact local version/name counterparts.
+- The local SQL files for those versions were reconstructed from the production migration ledger, preserving the production SQL statements.
+- The migration preflight compares version, name and SQL statement SHA-256 when connected to the production ledger. It rejects unverified history, duplicate versions, out-of-order migrations and unreviewed pending files.
+- Eleven new forward migrations follow the production head and are the only versions in `production-pending-allowlist.txt`.
+- One local-only compatibility bootstrap, `20261031123421`, is listed in `production-local-replay-only.txt`. It is included in clean replay only and is rejected by the production migration path.
+- Previously reconstructed development SQL is retained outside the top-level migration directory as non-executable archive evidence.
 
-The same consolidated migration extends the existing ledger rather than introducing a second stock system. Its internal SQL sections preserve the development order of procurement, reservations, delivery, transfers, valuation, mixed invoicing and returns:
+## Verification status
 
-- `stock_reservations` records customer-order reservations separately from physical movements. `stock_available` reports physical quantity, active reserved quantity and available quantity. Reservation RPCs serialize competing reservations using a transaction-scoped advisory lock and prevent reserving more than either available stock or the undelivered order-line balance.
-- `sales_deliveries` and `sales_delivery_lines` record partial or full dispatches. The delivery RPC validates order-line identity, quantity remaining, location and optional reservation; then atomically records the negative stock movement and fulfils the reservation. Delivery does not issue an invoice.
-- `stock_transfers` and `stock_transfer_lines` record inter-location transfers. Each transfer produces paired immutable `transfer_out` and `transfer_in` movements in the same transaction. Transfers cannot consume reserved stock.
-- All operation RPCs use organization membership and the existing permission checks, are idempotent by request key and reject reuse of a key with a different payload.
-- The customer-order page now supports adding a tracked catalogue item to an existing confirmed order, reserving it, and recording partial deliveries. The `/mouvements-stock` screen displays stock availability, active reservations, movements and transfers, and exposes the transfer workflow.
-- Stock movements now carry a purpose bucket: `resale`, `company_use` or `consumption`. Goods receipt classifies the movement from the purchase-order line's destination; customer mandates still create no company movement. Sales reservations and deliveries can consume only the resale bucket, preventing company-use equipment or consumables from being sold as merchandise.
-- `stock_on_hand_by_bucket` and `stock_available` expose physical, reserved and available quantities separately by purpose, item and location. The existing aggregate `stock_on_hand` view remains available for compatibility.
-- Moving weighted-average cost (CUMP) is calculated per item, location and purpose bucket. Delivery and transfer costs are derived from the persistent movement history; operators no longer enter a delivery/transfer cost manually.
-- PCG 2005 accounts 603 and 707 are present in the account catalogue. Versioned `accounting_posting_rules` define the resale-stock receipt and issue mappings. Resale receipts and sales issues create durable accounting outbox events. When an open accounting period and valid mappings are available, the event is posted through `magnisa_post_journal`; otherwise it remains pending with the error and can be retried from `/mouvements-stock`. Physical movement is not rolled back merely because the accounting period is not open.
-- The order item-line RPC classifies sold catalogue goods as merchandise, preserves the price/tax snapshot and refuses additions after invoice or delivery activity has begun.
+The current branch head is `14dadaf302535dba921d90058963ffcd14deb33c`.
 
-This increment implements CUMP, not FIFO. Company-use and consumption buckets are separated but their expense/asset accounting rules are not yet complete. Supplier returns, customer returns/credit notes, delivery cancellation/reversal, historical as-of reconstruction and the complete mixed merchandise/service invoice workflow remain release blockers. Do not infer completion of the whole purchase-to-cash cycle from the availability and delivery screens.
+- **MAGNISA CI run 2618: success.** Migration-script syntax, migration-history guard fixtures, dependency audit, production build, Vitest and inspection of all 33 PDF files passed.
+- **Supabase migration replay run 1194: success.** All migrations replayed from a clean PostgreSQL 17 database.
+- **Database invariants: success.** Supplier invoice matching, VAT, multi-order matching, mandate settlement, RPC grants, stock reservations, deliveries, transfers, anonymous-access restrictions, payroll, fiscal-year controls, fixed assets, PCG 581 and collaborative CRM checks passed.
+- **Authenticated integration tests: success.** Stock and tenant-isolation workflows, two-session concurrent reservation, fixed-asset accounting and RLS, CRM commission splits and payroll payment lifecycle passed.
+- **Authenticated browser smoke tests: success.** Payroll/fixed-asset actions, CRM actions, and stock reservation/delivery actions passed.
 
-## Remaining release blockers
+## Remaining release gates
 
-- Serial-number capture and a dedicated fixed-asset acquisition workflow linked to the fixed-asset register.
-- Supplier invoice matching, supplier payments, mandate settlement and supplier credit-note reconciliation.
-- Quote creation and quote-to-order conversion with mixed service and merchandise lines; the current item-add workflow attaches merchandise to an already-confirmed order.
-- Customer credit-note issuance and refund settlement linked to returned quantities and original invoice lines.
-- End-to-end browser tests for the new procurement, stock, delivery, return and mixed-invoice screens. The current authenticated SQL integration suite validates database workflows, not the complete browser journey.
-- A genuinely concurrent two-session reservation test; current SQL tests verify oversubscription prevention sequentially and the RPC serializes competing requests with advisory locks.
-- Full accounting treatment for company-use and consumption buckets, damaged-stock impairment and quarantine disposition.
-- FIFO as an alternative method; the current implementation uses moving weighted average (CUMP).
-- The seven development migrations have been consolidated, in their original SQL order, into one forward-only migration at `20261110180000`, after the production ledger head `20261110100000`. This prevents the original out-of-order version `20261110092048` from being replayed after later production migrations. The chronological guard now rejects any missing local migration older than the remote ledger head. A schema-level rehearsal against a restorable production-history clone and verified backup/restore evidence are still required before any production action. No production migration has been applied.
+The feature implementation and current automated verification are green. That does not itself authorize production deployment.
 
-The invoice workflow supports service and merchandise lines sourced from an order, and merchandise invoicing is limited to delivered, not-yet-invoiced quantities. Returns currently create persistent stock return records and compensating stock movements; they do not yet issue a credit note or execute a customer refund. Do not treat a stock return as a credit note or refund.
+1. Rehearse a restorable, isolated production snapshot and verify backup restoration before a production release.
+2. Run a dedicated end-to-end browser journey across procurement, supplier receipt, supplier invoice matching, quote/order, mixed invoicing, payment, returns, credit notes and refunds. The current browser suite is authenticated smoke coverage, not yet one continuous purchase-to-cash journey.
+3. Review the final production dry-run and backup artifact for the exact release commit. Production apply is a separate, explicit approval step.
+4. Merge the pull request only after the release gates and required review are accepted.
 
-## Implementation phases
-
-1. Domain classification and evidence rules.
-2. Item catalogue, supplier purchase lines, stock locations and immutable stock movements (this branch).
-3. Mixed commercial document lines linked to either a service or an item, preserving historical price and tax snapshots.
-4. Operation/event ledger with unique idempotency keys and source traceability.
-5. Atomic RPC workflows for stock issues, deliveries, returns, customer advances, mandates and journal posting.
-6. Procurement UI activation by organization feature and inventory permissions (first multi-line order and partial-receipt screen delivered in this increment).
-7. Integration tests for complete workflows, reversals, tenant isolation and financial statement impact.
-
-No production data or schema is changed by this branch. The forward-only migration remains pending clean-database replay and isolated production-history compatibility rehearsal.
+No production migration, production data, Vercel deployment or pull-request merge was performed as part of this verification.
