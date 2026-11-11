@@ -143,7 +143,8 @@ INSERT INTO public.accounting_posting_rules(
  ('customer_credit_note','recognition','service_revenue','706',NULL,100,current_date),
  ('customer_credit_note','recognition','merchandise_revenue','707',NULL,100,current_date),
  ('customer_credit_note','recognition','tax_payable','4457',NULL,100,current_date),
- ('customer_credit_note','recognition','customer_receivable',NULL,'411',100,current_date)
+ ('customer_credit_note','recognition','customer_receivable',NULL,'411',100,current_date),
+ ('customer_credit_note','recognition','customer_refund_receivable','411',NULL,100,current_date)
 ON CONFLICT DO NOTHING;
 
 CREATE OR REPLACE FUNCTION public.issue_customer_credit_note(
@@ -464,7 +465,7 @@ BEGIN
   );
 
   v_lines:=jsonb_build_array(
-    jsonb_build_object('pcg_code',public.magnisa_resolve_pcg_account(p_org,'customer_credit_note','recognition','customer_receivable','debit'),
+    jsonb_build_object('pcg_code',public.magnisa_resolve_pcg_account(p_org,'customer_credit_note','recognition','customer_refund_receivable','debit'),
       'debit',v_amount,'credit',0),
     jsonb_build_object('account_kind','treasury','financial_account_id',v_account.id,
       'account_label',v_account.name,'debit',0,'credit',v_amount)
