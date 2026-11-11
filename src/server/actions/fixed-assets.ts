@@ -346,6 +346,19 @@ export async function approveFixedAssetIfrsAdjustment(formData: FormData) {
 }
 
 
+export async function reclassifySupplierInvoiceToFixedAssetAction(formData:FormData) {
+  const ctx=await requireOrganization();
+  await assertPermission(ctx,"accounting.manage");
+  const parsed=z.object({asset_id:z.string().uuid(),supplier_invoice_id:z.string().uuid()}).safeParse(Object.fromEntries(formData));
+  if(!parsed.success) throw new Error("Facture fournisseur ou immobilisation invalide.");
+  const {data,error}=await ctx.supabase.rpc("magnisa_reclassify_supplier_invoice_to_fixed_asset",{
+    p_org:ctx.organizationId,p_supplier_invoice:parsed.data.supplier_invoice_id,p_asset:parsed.data.asset_id,
+  });
+  if(error) throw new Error("Reclassement de la facture en immobilisation impossible : "+error.message);
+  for(const path of ["/immobilisations","/fournisseurs","/comptabilite","/comptabilite/journaux"]) revalidatePath(path);
+  return data;
+}
+
 export async function postFixedAssetAcquisition(formData: FormData) {
   const ctx = await requireOrganization();
   await assertPermission(ctx, "accounting.manage");
