@@ -71,7 +71,7 @@ jobs:
           cat > "$HOME/.local/bin/psql" <<'PSQL_WRAPPER'
           #!/usr/bin/env bash
           set -euo pipefail
-          exec docker run --rm --network host \
+          exec docker run --rm -i --network host \
             -e PGSSLMODE="${PGSSLMODE:-require}" \
             postgres:17 psql "$@"
           PSQL_WRAPPER
