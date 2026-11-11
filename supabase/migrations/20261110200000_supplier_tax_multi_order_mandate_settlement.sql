@@ -28,8 +28,21 @@ BEGIN
 END
 $tax_check$;
 
-ALTER TABLE public.supplier_invoice_matches
-  DROP CONSTRAINT IF EXISTS supplier_invoice_matches_organization_id_supplier_invoice_id_key;
+DO $multi_order_unique$
+DECLARE v_constraint record;
+BEGIN
+  -- PostgreSQL truncates generated constraint names to 63 bytes. Identify the
+  -- original invoice-only uniqueness by its definition, not its generated name.
+  FOR v_constraint IN
+    SELECT conname FROM pg_constraint
+    WHERE conrelid='public.supplier_invoice_matches'::regclass
+      AND contype='u'
+      AND pg_get_constraintdef(oid)='UNIQUE (organization_id, supplier_invoice_id)'
+  LOOP
+    EXECUTE format('ALTER TABLE public.supplier_invoice_matches DROP CONSTRAINT %I',v_constraint.conname);
+  END LOOP;
+END
+$multi_order_unique$;
 CREATE UNIQUE INDEX IF NOT EXISTS supplier_invoice_matches_invoice_order_uidx
   ON public.supplier_invoice_matches(organization_id,supplier_invoice_id,purchase_order_id);
 
