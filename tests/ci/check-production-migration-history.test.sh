@@ -53,6 +53,16 @@ printf '20261101000000|remote_name\n' > "$TMP/renamed-remote"
 : > "$TMP/empty-allow"
 run_guard "$TMP/renamed" "$TMP/empty-allow" "$TMP/renamed-map" "$TMP/renamed-remote" > "$TMP/renamed.log" 2>&1 || { cat "$TMP/renamed.log"; fail "checksum-verified rename fixture should pass"; }
 
+# An explicit recovered source may preserve the production SQL while a local
+# replay-only compatibility wrapper guards an absent historical prerequisite.
+mkdir -p "$TMP/compat"
+printf 'local replay compatibility\\n' > "$TMP/compat/20261101000000_local_name.sql"
+printf 'CREATE TABLE migration_fixture(id integer);\\n' > "$TMP/compat/archive_original.sql"
+compat_sha="$(sha256sum "$TMP/compat/archive_original.sql" | awk '{print $1}')"
+printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\\n20261101000000|remote_name|archive_original.sql|recovered|archived production SQL|%s\\n' "$compat_sha" > "$TMP/compat-map"
+printf '20261101000000|remote_name|%s\\n' "$compat_sha" > "$TMP/compat-remote"
+run_guard "$TMP/compat" "$TMP/empty-allow" "$TMP/compat-map" "$TMP/compat-remote" > "$TMP/compat.log" 2>&1 || { cat "$TMP/compat.log"; fail "verified replay compatibility mapping should pass"; }
+
 # A checksum mismatch must fail closed.
 sed 's/[0-9a-f]\{64\}$/0000000000000000000000000000000000000000000000000000000000000000/' "$TMP/renamed-map" > "$TMP/bad-map"
 if run_guard "$TMP/renamed" "$TMP/empty-allow" "$TMP/bad-map" "$TMP/renamed-remote" > "$TMP/checksum.log" 2>&1; then
