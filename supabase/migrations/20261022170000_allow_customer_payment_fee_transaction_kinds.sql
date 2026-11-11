@@ -1,5 +1,3 @@
--- Allow the transaction kinds emitted by centralized customer-payment fee accounting.
--- Keep the constraint explicit; do not disable validation for other transaction kinds.
 ALTER TABLE public.financial_transactions
   DROP CONSTRAINT IF EXISTS financial_transactions_kind_check;
 
