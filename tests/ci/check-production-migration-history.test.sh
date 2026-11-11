@@ -27,6 +27,16 @@ printf '20261101000000|exact\n' > "$TMP/remote"
 run_guard "$TMP/exact" "$TMP/allow" "$TMP/map" "$TMP/remote" > "$TMP/exact.log" || fail "exact-match fixture should pass"
 grep -q 'Migration ledger preflight passed' "$TMP/exact.log" || fail "success message missing"
 
+# A direct version/name match must also match the production SQL statement hash.
+mkdir -p "$TMP/direct-hash-mismatch"
+printf 'CREATE TABLE migration_fixture(id integer);\\n' > "$TMP/direct-hash-mismatch/20261101000000_exact.sql"
+wrong_sha="$(printf 'different SQL\\n' | sha256sum | awk '{print $1}')"
+printf '# remote_version|remote_name|remote_sql_sha256\\n20261101000000|exact|%s\\n' "$wrong_sha" > "$TMP/direct-hash-mismatch-remote"
+if run_guard "$TMP/direct-hash-mismatch" "$TMP/empty-allow" "$TMP/map" "$TMP/direct-hash-mismatch-remote" > "$TMP/direct-hash-mismatch.log" 2>&1; then
+  fail "direct migration with a different production SQL hash unexpectedly passed"
+fi
+grep -q 'Local SQL checksum differs from production' "$TMP/direct-hash-mismatch.log" || fail "direct SQL hash mismatch reason missing"
+
 # A remote-only version must fail closed without a provenance mapping.
 printf '20261001000000|historic_remote\n20261101000000|exact\n' > "$TMP/remote-missing"
 if run_guard "$TMP/exact" "$TMP/allow" "$TMP/map" "$TMP/remote-missing" > "$TMP/missing.log" 2>&1; then
