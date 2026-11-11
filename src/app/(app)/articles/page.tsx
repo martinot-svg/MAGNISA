@@ -31,7 +31,7 @@ export default async function Articles({
   const canManage = await hasPermission(ctx, "inventory.manage");
   const { supabase, organizationId } = ctx;
 
-  const [{ data: items = [] }, { data: locations = [] }, { data: balances = [] }, { data: org }] = await Promise.all([
+  const [{ data: items = [] }, { data: locations = [] }, { data: balances = [] }, { data: org }, {data:expenseAccounts=[]}] = await Promise.all([
     supabase.from("catalog_items").select("*").eq("organization_id", organizationId)
       .eq("is_active", !archived).order("name"),
     supabase.from("stock_locations").select("id,code,name,location_kind,is_active")
@@ -75,7 +75,7 @@ export default async function Articles({
                   <div className="field"><label>Prix d'achat indicatif</label><input name="default_purchase_price" type="number" min="0" step="0.01" defaultValue="0" required/></div>
                   <div className="field"><label>Prix de vente indicatif</label><input name="default_sale_price" type="number" min="0" step="0.01" defaultValue="0" required/></div>
                 </div>
-                <div className="field"><label>Taux de taxe indicatif (%)</label><input name="default_tax_rate" type="number" min="0" max="100" step="0.01" defaultValue="0" required/></div>
+                <div className="field"><label>Taux de taxe indicatif (%)</label><input name="default_tax_rate" type="number" min="0" max="100" step="0.01" defaultValue="0" required/></div>\n                <div className="field"><label>Compte de charge pour usage interne / consommation</label><select name="internal_expense_account_code" defaultValue=""><option value="">À définir avant un achat interne</option>{(expenseAccounts as any[]).map((a:any)=><option key={a.code} value={a.code}>{a.code} · {a.label}</option>)}</select><p className="muted">Ce compte sera utilisé lors de la consommation ou de la sortie interne et doit correspondre au compte de la facture fournisseur rapprochée.</p></div>
                 <button className="button primary" type="submit">Créer l'article</button>
               </form>
             </FormDialog>
@@ -99,7 +99,7 @@ export default async function Articles({
           <EmptyState title={archived ? "Aucun article archivé" : "Aucun article"} description="Les articles physiques seront enregistrés ici, indépendamment du catalogue des prestations."/>
         ) : (
           <div className="tableWrap"><table>
-            <thead><tr><th>Référence</th><th>Article</th><th>Nature</th><th>Suivi</th><th className="right">Stock total</th><th className="right">Prix d'achat indicatif</th><th className="right">Prix de vente indicatif</th>{canManage && <th>Action</th>}</tr></thead>
+            <thead><tr><th>Référence</th><th>Article</th><th>Nature</th><th>Suivi</th><th className="right">Stock total</th><th className="right">Prix d'achat indicatif</th><th className="right">Prix de vente indicatif</th><th>Compte charge interne</th>{canManage && <th>Action</th>}</tr></thead>
             <tbody>{items.map((item:any) => (
               <tr key={item.id}>
                 <td><code>{item.sku}</code></td>
@@ -108,7 +108,7 @@ export default async function Articles({
                 <td>{item.tracking_mode === "quantity" ? "Quantité" : item.tracking_mode === "serial" ? "Série (à activer)" : "Non suivi"}</td>
                 <td className="right">{item.tracking_mode === "quantity" ? (stockByItem.get(item.id) || 0).toLocaleString("fr-FR") : "—"} {item.base_unit}</td>
                 <td className="right">{money(Number(item.default_purchase_price),currency)}</td>
-                <td className="right">{money(Number(item.default_sale_price),currency)}</td>
+                <td className="right">{money(Number(item.default_sale_price),currency)}</td><td>{item.internal_expense_account_code||"Non défini"}{canManage&&<form action={setCatalogItemInternalExpenseAccountAction} className="actions"><input type="hidden" name="id" value={item.id}/><select name="internal_expense_account_code" defaultValue={item.internal_expense_account_code||""} required><option value="" disabled>Choisir</option>{(expenseAccounts as any[]).map((a:any)=><option key={a.code} value={a.code}>{a.code}</option>)}</select><button className="button small">Enregistrer</button></form>}</td>
                 {canManage && <td><form action={setCatalogItemActive}><input type="hidden" name="id" value={item.id}/><input type="hidden" name="is_active" value={archived ? "true" : "false"}/><button className="button small" type="submit">{archived ? "Réactiver" : "Archiver"}</button></form></td>}
               </tr>
             ))}</tbody>
