@@ -1,0 +1,1 @@
+create unique index if not exists journal_one_payroll_payment_per_source on public.journal_entries(organization_id,source_id) where source_type='payroll_payment' and source_id is not null;

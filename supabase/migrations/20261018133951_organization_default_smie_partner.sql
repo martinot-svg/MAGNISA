@@ -1,0 +1,1 @@
+alter table public.organizations add column if not exists smie_partner_name text; alter table public.organizations add constraint organization_smie_partner_name_limit check (length(coalesce(smie_partner_name,''))<=160);

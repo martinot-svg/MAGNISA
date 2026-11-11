@@ -1,5 +1,5 @@
--- Keep organization members visible to authorized collaborators even when
--- a profile synchronization row is temporarily absent.
+-- Keep active organization members visible to the collaboration directory even
+-- when a profile synchronization row is temporarily absent.
 create or replace function public.list_collaboration_members(p_org uuid)
 returns table(user_id uuid, role text, department text, status text, email text)
 language plpgsql

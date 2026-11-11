@@ -30,10 +30,20 @@ jobs:
         run: supabase start -x studio,edge-runtime,logflare,vector,analytics
       - name: Replay every migration from a clean database
         run: supabase db reset --yes
+      - name: Verify supplier invoice matching, VAT, multi-order and customer mandate accounting
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/supplier-invoice-matching-invariants.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/procurement-ledger-invariants.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/customer-credit-notes.sql
       - name: Verify public RPC execution grants
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/default-rpc-execution.sql
+      - name: Verify stock reservation, delivery and transfer invariants
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/stock-operations-invariants.sql
       - name: Verify anonymous table and sequence privileges
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
@@ -107,6 +117,13 @@ jobs:
       - name: Seed isolated payroll test organization
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/payroll-ui-seed.sql
+      - name: Exercise authenticated stock reservation, delivery, transfer and tenant isolation
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/stock-operations-integration.sql
+      - name: Seed isolated stock data for concurrent reservation test
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/stock-reservation-concurrency-seed.sql
+      - name: Exercise two concurrent authenticated PostgreSQL reservations
+        run: node scripts/ci/stock-reservation-concurrency.mjs
       - name: Exercise fixed-asset accounting workflows with authenticated user
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/fixed-assets-integration.sql
@@ -134,6 +151,9 @@ jobs:
       - name: Test authenticated CRM UI actions
         if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
         run: node scripts/ci/crm-ui-smoke.mjs
+      - name: Test authenticated stock reservation and delivery UI actions
+        if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
+        run: node scripts/ci/stock-ui-smoke.mjs
       - name: Stop MAGNISA local server
         if: always()
         run: |

@@ -1,0 +1,1 @@
+create unique index if not exists payroll_rule_unique_org_name_start on public.payroll_rule_sets (organization_id, lower(btrim(name)), effective_from);

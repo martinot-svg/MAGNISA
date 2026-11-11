@@ -26,7 +26,7 @@ async function saveCompany(fd:FormData){"use server";const ctx=await requireOrga
 
 async function saveFeatures(fd:FormData){"use server";const {supabase,organizationId,user,role}=await requireOrganization();assertAdmin(role);
   const required=new Set(FEATURE_CATALOG.filter(x=>x.required||x.key==="settings").map(x=>x.key));
-  const dependencies:Record<string,string[]>={orders:["quotes","clients"],invoices:["clients","services"],payments:["invoices","treasury"],smart_analysis:["dashboard"],financial_statements:["accounting"],payroll:["tax_social"],suppliers:["expenses"]};
+  const dependencies:Record<string,string[]>={orders:["quotes","clients"],invoices:["clients","services"],payments:["invoices","treasury"],smart_analysis:["dashboard"],financial_statements:["accounting"],payroll:["tax_social"],suppliers:["expenses"],customer_mandates:["suppliers","procurement","treasury","accounting"]};
   const enabled=new Set<string>();for(const f of FEATURE_CATALOG){if(required.has(f.key)||fd.get(`feature_${f.key}`)==="on")enabled.add(f.key)}
   let changed=true;while(changed){changed=false;for(const k of [...enabled])for(const dep of dependencies[k]||[])if(!enabled.has(dep)){enabled.add(dep);changed=true}}
   const now=new Date().toISOString();

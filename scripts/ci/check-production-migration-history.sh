@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MIGRATIONS_DIR="${MIGRATIONS_DIR:-$ROOT/supabase/migrations}"
 ALLOWLIST="${ALLOWLIST:-$MIGRATIONS_DIR/production-pending-allowlist.txt}"
 RECONCILIATION_FILE="${RECONCILIATION_FILE:-$MIGRATIONS_DIR/production-history-reconciliation.tsv}"
+REPLAY_ONLY_FILE="${REPLAY_ONLY_FILE:-$MIGRATIONS_DIR/production-local-replay-only.txt}"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -18,25 +19,49 @@ NAME_MISMATCH="$TMP_DIR/name-mismatch.txt"
 DUPLICATE_LOCAL="$TMP_DIR/duplicate-local.txt"
 DUPLICATE_REMOTE="$TMP_DIR/duplicate-remote.txt"
 UNEXPECTED="$TMP_DIR/unexpected.txt"
+OUT_OF_ORDER="$TMP_DIR/out-of-order.txt"
 UNMAPPED="$TMP_DIR/unmapped.txt"
+DIRECT_HASH_MISMATCH="$TMP_DIR/direct-hash-mismatch.txt"
 USED_MAP="$TMP_DIR/used-map.txt"
 ALLOW="$TMP_DIR/allow.txt"
+REPLAY_ONLY="$TMP_DIR/replay-only.txt"
 
 if [[ -n "${REMOTE_LEDGER_FILE:-}" ]]; then
   cp "$REMOTE_LEDGER_FILE" "$REMOTE"
 else
   : "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required for the read-only migration ledger check}"
   psql "$SUPABASE_DB_URL" -X -qAt -F '|' \
-    -c "select version::text, name from supabase_migrations.schema_migrations order by version" > "$REMOTE"
+    -c "select version::text, name, encode(digest(convert_to(array_to_string(statements,E'\\n'),'UTF8'),'sha256'),'hex') from supabase_migrations.schema_migrations order by version" > "$REMOTE"
 fi
 
 : > "$LOCAL"
+if [[ -f "$REPLAY_ONLY_FILE" ]]; then
+  awk 'NF && $1 !~ /^#/ {print $1}' "$REPLAY_ONLY_FILE" | sort -u > "$REPLAY_ONLY"
+else
+  : > "$REPLAY_ONLY"
+fi
+awk '$0 ~ /^[[:space:]]*#/ || $0 ~ /^[[:space:]]*$/ {next} $1 !~ /^[0-9]{14}$/ {print "Invalid local replay-only version at line " NR ": " $0; bad=1} END {exit bad}' "$REPLAY_ONLY_FILE" 2>/dev/null || {
+  [[ -f "$REPLAY_ONLY_FILE" ]] && exit 1
+}
+if [[ -s "$REPLAY_ONLY" ]]; then
+  awk 'NF && $1 !~ /^#/ {print $1}' "$REPLAY_ONLY_FILE" | sort | uniq -d > "$TMP_DIR/duplicate-replay-only"
+  if [[ -s "$TMP_DIR/duplicate-replay-only" ]]; then
+    echo "::error::Duplicate local replay-only versions:"
+    cat "$TMP_DIR/duplicate-replay-only"
+    exit 1
+  fi
+fi
 LEGACY_COUNT=0
 for file in "$MIGRATIONS_DIR"/*.sql; do
   [[ -f "$file" ]] || continue
   filename="${file##*/}"
   if [[ "$filename" =~ ^([0-9]{14})_(.+)\.sql$ ]]; then
-    printf '%s|%s|%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "$filename" >> "$LOCAL"
+    version="${BASH_REMATCH[1]}"
+    if grep -Fxq "$version" "$REPLAY_ONLY"; then
+      printf 'Local replay-only migration excluded from production ledger: %s\n' "$filename"
+      continue
+    fi
+    printf '%s|%s|%s\n' "$version" "${BASH_REMATCH[2]}" "$filename" >> "$LOCAL"
   else
     LEGACY_COUNT=$((LEGACY_COUNT + 1))
     printf 'Historical non-versioned file excluded from direct deployment: %s\n' "$filename"
@@ -50,7 +75,14 @@ if [[ ! -s "$LOCAL" ]]; then
 fi
 
 sort -t '|' -k1,1 -o "$REMOTE" "$REMOTE"
-awk -F '|' 'NF != 2 || $1 !~ /^[0-9]{14}$/ || $2 == "" {print "Invalid remote ledger row at line " NR ": " $0; bad=1} END {exit bad}' "$REMOTE"
+while IFS= read -r replay_version; do
+  [[ -n "$replay_version" ]] || continue
+  if grep -Fxq "$replay_version" <(cut -d '|' -f1 "$REMOTE"); then
+    echo "::error::Local replay-only version is already recorded in production: $replay_version"
+    exit 1
+  fi
+done < "$REPLAY_ONLY"
+awk -F '|' '(NF != 2 && NF != 3) || $1 !~ /^[0-9]{14}$/ || $2 == "" || (NF == 3 && $3 !~ /^[0-9a-f]{64}$/) {print "Invalid remote ledger row at line " NR ": " $0; bad=1} END {exit bad}' "$REMOTE"
 cut -d '|' -f1 "$LOCAL" | sort > "$LOCAL_VERSIONS"
 cut -d '|' -f1 "$REMOTE" | sort > "$REMOTE_VERSIONS"
 cut -d '|' -f1 "$LOCAL" | uniq -d > "$DUPLICATE_LOCAL"
@@ -77,6 +109,12 @@ if [[ -f "$ALLOWLIST" ]]; then
 else
   : > "$ALLOW"
 fi
+comm -12 "$REPLAY_ONLY" "$ALLOW" > "$TMP_DIR/replay-only-allowlist-overlap"
+if [[ -s "$TMP_DIR/replay-only-allowlist-overlap" ]]; then
+  echo "::error::Local replay-only migrations must never appear in the production pending allowlist:"
+  cat "$TMP_DIR/replay-only-allowlist-overlap"
+  exit 1
+fi
 
 : > "$UNMAPPED"
 : > "$USED_MAP"
@@ -101,6 +139,7 @@ fi
 while IFS='|' read -r version remote_name local_file mapping_type evidence_ref expected_sha; do
   [[ -n "$version" && "$version" != \#* ]] || continue
   remote_row="$(awk -F '|' -v v="$version" '$1==v {print $2}' "$REMOTE")"
+  remote_sha="$(awk -F '|' -v v="$version" '$1==v {print $3}' "$REMOTE")"
   if [[ -z "$remote_row" || "$remote_row" != "$remote_name" ]]; then
     echo "::error::Reconciliation manifest does not match the remote ledger for $version"
     exit 1
@@ -119,8 +158,32 @@ while IFS='|' read -r version remote_name local_file mapping_type evidence_ref e
     echo "::error::Reconciliation source checksum mismatch for $version ($local_file)"
     exit 1
   fi
+  if [[ -n "$remote_sha" && "$remote_sha" != "$expected_sha" ]]; then
+    echo "::error::Reconciliation source does not match production SQL statements for $version ($local_file)"
+    exit 1
+  fi
   printf '%s\n' "$version" >> "$USED_MAP"
 done < "$RECONCILIATION_FILE"
+
+# When the remote ledger exposes its stored SQL statements, verify every direct
+# version/name match byte-for-byte. Two-column fixtures remain supported.
+: > "$DIRECT_HASH_MISMATCH"
+while IFS='|' read -r version local_name local_file; do
+  grep -Fxq "$version" "$USED_MAP" && continue
+  remote_name="$(awk -F '|' -v v="$version" '$1==v {print $2}' "$REMOTE")"
+  [[ "$remote_name" == "$local_name" ]] || continue
+  remote_sha="$(awk -F '|' -v v="$version" '$1==v {print $3}' "$REMOTE")"
+  [[ -n "$remote_sha" ]] || continue
+  local_sha="$(sha256sum "$MIGRATIONS_DIR/$local_file" | awk '{print $1}')"
+  if [[ "$local_sha" != "$remote_sha" ]]; then
+    printf '%s local=%s remote_sha=%s local_sha=%s\n' "$version" "$local_file" "$remote_sha" "$local_sha" >> "$DIRECT_HASH_MISMATCH"
+  fi
+done < "$LOCAL"
+if [[ -s "$DIRECT_HASH_MISMATCH" ]]; then
+  echo "::error::Local SQL checksum differs from production for exact version/name matches:"
+  cat "$DIRECT_HASH_MISMATCH"
+  exit 1
+fi
 
 # A checksum-verified reconciliation source is already represented by a remote
 # migration. Do not let db push re-run that local file under its different version.
@@ -132,9 +195,14 @@ done < "$RECONCILIATION_FILE"
 awk -F '|' 'FILENAME==ARGV[1] {mapped[$1]=1; next} !($3 in mapped) {print $1}' \
   "$TMP_DIR/mapped-local-files" "$LOCAL" | sort > "$LOCAL_VERSIONS"
 comm -23 "$LOCAL_VERSIONS" "$REMOTE_VERSIONS" > "$LOCAL_ONLY"
+REMOTE_MAX_VERSION="$(tail -n 1 "$REMOTE_VERSIONS" 2>/dev/null || true)"
 : > "$UNEXPECTED"
+: > "$OUT_OF_ORDER"
 while IFS= read -r version; do
   [[ -n "$version" ]] || continue
+  if [[ -n "$REMOTE_MAX_VERSION" && "$version" < "$REMOTE_MAX_VERSION" ]]; then
+    printf '%s\n' "$version" >> "$OUT_OF_ORDER"
+  fi
   grep -Fxq "$version" "$ALLOW" || printf '%s\n' "$version" >> "$UNEXPECTED"
 done < "$LOCAL_ONLY"
 
@@ -145,7 +213,7 @@ while read -r mismatch_version mismatch_detail; do
 done < "$NAME_MISMATCH"
 mv "$TMP_DIR/name-mismatch-unmapped" "$NAME_MISMATCH"
 
-while IFS='|' read -r version remote_name; do
+while IFS='|' read -r version remote_name remote_sha; do
   [[ -n "$version" ]] || continue
   local_row="$(awk -F '|' -v v="$version" '$1==v {print $2}' "$LOCAL")"
   if [[ -z "$local_row" || "$local_row" != "$remote_name" ]]; then
@@ -159,6 +227,7 @@ echo "Historical non-versioned SQL files (excluded from direct deployment): $LEG
 echo "Local versions not recorded remotely: $(wc -l < "$LOCAL_ONLY" | tr -d ' ')"
 echo "Allowlisted pending local versions: $(comm -12 "$LOCAL_ONLY" "$ALLOW" | wc -l | tr -d ' ')"
 echo "Unreviewed pending local versions: $(wc -l < "$UNEXPECTED" | tr -d ' ')"
+echo "Out-of-order local versions older than the remote ledger head: $(wc -l < "$OUT_OF_ORDER" | tr -d ' ')"
 echo "Remote versions without a verified local representation: $(wc -l < "$UNMAPPED" | tr -d ' ')"
 echo "Same-version name mismatches: $(wc -l < "$NAME_MISMATCH" | tr -d ' ')"
 echo "Verified reconciliation manifest entries: $(wc -l < "$USED_MAP" | tr -d ' ')"
@@ -169,6 +238,13 @@ if [[ -s "$UNEXPECTED" ]]; then
     grep -F "$version|" "$LOCAL" || true
   done < "$UNEXPECTED"
 fi
+if [[ -s "$OUT_OF_ORDER" ]]; then
+  echo "::error::Pending local migrations older than the latest remote version cannot be applied chronologically:"
+  while IFS= read -r version; do
+    grep -F "$version|" "$LOCAL" || true
+  done < "$OUT_OF_ORDER"
+  echo "::error::Create and validate a forward-only compatibility migration after the remote ledger head; do not apply historical files out of order."
+fi
 if [[ -s "$UNMAPPED" ]]; then
   echo "::error::Remote migration history is not represented by local SQL or a checksum-verified reconciliation entry:"
   cat "$UNMAPPED"
@@ -178,7 +254,7 @@ if [[ -s "$NAME_MISMATCH" ]]; then
   cat "$NAME_MISMATCH"
 fi
 
-if [[ -s "$UNEXPECTED" || -s "$UNMAPPED" || -s "$NAME_MISMATCH" ]]; then
+if [[ -s "$UNEXPECTED" || -s "$OUT_OF_ORDER" || -s "$UNMAPPED" || -s "$NAME_MISMATCH" ]]; then
   echo "::error::Production migration history is not reconciled. APPLY is blocked."
   exit 1
 fi

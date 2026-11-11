@@ -1,0 +1,1 @@
+alter table public.employees add column if not exists irsa_dependants integer not null default 0 check(irsa_dependants between 0 and 30);

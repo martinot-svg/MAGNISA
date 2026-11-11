@@ -1,0 +1,1 @@
+create unique index if not exists journal_one_payslip_validation_per_source on public.journal_entries(organization_id,source_id) where source_type='payslip' and source_id is not null;

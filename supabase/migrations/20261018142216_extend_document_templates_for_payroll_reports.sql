@@ -1,0 +1,2 @@
+alter table public.document_templates drop constraint if exists document_templates_document_type_check;
+alter table public.document_templates add constraint document_templates_document_type_check check (document_type = any (array['quote'::text,'invoice'::text,'payslip'::text,'report'::text]));

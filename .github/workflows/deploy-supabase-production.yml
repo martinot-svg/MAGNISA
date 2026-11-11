@@ -64,14 +64,9 @@ jobs:
               print(f"SUPABASE_DB_URL={url}", file=env_file)
           PY
 
-      - name: Audit complete historical migration drift (non-blocking)
+      - name: Require complete historical migration reconciliation (read-only)
         shell: bash
-        run: |
-          if bash scripts/ci/check-production-migration-history.sh; then
-            echo "Complete migration history is reconciled."
-          else
-            echo "::warning::Historical migration drift remains. Only the explicit production allowlist is eligible for this release."
-          fi
+        run: bash scripts/ci/check-production-migration-history.sh
 
       - name: Validate and dry-run only the approved migration allowlist
         run: bash scripts/ci/apply-production-allowlist.sh dry-run
@@ -139,6 +134,9 @@ jobs:
               item.name === "magnisa-supabase-production-encrypted-backup" && !item.expired
             );
             if (!backup) core.setFailed("Archive chiffrée de sauvegarde introuvable.");
+
+      - name: Revalidate complete migration history immediately before apply
+        run: bash scripts/ci/check-production-migration-history.sh
 
       - name: Apply only the approved migration allowlist
         run: bash scripts/ci/apply-production-allowlist.sh apply

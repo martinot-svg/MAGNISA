@@ -93,9 +93,11 @@ try {
   await page.getByRole("button", { name: "Enregistrer l'intervention" }).click();
 
   const intervention = await waitForRow(async () => admin.from("prospect_interventions")
-    .select("id,stage_status,validation_status").eq("organization_id", membership.organization_id)
+    .select("id,stage_status,validation_status,contributor_user_id,created_by").eq("organization_id", membership.organization_id)
     .eq("prospect_id", prospect.id).eq("description", contributionDescription).maybeSingle());
   assert(intervention.validation_status === "pending", "A newly declared contribution must remain pending.");
+  assert(intervention.contributor_user_id === collaboratorId && intervention.created_by === userId,
+    "A delegated contribution must preserve contributor identity separately from its author.");
   assert(await page.getByRole("button", { name: "Valider" }).count() >= 1,
     "An independent owner must be offered validation for another contributor.");
   const pendingRow = page.locator("tr").filter({ hasText: contributionDescription });
