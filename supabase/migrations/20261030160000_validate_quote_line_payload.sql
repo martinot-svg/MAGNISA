@@ -1,4 +1,3 @@
--- Reject null and non-array payloads before attempting to iterate quote lines.
 create or replace function public.create_quote_draft(p_org uuid,p_customer uuid,p_valid_until date,p_lines jsonb)
 returns uuid language plpgsql security definer set search_path=public as $function$
 declare v_quote uuid;v_number text;r jsonb;s public.services%rowtype;q numeric;d numeric;unit_price numeric;gross numeric;disc numeric;taxable numeric;tax numeric;total numeric;v_sub numeric:=0;v_disc numeric:=0;v_tax numeric:=0;v_total numeric:=0;v_sort integer:=1;
