@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { createPurchaseOrder } from "@/server/actions/procurement";
 import { useFormDialogAction } from "@/components/form-dialog";
+import { formatFormDialogError } from "@/lib/form-dialog-action";
 
 type Supplier={id:string;name:string};
 type Item={id:string;sku:string;name:string;base_unit:string;tracking_mode:string;default_purchase_price:number;default_tax_rate:number};
@@ -30,7 +31,7 @@ export function PurchaseOrderForm({suppliers,items,customers}:{suppliers:Supplie
       const valid=lines.map(l=>{const item=items.find(i=>i.id===l.item_id);return {...l,description:l.description||item?.name||"",unit:item?.base_unit||l.unit,beneficiary_customer_id:l.beneficiary_customer_id||null,mandate_supplier_document_reference:l.mandate_supplier_document_reference||null};});
       formData.set("supplier_id",supplier);formData.set("currency",currency);formData.set("expected_date",expectedDate);formData.set("notes",notes);formData.set("lines_json",JSON.stringify(valid));
       await submitAction(formData);
-    }catch(e){setError(e instanceof Error?e.message:"La commande n'a pas pu être enregistrée.");}
+    }catch(e){setError(formatFormDialogError(e));}
     finally{setBusy(false);}
   };
   return <form action={submit} className="form">
