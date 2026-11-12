@@ -74,8 +74,9 @@ try {
     .eq("quantity_reserved", 1).maybeSingle(), "persisted reservation");
   assert(Number(newReservation.quantity_reserved) === 1, "UI reservation quantity was not persisted.");
 
-  await page.goto(`${baseUrl}/commandes`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Commandes" }).waitFor();
+  await page.locator(`select[name="reservation_id"] option[value="${newReservation.id}"]`)
+    .waitFor({ state: "attached", timeout: 10000 });
   orderRow = page.locator("tr").filter({ hasText: orderNumber });
   await orderRow.locator("summary").filter({ hasText: "Stock & livraisons" }).click();
   forms = orderRow.locator("details").filter({ hasText: "Stock & livraisons" }).locator("form");
