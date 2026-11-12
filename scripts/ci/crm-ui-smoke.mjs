@@ -222,12 +222,17 @@ try {
   await page.getByText(contributionDescription).waitFor();
 
   const followUpDescription = "Suivi client CRM UI " + Date.now();
-  await page.locator('select[name="contributor_user_id"]').first().selectOption(collaboratorId);
-  await page.locator('select[name="intervention_type"]').first().selectOption("follow_up");
-  await page.locator('select[name="contribution_role"]').first().selectOption("account_manager");
-  await page.locator('select[name="stage_status"]').first().selectOption("completed");
-  await page.locator('textarea[name="description"]').first().fill(followUpDescription);
-  await page.getByRole("button", { name: "Enregistrer l'intervention" }).click();
+  await page.getByRole("button", { name: /Enregistrer l.intervention/ }).first().click();
+  const followUpDialog = page.getByRole("dialog").last();
+  await followUpDialog.waitFor({ state: "visible", timeout: 10000 });
+  const followUpForm = followUpDialog.locator("form");
+  await followUpForm.locator('select[name="contributor_user_id"]').selectOption(collaboratorId);
+  await followUpForm.locator('select[name="intervention_type"]').selectOption("follow_up");
+  await followUpForm.locator('select[name="contribution_role"]').selectOption("account_manager");
+  await followUpForm.locator('select[name="stage_status"]').selectOption("completed");
+  await followUpForm.locator('textarea[name="description"]').fill(followUpDescription);
+  await followUpForm.getByRole("button", { name: /Enregistrer l.intervention/ }).click();
+  await followUpDialog.waitFor({ state: "hidden", timeout: 20000 });
   await page.getByText(followUpDescription).waitFor();
   const followUp = await waitForRow(async () => admin.from("prospect_interventions")
     .select("id,customer_id").eq("organization_id", membership.organization_id)
