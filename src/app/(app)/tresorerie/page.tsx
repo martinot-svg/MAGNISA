@@ -103,7 +103,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
         </section>}
         movements={<section className="section"><h2>Mouvements de trésorerie</h2>
           {!transactions.length?<EmptyState title="Aucun mouvement" description="Les entrées, sorties et transferts validés apparaîtront ici."/>:
-          <div className="card" style={{overflowX:"auto"}}><table style={{width:"100%"}}><thead><tr><th>Date</th><th>Réf. MAGNISA</th><th>Compte</th><th>Opération</th><th>Référence source</th><th>Montant</th></tr></thead><tbody>
+          <div className="tableWrap"><table><thead><tr><th>Date</th><th>Réf. MAGNISA</th><th>Compte</th><th>Opération</th><th>Référence source</th><th>Montant</th></tr></thead><tbody>
             {transactions.map((t:any)=><tr key={t.id}><td>{t.transaction_date}</td><td><code>{t.magnisa_reference||"-"}</code></td><td>{accounts.find((a:any)=>a.id===t.financial_account_id)?.name||"Compte indisponible"}</td><td>{t.description||t.kind}</td><td>{t.reference||"-"}</td><td>{money(t.amount,org?.currency||"MGA")}</td></tr>)}
           </tbody></table></div>}
         </section>}
@@ -116,7 +116,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
           </div>
           <h3>Suivi et confirmation des crédits</h3>
           {!internalTransfers.length?<EmptyState title="Aucun transfert suivi" description="Le premier transfert réel enregistré apparaîtra ici."/>:
-          <div className="card" style={{overflowX:"auto"}}><table style={{width:"100%"}}><thead><tr><th>Date / référence</th><th>Trajet</th><th>Débit source</th><th>Frais</th><th>Crédit attendu</th><th>État / confirmation</th></tr></thead><tbody>
+          <div className="tableWrap"><table><thead><tr><th>Date / référence</th><th>Trajet</th><th>Débit source</th><th>Frais</th><th>Crédit attendu</th><th>État / confirmation</th></tr></thead><tbody>
           {internalTransfers.map((t:any)=><tr key={t.id}>
             <td>{t.transfer_date}<div><code>{t.magnisa_reference||"-"}</code></div><div className="muted">Source : {t.source_reference}</div></td>
             <td>{accounts.find((a:any)=>a.id===t.source_account_id)?.name||"Source"} → {accounts.find((a:any)=>a.id===t.destination_account_id)?.name||"Destination"}</td>
@@ -136,7 +136,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
         reconciliation={<section className="section"><h2>Rapprochement des comptes</h2>
           <p className="muted">Contrôle de cohérence entre les soldes MAGNISA et les mouvements enregistrés. Ce contrôle ne constitue pas un rapprochement avec un relevé bancaire externe.</p>
           {!reconciliations.length?<EmptyState title="Aucun rapprochement disponible" description="Aucune donnée de contrôle à afficher."/>:
-          <div className="card" style={{overflowX:"auto"}}><table style={{width:"100%"}}><thead><tr><th>Compte</th><th>Solde</th><th>Somme des mouvements</th><th>Écart</th><th>État</th></tr></thead><tbody>
+          <div className="tableWrap"><table><thead><tr><th>Compte</th><th>Solde</th><th>Somme des mouvements</th><th>Écart</th><th>État</th></tr></thead><tbody>
           {reconciliations.map((a:any)=><tr key={a.financial_account_id}><td>{a.name}</td><td>{money(a.balance,org?.currency||"MGA")}</td><td>{money(a.movements_sum,org?.currency||"MGA")}</td><td>{money(a.balance_difference,org?.currency||"MGA")}</td><td>{a.reconciliation_status||"À contrôler"}</td></tr>)}
           </tbody></table></div>}
         </section>}
