@@ -70,7 +70,7 @@ export default async function InventoryCounts({searchParams}:any) {
     {canManage===true&&!count&&availableYears.length>0&&<section className="card section">
       <h2>Créer un inventaire de clôture</h2>
       <p className="muted">Un seul brouillon ou inventaire approuvé est autorisé par exercice. La date est obligatoirement celle de clôture. Un inventaire vide peut être approuvé pour confirmer l'absence de stock.</p>
-      <form action={createInventoryCount} className="form">
+      <FormDialog title="Créer un inventaire physique" buttonLabel="Créer le brouillon d'inventaire"><form action={createInventoryCount} className="form">
         <div className="grid3">
           <div className="field"><label>Exercice</label><select name="fiscal_year_id" required defaultValue=""><option value="" disabled>Choisir un exercice</option>{availableYears.map((year:any)=><option key={year.id} value={year.id}>{year.label} • {year.period_start} au {year.period_end}</option>)}</select></div>
           <div className="field"><label>Date du comptage</label><select name="count_date" required defaultValue=""><option value="" disabled>Choisir la date de clôture</option>{availableYears.map((year:any)=><option key={year.id} value={year.period_end}>{year.period_end}</option>)}</select></div>
@@ -78,7 +78,7 @@ export default async function InventoryCounts({searchParams}:any) {
         </div>
         <div className="field"><label>Observations et références des pièces</label><textarea name="notes" rows={3} maxLength={2000}/></div>
         <button className="button primary" type="submit">Créer le brouillon d'inventaire</button>
-      </form>
+      </form></FormDialog>
     </section>}
 
     {canManage===true&&!count&&years.length>0&&availableYears.length===0&&<section className="card section"><EmptyState title="Aucun exercice disponible pour un nouvel inventaire" description="Chaque exercice possède déjà un inventaire brouillon ou approuvé. Contrepasser un inventaire approuvé avant de le remplacer."/></section>}
@@ -94,7 +94,7 @@ export default async function InventoryCounts({searchParams}:any) {
       {count.status==="approved"&&<p className="muted">Approuvé le {count.approved_at?new Date(count.approved_at).toLocaleString("fr-FR"):"—"}. Les lignes sont verrouillées.</p>}
       {count.status==="reversed"&&<p className="muted">Motif de contrepassation : {count.reversal_reason||"—"}</p>}
 
-      {count.status==="draft"&&canManage===true&&<form action={addInventoryCountLine} className="form">
+      {count.status==="draft"&&canManage===true&&<FormDialog title="Ajouter une ligne de comptage" buttonLabel="Ajouter la ligne"><form action={addInventoryCountLine} className="form">
         <h3>Ajouter un article ou un en-cours</h3>
         <input type="hidden" name="count_id" value={count.id}/>
         <div className="grid3">
@@ -109,7 +109,7 @@ export default async function InventoryCounts({searchParams}:any) {
         </div>
         <p className="muted">La quantité et le coût unitaire doivent être justifiés par les feuilles de comptage et les pièces d'achat. MAGNISA calcule automatiquement la valeur brute et la valeur nette.</p>
         <button className="button primary" type="submit">Ajouter la ligne</button>
-      </form>}
+      </form></FormDialog>}
 
       <div className="tableWrap">
         <table><thead><tr><th>Référence</th><th>Désignation</th><th>Compte</th><th className="right">Quantité</th><th className="right">Coût unitaire</th><th className="right">Brut</th><th className="right">Dépréciation</th><th className="right">Net</th><th>Action</th></tr></thead><tbody>
@@ -117,20 +117,20 @@ export default async function InventoryCounts({searchParams}:any) {
             <td>{line.item_reference}</td><td>{line.description}<div className="muted">{line.unit}</div></td><td>{line.account_code}</td>
             <td className="right">{Number(line.quantity).toLocaleString("fr-FR")}</td><td className="right">{money(Number(line.unit_cost),currency)}</td>
             <td className="right">{money(Number(line.gross_value),currency)}</td><td className="right">{money(Number(line.impairment_amount),currency)}</td><td className="right">{money(Number(line.net_value),currency)}</td>
-            <td>{count.status==="draft"&&canManage===true?<form action={deleteInventoryCountLine}><input type="hidden" name="line_id" value={line.id}/><button className="button" type="submit">Supprimer</button></form>:"Verrouillée"}</td>
+            <td>{count.status==="draft"&&canManage===true?<FormDialog title="Supprimer une ligne de comptage" buttonLabel="Supprimer" buttonClassName="button"><form action={deleteInventoryCountLine}><input type="hidden" name="line_id" value={line.id}/><button className="button" type="submit">Supprimer</button></form></FormDialog>:"Verrouillée"}</td>
           </tr>):<tr><td colSpan={9}>Aucune ligne. Un inventaire vide peut confirmer un stock nul.</td></tr>}
         </tbody></table>
       </div>
 
-      {count.status==="draft"&&canManage===true&&<form action={approveInventoryCount} className="form">
+      {count.status==="draft"&&canManage===true&&<FormDialog title="Approuver et verrouiller l'inventaire" buttonLabel="Approuver et verrouiller l'inventaire"><form action={approveInventoryCount} className="form">
         <input type="hidden" name="count_id" value={count.id}/>
         <button className="button primary" type="submit">Approuver et verrouiller l'inventaire</button>
-      </form>}
-      {count.status==="approved"&&canManage===true&&<form action={reverseInventoryCount} className="form">
+      </form></FormDialog>}
+      {count.status==="approved"&&canManage===true&&<FormDialog title="Contrepasser un inventaire" buttonLabel="Contrepasser l'inventaire"><form action={reverseInventoryCount} className="form">
         <input type="hidden" name="count_id" value={count.id}/>
         <div className="field"><label>Motif de contrepassation</label><input name="reason" minLength={10} maxLength={1000} required placeholder="Erreur de comptage, correction d'inventaire..."/></div>
         <button className="button" type="submit">Contrepasser l'inventaire</button>
-      </form>}
+      </form></FormDialog>}
     </section>}
 
     <section className="card section">
