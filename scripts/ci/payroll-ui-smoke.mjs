@@ -295,6 +295,24 @@ try {
   await regulatoryRow.getByRole("button", { name: "Examiner" }).click();
   const regulatoryDialog = page.getByRole("dialog");
   await regulatoryDialog.waitFor({ state: "visible" });
+  const closeButton = regulatoryDialog.locator('button[aria-label="Fermer la fenêtre"]');
+  assert(await closeButton.evaluate((button) => button === document.activeElement),
+    "Opening a modal must move focus to its first focusable control.");
+  const backgroundInactive = await page.evaluate(() =>
+    Array.from(document.body.children)
+      .filter((element) => !element.classList.contains("magnisa-modal-backdrop"))
+      .every((element) => element.inert),
+  );
+  assert(backgroundInactive, "The page behind an open modal must be inert.");
+  await page.keyboard.press("Escape");
+  await regulatoryDialog.waitFor({ state: "hidden" });
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-haspopup") === "dialog");
+  await regulatoryRow.getByRole("button", { name: "Examiner" }).click();
+  await regulatoryDialog.waitFor({ state: "visible" });
+  await regulatoryDialog.locator('button[aria-label="Fermer la fenêtre"]').click();
+  await regulatoryDialog.waitFor({ state: "hidden" });
+  await regulatoryRow.getByRole("button", { name: "Examiner" }).click();
+  await regulatoryDialog.waitFor({ state: "visible" });
   await regulatoryDialog.locator('textarea[name="review_note"]').fill("Trop court");
   await regulatoryDialog.getByRole("button", { name: "Valider le changement réglementaire" }).click();
   const regulatoryAlert = regulatoryDialog.getByRole("alert");
