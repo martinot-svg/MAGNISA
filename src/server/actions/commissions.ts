@@ -140,7 +140,7 @@ export async function changeProspectInterventionStatus(formData: FormData) {
     p_stage_status: parsed.data.stage_status,
     p_reason: parsed.data.reason,
   });
-  if (error) throw new Error(error.message);
+  if (error && !/possède déjà ce statut/i.test(error.message)) throw new Error(error.message);
   revalidatePath(parsed.data.subject_path);
   revalidatePath("/commissions");
 }
@@ -425,6 +425,8 @@ export async function recordProspectIntervention(formData: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath("/prospects");
   revalidatePath("/clients");
+  if (parsed.data.prospect_id) revalidatePath("/prospects/" + parsed.data.prospect_id);
+  if (parsed.data.customer_id) revalidatePath("/clients/" + parsed.data.customer_id + "/contributions");
   revalidatePath("/commissions");
 }
 

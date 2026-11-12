@@ -71,10 +71,56 @@ try {
   await createProspectButton.click();
   const prospectDialog = page.getByRole("dialog", { name: "Nouveau prospect" });
   await prospectDialog.waitFor({ state: "visible", timeout: 10000 });
-  await prospectDialog.locator('input[name="name"]').fill(prospectName);
+
+  const modalState = await page.evaluate(() => {
+    const layer = document.querySelector(".magnisa-modal-backdrop");
+    const dialog = document.querySelector('[role="dialog"]');
+    const background = Array.from(document.body.children).filter((element) => element !== layer);
+    return {
+      bodyOverflow: document.body.style.overflow,
+      backgroundInert: background.every((element) => element.inert),
+      backgroundHidden: background.every((element) => element.getAttribute("aria-hidden") === "true"),
+      focusInside: !!dialog && dialog.contains(document.activeElement),
+      backdropFilter: layer ? getComputedStyle(layer).backdropFilter : "",
+    };
+  });
+  assert(modalState.bodyOverflow === "hidden", "Modal must lock background scrolling.");
+  assert(modalState.backgroundInert && modalState.backgroundHidden, "Modal must make background content inert.");
+  assert(modalState.focusInside, "Modal must move focus into the dialog.");
+  assert(modalState.backdropFilter.includes("blur"), "Modal backdrop must apply a blur.");
+
+  await page.mouse.click(4, 4);
+  assert(await prospectDialog.isVisible(), "Backdrop click must not discard the open form.");
+  const modalFocusable = prospectDialog.locator('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+  assert(await modalFocusable.count() > 1, "Modal must expose keyboard-focusable controls.");
+  await modalFocusable.first().focus();
+  await page.keyboard.press("Shift+Tab");
+  assert(await modalFocusable.last().evaluate((element) => element === document.activeElement), "Shift+Tab must wrap focus to the last modal control.");
+  await page.keyboard.press("Tab");
+  assert(await modalFocusable.first().evaluate((element) => element === document.activeElement), "Tab must wrap focus to the first modal control.");
+
+  await page.keyboard.press("Escape");
+  await prospectDialog.waitFor({ state: "hidden" });
+  assert(await createProspectButton.getAttribute("aria-expanded") === "false", "Escape must close the dialog and reset its trigger.");
+  await createProspectButton.click();
+  await prospectDialog.waitFor({ state: "visible" });
+
+  const prospectForm = prospectDialog.locator("form");
+  const prospectNameInput = prospectDialog.locator('input[name="name"]');
+  await prospectForm.evaluate((element) => { element.noValidate = true; });
+  await prospectNameInput.fill("X");
+  await prospectDialog.getByRole("button", { name: "Créer le prospect" }).click();
+  await prospectDialog.getByRole("alert").waitFor({ state: "visible" });
+  assert(await prospectDialog.isVisible(), "A rejected server action must keep the modal open.");
+  await page.waitForFunction(() => document.querySelector('input[name="name"]')?.value === "X");
+  assert(await prospectNameInput.inputValue() === "X", "A rejected server action must preserve entered values.");
+
+  await prospectNameInput.fill(prospectName);
   await prospectDialog.locator('input[name="source"]').fill("CI browser smoke");
   await prospectDialog.locator('textarea[name="notes"]').fill("Prospect créé par le test d'interface isolé.");
   await prospectDialog.getByRole("button", { name: "Créer le prospect" }).click();
+  await prospectDialog.waitFor({ state: "hidden" });
+  await page.getByRole("status").filter({ hasText: "Opération enregistrée." }).waitFor();
 
   const prospect = await waitForRow(async () => admin.from("prospects")
     .select("id,converted_customer_id").eq("organization_id", membership.organization_id)
@@ -85,19 +131,25 @@ try {
   await page.goto(`${baseUrl}/prospects/${prospect.id}`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: prospectName }).waitFor();
   const contributionDescription = "Qualification CRM UI " + Date.now();
-  await page.locator('select[name="contributor_user_id"]').first().selectOption(collaboratorId);
-  await page.locator('select[name="intervention_type"]').first().selectOption("qualification");
-  await page.locator('select[name="contribution_role"]').first().selectOption("qualifier");
-  await page.locator('select[name="stage_status"]').first().selectOption("completed");
-  await page.locator('textarea[name="description"]').first().fill(contributionDescription);
-  await page.getByRole("button", { name: "Enregistrer l'intervention" }).click();
+  const contributionForm = page.locator("form").filter({ has: page.locator('textarea[name="description"]') }).first();
+  await contributionForm.locator('select[name="contributor_user_id"]').selectOption(collaboratorId);
+  await contributionForm.locator('select[name="intervention_type"]').selectOption("qualification");
+  await contributionForm.locator('select[name="contribution_role"]').selectOption("qualifier");
+  const initialStage = contributionForm.locator('select[name="stage_status"]');
+  await initialStage.selectOption("completed");
+  assert(await initialStage.inputValue() === "completed", "The UI must submit the explicitly selected initial intervention stage.");
+  await contributionForm.locator('textarea[name="description"]').fill(contributionDescription);
+  await contributionForm.getByRole("button", { name: "Enregistrer l'intervention" }).click();
 
   const intervention = await waitForRow(async () => admin.from("prospect_interventions")
     .select("id,stage_status,validation_status,contributor_user_id,created_by").eq("organization_id", membership.organization_id)
     .eq("prospect_id", prospect.id).eq("description", contributionDescription).maybeSingle());
+  assert(intervention.stage_status === "completed", "The selected initial intervention stage was not persisted.");
   assert(intervention.validation_status === "pending", "A newly declared contribution must remain pending.");
   assert(intervention.contributor_user_id === collaboratorId && intervention.created_by === userId,
     "A delegated contribution must preserve contributor identity separately from its author.");
+  await page.getByText(contributionDescription).waitFor({ state: "visible", timeout: 10000 });
+  await page.getByRole("button", { name: "Valider" }).first().waitFor({ state: "visible", timeout: 10000 });
   assert(await page.getByRole("button", { name: "Valider" }).count() >= 1,
     "An independent owner must be offered validation for another contributor.");
   const pendingRow = page.locator("tr").filter({ hasText: contributionDescription });
@@ -127,9 +179,10 @@ try {
     .eq("action", "status_changed").maybeSingle());
   assert(!!statusHistory.id, "Stage transition history was not persisted.");
   await page.reload({ waitUntil: "domcontentloaded" });
-  const refreshedContributionRow = page.locator("tr").filter({ hasText: contributionDescription });
-  assert(await refreshedContributionRow.locator('select[name="stage_status"]').inputValue() === "in_progress",
-    "The intervention stage was not retained after a full page reload.");
+  const refreshedContributionRow = page.locator("tr").filter({ hasText: contributionDescription }).first();
+  await refreshedContributionRow.waitFor({ state: "visible", timeout: 10000 });
+  assert((await refreshedContributionRow.innerText()).includes("En cours"),
+    "The intervention stage was not retained in the timeline after a full page reload.");
   process.stdout.write("PASS CRM UI: prospect creation, intervention, beneficiary guard and stage history\n");
 
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });

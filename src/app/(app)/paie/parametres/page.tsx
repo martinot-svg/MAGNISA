@@ -217,7 +217,7 @@ export default async function PayrollSettings({searchParams}:{searchParams:Promi
   <p>Configuration réglementaire versionnée et contrôle des paramètres de paie.</p>
  </div>
 </div>
-<PayrollSettingsDisclosure
+<PayrollSettingsDisclosure key={`${notice.result ?? "initial"}:${notice.message ?? ""}`}
 simulator={<PayrollRulePreview rules={(rules||[]) as any} currency={org?.currency||"MGA"} companyName={org?.name||"Entreprise"} defaultSmie={org?.smie_partner_name||null} />}
 createRule={<><div className="card section"><h2>Créer un référentiel réglementaire</h2><p className="muted">L'enregistrement crée une version en attente de vérification. Elle ne modifie pas le référentiel actif. Après contrôle des textes officiels, utilise l'action d'activation explicite pour programmer son application à la période prévue.</p>
  <form action={saveRule} className="form"><div className="grid2">
