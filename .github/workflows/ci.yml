@@ -42,6 +42,9 @@ jobs:
       - name: Test production migration history reconciliation fixtures
         run: bash tests/ci/check-production-migration-history.test.sh
 
+      - name: Generate exhaustive static interaction registry
+        run: node scripts/qa/build-interaction-registry.mjs
+
       - name: Dependency audit report
         run: |
           npm audit --json > npm-audit.json || true
@@ -82,6 +85,7 @@ jobs:
           name: magnisa-verification-evidence
           path: |
             npm-audit.json
+            test-results/interaction-registry.json
             test-results/document-presets-pdf.json
             test-results/pdf/*.pdf
             test-results/previews/*.png
