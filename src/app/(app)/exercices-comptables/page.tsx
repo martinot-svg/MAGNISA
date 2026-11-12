@@ -105,7 +105,7 @@ export default async function FiscalYears({ searchParams }: { searchParams: Prom
     </div>
     <section className="card section">
       <h2>Créer un exercice</h2>
-      <p className="muted">Après un exercice clôturé, MAGNISA reprend automatiquement les soldes des comptes de bilan PCG 1 à 5, y compris le résultat transféré en 120 ou 129. Pour le premier exercice, renseigne les soldes initiaux équilibrés.</p>
+      <p className="muted">Après un exercice clôturé, MAGNISA reprend automatiquement les soldes des comptes de bilan PCG 1 à 5, y compris le résultat transféré en 120 ou 129. Pour le premier exercice, laisse les soldes initiaux vides si l'entreprise n'avait aucun patrimoine ni aucune écriture avant le début de la période. Sinon, saisis les soldes justifiés.</p>
       <form action={createFiscalYear} className="form">
         <div className="grid2">
           <div className="field"><label>Libellé</label><input name="label" required placeholder="Exercice 2026" /></div>
@@ -113,11 +113,11 @@ export default async function FiscalYears({ searchParams }: { searchParams: Prom
           <div className="field"><label>Date de clôture</label><input name="period_end" type="date" required /></div>
         </div>
         <div className="field">
-          <label>Soldes initiaux du premier exercice (une ligne par compte)</label>
+          <label>Soldes initiaux du premier exercice (facultatifs si aucun patrimoine antérieur)</label>
           <textarea name="opening_lines" rows={5} placeholder={"101|0|45000000\n512|35000000|0\n53|5000000|0\n411|12000000|0\n401|0|7000000"} />
-          <p className="muted">Format : code PCG|débit|crédit. Comptes de bilan uniquement (classes 1 à 5). Les débits doivent égaler les crédits. Laisse vide pour un exercice suivant : le report sera automatique.</p>
+          <p className="muted">Format : code PCG|débit|crédit. Comptes de bilan uniquement (classes 1 à 5). Les débits doivent égaler les crédits. Pour un premier exercice sans patrimoine antérieur, laisse vide : aucune écriture d'à-nouveaux ne sera créée. Pour un exercice suivant, le report sera automatique.</p>
         </div>
-        <button className="button primary">Créer et générer les à-nouveaux</button>
+        <button className="button primary">Créer l'exercice</button>
       </form>
     </section>
     <section className="section">

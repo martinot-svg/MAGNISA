@@ -5,6 +5,7 @@ begin;
 do $test$
 declare
   v_org uuid := gen_random_uuid();
+  v_org_zero uuid := gen_random_uuid();
   v_owner uuid := gen_random_uuid();
   v_year_2025 uuid;
   v_year_2026 uuid;
@@ -33,6 +34,10 @@ begin
   insert into public.organization_members(organization_id,user_id,role,status)
   values(v_org,v_owner,'owner','active');
 
+  insert into public.organizations(id,name) values(v_org_zero,'New entity without opening balances');
+  insert into public.organization_members(organization_id,user_id,role,status)
+  values(v_org_zero,v_owner,'owner','active');
+
   perform set_config('request.jwt.claim.sub',v_owner::text,true);
   perform set_config('request.jwt.claim.role','authenticated',true);
   perform set_config(
@@ -40,6 +45,14 @@ begin
     jsonb_build_object('sub',v_owner,'role','authenticated')::text,
     true
   );
+
+  -- A newly formed entity with no pre-period postings may open its first year without artificial opening entries.
+  v_year_2025 := public.magnisa_create_fiscal_year(
+    v_org_zero,date '2025-01-01',date '2025-12-31','FY 2025 - zero opening balances',null
+  );
+  if (select opening_entry_id from public.accounting_fiscal_years where id=v_year_2025) is not null then
+    raise exception 'TEST FAILED: zero-opening first year unexpectedly created an opening journal';
+  end if;
 
   -- Unbalanced opening entries must be rejected without creating an exercise.
   v_error := null;

@@ -105,6 +105,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
                   </div>
                 ) : null}
                 <Link href={feature.href}>{feature.label}</Link>
+                {feature.key === "accounting" ? <Link href="/exercices-comptables">Exercices comptables</Link> : null}
               </div>
             );
           })}
