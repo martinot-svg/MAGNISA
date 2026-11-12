@@ -119,16 +119,20 @@ try {
   await page.goto(`${baseUrl}/prospects/${prospect.id}`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: prospectName }).waitFor();
   const contributionDescription = "Qualification CRM UI " + Date.now();
-  await page.locator('select[name="contributor_user_id"]').first().selectOption(collaboratorId);
-  await page.locator('select[name="intervention_type"]').first().selectOption("qualification");
-  await page.locator('select[name="contribution_role"]').first().selectOption("qualifier");
-  await page.locator('select[name="stage_status"]').first().selectOption("completed");
-  await page.locator('textarea[name="description"]').first().fill(contributionDescription);
-  await page.getByRole("button", { name: "Enregistrer l'intervention" }).click();
+  const contributionForm = page.locator("form").filter({ has: page.locator('textarea[name="description"]') }).first();
+  await contributionForm.locator('select[name="contributor_user_id"]').selectOption(collaboratorId);
+  await contributionForm.locator('select[name="intervention_type"]').selectOption("qualification");
+  await contributionForm.locator('select[name="contribution_role"]').selectOption("qualifier");
+  const initialStage = contributionForm.locator('select[name="stage_status"]');
+  await initialStage.selectOption("completed");
+  assert(await initialStage.inputValue() === "completed", "The UI must submit the explicitly selected initial intervention stage.");
+  await contributionForm.locator('textarea[name="description"]').fill(contributionDescription);
+  await contributionForm.getByRole("button", { name: "Enregistrer l'intervention" }).click();
 
   const intervention = await waitForRow(async () => admin.from("prospect_interventions")
     .select("id,stage_status,validation_status,contributor_user_id,created_by").eq("organization_id", membership.organization_id)
     .eq("prospect_id", prospect.id).eq("description", contributionDescription).maybeSingle());
+  assert(intervention.stage_status === "completed", "The selected initial intervention stage was not persisted.");
   assert(intervention.validation_status === "pending", "A newly declared contribution must remain pending.");
   assert(intervention.contributor_user_id === collaboratorId && intervention.created_by === userId,
     "A delegated contribution must preserve contributor identity separately from its author.");
