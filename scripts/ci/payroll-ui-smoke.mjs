@@ -376,8 +376,6 @@ try {
   assert(createdFiscalYear.data.status === "open", "A first fiscal year without opening balances must be created as open.");
   assert(createdFiscalYear.data.opening_entry_id === null,
     "A first fiscal year without opening balances must not create an artificial opening journal.");
-  const fiscalCleanup = await admin.from("accounting_fiscal_years").delete().eq("id", createdFiscalYear.data.id);
-  if (fiscalCleanup.error) throw fiscalCleanup.error;
   process.stdout.write("PASS UI: fiscal-year modal preserves errors and opens a zero-opening first year without a journal\\n");
 
   assert(pageErrors.length === 0, `Browser page errors: ${pageErrors.join(" | ")}`);
