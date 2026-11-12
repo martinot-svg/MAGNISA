@@ -81,8 +81,6 @@ try {
   assert(Number(newReservation.quantity_reserved) === 1, "UI reservation quantity was not persisted.");
 
   await page.getByRole("heading", { name: "Commandes" }).waitFor();
-  await page.locator(`select[name="reservation_id"] option[value="${newReservation.id}"]`)
-    .waitFor({ state: "attached", timeout: 10000 });
   orderRow = page.locator("tr").filter({ hasText: orderNumber });
   stockDetails = orderRow.locator("details").filter({ hasText: "Stock & livraisons" });
   if (!(await stockDetails.evaluate((element) => element.open))) {
@@ -92,6 +90,8 @@ try {
   const deliveryDialog = page.getByRole("dialog").last();
   await deliveryDialog.waitFor({ state: "visible", timeout: 10000 });
   const deliveryForm = deliveryDialog.locator("form");
+  await deliveryForm.locator(`select[name="reservation_id"] option[value="${newReservation.id}"]`)
+    .waitFor({ state: "attached", timeout: 10000 });
   await deliveryForm.locator('select[name="stock_location_id"]').selectOption(locationId);
   await deliveryForm.locator('select[name="reservation_id"]').selectOption(newReservation.id);
   await deliveryForm.locator('input[name="quantity"]').fill("1");
