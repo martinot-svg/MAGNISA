@@ -61,7 +61,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
           <td><span className="badge">{prospect.status}</span></td><td>{prospect.email||"—"}<div className="muted">{prospect.phone||""}</div></td>
           <td>{prospect.source||"—"}</td><td>{prospect.converted_customer_id?<span className="badge">Client créé</span>:"Non converti"}</td>
           <td>{canConvert&&!prospect.converted_customer_id&&prospect.status!=="lost"?
-            <form action={convertProspectToCustomer}><input type="hidden" name="prospect_id" value={prospect.id}/><button className="button small">Clôturer comme gagné</button></form>:
+            <FormDialog title="Convertir le prospect en client" buttonLabel="Clôturer comme gagné"><form action={convertProspectToCustomer}><input type="hidden" name="prospect_id" value={prospect.id}/><button className="button small">Clôturer comme gagné</button></form></FormDialog>:
             prospect.converted_customer_id?"Déjà converti":"—"}</td>
         </tr>)}
       </tbody></table></div>}
