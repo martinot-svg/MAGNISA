@@ -398,7 +398,19 @@ try {
   assert(createdFiscalYear.data.status === "open", "A first fiscal year without opening balances must be created as open.");
   assert(createdFiscalYear.data.opening_entry_id === null,
     "A first fiscal year without opening balances must not create an artificial opening journal.");
-  process.stdout.write("PASS UI: fiscal-year modal preserves errors and opens a zero-opening first year without a journal\\n");
+  const fiscalRow = page.locator("tbody tr").filter({ hasText: fiscalLabel }).first();
+  await fiscalRow.getByRole("button", { name: "Clôturer" }).click();
+  const closeFiscalDialog = page.getByRole("dialog");
+  await closeFiscalDialog.waitFor({ state: "visible" });
+  await closeFiscalDialog.getByRole("button", { name: "Confirmer la clôture" }).click();
+  await closeFiscalDialog.waitFor({ state: "hidden", timeout: 30000 });
+  const closedFiscalYear = await admin.from("accounting_fiscal_years")
+    .select("status,closed_at").eq("organization_id", testOrganizationId)
+    .eq("id", createdFiscalYear.data.id).single();
+  if (closedFiscalYear.error) throw closedFiscalYear.error;
+  assert(closedFiscalYear.data.status === "closed" && closedFiscalYear.data.closed_at,
+    "Fiscal-year closure modal must persist the server-confirmed closed state.");
+  process.stdout.write("PASS UI: fiscal-year modal preserves errors, creates a zero-opening first year and confirms closure\\n");
 
   assert(pageErrors.length === 0, `Browser page errors: ${pageErrors.join(" | ")}`);
   process.stdout.write("PASS UI: no uncaught browser page errors\n");
