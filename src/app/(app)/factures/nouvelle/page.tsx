@@ -2,6 +2,7 @@ import { requirePermission } from "@/lib/permissions";
 import { requireOrganization } from "@/lib/current-org";
 import { InvoiceBuilder } from "@/components/invoice-builder";
 import { createInvoiceDraft } from "@/server/actions/commercial";
+import { FormDialog } from "@/components/form-dialog";
 
 export default async function NewInvoice({ searchParams }: { searchParams: Promise<{ orderId?: string }> }) {
   const params = await searchParams;
@@ -56,5 +57,5 @@ export default async function NewInvoice({ searchParams }: { searchParams: Promi
     }
   }
   const dueDate = new Date(Date.now() + Number(settings?.default_payment_days || 30) * 86400000).toISOString().slice(0,10);
-  return <><div className="pageHead"><div><p className="eyebrow">Facturation</p><h1>Créer une facture</h1><p>{orderNumber ? `Commande ${orderNumber} : prestations et marchandises livrées non encore facturées. Les marchandises ne sont proposées qu'après livraison effective.` : "Construis une facture avec une ou plusieurs prestations."}</p></div></div><div className="card"><InvoiceBuilder services={services} customers={customers} initialLines={initialLines} initialCustomerId={initialCustomerId} dueDate={dueDate} orderId={orderId} action={createInvoiceDraft}/></div></>;
+  return <><div className="pageHead"><div><p className="eyebrow">Facturation</p><h1>Créer une facture</h1><p>{orderNumber ? `Commande ${orderNumber} : prestations et marchandises livrées non encore facturées. Les marchandises ne sont proposées qu'après livraison effective.` : "Construis une facture avec une ou plusieurs prestations."}</p></div></div><FormDialog title="Créer une facture" buttonLabel="Ouvrir le formulaire de facture"><InvoiceBuilder services={services} customers={customers} initialLines={initialLines} initialCustomerId={initialCustomerId} dueDate={dueDate} orderId={orderId} action={createInvoiceDraft}/></FormDialog></>;
 }
