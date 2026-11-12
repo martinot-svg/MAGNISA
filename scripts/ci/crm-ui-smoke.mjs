@@ -220,6 +220,7 @@ try {
 
   await page.goto(`${baseUrl}/clients/${converted.converted_customer_id}/contributions`, { waitUntil: "domcontentloaded" });
   await page.getByText("Client · Journal collaboratif").waitFor();
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   await page.getByText(contributionDescription).waitFor();
 
   const followUpDescription = "Suivi client CRM UI " + Date.now();
