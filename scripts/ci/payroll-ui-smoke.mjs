@@ -68,8 +68,11 @@ const openRuleActions = async (page, name) => {
   return row;
 };
 const waitForNotice = async (page, fragment) => {
-  const notice = page.getByRole("status");
-  await notice.waitFor();
+  // Server-action redirects render the result message in the page notice;
+  // locate the specific text instead of the first status node (which may be
+  // a transient FormDialog status from the previous render).
+  const notice = page.getByText(fragment, { exact: false }).first();
+  await notice.waitFor({ state: "visible", timeout: 15000 });
   const content = await notice.innerText();
   assert(content.includes(fragment), `Expected notice containing "${fragment}", received "${content}"`);
 };
