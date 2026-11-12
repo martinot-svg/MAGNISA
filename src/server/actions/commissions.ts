@@ -140,7 +140,7 @@ export async function changeProspectInterventionStatus(formData: FormData) {
     p_stage_status: parsed.data.stage_status,
     p_reason: parsed.data.reason,
   });
-  if (error) throw new Error(error.message);
+  if (error && !/possède déjà ce statut/i.test(error.message)) throw new Error(error.message);
   revalidatePath(parsed.data.subject_path);
   revalidatePath("/commissions");
 }

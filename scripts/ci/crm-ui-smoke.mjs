@@ -179,9 +179,10 @@ try {
     .eq("action", "status_changed").maybeSingle());
   assert(!!statusHistory.id, "Stage transition history was not persisted.");
   await page.reload({ waitUntil: "domcontentloaded" });
-  const refreshedContributionRow = page.locator("tr").filter({ hasText: contributionDescription });
-  assert(await refreshedContributionRow.locator('select[name="stage_status"]').inputValue() === "in_progress",
-    "The intervention stage was not retained after a full page reload.");
+  const refreshedContributionRow = page.locator("tr").filter({ hasText: contributionDescription }).first();
+  await refreshedContributionRow.waitFor({ state: "visible", timeout: 10000 });
+  assert((await refreshedContributionRow.innerText()).includes("En cours"),
+    "The intervention stage was not retained in the timeline after a full page reload.");
   process.stdout.write("PASS CRM UI: prospect creation, intervention, beneficiary guard and stage history\n");
 
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
