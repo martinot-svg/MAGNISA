@@ -10,6 +10,7 @@ const failures = [];
 const modalRequiredFiles = new Map([
   ["src/app/(app)/mouvements-stock/page.tsx", 10],
   ["src/app/(app)/articles/page.tsx", 5],
+  ["src/app/(app)/immobilisations/page.tsx", 15],
 ]);
 const modalWriteFormCounts = new Map([...modalRequiredFiles.keys()].map((file) => [file, 0]));
 let formCount = 0;

@@ -2,6 +2,7 @@ import { formatDateDisplay } from "@/lib/date-format";
 import { requireOrganization } from "@/lib/current-org";
 import { requirePermission } from "@/lib/permissions";
 import { EmptyState } from "@/components/empty-state";
+import { FormDialog } from "@/components/form-dialog";
 import { money } from "@/lib/money";
 import {
   approveFixedAssetIfrsAdjustment,
@@ -92,7 +93,7 @@ export default async function FixedAssets() {
     <section className="card section">
       <h2>Enregistrer une immobilisation</h2>
       <p className="muted">Cette opération crée la fiche du registre. Si une facture fournisseur existe déjà, renseigne exactement le fournisseur et son numéro : tu pourras ensuite la rattacher dans la colonne Acquisition. Le système reclassera alors la charge vers le compte d’immobilisation sans recréer la dette fournisseur.</p>
-      <form action={createFixedAsset} className="form">
+      <FormDialog title="Créer une fiche d'immobilisation" buttonLabel="Nouvelle immobilisation"><form action={createFixedAsset} className="form">
         <div className="grid3">
           <div className="field"><label>Code immobilisation</label><input name="asset_code" required maxLength={40} placeholder="IMO-00001"/></div>
           <div className="field"><label>Désignation</label><input name="name" required maxLength={180}/></div>
@@ -122,7 +123,7 @@ export default async function FixedAssets() {
         </div>
         <div className="field"><label>Notes et justificatifs</label><textarea name="notes" rows={3} maxLength={2000}/></div>
         <button className="button primary" type="submit">Enregistrer la fiche</button>
-      </form>
+      </form></FormDialog>
     </section></>}
     <section className="card section">
       <h2>Registre des immobilisations</h2>
@@ -140,7 +141,7 @@ export default async function FixedAssets() {
             <td className="right">{money(Number(asset.accumulated_depreciation || 0), currency)}</td>
             <td className="right">{money(Number(asset.impairment_loss || 0), currency)}</td>
             <td className="right">{money(Number(asset.net_book_value || 0), currency)}</td><td>{asset.status}</td>
-            <td>{asset.acquisition_journal_entry_id ? (asset.source_supplier_invoice_id ? "Facture fournisseur reclassée" : "Comptabilisée") : asset.parent_asset_id ? "Composant reclassé" : asset.legacy_accounting_origin ? "Historique à rapprocher" : canManage === true ? (()=>{const candidates=(supplierInvoices as any[]).filter(inv=>inv.supplier_number===asset.invoice_reference&&String(Array.isArray(inv.suppliers)?inv.suppliers[0]?.name:inv.suppliers?.name||"").trim().toLowerCase()===String(asset.supplier_name||"").trim().toLowerCase());return candidates.length>0?<form action={reclassifySupplierInvoiceToFixedAssetAction} className="stack"><input type="hidden" name="asset_id" value={asset.id}/><select name="supplier_invoice_id" required defaultValue=""><option value="" disabled>Facture fournisseur correspondante</option>{candidates.map(inv=><option key={inv.id} value={inv.id}>{inv.supplier_number} · {inv.invoice_date} · {money(Number(inv.total||0),currency)}</option>)}</select><button className="button" type="submit">Rattacher et reclasser</button></form>:<form action={postFixedAssetAcquisition}><input type="hidden" name="asset_id" value={asset.id}/><button className="button" type="submit">Comptabiliser l’acquisition</button></form>;})() : "En attente"}</td>
+            <td>{asset.acquisition_journal_entry_id ? (asset.source_supplier_invoice_id ? "Facture fournisseur reclassée" : "Comptabilisée") : asset.parent_asset_id ? "Composant reclassé" : asset.legacy_accounting_origin ? "Historique à rapprocher" : canManage === true ? (()=>{const candidates=(supplierInvoices as any[]).filter(inv=>inv.supplier_number===asset.invoice_reference&&String(Array.isArray(inv.suppliers)?inv.suppliers[0]?.name:inv.suppliers?.name||"").trim().toLowerCase()===String(asset.supplier_name||"").trim().toLowerCase());return candidates.length>0?<FormDialog title="Rattacher une facture fournisseur" buttonLabel="Rattacher et reclasser"><form action={reclassifySupplierInvoiceToFixedAssetAction} className="stack"><input type="hidden" name="asset_id" value={asset.id}/><select name="supplier_invoice_id" required defaultValue=""><option value="" disabled>Facture fournisseur correspondante</option>{candidates.map(inv=><option key={inv.id} value={inv.id}>{inv.supplier_number} · {inv.invoice_date} · {money(Number(inv.total||0),currency)}</option>)}</select><button className="button" type="submit">Rattacher et reclasser</button></form></FormDialog>:<FormDialog title="Comptabiliser une acquisition" buttonLabel="Comptabiliser l’acquisition"><form action={postFixedAssetAcquisition}><input type="hidden" name="asset_id" value={asset.id}/><button className="button" type="submit">Comptabiliser l’acquisition</button></form></FormDialog>;})() : "En attente"}</td>
           </tr>;
         })}</tbody></table></div>}
     </section>
@@ -166,7 +167,7 @@ export default async function FixedAssets() {
     <section className="card section">
       <h2>Mise en service des immobilisations en cours</h2>
       <p className="muted">Les comptes 23 ne sont pas amortis avant l’achèvement. Cette opération reclassifie le coût vers le compte définitif, transfère les dépréciations existantes vers le compte 29 adapté et fixe la date de départ des amortissements.</p>
-      {canManage === true && <form action={commissionFixedAsset} className="form">
+      {canManage === true && <FormDialog title="Mettre une immobilisation en service" buttonLabel="Comptabiliser la mise en service"><form action={commissionFixedAsset} className="form">
         <div className="grid3">
           <div className="field"><label>Immobilisation en cours</label><select name="asset_id" required defaultValue=""><option value="" disabled>Choisir un bien en compte 23</option>{commissionableAssets.map((a: any) => <option key={a.id} value={a.id}>{a.asset_code || a.name} · {a.name}</option>)}</select></div>
           <div className="field"><label>Date effective de mise en service</label><input name="event_date" type="date" required/></div>
@@ -179,7 +180,7 @@ export default async function FixedAssets() {
           <div className="field"><label>Justification</label><input name="reason" minLength={10} required placeholder="Réception, procès-verbal, mise en exploitation..."/></div>
         </div>
         <button className="button" type="submit" disabled={!commissionableAssets.length || !commissionTargetAccounts.length}>Comptabiliser la mise en service</button>
-      </form>}
+      </form></FormDialog>}
       {!commissionableAssets.length && <p className="muted">Aucune immobilisation en cours à mettre en service actuellement.</p>}
       {commissionings.length > 0 && <div className="tableWrap"><table><thead><tr><th>Date</th><th>Immobilisation</th><th>Reclassement PCG</th><th>Coût reclassé</th><th>Dépréciation transférée</th><th>Méthode / durée</th><th>Journal</th></tr></thead><tbody>
         {commissionings.map((entry: any) => <tr key={entry.id}><td>{entry.event_date}</td><td>{assets.find((a: any) => a.id === entry.fixed_asset_id)?.name || entry.fixed_asset_id}</td><td>{entry.old_asset_account_code} → {entry.new_asset_account_code}</td><td>{money(Number(entry.gross_cost_reclassified), currency)}</td><td>{money(Number(entry.impairment_reclassified), currency)}</td><td>{entry.depreciation_method === "straight_line" ? `Linéaire · ${entry.useful_life_months} mois` : "Sans amortissement"}</td><td>{entry.journal_entry_id}</td></tr>)}
@@ -189,19 +190,19 @@ export default async function FixedAssets() {
     <section className="card section">
       <h2>Planifier et comptabiliser les dotations</h2>
       <p className="muted">La préparation calcule une dotation sans journal. La comptabilisation appelle le moteur central, contrôle la période, vérifie les comptes PCG et crée une écriture équilibrée, protégée contre les doublons.</p>
-      <form action={planFixedAssetDepreciation} className="form">
+      <FormDialog title="Calculer un plan d'amortissement" buttonLabel="Calculer le plan"><form action={planFixedAssetDepreciation} className="form">
         <div className="grid3">
           <div className="field"><label>Immobilisation</label><select name="asset_id" required defaultValue=""><option value="" disabled>Choisir un bien</option>{assets.filter((a: any) => a.status === "active" && a.depreciation_method === "straight_line").map((a: any) => <option key={a.id} value={a.id}>{a.asset_code || a.name} · {a.name}</option>)}</select></div>
           <div className="field"><label>Début de période</label><input name="period_start" type="date" required/></div>
           <div className="field"><label>Fin de période</label><input name="period_end" type="date" required/></div>
         </div>
         <button className="button" type="submit">Calculer le plan</button>
-      </form>
+      </form></FormDialog>
       {!depreciationEntries.length ? <p className="muted">Aucune dotation en attente de comptabilisation.</p> :
         <div className="tableWrap"><table><thead><tr><th>Bien</th><th>Période</th><th className="right">Dotation</th><th className="right">VNC après dotation</th><th>Action</th></tr></thead><tbody>
           {depreciationEntries.map((entry: any) => {
             const asset = assets.find((a: any) => a.id === entry.fixed_asset_id);
-            return <tr key={entry.id}><td>{asset?.asset_code || asset?.name || entry.fixed_asset_id}</td><td>{formatDateDisplay(entry.period_start)} au {formatDateDisplay(entry.period_end)}</td><td className="right">{money(Number(entry.depreciation_charge), currency)}</td><td className="right">{money(Number(entry.closing_net_book_value), currency)}</td><td><form action={postFixedAssetDepreciation}><input type="hidden" name="depreciation_entry_id" value={entry.id}/><button className="button primary" type="submit">Comptabiliser</button></form></td></tr>;
+            return <tr key={entry.id}><td>{asset?.asset_code || asset?.name || entry.fixed_asset_id}</td><td>{formatDateDisplay(entry.period_start)} au {formatDateDisplay(entry.period_end)}</td><td className="right">{money(Number(entry.depreciation_charge), currency)}</td><td className="right">{money(Number(entry.closing_net_book_value), currency)}</td><td><FormDialog title="Comptabiliser une dotation aux amortissements" buttonLabel="Comptabiliser"><form action={postFixedAssetDepreciation}><input type="hidden" name="depreciation_entry_id" value={entry.id}/><button className="button primary" type="submit">Comptabiliser</button></form></FormDialog></td></tr>;
           })}
         </tbody></table></div>}
       {postedDepreciationEntries.length > 0 && <>
@@ -212,12 +213,12 @@ export default async function FixedAssets() {
             <td>{entry.period_start} au {entry.period_end}</td>
             <td className="right">{money(Number(entry.depreciation_charge), currency)}</td>
             <td>{entry.journal_entry_id}</td>
-            <td><form action={reverseFixedAssetDepreciation} className="form">
+            <td><FormDialog title="Contrepasser une dotation aux amortissements" buttonLabel="Contrepasser"><form action={reverseFixedAssetDepreciation} className="form">
               <input type="hidden" name="depreciation_entry_id" value={entry.id}/>
               <input type="date" name="reversal_date" required aria-label="Date de contrepassation"/>
               <input name="reason" minLength={10} required placeholder="Motif de contrepassation" aria-label="Motif de contrepassation"/>
               <button className="button" type="submit">Contrepasser</button>
-            </form></td>
+            </form></FormDialog></td>
           </tr>)}
         </tbody></table></div>
       </>}
@@ -226,7 +227,7 @@ export default async function FixedAssets() {
     <section className="card section">
       <h2>Dépréciation et reprise</h2>
       <p className="muted">Une dépréciation compare la valeur nette comptable à la valeur recouvrable documentée. La reprise est plafonnée au montant de la dépréciation cumulée et passe par une écriture distincte.</p>
-      <form action={recordFixedAssetImpairment} className="form">
+      <FormDialog title="Enregistrer une dépréciation" buttonLabel="Comptabiliser la dépréciation"><form action={recordFixedAssetImpairment} className="form">
         <div className="grid3">
           <div className="field"><label>Immobilisation</label><select name="asset_id" required defaultValue=""><option value="" disabled>Choisir un bien</option>{assets.filter((a: any) => a.status === "active").map((a: any) => <option key={a.id} value={a.id}>{a.asset_code || a.name} · VNC {money(Number(a.net_book_value || 0), currency)}</option>)}</select></div>
           <div className="field"><label>Date</label><input name="event_date" type="date" required/></div>
@@ -234,14 +235,14 @@ export default async function FixedAssets() {
         </div>
         <div className="field"><label>Justification et référence de l'évaluation</label><textarea name="reason" minLength={10} required rows={2}/></div>
         <button className="button" type="submit">Comptabiliser la dépréciation</button>
-      </form>
-      {impairmentEntries.length > 0 && <div className="tableWrap"><table><thead><tr><th>Bien</th><th>Date</th><th className="right">Dépréciation</th><th>Reprise</th></tr></thead><tbody>{impairmentEntries.map((entry: any) => <tr key={entry.id}><td>{assets.find((a: any) => a.id === entry.fixed_asset_id)?.name || entry.fixed_asset_id}</td><td>{entry.event_date}</td><td className="right">{money(Number(entry.amount), currency)}</td><td><form action={reverseFixedAssetImpairment}><input type="hidden" name="impairment_id" value={entry.id}/><input type="hidden" name="event_date" value={new Date().toISOString().slice(0,10)}/><input type="hidden" name="reason" value={"Reprise après nouvelle évaluation documentée de la valeur recouvrable."}/><button className="button" type="submit">Reprendre</button></form></td></tr>)}</tbody></table></div>}
+      </form></FormDialog>
+      {impairmentEntries.length > 0 && <div className="tableWrap"><table><thead><tr><th>Bien</th><th>Date</th><th className="right">Dépréciation</th><th>Reprise</th></tr></thead><tbody>{impairmentEntries.map((entry: any) => <tr key={entry.id}><td>{assets.find((a: any) => a.id === entry.fixed_asset_id)?.name || entry.fixed_asset_id}</td><td>{entry.event_date}</td><td className="right">{money(Number(entry.amount), currency)}</td><td><FormDialog title="Reprendre une dépréciation" buttonLabel="Reprendre"><form action={reverseFixedAssetImpairment}><input type="hidden" name="impairment_id" value={entry.id}/><input type="hidden" name="event_date" value={new Date().toISOString().slice(0,10)}/><input type="hidden" name="reason" value={"Reprise après nouvelle évaluation documentée de la valeur recouvrable."}/><button className="button" type="submit">Reprendre</button></form></FormDialog></td></tr>)}</tbody></table></div>}
     </section>
 
     <section className="card section">
       <h2>Transfert et sortie d'immobilisation</h2>
       <div className="grid2">
-        <form action={transferFixedAsset} className="form">
+        <FormDialog title="Transférer une immobilisation" buttonLabel="Enregistrer le transfert"><form action={transferFixedAsset} className="form">
           <h3>Transfert interne</h3>
           <div className="field"><label>Immobilisation</label><select name="asset_id" required defaultValue=""><option value="" disabled>Choisir un bien</option>{assets.filter((a: any) => a.status === "active").map((a: any) => <option key={a.id} value={a.id}>{a.asset_code || a.name} · {a.name}</option>)}</select></div>
           <div className="field"><label>Date</label><input name="transfer_date" type="date" required/></div>
@@ -249,15 +250,15 @@ export default async function FixedAssets() {
           <div className="field"><label>Nouveau détenteur</label><input name="new_custodian" maxLength={180}/></div>
           <div className="field"><label>Motif</label><textarea name="reason" minLength={3} required rows={2}/></div>
           <button className="button" type="submit">Enregistrer le transfert</button>
-        </form>
-        <form action={disposeFixedAsset} className="form">
+        </form></FormDialog>
+        <FormDialog title="Comptabiliser la sortie d'une immobilisation" buttonLabel="Comptabiliser la sortie"><form action={disposeFixedAsset} className="form">
           <h3>Cession ou mise au rebut</h3>
           <div className="field"><label>Immobilisation</label><select name="asset_id" required defaultValue=""><option value="" disabled>Choisir un bien</option>{assets.filter((a: any) => a.status === "active" || a.status === "fully_depreciated").map((a: any) => <option key={a.id} value={a.id}>{a.asset_code || a.name} · {a.name}</option>)}</select></div>
           <div className="field"><label>Date de sortie</label><input name="disposal_date" type="date" required/></div>
           <div className="field"><label>Prix de cession (0 pour mise au rebut)</label><input name="proceeds" type="number" min="0" step="0.01" defaultValue="0" required/></div>
           <div className="field"><label>Motif et justificatif</label><textarea name="reason" minLength={5} required rows={2}/></div>
           <button className="button primary" type="submit">Comptabiliser la sortie</button>
-        </form>
+        </form></FormDialog>
       </div>
     </section>
 
@@ -265,7 +266,7 @@ export default async function FixedAssets() {
     <section className="card section">
       <h2>Ventilation par composants</h2>
       <p className="muted">La ventilation conserve le coût brut, les amortissements et les dépréciations cumulés. Elle crée des fiches enfants dans le registre existant et une écriture de reclassement équilibrée. L’acquisition de la fiche mère doit être comptabilisée au préalable.</p>
-      <form action={componentizeFixedAsset} className="form">
+      <FormDialog title="Ventiler une immobilisation en composants" buttonLabel="Ventiler et comptabiliser le reclassement"><form action={componentizeFixedAsset} className="form">
         <div className="grid3">
           <div className="field"><label>Immobilisation mère</label><select name="parent_asset_id" required defaultValue=""><option value="" disabled>Choisir un bien non ventilé</option>{assets.filter((a: any) => a.status === "active" && !a.parent_asset_id && a.component_reference !== "componentized_parent" && !!a.acquisition_journal_entry_id).map((a: any) => <option key={a.id} value={a.id}>{a.asset_code || a.name} · {a.name}</option>)}</select></div>
           <div className="field"><label>Date de ventilation</label><input name="event_date" type="date" required/></div>
@@ -277,12 +278,12 @@ export default async function FixedAssets() {
         ],null,2)}/></div>
         <p className="muted">Les coûts bruts, valeurs résiduelles, amortissements et dépréciations des composants doivent chacun totaliser exactement les montants de la fiche mère. Adapte les codes PCG et les dates à chaque composant.</p>
         <button className="button primary" type="submit">Ventiler et comptabiliser le reclassement</button>
-      </form>
+      </form></FormDialog>
     </section>
     <section className="card section">
       <h2>Rapprochement IFRS distinct</h2>
       <p className="muted">Les ajustements sont conservés dans un sous-registre séparé. Leur approbation ne modifie ni la fiche statutaire PCG ni le grand livre PCG.</p>
-      <form action={createFixedAssetIfrsAdjustment} className="form">
+      <FormDialog title="Enregistrer un ajustement IFRS" buttonLabel="Enregistrer l'ajustement IFRS"><form action={createFixedAssetIfrsAdjustment} className="form">
         <div className="grid3">
           <div className="field"><label>Immobilisation</label><select name="asset_id" required defaultValue=""><option value="" disabled>Choisir un bien</option>{assets.map((a: any) => <option key={a.id} value={a.id}>{a.asset_code || a.name} · {a.name}</option>)}</select></div>
           <div className="field"><label>Date d'effet</label><input name="adjustment_date" type="date" required/></div>
@@ -294,10 +295,10 @@ export default async function FixedAssets() {
         <div className="field"><label>Justification de l'écart</label><textarea name="reason" minLength={10} required rows={2}/></div>
         <div className="field"><label>Référence justificative</label><input name="supporting_reference" maxLength={180}/></div>
         <button className="button" type="submit">Enregistrer l'ajustement IFRS</button>
-      </form>
+      </form></FormDialog>
       {!ifrsAdjustments.length ? <p className="muted">Aucun ajustement IFRS enregistré.</p> :
         <div className="tableWrap"><table><thead><tr><th>Bien</th><th>Norme</th><th>Nature</th><th className="right">PCG</th><th className="right">IFRS</th><th className="right">Écart</th><th>Statut</th><th>Action</th></tr></thead><tbody>
-          {ifrsAdjustments.map((entry: any) => <tr key={entry.id}><td>{assets.find((a: any) => a.id === entry.fixed_asset_id)?.name || entry.fixed_asset_id}</td><td>{entry.standard_reference}</td><td>{entry.adjustment_type}</td><td className="right">{money(Number(entry.statutory_carrying_amount), currency)}</td><td className="right">{money(Number(entry.ifrs_carrying_amount), currency)}</td><td className="right">{money(Number(entry.adjustment_amount), currency)}</td><td>{entry.status}</td><td>{entry.status === "draft" ? <form action={approveFixedAssetIfrsAdjustment}><input type="hidden" name="adjustment_id" value={entry.id}/><button className="button" type="submit">Approuver</button></form> : entry.status === "approved" ? <form action={reverseFixedAssetIfrsAdjustment} className="form"><input type="hidden" name="adjustment_id" value={entry.id}/><input name="reason" minLength={10} required placeholder="Motif d'annulation"/><button className="button" type="submit">Contrepasser</button></form> : "Contrepassé"}</td></tr>)}
+          {ifrsAdjustments.map((entry: any) => <tr key={entry.id}><td>{assets.find((a: any) => a.id === entry.fixed_asset_id)?.name || entry.fixed_asset_id}</td><td>{entry.standard_reference}</td><td>{entry.adjustment_type}</td><td className="right">{money(Number(entry.statutory_carrying_amount), currency)}</td><td className="right">{money(Number(entry.ifrs_carrying_amount), currency)}</td><td className="right">{money(Number(entry.adjustment_amount), currency)}</td><td>{entry.status}</td><td>{entry.status === "draft" ? <FormDialog title="Approuver un ajustement IFRS" buttonLabel="Approuver"><form action={approveFixedAssetIfrsAdjustment}><input type="hidden" name="adjustment_id" value={entry.id}/><button className="button" type="submit">Approuver</button></form></FormDialog> : entry.status === "approved" ? <FormDialog title="Contrepasser un ajustement IFRS" buttonLabel="Contrepasser"><form action={reverseFixedAssetIfrsAdjustment} className="form"><input type="hidden" name="adjustment_id" value={entry.id}/><input name="reason" minLength={10} required placeholder="Motif d'annulation"/><button className="button" type="submit">Contrepasser</button></form></FormDialog> : "Contrepassé"}</td></tr>)}
         </tbody></table></div>}
     </section>
     </>}
