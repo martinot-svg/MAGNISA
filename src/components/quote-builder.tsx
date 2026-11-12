@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { useFormDialogAction } from "@/components/form-dialog";
 import type { FormEvent } from "react";
 type Service={id:string;name:string;unit_price:number;tax_rate:number;unit?:string|null};
 type Customer={id:string;name:string};
@@ -7,6 +8,7 @@ type Line={service_id:string;quantity:number;discount_pct:number;unit_price:numb
 type Props={services:Service[];customers:Customer[];validUntil?:string;action:(data:FormData)=>void|Promise<void>};
 const amount=(value:number)=>new Intl.NumberFormat("fr-FR",{maximumFractionDigits:2}).format(value);
 export function QuoteBuilder({services,customers,validUntil,action}:Props){
+ const dialogAction=useFormDialogAction(action);
  const [customerId,setCustomerId]=useState("");
  const [date,setDate]=useState(validUntil||"");
  const [lines,setLines]=useState<Line[]>([{service_id:services[0]?.id||"",quantity:1,discount_pct:0,unit_price:Number(services[0]?.unit_price||0)}]);
@@ -15,7 +17,7 @@ export function QuoteBuilder({services,customers,validUntil,action}:Props){
  const totals=calculated.reduce((a,l)=>({ht:a.ht+l.ht,tax:a.tax+l.tax,ttc:a.ttc+l.ttc}),{ht:0,tax:0,ttc:0});
  const valid=!!customerId&&!!date&&lines.length>0&&calculated.every(l=>l.service&&Number.isFinite(l.quantity)&&l.quantity>0&&Number.isFinite(l.unit_price)&&l.unit_price>=0&&l.discount_pct>=0&&l.discount_pct<=100);
  const submit=(e:FormEvent<HTMLFormElement>)=>{if(!valid)e.preventDefault()};
- return <form action={action} onSubmit={submit} className="form">
+ return <form action={dialogAction} onSubmit={submit} className="form">
  <input type="hidden" name="customer_id" value={customerId}/><input type="hidden" name="valid_until" value={date}/><input type="hidden" name="lines" value={JSON.stringify(lines)}/>
  <div className="grid2"><div className="field"><label>Client</label><select value={customerId} onChange={e=>setCustomerId(e.target.value)} required><option value="">Sélectionner un client</option>{customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div><div className="field"><label>Valable jusqu'au</label><input type="date" value={date} onChange={e=>setDate(e.target.value)} required/></div></div>
  <div><div className="row" style={{justifyContent:"space-between",alignItems:"center"}}><h3>Prestations du devis</h3><button type="button" className="button" onClick={()=>setLines(v=>[...v,{service_id:services[0]?.id||"",quantity:1,discount_pct:0,unit_price:Number(services[0]?.unit_price||0)}])} disabled={!services.length}>+ Ajouter une prestation</button></div>
