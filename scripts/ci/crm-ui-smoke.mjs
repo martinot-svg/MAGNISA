@@ -206,7 +206,11 @@ try {
   process.stdout.write("PASS CRM UI: prospect creation, intervention, beneficiary guard and stage history\n");
 
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
-  const prospectRow = page.locator("tr").filter({ hasText: prospectName });
+  await page.getByRole("heading", { name: "Prospects" }).waitFor({ state: "visible", timeout: 15000 });
+  // The conversion trigger is a client-side FormDialog control; wait for
+  // hydration before interacting with the freshly rendered prospects table.
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+  const prospectRow = page.locator("tr").filter({ hasText: prospectName }).first();
   await prospectRow.getByRole("button", { name: "Clôturer comme gagné" }).click();
   const conversionDialog = page.getByRole("dialog").last();
   await conversionDialog.waitFor({ state: "visible", timeout: 10000 });
