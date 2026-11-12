@@ -4,7 +4,7 @@ import { Children, cloneElement, isValidElement, useCallback, useRef, useState, 
 import { ModalFrame } from "@/components/modal-frame";
 
 type ServerAction = (formData: FormData) => unknown | Promise<unknown>;
-type FormProps = { action?: string | ServerAction; children?: ReactNode };
+type ActionElementProps = { action?: string | ServerAction; children?: ReactNode };
 
 function errorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : "";
@@ -50,39 +50,46 @@ export function FormDialog({
   }, [isBusy]);
 
   const childNodes = Children.toArray(children);
-  const formIndex = childNodes.findIndex(
-    (child) => isValidElement<FormProps>(child) && child.type === "form" && typeof child.props.action === "function",
+  const actionIndex = childNodes.findIndex(
+    (child) => isValidElement<ActionElementProps>(child) && typeof child.props.action === "function",
   );
-  const form = formIndex >= 0 ? childNodes[formIndex] as ReactElement<FormProps> : null;
-  const originalAction = form?.props.action;
-  const content = form && typeof originalAction === "function"
-    ? childNodes.map((child, index) => index !== formIndex ? child : cloneElement(form, {
-        action: async (formData: FormData) => {
-          if (pendingRef.current) return;
-          pendingRef.current = true;
-          setPending(true);
-          setError(null);
-          try {
-            const result = await originalAction(formData);
-            if (result && typeof result === "object" && "error" in result && result.error) {
-              throw new Error(String(result.error));
-            }
-            setSuccess(true);
-            setOpen(false);
-          } catch (actionError) {
-            setError(errorMessage(actionError));
-          } finally {
-            pendingRef.current = false;
-            setPending(false);
+  const actionElement = actionIndex >= 0
+    ? childNodes[actionIndex] as ReactElement<ActionElementProps>
+    : null;
+  const originalAction = actionElement?.props.action;
+
+  const wrappedAction: ServerAction | undefined = actionElement && typeof originalAction === "function"
+    ? async (formData: FormData) => {
+        if (pendingRef.current) return;
+        pendingRef.current = true;
+        setPending(true);
+        setError(null);
+        try {
+          const result = await originalAction(formData);
+          if (result && typeof result === "object" && "error" in result && result.error) {
+            throw new Error(String(result.error));
           }
-        },
-      }, <>
-        <fieldset disabled={pending} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}>
-          {form.props.children}
-        </fieldset>
+          setSuccess(true);
+          setOpen(false);
+        } catch (actionError) {
+          setError(errorMessage(actionError));
+        } finally {
+          pendingRef.current = false;
+          setPending(false);
+        }
+      }
+    : undefined;
+
+  const content = actionElement && wrappedAction
+    ? <>
+        {childNodes.map((child, index) => index === actionIndex
+          ? <fieldset key={index} disabled={pending} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}>
+              {cloneElement(actionElement, { action: wrappedAction })}
+            </fieldset>
+          : <span key={index} style={{ display: "contents" }}>{child}</span>)}
         {pending ? <p className="muted" role="status" aria-live="polite">Traitement en cours…</p> : null}
         {error ? <div className="error" role="alert" aria-live="assertive">{error}</div> : null}
-      </>))
+      </>
     : children;
 
   return (
