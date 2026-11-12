@@ -5,6 +5,13 @@ import { ModalFrame } from "@/components/modal-frame";
 
 type ServerAction = (formData: FormData) => unknown | Promise<unknown>;
 type ActionElementProps = { action?: string | ServerAction; children?: ReactNode };
+type FormControl = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+type FormControlSnapshot = {
+  element: FormControl;
+  value: string;
+  checked?: boolean;
+  selected?: string[];
+};
 
 function errorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : "";
@@ -41,6 +48,7 @@ export function FormDialog({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const pendingRef = useRef(false);
+  const formSnapshotRef = useRef<FormControlSnapshot[] | null>(null);
   const openerRef = useRef<HTMLButtonElement>(null);
 
   const close = useCallback(() => {
@@ -73,6 +81,24 @@ export function FormDialog({
           setOpen(false);
         } catch (actionError) {
           setError(errorMessage(actionError));
+          const snapshot = formSnapshotRef.current;
+          requestAnimationFrame(() => {
+            snapshot?.forEach(({ element, value, checked, selected }) => {
+              if (!element.isConnected) return;
+              if (element instanceof HTMLInputElement) {
+                if (element.type === "checkbox" || element.type === "radio") element.checked = !!checked;
+                else if (element.type !== "file") element.value = value;
+              } else if (element instanceof HTMLTextAreaElement) {
+                element.value = value;
+              } else if (element instanceof HTMLSelectElement) {
+                if (element.multiple && selected) {
+                  Array.from(element.options).forEach((option) => { option.selected = selected.includes(option.value); });
+                } else {
+                  element.value = value;
+                }
+              }
+            });
+          });
         } finally {
           pendingRef.current = false;
           setPending(false);
@@ -83,7 +109,20 @@ export function FormDialog({
   const content = actionElement && wrappedAction
     ? <>
         {childNodes.map((child, index) => index === actionIndex
-          ? <fieldset key={index} disabled={pending} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}>
+          ? <fieldset key={index} disabled={pending} onSubmitCapture={(event) => {
+              const target = event.target;
+              if (!(target instanceof HTMLFormElement)) return;
+              formSnapshotRef.current = Array.from(target.elements).flatMap((element): FormControlSnapshot[] => {
+                if (element instanceof HTMLInputElement) {
+                  return element.type === "file" ? [] : [{ element, value: element.value, checked: element.checked }];
+                }
+                if (element instanceof HTMLTextAreaElement) return [{ element, value: element.value }];
+                if (element instanceof HTMLSelectElement) {
+                  return [{ element, value: element.value, selected: Array.from(element.selectedOptions).map((option) => option.value) }];
+                }
+                return [];
+              });
+            }} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}>
               {cloneElement(actionElement, { action: wrappedAction })}
             </fieldset>
           : <Fragment key={index}>{child}</Fragment>)}
