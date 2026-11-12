@@ -70,7 +70,7 @@ const interactions = [];
 for (const absolutePath of files) {
   const relativePath = path.relative(root, absolutePath);
   const ext = path.extname(absolutePath);
-  const kind = ext === ".tsx" || ext === ".ts" ? ts.ScriptKind.TS : ts.ScriptKind.JSX;
+  const kind = ext === ".tsx" ? ts.ScriptKind.TSX : ext === ".jsx" ? ts.ScriptKind.JSX : ts.ScriptKind.TS;
   const sourceText = fs.readFileSync(absolutePath, "utf8");
   const source = ts.createSourceFile(absolutePath, sourceText, ts.ScriptTarget.Latest, true, kind);
   function visit(node) {
