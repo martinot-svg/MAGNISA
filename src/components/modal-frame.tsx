@@ -3,46 +3,69 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+type ModalFrameProps = {
+  title: string;
+  children: ReactNode;
+  onClose: () => void;
+  width?: string;
+  /** Prevent closing while a server operation is pending. */
+  isBusy?: boolean;
+  /** Backdrop dismissal is opt-in so form data is not discarded accidentally. */
+  closeOnBackdrop?: boolean;
+  closeOnEscape?: boolean;
+};
+
 export function ModalFrame({
   title,
   children,
   onClose,
   width = "min(820px, 100%)",
-}: {
-  title: string;
-  children: ReactNode;
-  onClose: () => void;
-  width?: string;
-}) {
+  isBusy = false,
+  closeOnBackdrop = false,
+  closeOnEscape = true,
+}: ModalFrameProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
     document.body.style.overflow = "hidden";
-    closeRef.current?.focus();
+
+    const focusableSelector =
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(focusableSelector);
+    (firstFocusable ?? dialogRef.current)?.focus();
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
+        if (closeOnEscape && !isBusy) {
+          event.preventDefault();
+          onClose();
+        }
         return;
       }
       if (event.key !== "Tab" || !dialogRef.current) return;
-      const nodes = dialogRef.current.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      );
+
+      const nodes = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector),
+      ).filter((node) => !node.hasAttribute("hidden") && node.getAttribute("aria-hidden") !== "true");
+
       if (!nodes.length) {
         event.preventDefault();
+        dialogRef.current.focus();
         return;
       }
+
       const first = nodes[0];
       const last = nodes[nodes.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      if (event.shiftKey && (document.activeElement === first || !dialogRef.current.contains(document.activeElement))) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current.contains(document.activeElement))) {
         event.preventDefault();
         first.focus();
       }
@@ -52,14 +75,16 @@ export function ModalFrame({
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", onKeyDown);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
-  }, [onClose]);
+  }, [closeOnEscape, isBusy, onClose]);
 
   return createPortal(
     <div
       role="presentation"
+      className="magnisa-modal-backdrop"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (closeOnBackdrop && !isBusy && event.target === event.currentTarget) onClose();
       }}
       style={{
         position: "fixed",
@@ -70,8 +95,8 @@ export function ModalFrame({
         justifyContent: "center",
         padding: "clamp(10px, 3vw, 28px)",
         background: "rgba(15, 23, 42, .48)",
-        backdropFilter: "blur(4px)",
-        WebkitBackdropFilter: "blur(4px)",
+        backdropFilter: "blur(5px)",
+        WebkitBackdropFilter: "blur(5px)",
       }}
     >
       <section
@@ -79,7 +104,9 @@ export function ModalFrame({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="card"
+        aria-busy={isBusy}
+        tabIndex={-1}
+        className="card magnisa-modal-panel"
         style={{
           display: "flex",
           flexDirection: "column",
@@ -115,6 +142,7 @@ export function ModalFrame({
             onClick={onClose}
             aria-label="Fermer la fenêtre"
             title="Fermer"
+            disabled={isBusy}
             style={{ width: 40, height: 40, minWidth: 40, padding: 0, flex: "0 0 40px" }}
           >
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
@@ -127,6 +155,6 @@ export function ModalFrame({
         </div>
       </section>
     </div>,
-    document.body
+    document.body,
   );
 }

@@ -8,18 +8,21 @@ export function FormDialog({
   title,
   buttonLabel,
   buttonClassName = "button primary",
+  isBusy = false,
 }: {
   children: ReactNode;
   title: string;
   buttonLabel: string;
   buttonClassName?: string;
+  isBusy?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const openerRef = useRef<HTMLButtonElement>(null);
   const close = useCallback(() => {
+    if (isBusy) return;
     setOpen(false);
     requestAnimationFrame(() => openerRef.current?.focus());
-  }, []);
+  }, [isBusy]);
 
   return (
     <>
@@ -33,7 +36,11 @@ export function FormDialog({
       >
         {buttonLabel}
       </button>
-      {open ? <ModalFrame title={title} onClose={close}>{children}</ModalFrame> : null}
+      {open ? (
+        <ModalFrame title={title} onClose={close} isBusy={isBusy}>
+          {children}
+        </ModalFrame>
+      ) : null}
     </>
   );
 }
