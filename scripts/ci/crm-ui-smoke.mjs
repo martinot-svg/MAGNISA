@@ -174,9 +174,14 @@ try {
   assert(validatedContributor.data.length === 1, "Independent validation must register the eligible commission contributor.");
 
   const contributionRow = page.locator("tr").filter({ hasText: contributionDescription });
-  await contributionRow.locator('select[name="stage_status"]').selectOption("in_progress");
-  await contributionRow.locator('input[name="reason"]').fill("Progression enregistrée par le collaborateur.");
-  await contributionRow.getByRole("button", { name: "Mettre à jour" }).click();
+  await contributionRow.getByRole("button", { name: "Modifier le statut" }).click();
+  const statusDialog = page.getByRole("dialog").last();
+  await statusDialog.waitFor({ state: "visible", timeout: 10000 });
+  const statusForm = statusDialog.locator("form");
+  await statusForm.locator('select[name="stage_status"]').selectOption("in_progress");
+  await statusForm.locator('input[name="reason"]').fill("Progression enregistrée par le collaborateur.");
+  await statusForm.getByRole("button", { name: "Mettre à jour" }).click();
+  await statusDialog.waitFor({ state: "hidden", timeout: 20000 });
   const persistedStage = await waitForRow(async () => {
     const result = await admin.from("prospect_interventions")
       .select("stage_status").eq("organization_id", membership.organization_id)
