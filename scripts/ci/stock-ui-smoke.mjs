@@ -89,6 +89,7 @@ try {
   assert(Number(newReservation.quantity_reserved) === 1, "UI reservation quantity was not persisted.");
 
   await page.getByRole("heading", { name: "Commandes" }).waitFor();
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   orderRow = page.locator("tr").filter({ hasText: orderNumber });
   stockDetails = orderRow.locator("details").filter({ hasText: "Stock & livraisons" });
   if (!(await stockDetails.evaluate((element) => element.open))) {
