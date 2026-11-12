@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ModalFrame } from "@/components/modal-frame";
 
 type Folder = "inbox" | "sent" | "drafts" | "trash" | "templates";
 type MailSummary = {
@@ -156,6 +157,8 @@ export function MagniMailClient({
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [templateBusy, setTemplateBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const sendingRef = useRef(false);
+  const composeFieldId = useId();
 
   const title = useMemo(
     () => folderLabels.find((entry) => entry.key === folder)?.label || "MagniMail",
@@ -283,6 +286,8 @@ export function MagniMailClient({
   };
 
   const send = async () => {
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     setFeedback("");
     try {
@@ -301,11 +306,14 @@ export function MagniMailClient({
     } catch (e) {
       setFeedback(e instanceof Error ? e.message : "Envoi impossible.");
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
 
   const saveDraft = async () => {
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     setFeedback("");
     try {
@@ -321,6 +329,7 @@ export function MagniMailClient({
     } catch (e) {
       setFeedback(e instanceof Error ? e.message : "Enregistrement impossible.");
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
@@ -682,37 +691,22 @@ export function MagniMailClient({
       </div>
 
       {composeOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1200,
-            background: "rgba(15,23,42,.55)",
-            display: "grid",
-            placeItems: "center",
-            padding: 18,
-          }}
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !sending) setComposeOpen(false);
-          }}
+        <ModalFrame
+          title={compose.draftId ? "Modifier le brouillon" : "Nouveau message"}
+          onClose={() => setComposeOpen(false)}
+          isBusy={sending}
+          width="min(760px, 100%)"
         >
-          <div className="card" style={{ width: "min(760px, 100%)", maxHeight: "92vh", overflow: "auto", padding: 24 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-              <div>
-                <p className="eyebrow">MagniMail</p>
-                <h2 style={{ marginTop: 0 }}>{compose.draftId ? "Modifier le brouillon" : "Nouveau message"}</h2>
-              </div>
-              <button className="button" disabled={sending} onClick={() => setComposeOpen(false)}>
-                Fermer
-              </button>
-            </div>
+            <p className="eyebrow">MagniMail</p>
 
             <div className="form">
               <div className="field">
-                <label>À</label>
+                <label htmlFor={composeFieldId + "-to"}>À</label>
                 <input
+                  id={composeFieldId + "-to"}
                   type="email"
                   value={compose.to}
+                  disabled={sending}
                   onChange={(event) => setCompose({ ...compose, to: event.target.value })}
                   placeholder="client@exemple.com"
                   required
@@ -720,44 +714,54 @@ export function MagniMailClient({
               </div>
               <div className="grid2">
                 <div className="field">
-                  <label>Cc</label>
+                  <label htmlFor={composeFieldId + "-cc"}>Cc</label>
                   <input
+                    id={composeFieldId + "-cc"}
                     type="email"
                     value={compose.cc}
+                    disabled={sending}
                     onChange={(event) => setCompose({ ...compose, cc: event.target.value })}
                   />
                 </div>
                 <div className="field">
-                  <label>Cci</label>
+                  <label htmlFor={composeFieldId + "-bcc"}>Cci</label>
                   <input
+                    id={composeFieldId + "-bcc"}
                     type="email"
                     value={compose.bcc}
+                    disabled={sending}
                     onChange={(event) => setCompose({ ...compose, bcc: event.target.value })}
                   />
                 </div>
               </div>
               <div className="field">
-                <label>Objet</label>
+                <label htmlFor={composeFieldId + "-subject"}>Objet</label>
                 <input
+                  id={composeFieldId + "-subject"}
                   value={compose.subject}
+                  disabled={sending}
                   onChange={(event) => setCompose({ ...compose, subject: event.target.value })}
                   required
                 />
               </div>
               <div className="field">
-                <label>Message</label>
+                <label htmlFor={composeFieldId + "-body"}>Message</label>
                 <textarea
+                  id={composeFieldId + "-body"}
                   rows={12}
                   value={compose.body}
+                  disabled={sending}
                   onChange={(event) => setCompose({ ...compose, body: event.target.value })}
                   required
                 />
               </div>
               <div className="field">
-                <label>Pièces jointes</label>
+                <label htmlFor={composeFieldId + "-attachments"}>Pièces jointes</label>
                 <input
+                  id={composeFieldId + "-attachments"}
                   ref={fileRef}
                   type="file"
+                  disabled={sending}
                   multiple
                   onChange={(event) => setFiles(Array.from(event.target.files || []))}
                 />
@@ -791,8 +795,7 @@ export function MagniMailClient({
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+        </ModalFrame>
       )}
     </div>
   );
