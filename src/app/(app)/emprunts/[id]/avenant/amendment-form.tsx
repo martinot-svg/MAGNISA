@@ -1,5 +1,6 @@
 "use client";
 
+import { FormDialog } from "@/components/form-dialog";
 import { useMemo, useState } from "react";
 import { buildLoanSchedule, type LoanRepaymentMethod, type LoanInterestCalculationMethod } from "@/lib/loan-finance";
 import { money } from "@/lib/money";
@@ -52,7 +53,7 @@ export function AmendmentForm({ loanId, principal, annualRatePercent, currentFre
   })) || [];
 
   return (
-    <form action={action} className="form section">
+    <FormDialog title="Valider l’avenant de prêt" buttonLabel="Valider l’avenant"><form action={action} className="form section">
       <input type="hidden" name="loan_id" value={loanId} />
       <input type="hidden" name="installments" value={JSON.stringify(payload)} readOnly />
 
@@ -97,6 +98,6 @@ export function AmendmentForm({ loanId, principal, annualRatePercent, currentFre
       <div className="actions">
         <button className="button primary" type="submit" disabled={!schedule || !effectiveFrom || reference.trim().length < 2 || reason.trim().length < 3}>Valider l'avenant et activer la nouvelle version</button>
       </div>
-    </form>
+    </form></FormDialog>
   );
 }

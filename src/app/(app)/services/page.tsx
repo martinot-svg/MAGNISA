@@ -166,7 +166,7 @@ export default async function Services({
                     >
                       Modifier la prestation
                     </summary>
-                    <form
+                    <FormDialog title="Modifier une prestation" buttonLabel="Modifier la prestation"><form
                       action={updateService}
                       className="form"
                       style={{ marginTop: 12 }}
@@ -223,10 +223,10 @@ export default async function Services({
                       <button className="button primary" type="submit">
                         Enregistrer les modifications
                       </button>
-                    </form>
+                    </form></FormDialog>
                   </details>
 
-                  <form
+                  <FormDialog title="Modifier le statut de la prestation" buttonLabel="Modifier le statut"><form
                     action={setServiceActive}
                     className="actions"
                     style={{ marginTop: 12 }}
@@ -240,7 +240,7 @@ export default async function Services({
                     <button className="button" type="submit">
                       {archived ? "Réactiver" : "Supprimer / archiver"}
                     </button>
-                  </form>
+                  </form></FormDialog>
                   {!archived && (
                     <p
                       className="muted"

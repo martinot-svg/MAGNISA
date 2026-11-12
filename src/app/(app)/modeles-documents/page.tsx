@@ -1,3 +1,4 @@
+import { FormDialog } from "@/components/form-dialog";
 import {assertDocumentAction} from "@/lib/document-permissions";
 import Link from "next/link";
 import {requirePermission} from "@/lib/permissions";
@@ -44,7 +45,7 @@ export default async function Templates(){
   const title=type==="quote"?"Devis":type==="invoice"?"Facture":type==="payslip"?"Bulletin de paie":"Rapport de gestion";
   const defaultPrefix=type==="quote"?"Arrêté le présent devis à la somme de :":type==="invoice"?"Arrêtée la présente facture à la somme de :":"";
   const mode=cfg.amountDisplayMode||"both";
-  return <div className="card" key={type}><h2>{title}</h2><form action={saveTemplate} className="form">
+  return <div className="card" key={type}><h2>{title}</h2><FormDialog title="Enregistrer un modèle documentaire" buttonLabel="Enregistrer le modèle"><form action={saveTemplate} className="form">
    <input type="hidden" name="document_type" value={type}/><input type="hidden" name="selected_preset_id" value={cfg.selectedPresetId||""}/>
    <div className="grid2"><div className="field"><label>Couleur principale</label><input name="primary_color" type="color" defaultValue={cfg.primaryColor||settings?.primary_color||"#1663FF"}/></div><div className="field"><label>Couleur secondaire</label><input name="secondary_color" type="color" defaultValue={cfg.secondaryColor||settings?.secondary_color||"#7B4DFF"}/></div></div>
    <div className="field"><label>Police PDF</label><select name="font_family" defaultValue={cfg.fontFamily||"Helvetica"}><option>Helvetica</option><option>Times-Roman</option><option>Courier</option></select></div>
@@ -54,7 +55,7 @@ export default async function Templates(){
    <div className="field"><label>Pied de page</label><textarea name="footer_text" defaultValue={cfg.footerText||""}/></div>
    {[["show_logo","Afficher le logo",cfg.showLogo!==false],["show_slogan","Afficher le slogan",cfg.showSlogan!==false],["show_tax_id","Afficher le NIF",cfg.showTaxId!==false],["show_stat_id","Afficher le STAT",cfg.showStatId!==false],["show_registry_id","Afficher le RCS",cfg.showRegistryId!==false],["show_bank_details","Afficher les coordonnées bancaires",cfg.showBankDetails!==false],["show_amount_words","Afficher le montant en lettres",cfg.showAmountInWords!==false],["show_tax_column","Afficher la colonne taxe",cfg.showTaxColumn!==false]].map(([name,label,checked]:any)=><label key={name} style={{display:"flex",gap:9,alignItems:"center"}}><input style={{width:"auto"}} type="checkbox" name={name} defaultChecked={checked}/>{label}</label>)}
    <button className="button primary">Enregistrer le modèle</button>
-  </form>
+  </form></FormDialog>
   <div className="documentPreview" style={{marginTop:20,"--preview-color":cfg.primaryColor||settings?.primary_color||"#1663FF"} as any}><div className="paper"><div className="paperHeader"><div className="paperBrand"><strong>{settings?.trade_name||settings?.legal_name||"Votre entreprise"}</strong><small>{settings?.slogan||"Votre slogan"}</small><small>{settings?.address||"Adresse de l'entreprise"}</small></div><div style={{textAlign:"right"}}><strong>{title.toUpperCase()}</strong><div style={{fontSize:8,marginTop:4}}>Aperçu du modèle</div></div></div>
   <div className="paperTable"><div><strong>Prestation</strong><strong>Qté</strong>{mode!=="none"&&<strong>{mode==="ht"?"Montant HT":mode==="ttc"?"Montant TTC":"HT / TTC"}</strong>}</div><div><span>Exemple de ligne</span><span>1</span>{mode!=="none"&&<span>{mode==="ht"?"100 000 Ar HT":mode==="ttc"?"120 000 Ar TTC":"100 000 / 120 000 Ar"}</span>}</div></div>
   {mode!=="none"&&<div className="paperTotals">{(mode==="ht"||mode==="both")&&<span>Total HT : 100 000 Ar</span>}{mode==="both"&&<span>TVA : 20 000 Ar</span>}{(mode==="ttc"||mode==="both")&&<strong>Total TTC : 120 000 Ar</strong>}</div>}

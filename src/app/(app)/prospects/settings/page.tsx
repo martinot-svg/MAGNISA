@@ -1,3 +1,4 @@
+import { FormDialog } from "@/components/form-dialog";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireOrganization } from "@/lib/current-org";
@@ -18,7 +19,7 @@ export default async function ProspectSettingsPage() {
       <Link className="button" href="/prospects">Retour aux prospects</Link>
     </div>
     <section className="section">
-      <form action={saveProspectInterventionTypes} className="form card">
+      <FormDialog title="Configurer les types d’intervention prospect" buttonLabel="Enregistrer la configuration"><form action={saveProspectInterventionTypes} className="form card">
         <div className="tableWrap"><table>
           <thead><tr><th>Type</th><th>Libellé affiché</th><th>Actif</th><th>Preuve obligatoire</th></tr></thead>
           <tbody>{(types as any[]).map((item:any)=><tr key={item.intervention_type}>
@@ -30,7 +31,7 @@ export default async function ProspectSettingsPage() {
         </table></div>
         <p className="muted">Les types désactivés restent visibles dans les historiques existants, mais ne peuvent plus être utilisés pour de nouvelles interventions. Les règles s'appliquent au niveau de cette entreprise.</p>
         <button className="button primary">Enregistrer la configuration</button>
-      </form>
+      </form></FormDialog>
     </section>
   </>;
 }

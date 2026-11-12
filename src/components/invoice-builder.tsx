@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { useFormDialogAction } from "@/components/form-dialog";
 import type { FormEvent } from "react";
 
 type Line={
@@ -20,6 +21,7 @@ type Customer={id:string;name:string};
 type InitialLine=Partial<Line>&Pick<Line,"line_kind"|"quantity"|"discount_pct"|"unit_price">;
 
 export function InvoiceBuilder({services,customers,initialLines,initialCustomerId,dueDate,orderId,action}:{services:Service[];customers:Customer[];initialLines:InitialLine[];initialCustomerId?:string;dueDate:string;orderId?:string|null;action:(formData:FormData)=>void|Promise<void>}){
+ const dialogAction=useFormDialogAction(action);
  const initial=()=>initialLines.length
   ?initialLines.map(l=>({...l,service_id:l.service_id||"",unit_price:Number(l.unit_price??services.find(s=>s.id===l.service_id)?.unit_price??0)}))
   :orderId?[]:[{line_kind:"service" as const,service_id:services[0]?.id||"",quantity:1,discount_pct:0,unit_price:Number(services[0]?.unit_price||0),tax_rate:Number(services[0]?.tax_rate||0)}];
@@ -42,7 +44,7 @@ export function InvoiceBuilder({services,customers,initialLines,initialCustomerI
   (l.line_kind==="service"?!!l.service:!!l.item_id&&!!l.order_line_id&&!!l.max_quantity&&l.quantity<=l.max_quantity)
  );
  const submit=(e:FormEvent<HTMLFormElement>)=>{if(!valid)e.preventDefault()};
- return <form action={action} onSubmit={submit} className="form">
+ return <form action={dialogAction} onSubmit={submit} className="form">
   <input type="hidden" name="customer_id" value={customerId}/>
   <input type="hidden" name="due_date" value={dueDate}/>
   <input type="hidden" name="order_id" value={orderId||""}/>

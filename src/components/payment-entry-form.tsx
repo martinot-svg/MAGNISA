@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useFormDialogAction } from "@/components/form-dialog";
 import { reserveCashReceiptReference } from "@/server/actions/core";
 import { MOBILE_MONEY_OPERATORS, normalizeMobileMoneyOperator, operatorLabel } from "@/lib/mobile-money-tariffs";
 import { estimateMvolaFee } from "@/lib/mvola-tariffs";
@@ -13,6 +14,7 @@ type FeeOption = "client_direct" | "client_reimbursed" | "company_pays" | "witho
 export function PaymentEntryForm({ invoices, accounts, currency, requestKey, action }: {
  invoices: InvoiceOption[]; accounts: AccountOption[]; currency: string; requestKey: string; action: (formData: FormData) => void | Promise<void>;
 }) {
+ const dialogAction=useFormDialogAction(action);
  const [invoiceId,setInvoiceId]=useState(""); const [amount,setAmount]=useState(""); const [method,setMethod]=useState(""); const [paidAt,setPaidAt]=useState("");
  const [mobileOperator,setMobileOperator]=useState(""); const [feeOption,setFeeOption]=useState<FeeOption|"">(""); const [feeAmount,setFeeAmount]=useState(""); const [accountId,setAccountId]=useState("");
  const [requestId,setRequestId]=useState(requestKey); const [cashReference,setCashReference]=useState(""); const [cashReferenceLoading,setCashReferenceLoading]=useState(false); const [cashReferenceError,setCashReferenceError]=useState("");
@@ -26,7 +28,7 @@ export function PaymentEntryForm({ invoices, accounts, currency, requestKey, act
  const declaredFeeLabel=feeOption==="without_fees"?fmt.format(0):feeOption==="client_direct"?"Payés directement à l’opérateur":feeNeedsAmount?(feeValid?fmt.format(fee):"À saisir depuis le justificatif"):"Prise en charge à sélectionner";
  const remaining=valid?Math.max(0,Math.round((due-received)*100)/100):null;
  const feeLabel=operatorLabel(operator);
- return <form action={action} className="form">
+ return <form action={dialogAction} className="form">
   <input type="hidden" name="idempotency_key" value={requestId}/>
   <div className="field"><label htmlFor="payment-invoice">Facture</label><select id="payment-invoice" name="invoice_id" value={invoiceId} required onChange={e=>{const i=invoices.find(x=>x.id===e.target.value);setInvoiceId(e.target.value);setAmount(i?String(i.balance_due):"")}}><option value="">Sélectionner</option>{invoices.map(i=><option key={i.id} value={i.id}>{i.number} - {i.customerName} - reste {fmt.format(i.balance_due)}</option>)}</select></div>
   <div className="field"><label htmlFor="payment-amount">Montant affecté à la facture</label><input id="payment-amount" name="amount" type="number" min="0.01" max={invoice?due:undefined} step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} required/>{invoice&&<small>Solde restant : {fmt.format(due)}.</small>}{invoice&&amount!==""&&!valid&&<p className="error">Le montant doit être supérieur à zéro et ne pas dépasser le solde restant dû.</p>}</div>

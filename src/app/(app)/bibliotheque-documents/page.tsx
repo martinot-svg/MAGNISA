@@ -1,3 +1,4 @@
+import { FormDialog } from "@/components/form-dialog";
 import {canDocumentAction} from "@/lib/document-permissions";
 import Link from "next/link";
 import {revalidatePath} from "next/cache";
@@ -47,7 +48,7 @@ export default async function DocumentLibrary({searchParams}:{searchParams:Promi
  <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}><div style={{width:120,fontSize:9,textAlign:"right"}}><div>Sous-total : 0 Ar</div><strong style={{display:"block",borderTop:"1px solid #d0d2d4",marginTop:5,paddingTop:5,color:preset.configuration.primaryColor}}>Total : 0 Ar</strong></div></div>
  </div>
  <h3>{preset.name}</h3><p className="muted">{preset.category} - {preset.style}</p><p>{preset.description}</p>{preset.provenance==="user-provided design reference"?<><p className="muted">Référence fournie par ton entreprise - modèle de facture inspiré du design Canva.</p><p><a href="https://www.canva.com/design/DAHYot6hBfI/rBh1DlTVJYmMFEOQ5lRTkA/edit" target="_blank" rel="noreferrer">Ouvrir le design Canva d’origine</a></p></>:<p className="muted">Création originale MAGNISA - licence propriétaire interne.</p>}
- {active.get(preset.type)===preset.id?<p><strong>Modèle par défaut sélectionné</strong></p>:canEdit?<form action={selectPreset}><input type="hidden" name="preset_id" value={preset.id}/><button className="button primary" type="submit">Utiliser pour {preset.type==="quote"?"les devis":preset.type==="invoice"?"les factures":preset.type==="payslip"?"la paie":"les rapports"}</button></form>:<p className="muted">Sélection réservée à l'administrateur.</p>}
+ {active.get(preset.type)===preset.id?<p><strong>Modèle par défaut sélectionné</strong></p>:canEdit?<FormDialog title="Choisir un modèle de document" buttonLabel="Utiliser ce modèle"><form action={selectPreset}><input type="hidden" name="preset_id" value={preset.id}/><button className="button primary" type="submit">Utiliser pour {preset.type==="quote"?"les devis":preset.type==="invoice"?"les factures":preset.type==="payslip"?"la paie":"les rapports"}</button></form></FormDialog>:<p className="muted">Sélection réservée à l'administrateur.</p>}
  </div>)}</div>
  </>;
 }

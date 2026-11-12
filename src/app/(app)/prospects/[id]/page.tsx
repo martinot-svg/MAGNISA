@@ -1,3 +1,4 @@
+import { FormDialog } from "@/components/form-dialog";
 import { formatDateTimeDisplay } from "@/lib/date-format";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -90,7 +91,7 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
     {canContribute && <section className="section">
       <h2>Enregistrer une intervention</h2>
       <p className="muted">Un collaborateur ordinaire ne peut déclarer que sa propre intervention. Une déclaration faite par un responsable au nom d'un collègue reste soumise à validation indépendante.</p>
-      <form action={recordProspectIntervention} className="form card">
+      <FormDialog title="Enregistrer une intervention prospect" buttonLabel="Enregistrer l’intervention"><form action={recordProspectIntervention} className="form card">
         <input type="hidden" name="prospect_id" value={id}/>
         <div className="grid grid-3">
           <div className="field"><label>Collaborateur ayant contribué</label><select name="contributor_user_id" required defaultValue="">
@@ -115,7 +116,7 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
         </div>
         <div className="field"><label>Description détaillée</label><textarea name="description" rows={3} minLength={3} maxLength={4000} required/></div>
         <button className="button primary">Enregistrer l'intervention</button>
-      </form>
+      </form></FormDialog>
     </section>}
 
     <section className="section">
@@ -129,7 +130,7 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
           <td>{statusLabels[item.stage_status] || item.stage_status}
             {(canContribute || canManage) && item.intervention_type!=="transfer" && item.stage_status!=="transferred" &&
               (canManage || item.contributor_user_id===ctx.user.id || item.created_by===ctx.user.id) &&
-              <form action={changeProspectInterventionStatus} className="form">
+              <FormDialog title="Modifier le statut de l’intervention" buttonLabel="Modifier le statut"><form action={changeProspectInterventionStatus} className="form">
                 <input type="hidden" name="intervention_id" value={item.id}/>
                 <input type="hidden" name="subject_path" value={path}/>
                 <select name="stage_status" defaultValue={item.stage_status}>
@@ -137,13 +138,13 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
                 </select>
                 <input name="reason" required minLength={3} maxLength={1000} placeholder="Justification du changement"/>
                 <button className="button small">Mettre à jour</button>
-              </form>}
+              </form></FormDialog>}
           </td>
           <td><span className="badge">{validationLabels[item.validation_status] || item.validation_status}</span>{item.review_reason && <div className="muted">{item.review_reason}</div>}</td>
           <td>{item.evidence_reference || "—"}<div className="muted">Saisi par {emailById.get(item.created_by) || item.created_by}</div></td>
           <td>{canReview && item.validation_status==="pending" && item.contributor_user_id!==ctx.user.id ? <div className="actions">
-            <form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={item.id}/><input type="hidden" name="decision" value="validate"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Justification"/><button className="button small">Valider</button></form>
-            <form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={item.id}/><input type="hidden" name="decision" value="reject"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Motif du rejet"/><button className="button small">Rejeter</button></form>
+            <FormDialog title="Examiner une intervention prospect" buttonLabel="Ouvrir la décision"><form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={item.id}/><input type="hidden" name="decision" value="validate"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Justification"/><button className="button small">Valider</button></form></FormDialog>
+            <FormDialog title="Examiner une intervention prospect" buttonLabel="Ouvrir la décision"><form action={reviewProspectIntervention}><input type="hidden" name="intervention_id" value={item.id}/><input type="hidden" name="decision" value="reject"/><input type="hidden" name="subject_path" value={path}/><input name="reason" required minLength={3} placeholder="Motif du rejet"/><button className="button small">Rejeter</button></form></FormDialog>
           </div> : item.reviewed_by ? <span className="muted">Décidé par {emailById.get(item.reviewed_by) || item.reviewed_by}</span> : "—"}</td>
         </tr>)}
       </tbody></table></div>}

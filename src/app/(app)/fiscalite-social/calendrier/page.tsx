@@ -1,3 +1,4 @@
+import { FormDialog } from "@/components/form-dialog";
 import Link from "next/link";
 import { CalendarRuleDialog } from "@/components/calendar-rule-dialog";
 import { revalidatePath } from "next/cache";
@@ -157,7 +158,7 @@ export default async function SocialCalendarSettings() {
       {canManage.data === true ? (
         <CalendarRuleDialog title="Ajouter une nouvelle règle">
           <p>Commence en brouillon. Aucun organisme ni délai légal n'est prérempli automatiquement.</p>
-          <form action={createDraft} className="form">
+          <FormDialog title="Créer un brouillon de règle réglementaire" buttonLabel="Enregistrer en brouillon"><form action={createDraft} className="form">
             <div className="grid2">
               <div className="field"><label htmlFor="organism_code">Code organisme</label><input id="organism_code" name="organism_code" placeholder="CNAPS, SMIE ou OSTIE" required /></div>
               <div className="field"><label htmlFor="label">Nom de la règle</label><input id="label" name="label" placeholder="Échéance déclarative mensuelle" required /></div>
@@ -178,7 +179,7 @@ export default async function SocialCalendarSettings() {
             <div className="field"><label htmlFor="source_url">Lien de la source (facultatif)</label><input id="source_url" name="source_url" type="url" placeholder="https://" /></div>
             <div className="field"><label htmlFor="notes">Notes de vérification</label><textarea id="notes" name="notes" rows={3} /></div>
             <button className="button primary">Enregistrer en brouillon</button>
-          </form>
+          </form></FormDialog>
         </CalendarRuleDialog>
       ) : null}
       </div>
@@ -201,16 +202,16 @@ export default async function SocialCalendarSettings() {
             <p><strong>Source :</strong> {rule.source_label || "Non renseignée"}{rule.source_url ? <> | <a href={rule.source_url} target="_blank" rel="noreferrer">Consulter la source</a></> : null}</p>
             {rule.notes ? <p><strong>Notes :</strong> {rule.notes}</p> : null}
             {canManage.data === true && rule.status === "draft" ? (
-              <form action={validateRule} className="form">
+              <FormDialog title="Valider une règle réglementaire" buttonLabel="Valider cette règle"><form action={validateRule} className="form">
                 <input type="hidden" name="id" value={rule.id} />
                 <button className="button primary">Valider cette règle</button>
-              </form>
+              </form></FormDialog>
             ) : null}
             {canManage.data === true && rule.status !== "archived" ? (
-              <form action={archiveRule} className="form">
+              <FormDialog title="Archiver une règle réglementaire" buttonLabel="Archiver la règle"><form action={archiveRule} className="form">
                 <input type="hidden" name="id" value={rule.id} />
                 <button className="button">Archiver</button>
-              </form>
+              </form></FormDialog>
             ) : null}
           </article>
         ))}

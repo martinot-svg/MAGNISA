@@ -1,3 +1,4 @@
+import { FormDialog } from "@/components/form-dialog";
 import { requirePermission } from "@/lib/permissions";
 import { requireOrganization } from "@/lib/current-org";
 import { loadFiscalStatements } from "@/lib/accounting/fiscal-statements";
@@ -100,7 +101,7 @@ export default async function Statements({searchParams}:{searchParams:Promise<{y
   <section className="section"><h2>4. Tableau des flux de trésorerie</h2><p>Présentation des encaissements et décaissements bruts identifiables. Les écritures complexes non ventilables sont exclues et signalées dans les contrôles.</p><div className="tableWrap"><table><thead><tr><th>Rubrique</th><th className="right">Montant</th></tr></thead><tbody>{s.cashFlows.map(x=><tr key={x.label}><td>{x.label}</td><td className="right">{fmt(x.amount)}</td></tr>)}<tr><td>Trésorerie d'ouverture</td><td className="right">{fmt(s.openingCash)}</td></tr><tr><td>Trésorerie de clôture</td><td className="right">{fmt(s.closingCash)}</td></tr><tr><td>Écart de rapprochement</td><td className="right">{fmt(s.controls.cashFlowReconciliationDifference)}</td></tr></tbody></table></div></section>
   <section className="section"><h2>5. Annexe aux états financiers</h2>
    <p className="muted">Complète les neuf rubriques de l'annexe. Les documents définitifs restent bloqués tant que ces informations ne sont pas renseignées.</p>
-   <form action={saveFiscalNotes} className="card form"><input type="hidden" name="year_id" value={s.year.id}/>
+   <FormDialog title="Modifier les notes de l’annexe fiscale" buttonLabel="Enregistrer l’annexe"><form action={saveFiscalNotes} className="card form"><input type="hidden" name="year_id" value={s.year.id}/>
     <div className="field"><label>Règles et méthodes comptables</label><textarea name="accounting_policies" rows={3} defaultValue={s.year.notes?.accounting_policies||""} required placeholder="Principes comptables, continuité d'exploitation, permanence des méthodes, base de préparation..."/></div>
     <div className="field"><label>Méthodes d'évaluation et estimations</label><textarea name="valuation_methods" rows={3} defaultValue={s.year.notes?.valuation_methods||""} required placeholder="Coût historique, amortissements, dépréciations, provisions, change..."/></div>
     <div className="field"><label>Immobilisations, amortissements et dépréciations</label><textarea name="fixed_assets" rows={3} defaultValue={s.year.notes?.fixed_assets||""} required placeholder="Valeurs brutes, acquisitions, cessions, amortissements, valeurs nettes..."/></div>
@@ -111,7 +112,7 @@ export default async function Statements({searchParams}:{searchParams:Promise<{y
     <div className="field"><label>Parties liées et opérations avec dirigeants</label><textarea name="related_parties" rows={3} defaultValue={s.year.notes?.related_parties||""} required placeholder="Transactions, soldes, rémunérations et liens de contrôle ou néant justifié..."/></div>
     <div className="field"><label>Événements postérieurs à la clôture</label><textarea name="subsequent_events" rows={3} defaultValue={s.year.notes?.subsequent_events||""} required placeholder="Événements significatifs entre clôture et arrêté ou absence d'événement significatif..."/></div>
     <button className="button primary">Enregistrer l'annexe</button>
-   </form>
+   </form></FormDialog>
    <ol>{s.notes.map((note,i)=><li key={i}>{note}</li>)}</ol>
   </section>
  </>;

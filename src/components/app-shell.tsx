@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FormDialog } from "@/components/form-dialog";
 import { signOut } from "@/server/actions/auth";
 import { requireOrganization } from "@/lib/current-org";
 import { FEATURE_CATALOG, type FeatureKey } from "@/lib/features";
@@ -113,9 +114,12 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
             <Link href="/notifications">Notifications</Link>
           </div>
         </nav>
-        <form action={signOut}>
-          <button className="button ghost">Se déconnecter</button>
-        </form>
+        <FormDialog title="Se déconnecter" buttonLabel="Se déconnecter" buttonClassName="button ghost">
+          <form action={signOut}>
+            <p>Confirme la fermeture de ta session MAGNISA.</p>
+            <button className="button ghost">Confirmer la déconnexion</button>
+          </form>
+        </FormDialog>
       </aside>
       <main>
         <div

@@ -1,3 +1,4 @@
+import { FormDialog } from "@/components/form-dialog";
 import { randomUUID } from "node:crypto";
 import { recordInternalTransferDebit, confirmInternalTransferCredit } from "@/server/actions/core";
 import Link from "next/link";
@@ -110,7 +111,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
           <h2>Transferts internes - opérations réelles</h2>
           <p className="muted">Enregistre uniquement un débit déjà constaté sur le compte source. Le destinataire n'est crédité dans MAGNISA qu'après confirmation de son crédit réel.</p>
           <div>
-            <InternalTransferForm action={recordInternalTransferDebit} accounts={accounts.filter((a:any)=>a.is_active)} requestKey={randomUUID()}/>
+            <FormDialog title="Enregistrer un virement interne" buttonLabel="+ Enregistrer un virement"><InternalTransferForm action={recordInternalTransferDebit} accounts={accounts.filter((a:any)=>a.is_active)} requestKey={randomUUID()}/></FormDialog>
 
           </div>
           <h3>Suivi et confirmation des crédits</h3>
@@ -121,12 +122,12 @@ export default async function Treasury(){const ctx=await requireOrganization();a
             <td>{accounts.find((a:any)=>a.id===t.source_account_id)?.name||"Source"} → {accounts.find((a:any)=>a.id===t.destination_account_id)?.name||"Destination"}</td>
             <td>{money(t.source_debit,org?.currency||"MGA")}</td><td>{money(t.operator_fee,org?.currency||"MGA")}</td><td>{money(t.destination_credit,org?.currency||"MGA")}</td>
             <td>{t.status==="completed"?<><strong>Crédit confirmé</strong><div className="muted">{t.received_date} · {t.destination_reference}</div></>:
-              <form action={confirmInternalTransferCredit} className="form">
+              <FormDialog title="Confirmer la réception du virement interne" buttonLabel="Confirmer le crédit reçu"><form action={confirmInternalTransferCredit} className="form">
                 <strong>En transit</strong><input type="hidden" name="transfer_id" value={t.id}/>
                 <label>Date de réception<input type="date" name="date" min={t.transfer_date} required/></label>
                 <label>Référence du crédit<input name="reference" required minLength={2} placeholder="Relevé destinataire"/></label>
                 <button className="button" type="submit">Confirmer le crédit reçu</button>
-              </form>}
+              </form></FormDialog>}
             </td></tr>)}
           </tbody></table></div>}
           <h3>Historique des transferts antérieurs</h3>

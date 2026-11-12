@@ -1,3 +1,4 @@
+import { FormDialog } from "@/components/form-dialog";
 import Link from "next/link";
 import { requireOrganization } from "@/lib/current-org";
 import { requirePermission, hasPermission } from "@/lib/permissions";
@@ -151,7 +152,7 @@ export default async function RecurringServices() {
                     <td>
                       <div className="actions">
                         {c.status === "active" && (
-                          <form action={setRecurringServiceStatusAction}>
+                          <FormDialog title="Modifier le statut de la prestation récurrente" buttonLabel="Ouvrir les actions"><form action={setRecurringServiceStatusAction}>
                             <input
                               type="hidden"
                               name="contract_id"
@@ -169,10 +170,10 @@ export default async function RecurringServices() {
                               required
                             />
                             <button className="button">Suspendre</button>
-                          </form>
+                          </form></FormDialog>
                         )}
                         {c.status === "suspended" && (
-                          <form action={setRecurringServiceStatusAction}>
+                          <FormDialog title="Modifier le statut de la prestation récurrente" buttonLabel="Ouvrir les actions"><form action={setRecurringServiceStatusAction}>
                             <input
                               type="hidden"
                               name="contract_id"
@@ -184,10 +185,10 @@ export default async function RecurringServices() {
                               value="active"
                             />
                             <button className="button">Reprendre</button>
-                          </form>
+                          </form></FormDialog>
                         )}
                         {["active", "suspended"].includes(c.status) && (
-                          <form action={setRecurringServiceStatusAction}>
+                          <FormDialog title="Modifier le statut de la prestation récurrente" buttonLabel="Ouvrir les actions"><form action={setRecurringServiceStatusAction}>
                             <input
                               type="hidden"
                               name="contract_id"
@@ -205,7 +206,7 @@ export default async function RecurringServices() {
                               required
                             />
                             <button className="button">Résilier</button>
-                          </form>
+                          </form></FormDialog>
                         )}
                       </div>
                     </td>

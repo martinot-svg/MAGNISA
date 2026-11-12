@@ -1,3 +1,4 @@
+import { FormDialog } from "@/components/form-dialog";
 import { assertPermission, hasPermission, requirePermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
@@ -167,7 +168,7 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
       {canManage && unmapped.length > 0 && <section className="card section">
         <h2>Imputer les comptes non classes</h2>
         <p className="muted">L'imputation manuelle doit reposer sur une piece justificative et sur la nature economique de la charge.</p>
-        {unmapped.map((r: any, index: number) => <form key={r.account_key + index} action={assignAccountMapping} className="form">
+        {unmapped.map((r: any, index: number) => <FormDialog title="Affecter un compte comptable" buttonLabel="Confirmer l’imputation"><form key={r.account_key + index} action={assignAccountMapping} className="form">
           <input type="hidden" name="legacy_account_key" value={r.account_key} />
           <div className="field"><label>Nom du compte MAGNISA</label><p>{r.account_label || "Compte sans libellé"}</p></div>
           <div className="field"><label>Compte PCG 2005</label><select name="pcg_code" defaultValue={suggestPcgCode(r.account_label || "", r.account_key || "")} required>
@@ -177,7 +178,7 @@ export default async function Accounting({ searchParams }: { searchParams: Promi
             </option>)}
           </select>{suggestPcgCode(r.account_label || "", r.account_key || "") && <p className="muted">Suggestion MAGNISA : compte {suggestPcgCode(r.account_label || "", r.account_key || "")}. Vérifie la pièce justificative et confirme avant d'enregistrer.</p>}</div>
           <button className="button primary">Confirmer l'imputation</button>
-        </form>)}
+        </form></FormDialog>)}
       </section>}
       <section className="section">
         <h2>Balance PCG 2005 - detail des comptes</h2>

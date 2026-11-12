@@ -1,3 +1,4 @@
+import { FormDialog } from "@/components/form-dialog";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { requireOrganization } from "@/lib/current-org";
@@ -118,7 +119,7 @@ export default async function CommissionsPage() {
       {canManagePolicy && <div className="section">
         <h2>Politiques de primes</h2>
         <p className="muted">La politique détermine la base financière, l'assiette HT ou TTC, le taux, les parts des contributeurs et le compte PCG de charge. HT est proposé par défaut ; choisis TTC si le contrat de commission le prévoit. Chaque calcul conserve une copie figée de ces paramètres. Une prime fondée sur une facture exige que cette facture soit entièrement soldée. Le compte PCG choisi servira à comptabiliser chaque décaissement.</p>
-        <form action={saveCommissionPolicy} className="form card">
+        <FormDialog title="Configurer la politique de commissions" buttonLabel="Enregistrer la politique"><form action={saveCommissionPolicy} className="form card">
           <div className="field"><label>Nom de la politique</label><input name="name" required minLength={2} /></div>
           <div className="field"><label>Description</label><input name="description" /></div>
           <div className="grid grid-3">
@@ -137,7 +138,7 @@ export default async function CommissionsPage() {
           </div>
           <label className="inline"><input type="checkbox" name="is_active" /> Activer cette politique dès sa date de début</label>
           <button className="button primary">Enregistrer la politique</button>
-        </form>
+        </form></FormDialog>
         <div className="tableWrap"><table><thead><tr><th>Politique</th><th>Base</th><th>Taux</th><th>Compte de charge</th><th>Répartition</th><th>État</th></tr></thead><tbody>
           {policies.map((policy: any) => <tr key={policy.id}>
             <td><strong>{policy.name}</strong><div className="muted">{policy.id}</div></td>
@@ -153,19 +154,19 @@ export default async function CommissionsPage() {
       {canManagePolicy && <div className="section">
         <h2>Affecter une contribution</h2>
         <p className="muted">Seuls les responsables autorisés peuvent affecter un membre actif à un prospect. Le créateur d'un prospect est automatiquement enregistré comme apporteur.</p>
-        <form action={addProspectContributor} className="form card">
+        <FormDialog title="Affecter un contributeur au prospect" buttonLabel="Affecter le contributeur"><form action={addProspectContributor} className="form card">
           <div className="field"><label>Prospect</label><select name="prospect_id" required defaultValue=""><option value="" disabled>Choisir un prospect</option>{prospects.map((prospect: any) => <option key={prospect.id} value={prospect.id}>{prospect.name} · {prospect.status}</option>)}</select></div>
           <div className="field"><label>Membre actif</label><select name="user_id" required defaultValue=""><option value="" disabled>Choisir un membre</option>{assignableMembers.map((member) => <option key={member.user_id} value={member.user_id}>{member.email} · {member.role}</option>)}</select></div>
           <div className="field"><label>Contribution</label><select name="contribution_type" required defaultValue="qualifier"><option value="originator">Apporteur</option><option value="qualifier">Qualificateur</option><option value="negotiator">Négociateur</option><option value="closer">Convertisseur</option></select></div>
           <div className="field"><label>Précision sur la contribution</label><textarea name="notes" rows={2} maxLength={1000} /></div>
           <button className="button">Affecter le contributeur</button>
-        </form>
+        </form></FormDialog>
       </div>}
 
       {canCalculate && <div className="section">
         <h2>Calculer une prime</h2>
         <p className="muted">Le calcul est autorisé uniquement après conversion du prospect. La base est lue dans la commande, la facture ou la politique fixe, jamais acceptée comme un montant libre saisi.</p>
-        <form action={calculateProspectCommission} className="form card">
+        <FormDialog title="Calculer la commission du prospect" buttonLabel="Calculer la commission"><form action={calculateProspectCommission} className="form card">
           <input type="hidden" name="request_key" value={randomUUID()} />
           <div className="field"><label>Prospect converti</label><select name="prospect_id" required defaultValue=""><option value="" disabled>Choisir un prospect converti</option>{prospects.filter((prospect: any) => prospect.converted_customer_id).map((prospect: any) => <option key={prospect.id} value={prospect.id}>{prospect.name}</option>)}</select></div>
           <div className="field"><label>Politique</label><select name="policy_id" required defaultValue=""><option value="" disabled>Choisir une politique</option>{policies.filter((p: any) => p.is_active).map((p: any) => <option key={p.id} value={p.id}>{p.name} · {p.calculation_basis === "order_total" ? "Commande" : p.calculation_basis === "invoice_paid_amount" ? "Facture" : "Fixe"} · {p.tax_basis === "gross" ? "TTC" : "HT"}</option>)}</select></div>
@@ -183,7 +184,7 @@ export default async function CommissionsPage() {
             </optgroup>
           </select><small className="muted">La pièce doit appartenir au client du prospect sélectionné. Les commandes annulées et factures non soldées sont exclues.</small></div>
           <button className="button primary">Calculer et soumettre à la finance</button>
-        </form>
+        </form></FormDialog>
       </div>}
 
       <div className="section">
@@ -204,7 +205,7 @@ export default async function CommissionsPage() {
                 {(allocation.commission_payments || []).map((payment: any) => <div className="muted" key={payment.id}>
                   {payment.paid_at} · {payment.payment_reference} · pièce MAGNISA {payment.expense_reference}
                 </div>)}
-                {canPay && (item.status === "approved" || item.status === "partially_paid") && balance > 0 && paymentAccounts.length > 0 && <form action={recordCommissionPayment} className="inline">
+                {canPay && (item.status === "approved" || item.status === "partially_paid") && balance > 0 && paymentAccounts.length > 0 && <FormDialog title="Enregistrer le décaissement de commission" buttonLabel="Enregistrer le décaissement"><form action={recordCommissionPayment} className="inline">
                   <input type="hidden" name="allocation_id" value={allocation.id} />
                   <input type="hidden" name="request_key" value={randomUUID()} />
                   <select name="financial_account_id" required defaultValue="" aria-label="Compte de trésorerie à débiter">
@@ -215,13 +216,13 @@ export default async function CommissionsPage() {
                   <input name="paid_at" type="date" required aria-label="Date de paiement" />
                   <input name="reference" placeholder="Référence du virement ou reçu" required aria-label="Référence du paiement réel" />
                   <button className="button small">Enregistrer le décaissement</button>
-                </form>}
+                </form></FormDialog>}
                 {canPay && (item.status === "approved" || item.status === "partially_paid") && balance > 0 && paymentAccounts.length === 0 && <p className="muted">Aucun compte de trésorerie actif n'est disponible pour enregistrer ce décaissement.</p>}
               </div>;
             })}</td>
             <td>{canApprove && item.status === "calculated" ? <div style={{ display: "grid", gap: 8 }}>
-              <form action={reviewProspectCommission}><input type="hidden" name="calculation_id" value={item.id} /><input type="hidden" name="decision" value="approve" /><button className="button primary small">Valider</button></form>
-              <form action={reviewProspectCommission}><input type="hidden" name="calculation_id" value={item.id} /><input type="hidden" name="decision" value="reject" /><input name="reason" placeholder="Motif obligatoire" required /><button className="button danger small">Rejeter</button></form>
+              <FormDialog title="Examiner une commission de prospect" buttonLabel="Ouvrir la décision"><form action={reviewProspectCommission}><input type="hidden" name="calculation_id" value={item.id} /><input type="hidden" name="decision" value="approve" /><button className="button primary small">Valider</button></form></FormDialog>
+              <FormDialog title="Examiner une commission de prospect" buttonLabel="Ouvrir la décision"><form action={reviewProspectCommission}><input type="hidden" name="calculation_id" value={item.id} /><input type="hidden" name="decision" value="reject" /><input name="reason" placeholder="Motif obligatoire" required /><button className="button danger small">Rejeter</button></form></FormDialog>
             </div> : "—"}</td>
           </tr>)}</tbody>
         </table></div>}
