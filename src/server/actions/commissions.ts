@@ -425,6 +425,8 @@ export async function recordProspectIntervention(formData: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath("/prospects");
   revalidatePath("/clients");
+  if (parsed.data.prospect_id) revalidatePath("/prospects/" + parsed.data.prospect_id);
+  if (parsed.data.customer_id) revalidatePath("/clients/" + parsed.data.customer_id + "/contributions");
   revalidatePath("/commissions");
 }
 
