@@ -165,6 +165,9 @@ try {
   const validationDialog = page.getByRole("dialog").last();
   await validationDialog.waitFor({ state: "visible", timeout: 10000 });
   const validationForm = validationDialog.locator("form");
+  await validationForm.getByRole("button", { name: "Valider" }).waitFor({ state: "visible", timeout: 10000 });
+  assert(await validationForm.getByRole("button", { name: "Valider" }).count() === 1,
+    "An independent owner must be offered validation for another contributor.");
   await validationForm.locator('input[name="reason"]').fill("Justificatif et identité du contributeur contrôlés indépendamment.");
   await validationForm.getByRole("button", { name: "Valider" }).click();
   await validationDialog.waitFor({ state: "hidden", timeout: 20000 });
