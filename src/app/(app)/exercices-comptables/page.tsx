@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, requirePermission } from "@/lib/permissions";
 import { money } from "@/lib/money";
+import { FormDialog } from "@/components/form-dialog";
 
 async function createFiscalYear(formData: FormData) {
   "use server";
@@ -106,19 +107,21 @@ export default async function FiscalYears({ searchParams }: { searchParams: Prom
     <section className="card section">
       <h2>Créer un exercice</h2>
       <p className="muted">Après un exercice clôturé, MAGNISA reprend automatiquement les soldes des comptes de bilan PCG 1 à 5, y compris le résultat transféré en 120 ou 129. Pour le premier exercice, laisse les soldes initiaux vides si l'entreprise n'avait aucun patrimoine ni aucune écriture avant le début de la période. Sinon, saisis les soldes justifiés.</p>
-      <form action={createFiscalYear} className="form">
-        <div className="grid2">
-          <div className="field"><label>Libellé</label><input name="label" required placeholder="Exercice 2026" /></div>
-          <div className="field"><label>Date d'ouverture</label><input name="period_start" type="date" required /></div>
-          <div className="field"><label>Date de clôture</label><input name="period_end" type="date" required /></div>
-        </div>
-        <div className="field">
-          <label>Soldes initiaux du premier exercice (facultatifs si aucun patrimoine antérieur)</label>
-          <textarea name="opening_lines" rows={5} placeholder={"101|0|45000000\n512|35000000|0\n53|5000000|0\n411|12000000|0\n401|0|7000000"} />
-          <p className="muted">Format : code PCG|débit|crédit. Comptes de bilan uniquement (classes 1 à 5). Les débits doivent égaler les crédits. Pour un premier exercice sans patrimoine antérieur, laisse vide : aucune écriture d'à-nouveaux ne sera créée. Pour un exercice suivant, le report sera automatique.</p>
-        </div>
-        <button className="button primary">Créer l'exercice</button>
-      </form>
+      <FormDialog title="Créer un exercice comptable" buttonLabel="Créer un exercice">
+        <form action={createFiscalYear} className="form">
+          <div className="grid2">
+            <div className="field"><label>Libellé</label><input name="label" required placeholder="Exercice 2026" /></div>
+            <div className="field"><label>Date d'ouverture</label><input name="period_start" type="date" required /></div>
+            <div className="field"><label>Date de clôture</label><input name="period_end" type="date" required /></div>
+          </div>
+          <div className="field">
+            <label>Soldes initiaux du premier exercice (facultatifs si aucun patrimoine antérieur)</label>
+            <textarea name="opening_lines" rows={5} placeholder={"101|0|45000000\n512|35000000|0\n53|5000000|0\n411|12000000|0\n401|0|7000000"} />
+            <p className="muted">Format : code PCG|débit|crédit. Comptes de bilan uniquement (classes 1 à 5). Les débits doivent égaler les crédits. Pour un premier exercice sans patrimoine antérieur, laisse vide : aucune écriture d'à-nouveaux ne sera créée. Pour un exercice suivant, le report sera automatique.</p>
+          </div>
+          <button className="button primary">Créer l'exercice</button>
+        </form>
+      </FormDialog>
     </section>
     <section className="section">
       <h2>Historique des exercices</h2>
@@ -128,7 +131,15 @@ export default async function FiscalYears({ searchParams }: { searchParams: Prom
           <td><a href={`/exercices-comptables?year=${year.id}`}>{year.label}</a></td><td>{formatDateDisplay(year.period_start)}</td><td>{formatDateDisplay(year.period_end)}</td>
           <td><span className={year.status === "closed" ? "badge success" : "badge"}>{year.status === "closed" ? "Clôturé" : "Ouvert"}</span></td>
           <td>{year.opening_entry_id ? "Générée" : "Absente"}</td>
-          <td>{year.status === "open" && <form action={closeFiscalYear}><input type="hidden" name="fiscal_year_id" value={year.id} /><button className="button">Clôturer</button></form>}</td>
+          <td>{year.status === "open" && (
+            <FormDialog title={`Clôturer l’exercice ${year.label}`} buttonLabel="Clôturer" buttonClassName="button">
+              <form action={closeFiscalYear} className="form">
+                <input type="hidden" name="fiscal_year_id" value={year.id} />
+                <p>Confirme la clôture de l’exercice {year.label}. Cette opération verrouille les écritures de la période.</p>
+                <button className="button primary">Confirmer la clôture</button>
+              </form>
+            </FormDialog>
+          )}</td>
         </tr>)}</tbody>
       </table></div>}
     </section>
