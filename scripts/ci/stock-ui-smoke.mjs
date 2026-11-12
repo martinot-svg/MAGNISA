@@ -58,15 +58,23 @@ try {
 
   await page.goto(`${baseUrl}/commandes`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Commandes" }).waitFor();
+  // Wait for client hydration before clicking FormDialog triggers.
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   const orderNumber = freeOrderId.endsWith("134") ? "CI-RACE-ORDER-A" : "CI-RACE-ORDER-B";
   let orderRow = page.locator("tr").filter({ hasText: orderNumber });
   await orderRow.waitFor({ state: "visible" });
   let stockDetails = orderRow.locator("details").filter({ hasText: "Stock & livraisons" });
-  await stockDetails.locator("summary").click();
+  if (!(await stockDetails.evaluate((element) => element.open))) {
+    await stockDetails.locator("summary").click();
+  }
   // Reservation and delivery forms are opened by FormDialog triggers; the
   // inputs only exist inside the dialog after the trigger is activated.
-  await stockDetails.getByRole("button", { name: "Réserver" }).first().click();
-  const reserveDialog = page.getByRole("dialog").last();
+  const reserveTrigger = stockDetails.locator('button[aria-haspopup="dialog"]').filter({ hasText: "Réserver" }).first();
+  await reserveTrigger.waitFor({ state: "visible" });
+  await reserveTrigger.click();
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('button[aria-haspopup="dialog"]'))
+    .some((button) => button.getAttribute("aria-expanded") === "true"), null, { timeout: 10000 });
+  const reserveDialog = page.locator('.magnisa-modal-backdrop [role="dialog"]').last();
   await reserveDialog.waitFor({ state: "visible", timeout: 10000 });
   const reserveForm = reserveDialog.locator("form");
   await reserveForm.locator('select[name="stock_location_id"]').selectOption(locationId);
