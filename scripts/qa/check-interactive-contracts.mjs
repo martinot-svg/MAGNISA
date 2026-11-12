@@ -36,8 +36,16 @@ const modalRequiredFiles = new Map([
   ["src/app/(app)/devis/[id]/page.tsx", 5],
   ["src/app/(app)/clients/[id]/page.tsx", 2],
   ["src/app/(app)/clients/[id]/contributions/page.tsx", 4],
+  ["src/components/app-shell.tsx", 1],
 ]);
 const modalWriteFormCounts = new Map([...modalRequiredFiles.keys()].map((file) => [file, 0]));
+const dialogActionComponentFiles = new Set([
+  "src/components/internal-transfer-form.tsx",
+  "src/components/invoice-builder.tsx",
+  "src/components/payment-entry-form.tsx",
+  "src/components/purchase-order-form.tsx",
+  "src/components/quote-builder.tsx",
+]);
 let formCount = 0;
 let buttonCount = 0;
 
@@ -84,6 +92,9 @@ for (const file of walk(sourceRoot)) {
   const kind = path.extname(file) === ".tsx" ? ts.ScriptKind.TSX : ts.ScriptKind.JSX;
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kind);
   const relative = path.relative(root, file).split(path.sep).join("/");
+  if (dialogActionComponentFiles.has(relative) && !text.includes("useFormDialogAction")) {
+    failures.push(`${relative} must connect its server action to the surrounding FormDialog lifecycle`);
+  }
 
   function visit(node) {
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
@@ -97,7 +108,7 @@ for (const file of walk(sourceRoot)) {
         if (!attrs.has("action") && !attrs.has("onSubmit") && method !== "get") {
           failures.push(`${relative}:${line} <form> has no action, onSubmit or explicit GET method`);
         }
-        if (attrs.has("action") && relative.startsWith("src/app/(app)/")) {
+        if (attrs.has("action") && (relative.startsWith("src/app/(app)/") || modalRequiredFiles.has(relative))) {
           if (modalRequiredFiles.has(relative)) modalWriteFormCounts.set(relative, modalWriteFormCounts.get(relative) + 1);
           if (!isInsideFormDialog(node)) failures.push(`${relative}:${line} write form is not wrapped in FormDialog`);
         }
