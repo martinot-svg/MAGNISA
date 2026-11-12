@@ -74,9 +74,16 @@ const waitForNotice = async (page, fragment) => {
   assert(content.includes(fragment), `Expected notice containing "${fragment}", received "${content}"`);
 };
 const clickAction = async (page, button) => {
+  // The history actions are now launched from FormDialog triggers. Open the
+  // confirmation modal, then submit its actual form instead of treating the
+  // trigger button as the old inline submit control.
+  await button.click();
+  const dialog = page.getByRole("dialog").last();
+  await dialog.waitFor({ state: "visible", timeout: 10000 });
+  const submit = dialog.locator("form button").last();
   await Promise.all([
     page.waitForURL((url) => url.pathname === "/paie/parametres" && url.searchParams.has("result"), { timeout: 30000 }),
-    button.click(),
+    submit.click(),
   ]);
 };
 const openHistory = async (page) => {
