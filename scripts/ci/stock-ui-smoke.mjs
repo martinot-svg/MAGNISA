@@ -84,14 +84,20 @@ try {
   await page.locator(`select[name="reservation_id"] option[value="${newReservation.id}"]`)
     .waitFor({ state: "attached", timeout: 10000 });
   orderRow = page.locator("tr").filter({ hasText: orderNumber });
-  await orderRow.locator("summary").filter({ hasText: "Stock & livraisons" }).click();
-  forms = orderRow.locator("details").filter({ hasText: "Stock & livraisons" }).locator("form");
-  const deliveryForm = forms.nth(1);
+  stockDetails = orderRow.locator("details").filter({ hasText: "Stock & livraisons" });
+  if (!(await stockDetails.evaluate((element) => element.open))) {
+    await stockDetails.locator("summary").click();
+  }
+  await stockDetails.getByRole("button", { name: "Enregistrer livraison" }).first().click();
+  const deliveryDialog = page.getByRole("dialog").last();
+  await deliveryDialog.waitFor({ state: "visible", timeout: 10000 });
+  const deliveryForm = deliveryDialog.locator("form");
   await deliveryForm.locator('select[name="stock_location_id"]').selectOption(locationId);
   await deliveryForm.locator('select[name="reservation_id"]').selectOption(newReservation.id);
   await deliveryForm.locator('input[name="quantity"]').fill("1");
   await deliveryForm.locator('input[name="delivery_reference"]').fill("CI-BROWSER-DELIVERY-01");
   await deliveryForm.getByRole("button", { name: "Enregistrer livraison" }).click();
+  await deliveryDialog.waitFor({ state: "hidden", timeout: 20000 });
 
   const delivery = await waitFor(() => admin.from("sales_deliveries")
     .select("id,status").eq("organization_id", orgId).eq("order_id", freeOrderId)
