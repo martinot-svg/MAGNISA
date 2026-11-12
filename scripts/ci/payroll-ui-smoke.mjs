@@ -374,6 +374,7 @@ try {
   const fiscalResponse = await page.goto(`${baseUrl}/exercices-comptables`, { waitUntil: "domcontentloaded" });
   assert(fiscalResponse?.ok(), `Fiscal-year route returned ${fiscalResponse?.status()}`);
   await page.getByRole("heading", { name: "Exercices comptables" }).waitFor({ timeout: 15000 });
+  await page.waitForLoadState("networkidle", { timeout: 15000 });
   await page.getByRole("button", { name: "Créer un exercice" }).click();
   const fiscalDialog = page.getByRole("dialog");
   await fiscalDialog.waitFor({ state: "visible" });
