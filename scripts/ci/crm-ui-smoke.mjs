@@ -163,9 +163,13 @@ try {
   assert(await page.getByRole("button", { name: "Valider" }).count() >= 1,
     "An independent owner must be offered validation for another contributor.");
   const pendingRow = page.locator("tr").filter({ hasText: contributionDescription });
-  const validationForm = pendingRow.locator("form").filter({ has: page.getByRole("button", { name: "Valider" }) });
+  await pendingRow.getByRole("button", { name: "Ouvrir la décision" }).click();
+  const validationDialog = page.getByRole("dialog").last();
+  await validationDialog.waitFor({ state: "visible", timeout: 10000 });
+  const validationForm = validationDialog.locator("form");
   await validationForm.locator('input[name="reason"]').fill("Justificatif et identité du contributeur contrôlés indépendamment.");
   await validationForm.getByRole("button", { name: "Valider" }).click();
+  await validationDialog.waitFor({ state: "hidden", timeout: 20000 });
   await pendingRow.getByText("Validée").waitFor();
   const validatedContributor = await admin.from("prospect_contributors").select("id")
     .eq("organization_id", membership.organization_id).eq("prospect_id", prospect.id)
