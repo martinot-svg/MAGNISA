@@ -61,7 +61,6 @@ export function LoanFinancialFields({ currency }: { currency: string }) {
               <thead><tr><th>N°</th><th>Date</th><th>Capital début</th><th>Intérêts</th><th>Capital remboursé</th><th>Échéance</th><th>Capital restant</th></tr></thead>
               <tbody>{preview.installments.slice(0, 5).map((row) => <tr key={row.number}><td>{row.number}</td><td>{row.dueDate}</td><td>{format(row.openingPrincipal)}</td><td>{format(row.interest)}</td><td>{format(row.principal)}</td><td>{format(row.payment)}</td><td>{format(row.closingPrincipal)}</td></tr>)}</tbody>
             </table></div>
-            {preview.installments.length > 5 && }
           </>
         )}
       </section>
