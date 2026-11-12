@@ -61,7 +61,13 @@ try {
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   await page.getByRole("link", { name: "Configurer les interventions" }).click();
   await page.getByRole("heading", { name: "Types d'intervention" }).waitFor();
-  assert(await page.locator("tbody tr").count() === 11, "The configurable intervention catalog must show 11 types.");
+  // The editable catalog is intentionally inside the shared FormDialog.
+  await page.getByRole("button", { name: "Enregistrer la configuration" }).click();
+  const interventionDialog = page.getByRole("dialog");
+  await interventionDialog.waitFor({ state: "visible", timeout: 10000 });
+  assert(await interventionDialog.locator("tbody tr").count() === 11, "The configurable intervention catalog must show 11 types.");
+  await interventionDialog.locator('button[aria-label="Fermer la fenêtre"]').click();
+  await interventionDialog.waitFor({ state: "hidden" });
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Prospects" }).waitFor();
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
