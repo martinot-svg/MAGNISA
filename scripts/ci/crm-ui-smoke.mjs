@@ -208,6 +208,10 @@ try {
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
   const prospectRow = page.locator("tr").filter({ hasText: prospectName });
   await prospectRow.getByRole("button", { name: "Clôturer comme gagné" }).click();
+  const conversionDialog = page.getByRole("dialog").last();
+  await conversionDialog.waitFor({ state: "visible", timeout: 10000 });
+  await conversionDialog.locator("form button").last().click();
+  await conversionDialog.waitFor({ state: "hidden", timeout: 20000 });
   let converted = null;
   for (let attempt = 0; attempt < 20; attempt++) {
     const result = await admin.from("prospects").select("converted_customer_id")
