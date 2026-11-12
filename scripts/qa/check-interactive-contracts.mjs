@@ -7,8 +7,11 @@ const root = process.cwd();
 const sourceRoot = path.join(root, "src");
 const extensions = new Set([".tsx", ".jsx"]);
 const failures = [];
-const modalRequiredFiles = new Map([["src/app/(app)/mouvements-stock/page.tsx", 10]]);
-let stockWriteFormCount = 0;
+const modalRequiredFiles = new Map([
+  ["src/app/(app)/mouvements-stock/page.tsx", 10],
+  ["src/app/(app)/articles/page.tsx", 5],
+]);
+const modalWriteFormCounts = new Map([...modalRequiredFiles.keys()].map((file) => [file, 0]));
 let formCount = 0;
 let buttonCount = 0;
 
@@ -69,7 +72,7 @@ for (const file of walk(sourceRoot)) {
           failures.push(`${relative}:${line} <form> has no action, onSubmit or explicit GET method`);
         }
         if (modalRequiredFiles.has(relative) && attrs.has("action")) {
-          stockWriteFormCount += 1;
+          modalWriteFormCounts.set(relative, modalWriteFormCounts.get(relative) + 1);
           if (!isInsideFormDialog(node)) failures.push(`${relative}:${line} write form is not wrapped in FormDialog`);
         }
       }
@@ -91,9 +94,10 @@ for (const file of walk(sourceRoot)) {
 }
 
 console.log(`Checked ${formCount} forms and ${buttonCount} buttons in ${walk(sourceRoot).length} TSX/JSX files.`);
-console.log(`Stock movement write forms covered by FormDialog: ${stockWriteFormCount}.`);
 for (const [file, expected] of modalRequiredFiles) {
-  if (stockWriteFormCount !== expected) failures.push(`${file} expected ${expected} FormDialog-wrapped write forms, found ${stockWriteFormCount}`);
+  const actual = modalWriteFormCounts.get(file) || 0;
+  console.log(`${file}: ${actual}/${expected} write forms covered by FormDialog.`);
+  if (actual !== expected) failures.push(`${file} expected ${expected} FormDialog-wrapped write forms, found ${actual}`);
 }
 
 if (failures.length) {
