@@ -62,7 +62,7 @@ export function LoanFinancialFields({ currency }: { currency: string }) {
               <tbody>{preview.installments.slice(0, 5).map((row) => <tr key={row.number}><td>{row.number}</td><td>{row.dueDate}</td><td>{format(row.openingPrincipal)}</td><td>{format(row.interest)}</td><td>{format(row.principal)}</td><td>{format(row.payment)}</td><td>{format(row.closingPrincipal)}</td></tr>)}</tbody>
             </table></div>
           </>
-        )}
+        ) : null}
       </section>
     </>
   );
