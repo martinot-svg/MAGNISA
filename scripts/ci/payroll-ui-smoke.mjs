@@ -76,14 +76,15 @@ const waitForNotice = async (page, fragment) => {
   const content = await notice.innerText();
   assert(content.includes(fragment), `Expected notice containing "${fragment}", received "${content}"`);
 };
-const clickAction = async (page, button) => {
-  // The history actions are now launched from FormDialog triggers. Open the
-  // confirmation modal, then submit its actual form instead of treating the
-  // trigger button as the old inline submit control.
+const clickAction = async (page, button, prepareForm) => {
+  // History actions are launched from FormDialog triggers. Open the
+  // confirmation modal, optionally prepare its fields, then submit its form.
   await button.click();
   const dialog = page.getByRole("dialog").last();
   await dialog.waitFor({ state: "visible", timeout: 10000 });
-  const submit = dialog.locator("form button").last();
+  const form = dialog.locator("form").last();
+  if (prepareForm) await prepareForm(form);
+  const submit = form.locator("button").last();
   await Promise.all([
     page.waitForURL((url) => url.pathname === "/paie/parametres" && url.searchParams.has("result"), { timeout: 30000 }),
     submit.click(),
@@ -176,8 +177,8 @@ try {
   await resetPage(page);
 
   row = await openRuleActions(page, "UI TEST delete draft");
-  await row.locator('input[name="delete_confirmation"]').fill("SUPPRIMER");
-  await clickAction(page, row.getByRole("button", { name: /Supprimer définitivement/ }));
+  await clickAction(page, row.getByRole("button", { name: /Supprimer définitivement/ }),
+    (form) => form.locator('input[name="delete_confirmation"]').fill("SUPPRIMER"));
   await waitForNotice(page, "supprimé définitivement");
   const deleted = await admin.from("payroll_rule_sets").select("id").eq("id", ids.draft).maybeSingle();
   assert(!deleted.data, "Draft rule still exists after UI deletion.");
