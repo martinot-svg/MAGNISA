@@ -3,7 +3,6 @@ import { requireOrganization } from "@/lib/current-org";
 import { requirePermission, hasPermission } from "@/lib/permissions";
 import { EmptyState } from "@/components/empty-state";
 import { FormDialog } from "@/components/form-dialog";
-import { FormDialog } from "@/components/form-dialog";
 import { money } from "@/lib/money";
 import {
   createCatalogItem,
