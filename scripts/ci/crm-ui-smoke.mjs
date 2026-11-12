@@ -148,6 +148,8 @@ try {
   assert(intervention.validation_status === "pending", "A newly declared contribution must remain pending.");
   assert(intervention.contributor_user_id === collaboratorId && intervention.created_by === userId,
     "A delegated contribution must preserve contributor identity separately from its author.");
+  await page.getByText(contributionDescription).waitFor({ state: "visible", timeout: 10000 });
+  await page.getByRole("button", { name: "Valider" }).first().waitFor({ state: "visible", timeout: 10000 });
   assert(await page.getByRole("button", { name: "Valider" }).count() >= 1,
     "An independent owner must be offered validation for another contributor.");
   const pendingRow = page.locator("tr").filter({ hasText: contributionDescription });
