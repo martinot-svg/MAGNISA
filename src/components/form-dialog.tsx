@@ -103,26 +103,39 @@ export function FormDialog({
 
   useEffect(() => {
     if (!error || !formSnapshotRef.current) return;
-    const frame = requestAnimationFrame(() => {
-      const form = contentRef.current?.querySelector("form");
-      if (!form) return;
-      formSnapshotRef.current?.forEach(({ index, value, checked, selected }) => {
-        const element = form.elements.item(index);
-        if (element instanceof HTMLInputElement) {
-          if (element.type === "checkbox" || element.type === "radio") element.checked = !!checked;
-          else if (element.type !== "file") element.value = value;
-        } else if (element instanceof HTMLTextAreaElement) {
-          element.value = value;
-        } else if (element instanceof HTMLSelectElement) {
-          if (element.multiple && selected) {
-            Array.from(element.options).forEach((option) => { option.selected = selected.includes(option.value); });
-          } else {
-            element.value = value;
-          }
-        }
+    // React resets uncontrolled form controls when an action promise resolves.
+    // Defer restoration past that reset (a timer plus two paint frames) so a
+    // handled server-side validation error never erases the user's entries.
+    let firstFrame = 0;
+    let secondFrame = 0;
+    const timer = window.setTimeout(() => {
+      firstFrame = requestAnimationFrame(() => {
+        secondFrame = requestAnimationFrame(() => {
+          const form = contentRef.current?.querySelector("form");
+          if (!form) return;
+          formSnapshotRef.current?.forEach(({ index, value, checked, selected }) => {
+            const element = form.elements.item(index);
+            if (element instanceof HTMLInputElement) {
+              if (element.type === "checkbox" || element.type === "radio") element.checked = !!checked;
+              else if (element.type !== "file") element.value = value;
+            } else if (element instanceof HTMLTextAreaElement) {
+              element.value = value;
+            } else if (element instanceof HTMLSelectElement) {
+              if (element.multiple && selected) {
+                Array.from(element.options).forEach((option) => { option.selected = selected.includes(option.value); });
+              } else {
+                element.value = value;
+              }
+            }
+          });
+        });
       });
-    });
-    return () => cancelAnimationFrame(frame);
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      if (firstFrame) cancelAnimationFrame(firstFrame);
+      if (secondFrame) cancelAnimationFrame(secondFrame);
+    };
   }, [error]);
 
   return (
