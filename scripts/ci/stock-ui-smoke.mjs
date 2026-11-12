@@ -61,12 +61,18 @@ try {
   const orderNumber = freeOrderId.endsWith("134") ? "CI-RACE-ORDER-A" : "CI-RACE-ORDER-B";
   let orderRow = page.locator("tr").filter({ hasText: orderNumber });
   await orderRow.waitFor({ state: "visible" });
-  await orderRow.locator("summary").filter({ hasText: "Stock & livraisons" }).click();
-  let forms = orderRow.locator("details").filter({ hasText: "Stock & livraisons" }).locator("form");
-  const reserveForm = forms.nth(0);
+  let stockDetails = orderRow.locator("details").filter({ hasText: "Stock & livraisons" });
+  await stockDetails.locator("summary").click();
+  // Reservation and delivery forms are opened by FormDialog triggers; the
+  // inputs only exist inside the dialog after the trigger is activated.
+  await stockDetails.getByRole("button", { name: "Réserver" }).first().click();
+  const reserveDialog = page.getByRole("dialog").last();
+  await reserveDialog.waitFor({ state: "visible", timeout: 10000 });
+  const reserveForm = reserveDialog.locator("form");
   await reserveForm.locator('select[name="stock_location_id"]').selectOption(locationId);
   await reserveForm.locator('input[name="quantity"]').fill("1");
   await reserveForm.getByRole("button", { name: "Réserver" }).click();
+  await reserveDialog.waitFor({ state: "hidden", timeout: 20000 });
 
   const newReservation = await waitFor(() => admin.from("stock_reservations")
     .select("id,quantity_reserved,status").eq("organization_id", orgId)
