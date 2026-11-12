@@ -105,7 +105,16 @@ try {
   await createProspectButton.click();
   await prospectDialog.waitFor({ state: "visible" });
 
-  await prospectDialog.locator('input[name="name"]').fill(prospectName);
+  const prospectForm = prospectDialog.locator("form");
+  const prospectNameInput = prospectDialog.locator('input[name="name"]');
+  await prospectForm.evaluate((element) => { element.noValidate = true; });
+  await prospectNameInput.fill("X");
+  await prospectDialog.getByRole("button", { name: "Créer le prospect" }).click();
+  await prospectDialog.getByRole("alert").waitFor({ state: "visible" });
+  assert(await prospectDialog.isVisible(), "A rejected server action must keep the modal open.");
+  assert(await prospectNameInput.inputValue() === "X", "A rejected server action must preserve entered values.");
+
+  await prospectNameInput.fill(prospectName);
   await prospectDialog.locator('input[name="source"]').fill("CI browser smoke");
   await prospectDialog.locator('textarea[name="notes"]').fill("Prospect créé par le test d'interface isolé.");
   await prospectDialog.getByRole("button", { name: "Créer le prospect" }).click();

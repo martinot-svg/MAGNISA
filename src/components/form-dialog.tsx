@@ -1,6 +1,6 @@
 "use client";
 
-import { cloneElement, isValidElement, useCallback, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { Children, cloneElement, isValidElement, useCallback, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { ModalFrame } from "@/components/modal-frame";
 
 type ServerAction = (formData: FormData) => unknown | Promise<unknown>;
@@ -49,12 +49,14 @@ export function FormDialog({
     requestAnimationFrame(() => openerRef.current?.focus());
   }, [isBusy]);
 
-  const form = isValidElement<FormProps>(children) && children.type === "form"
-    ? children as ReactElement<FormProps>
-    : null;
+  const childNodes = Children.toArray(children);
+  const formIndex = childNodes.findIndex(
+    (child) => isValidElement<FormProps>(child) && child.type === "form" && typeof child.props.action === "function",
+  );
+  const form = formIndex >= 0 ? childNodes[formIndex] as ReactElement<FormProps> : null;
   const originalAction = form?.props.action;
   const content = form && typeof originalAction === "function"
-    ? cloneElement(form, {
+    ? childNodes.map((child, index) => index !== formIndex ? child : cloneElement(form, {
         action: async (formData: FormData) => {
           if (pendingRef.current) return;
           pendingRef.current = true;
@@ -74,15 +76,13 @@ export function FormDialog({
             setPending(false);
           }
         },
-      },
-      <>
+      }, <>
         <fieldset disabled={pending} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}>
           {form.props.children}
         </fieldset>
         {pending ? <p className="muted" role="status" aria-live="polite">Traitement en cours…</p> : null}
         {error ? <div className="error" role="alert" aria-live="assertive">{error}</div> : null}
-      </>,
-    )
+      </>))
     : children;
 
   return (
