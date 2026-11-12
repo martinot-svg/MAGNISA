@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, cloneElement, isValidElement, useCallback, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { Children, cloneElement, Fragment, isValidElement, useCallback, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { ModalFrame } from "@/components/modal-frame";
 
 type ServerAction = (formData: FormData) => unknown | Promise<unknown>;
@@ -86,7 +86,7 @@ export function FormDialog({
           ? <fieldset key={index} disabled={pending} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}>
               {cloneElement(actionElement, { action: wrappedAction })}
             </fieldset>
-          : <span key={index} style={{ display: "contents" }}>{child}</span>)}
+          : <Fragment key={index}>{child}</Fragment>)}
         {pending ? <p className="muted" role="status" aria-live="polite">Traitement en cours…</p> : null}
         {error ? <div className="error" role="alert" aria-live="assertive">{error}</div> : null}
       </>
