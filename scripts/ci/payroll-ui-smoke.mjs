@@ -266,6 +266,10 @@ try {
   assert(createdAsset.data.pcg_asset_account_code === "215", "Created asset must retain selected PCG 215.");
   assert(Number(createdAsset.data.net_book_value) === 123456, "Created asset must retain its gross net book value before depreciation.");
   await createdAssetRow.getByRole("button", { name: "Comptabiliser" }).click();
+  const acquisitionDialog = page.getByRole("dialog").last();
+  await acquisitionDialog.waitFor({ state: "visible", timeout: 10000 });
+  await acquisitionDialog.locator("form").getByRole("button", { name: "Comptabiliser" }).click();
+  await acquisitionDialog.waitFor({ state: "hidden", timeout: 20000 });
   await createdAssetRow.getByText("Comptabilisée").waitFor({ state: "visible", timeout: 20000 });
   const postedAsset = await admin.from("fixed_assets")
     .select("id,acquisition_journal_entry_id").eq("organization_id", testOrganizationId)
