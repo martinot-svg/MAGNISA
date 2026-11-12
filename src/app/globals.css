@@ -1,23 +1,156 @@
-undefined
+/* MAGNISA — styles fondamentaux de l’application.
+   Feuille globale restaurée : structure, composants et responsive.
+   Les règles de magnisa-ds.css complètent cette base sans remplacer les styles métier. */
+
+:root{
+  color-scheme:light;
+  --navy:#101b3b;
+  --navy-2:#17264d;
+  --brand:#56318a;
+  --brand-2:#6b43a5;
+  --blue:#1769e8;
+  --ink:#172033;
+  --muted:#66748a;
+  --line:#e5eaf2;
+  --surface:#ffffff;
+  --surface-soft:#f6f8fc;
+  --success:#16804a;
+  --danger:#b42318;
+  --warning:#a15c07;
+  --radius:16px;
+  --shadow:0 10px 30px rgba(20,35,70,.06);
+}
+*{box-sizing:border-box}
+html{min-height:100%;background:#f7f9fc;scroll-behavior:smooth}
+body{margin:0;min-height:100vh;background:#f7f9fc;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.5}
+button,input,select,textarea{font:inherit}
+button,a{-webkit-tap-highlight-color:transparent}
+a{color:#56318a;text-decoration:none}
+a:hover{color:#39205f;text-decoration:underline}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.58}
+h1,h2,h3,h4,p{margin-top:0}
+h1{font-size:clamp(1.65rem,2.5vw,2.15rem);line-height:1.2;letter-spacing:-.025em;color:#101828;margin-bottom:10px}
+h2{font-size:1.35rem;line-height:1.3;color:#18233a;margin-bottom:12px}
+h3{font-size:1.05rem;line-height:1.35;color:#25324a;margin-bottom:10px}
+p{line-height:1.65}
+small,.muted{color:var(--muted)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+hr{border:0;border-top:1px solid var(--line);margin:20px 0}
+
+/* Application shell */
+.appShell{display:grid;grid-template-columns:264px minmax(0,1fr);min-height:100vh}
+.appShell>aside{position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;gap:18px;padding:22px 16px;background:linear-gradient(180deg,#111d40 0%,#17264d 100%);color:#fff}
+.appShell>aside>a,.appShell>aside>div:first-child{flex:0 0 auto}
+.appShell>aside nav{display:flex;flex-direction:column;gap:3px;min-width:0}
+.appShell>aside nav>div{min-width:0}
+.appShell>aside nav a{display:flex;align-items:center;min-height:39px;padding:9px 12px;border-radius:9px;color:#e4e9f5;font-size:13px;font-weight:500;text-decoration:none;transition:background .15s,color .15s}
+.appShell>aside nav a:hover{background:rgba(255,255,255,.1);color:#fff}
+.appShell>aside nav a[aria-current=page]{background:rgba(255,255,255,.14);color:#fff}
+.appShell>aside form{margin-top:auto}
+.appShell>aside .button{width:100%}
+.appShell>main{min-width:0;padding:0 28px 36px}
+.appShell main>.pageHead{margin:20px 0 24px}
+
+/* Page headers and content spacing */
+.pageHead{display:flex;align-items:center;justify-content:space-between;gap:18px;min-width:0;margin-bottom:22px}
+.pageHead>div{min-width:0}
+.pageHead p{margin:0;color:var(--muted);font-size:15px}
+.section{margin-top:24px}
+.section>h2{margin-bottom:14px}
+.actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#6b43a5}
+
+/* Cards and grids */
+.card,.featurePanel{min-width:0;padding:22px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
+.card> :last-child{margin-bottom:0}
+.grid2,.grid3,.grid4,.twoCols{display:grid;gap:16px;min-width:0}
+.grid2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.grid4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.twoCols{grid-template-columns:repeat(2,minmax(0,1fr))}
+.metric{font-size:clamp(1.5rem,2vw,2rem);font-weight:750;letter-spacing:-.03em;color:#17264d;font-variant-numeric:tabular-nums}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;background:#eef2f8;color:#475467;font-size:11px;font-weight:650;white-space:nowrap}
+.badge.success{background:#e8f7ef;color:#167044}
+.badge.warning{background:#fff4df;color:#925400}
+.badge.danger{background:#fff0ef;color:#b42318}
+.emptyState,.empty-state{padding:32px 20px;text-align:center;color:var(--muted);border:1px dashed #cfd8e6;border-radius:14px;background:#fbfcfe}
+
+/* Buttons */
+.button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:10px 15px;border:1px solid #d4dce8;border-radius:9px;background:#fff;color:#26334b;font-size:13px;font-weight:650;line-height:1.25;text-decoration:none;box-shadow:0 1px 2px rgba(16,24,40,.04);transition:background .15s,border-color .15s,box-shadow .15s,transform .15s}
+.button:hover{background:#f7f9fc;border-color:#b9c5d6;color:#1c2942;text-decoration:none}
+.button.primary{border-color:#56318a;background:#56318a;color:#fff}
+.button.primary:hover{border-color:#43256e;background:#43256e;color:#fff}
+.button.ghost{border-color:rgba(255,255,255,.24);background:rgba(255,255,255,.08);color:#fff}
+.button.ghost:hover{background:rgba(255,255,255,.16);color:#fff}
+.button.small{min-height:32px;padding:6px 10px;font-size:12px}
+.button:focus-visible,button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid rgba(23,105,232,.35);outline-offset:2px}
+
+/* Forms */
+.form{display:flex;flex-direction:column;gap:15px;min-width:0}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label{font-size:12px;font-weight:650;color:#344054}
+input:not([type=checkbox]):not([type=radio]):not([type=file]),select,textarea{width:100%;min-width:0;min-height:42px;padding:9px 11px;border:1px solid #d5deea;border-radius:9px;background:#fff;color:#172033;box-shadow:0 1px 2px rgba(16,24,40,.025)}
+textarea{resize:vertical;min-height:100px}
+input::placeholder,textarea::placeholder{color:#98a2b3}
+input:disabled,select:disabled,textarea:disabled{background:#f2f4f7;color:#667085}
+input[type=checkbox],input[type=radio]{accent-color:#56318a}
+.error{padding:11px 13px;border:1px solid #f3c5c1;border-radius:9px;background:#fff4f2;color:#a1261d;font-size:13px}
+.success{padding:11px 13px;border:1px solid #b8e4c9;border-radius:9px;background:#effaf3;color:#176b40;font-size:13px}
+
+/* Tables */
+.tableWrap{width:100%;overflow-x:auto;border:1px solid var(--line);border-radius:13px;background:#fff}
+table{width:100%;border-collapse:collapse;border-spacing:0}
+thead{background:#f5f7fb}
+th{padding:12px 14px;text-align:left;color:#59677d;font-size:11px;font-weight:700;letter-spacing:.045em;text-transform:uppercase;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:13px 14px;border-bottom:1px solid #edf0f5;color:#344054;font-size:13px;vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:#fafbfe}
+.right{text-align:right}
+td form{margin:0}
+
+/* Public navigation */
+.publicHeader{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 28px;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 3px 18px rgba(20,35,70,.04)}
+.publicHeader nav{display:flex;align-items:center;gap:clamp(16px,3vw,36px);flex-wrap:wrap}
+.publicHeader nav a{color:#56318a;font-weight:550;text-decoration:none}
+.publicHeader nav a:hover{text-decoration:underline}
+.publicHeader .button{white-space:nowrap}
 
 /* Shared modal motion. Respects the user's reduced-motion preference. */
-.magnisa-modal-backdrop {
-  animation: magnisa-modal-backdrop-in 160ms ease-out both;
+.magnisa-modal-backdrop{animation:magnisa-modal-backdrop-in 160ms ease-out both}
+.magnisa-modal-panel{animation:magnisa-modal-panel-in 190ms cubic-bezier(.2,.8,.2,1) both}
+@keyframes magnisa-modal-backdrop-in{from{opacity:0}to{opacity:1}}
+@keyframes magnisa-modal-panel-in{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+@media(max-width:980px){
+  .appShell{grid-template-columns:minmax(0,1fr)}
+  .appShell>aside{position:sticky;top:0;z-index:30;width:100%;height:auto;min-height:0;display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px 12px;padding:10px 16px;background:#fff;color:var(--ink);box-shadow:0 5px 20px rgba(20,35,70,.08)}
+  .appShell>aside nav{grid-column:1/-1;display:flex;flex-direction:row;gap:7px;overflow-x:auto;white-space:nowrap;padding:2px 0 5px;scrollbar-width:none}
+  .appShell>aside nav>div{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+  .appShell>aside nav>div>div{display:none!important}
+  .appShell>aside nav a{min-height:38px;padding:8px 13px;border-radius:999px;background:#f4f5f8;color:#56318a}
+  .appShell>aside nav a:hover,.appShell>aside nav a[aria-current=page]{background:#eee8f7;color:#43256e}
+  .appShell>aside form{grid-column:2;grid-row:1;margin:0}
+  .appShell>aside form .button{width:auto;min-height:38px;background:#fff;color:#56318a;border-color:#d8cce8}
+  .appShell>main{padding:0 22px 30px}
+  .grid4{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-.magnisa-modal-panel {
-  animation: magnisa-modal-panel-in 190ms cubic-bezier(.2,.8,.2,1) both;
+@media(max-width:620px){
+  body{font-size:14px}
+  .appShell>aside{padding:9px 13px}
+  .appShell>main{padding:0 16px 24px}
+  .appShell main>div:first-child{padding-left:0!important;padding-right:0!important}
+  .pageHead{align-items:stretch;flex-direction:column;gap:12px}
+  .pageHead .button,.pageHead .actions,.pageHead .actions .button{width:100%}
+  .grid2,.grid3,.grid4,.twoCols{grid-template-columns:minmax(0,1fr)}
+  .card,.featurePanel{padding:17px;border-radius:14px}
+  .tableWrap{border-radius:10px}
+  th,td{padding:10px 11px}
+  .publicHeader{align-items:flex-start;flex-direction:column;padding:14px 16px}
+  .publicHeader nav{width:100%;flex-wrap:nowrap;overflow-x:auto;gap:18px}
+  .publicHeader nav a{white-space:nowrap}
 }
-@keyframes magnisa-modal-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes magnisa-modal-panel-in {
-  from { opacity: 0; transform: translateY(10px) scale(.985); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .magnisa-modal-backdrop,
-  .magnisa-modal-panel {
-    animation: none !important;
-  }
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
