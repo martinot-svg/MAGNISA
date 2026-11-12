@@ -111,7 +111,7 @@ export default async function Treasury(){const ctx=await requireOrganization();a
           <h2>Transferts internes - opérations réelles</h2>
           <p className="muted">Enregistre uniquement un débit déjà constaté sur le compte source. Le destinataire n'est crédité dans MAGNISA qu'après confirmation de son crédit réel.</p>
           <div>
-            <InternalTransferForm action={recordInternalTransferDebit} accounts={accounts.filter((a:any)=>a.is_active)} requestKey={randomUUID()}/>
+            <FormDialog title="Enregistrer un virement interne" buttonLabel="+ Enregistrer un virement"><InternalTransferForm action={recordInternalTransferDebit} accounts={accounts.filter((a:any)=>a.is_active)} requestKey={randomUUID()}/></FormDialog>
 
           </div>
           <h3>Suivi et confirmation des crédits</h3>
