@@ -387,6 +387,11 @@ try {
   assert((await healthDraftAlert.innerText()).includes("domaine de la source officielle"),
     "An unapproved regulatory domain must be rejected inside the modal.");
   assert(await healthDraftDialog.isVisible(), "IRSA draft modal must remain open after validation failure.");
+  await page.waitForFunction(
+    () => document.querySelector('input[name="legal_reference"]')?.value === "https://evil.example/regulatory-text",
+    null,
+    { timeout: 5000 },
+  );
   assert(await healthDraftDialog.locator('input[name="legal_reference"]').inputValue() === "https://evil.example/regulatory-text",
     "IRSA draft modal must preserve the invalid URL for correction.");
   process.stdout.write("PASS UI: IRSA draft modal preserves server-side domain validation errors\\n");
