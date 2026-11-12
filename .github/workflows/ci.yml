@@ -45,6 +45,9 @@ jobs:
       - name: Generate exhaustive static interaction registry
         run: node scripts/qa/build-interaction-registry.mjs
 
+      - name: Enforce interactive form and button contracts
+        run: node scripts/qa/check-interactive-contracts.mjs
+
       - name: Dependency audit report
         run: |
           npm audit --json > npm-audit.json || true

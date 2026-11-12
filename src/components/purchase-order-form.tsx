@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { createPurchaseOrder } from "@/server/actions/procurement";
+import { useFormDialogAction } from "@/components/form-dialog";
+import { formatFormDialogError } from "@/lib/form-dialog-action";
 
 type Supplier={id:string;name:string};
 type Item={id:string;sku:string;name:string;base_unit:string;tracking_mode:string;default_purchase_price:number;default_tax_rate:number};
@@ -18,6 +20,7 @@ export function PurchaseOrderForm({suppliers,items,customers}:{suppliers:Supplie
   const [notes,setNotes]=useState("");
   const [error,setError]=useState("");
   const [busy,setBusy]=useState(false);
+  const submitAction=useFormDialogAction(createPurchaseOrder);
   const addLine=()=>setLines(v=>[...v,{item_id:"",description:"",purchase_purpose:"resale",beneficiary_customer_id:"",mandate_confirmed:false,supplier_document_names_customer:false,company_bears_goods_risk:true,exact_cost_supported:false,mandate_supplier_document_reference:"",quantity_ordered:1,unit:"unité",unit_price:0,discount_amount:0,additional_cost_amount:0,tax_rate:0}]);
   const update=(i:number,patch:Partial<Line>)=>setLines(v=>v.map((l,n)=>n===i?{...l,...patch}:l));
   // Apply VAT to each line independently; never re-tax the accumulated subtotal.
@@ -27,9 +30,8 @@ export function PurchaseOrderForm({suppliers,items,customers}:{suppliers:Supplie
     try{
       const valid=lines.map(l=>{const item=items.find(i=>i.id===l.item_id);return {...l,description:l.description||item?.name||"",unit:item?.base_unit||l.unit,beneficiary_customer_id:l.beneficiary_customer_id||null,mandate_supplier_document_reference:l.mandate_supplier_document_reference||null};});
       formData.set("supplier_id",supplier);formData.set("currency",currency);formData.set("expected_date",expectedDate);formData.set("notes",notes);formData.set("lines_json",JSON.stringify(valid));
-      await createPurchaseOrder(formData);
-      window.location.reload();
-    }catch(e){setError(e instanceof Error?e.message:"La commande n'a pas pu être enregistrée.");}
+      await submitAction(formData);
+    }catch(e){setError(formatFormDialogError(e));}
     finally{setBusy(false);}
   };
   return <form action={submit} className="form">
