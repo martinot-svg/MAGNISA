@@ -49,6 +49,13 @@ function isInsideFormDialog(node) {
   return false;
 }
 
+function isInsideFormDialog(node) {
+  for (let current = node.parent; current; current = current.parent) {
+    if (ts.isJsxElement(current) && current.openingElement.tagName.getText() === "FormDialog") return true;
+  }
+  return false;
+}
+
 for (const file of walk(sourceRoot)) {
   const text = fs.readFileSync(file, "utf8");
   const kind = path.extname(file) === ".tsx" ? ts.ScriptKind.TSX : ts.ScriptKind.JSX;
@@ -66,6 +73,10 @@ for (const file of walk(sourceRoot)) {
         const method = String(attrs.get("method") || "post").toLowerCase();
         if (!attrs.has("action") && !attrs.has("onSubmit") && method !== "get") {
           failures.push(`${relative}:${line} <form> has no action, onSubmit or explicit GET method`);
+        }
+        if (modalRequiredFiles.has(relative) && attrs.has("action")) {
+          stockWriteFormCount += 1;
+          if (!isInsideFormDialog(node)) failures.push(`${relative}:${line} write form is not wrapped in FormDialog`);
         }
         if (modalRequiredFiles.has(relative) && attrs.has("action")) {
           stockWriteFormCount += 1;
@@ -91,6 +102,11 @@ for (const file of walk(sourceRoot)) {
 
 console.log(`Checked ${formCount} forms and ${buttonCount} buttons in ${walk(sourceRoot).length} TSX/JSX files.`);
 console.log(`Stock movement write forms covered by FormDialog: ${stockWriteFormCount}.`);
+console.log(`Stock movement write forms covered by FormDialog: ${stockWriteFormCount}.`);
+for (const [file, expected] of modalRequiredFiles) {
+  if (stockWriteFormCount !== expected) failures.push(`${file} expected ${expected} FormDialog-wrapped write forms, found ${stockWriteFormCount}`);
+}
+
 if (failures.length) {
   console.error(`Found ${failures.length} interactive contract violation(s):`);
   for (const failure of failures) console.error(` - ${failure}`);
