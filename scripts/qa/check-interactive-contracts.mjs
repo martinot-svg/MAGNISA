@@ -15,6 +15,27 @@ const modalRequiredFiles = new Map([
   ["src/app/(app)/paie/parametres/page.tsx", 7],
   ["src/app/(app)/commandes/page.tsx", 6],
   ["src/app/(app)/inventaires/page.tsx", 5],
+  ["src/app/(app)/bibliotheque-documents/page.tsx", 1],
+  ["src/app/(app)/clients/page.tsx", 2],
+  ["src/app/(app)/commissions/page.tsx", 6],
+  ["src/app/(app)/comptabilite/page.tsx", 1],
+  ["src/app/(app)/etats-financiers/page.tsx", 1],
+  ["src/app/(app)/fiscalite-social/page.tsx", 3],
+  ["src/app/(app)/identite-documents/page.tsx", 1],
+  ["src/app/(app)/modeles-documents/page.tsx", 1],
+  ["src/app/(app)/parametres/page.tsx", 4],
+  ["src/app/(app)/prestations-recurrentes/page.tsx", 3],
+  ["src/app/(app)/prospects/page.tsx", 2],
+  ["src/app/(app)/tresorerie/page.tsx", 1],
+  ["src/app/(app)/prospects/[id]/page.tsx", 4],
+  ["src/app/(app)/prospects/settings/page.tsx", 1],
+  ["src/app/(app)/modeles-documents/historique/page.tsx", 2],
+  ["src/app/(app)/fiscalite/calendrier/page.tsx", 3],
+  ["src/app/(app)/fiscalite-social/calendrier/page.tsx", 3],
+  ["src/app/(app)/emprunts/[id]/avenant/amendment-form.tsx", 1],
+  ["src/app/(app)/devis/[id]/page.tsx", 5],
+  ["src/app/(app)/clients/[id]/page.tsx", 2],
+  ["src/app/(app)/clients/[id]/contributions/page.tsx", 4],
 ]);
 const modalWriteFormCounts = new Map([...modalRequiredFiles.keys()].map((file) => [file, 0]));
 let formCount = 0;
@@ -76,8 +97,8 @@ for (const file of walk(sourceRoot)) {
         if (!attrs.has("action") && !attrs.has("onSubmit") && method !== "get") {
           failures.push(`${relative}:${line} <form> has no action, onSubmit or explicit GET method`);
         }
-        if (modalRequiredFiles.has(relative) && attrs.has("action")) {
-          modalWriteFormCounts.set(relative, modalWriteFormCounts.get(relative) + 1);
+        if (attrs.has("action") && relative.startsWith("src/app/(app)/")) {
+          if (modalRequiredFiles.has(relative)) modalWriteFormCounts.set(relative, modalWriteFormCounts.get(relative) + 1);
           if (!isInsideFormDialog(node)) failures.push(`${relative}:${line} write form is not wrapped in FormDialog`);
         }
       }
