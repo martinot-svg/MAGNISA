@@ -27,6 +27,12 @@ export function ModalFrame({
   const titleId = useId();
   const dialogRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  const isBusyRef = useRef(isBusy);
+  const closeOnEscapeRef = useRef(closeOnEscape);
+  onCloseRef.current = onClose;
+  isBusyRef.current = isBusy;
+  closeOnEscapeRef.current = closeOnEscape;
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -55,9 +61,9 @@ export function ModalFrame({
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        if (closeOnEscape && !isBusy) {
+        if (closeOnEscapeRef.current && !isBusyRef.current) {
           event.preventDefault();
-          onClose();
+          onCloseRef.current();
         }
         return;
       }
@@ -95,7 +101,7 @@ export function ModalFrame({
       });
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
-  }, [closeOnEscape, isBusy, onClose]);
+  }, []);
 
   return createPortal(
     <div
