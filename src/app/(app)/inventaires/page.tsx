@@ -2,6 +2,7 @@ import { requireOrganization } from "@/lib/current-org";
 import { hasPermission, requirePermission } from "@/lib/permissions";
 import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
+import { FormDialog } from "@/components/form-dialog";
 import {
   addInventoryCountLine,
   approveInventoryCount,
