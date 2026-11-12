@@ -161,7 +161,7 @@ try {
     "A delegated contribution must preserve contributor identity separately from its author.");
   await page.getByText(contributionDescription).waitFor({ state: "visible", timeout: 10000 });
   const pendingRow = page.locator("tr").filter({ hasText: contributionDescription });
-  await pendingRow.getByRole("button", { name: "Ouvrir la décision" }).click();
+  await pendingRow.getByRole("button", { name: "Ouvrir la décision" }).first().click();
   const validationDialog = page.getByRole("dialog").last();
   await validationDialog.waitFor({ state: "visible", timeout: 10000 });
   const validationForm = validationDialog.locator("form");
