@@ -71,6 +71,40 @@ try {
   await createProspectButton.click();
   const prospectDialog = page.getByRole("dialog", { name: "Nouveau prospect" });
   await prospectDialog.waitFor({ state: "visible", timeout: 10000 });
+
+  const modalState = await page.evaluate(() => {
+    const layer = document.querySelector(".magnisa-modal-backdrop");
+    const dialog = document.querySelector('[role="dialog"]');
+    const background = Array.from(document.body.children).filter((element) => element !== layer);
+    return {
+      bodyOverflow: document.body.style.overflow,
+      backgroundInert: background.every((element) => element.inert),
+      backgroundHidden: background.every((element) => element.getAttribute("aria-hidden") === "true"),
+      focusInside: !!dialog && dialog.contains(document.activeElement),
+      backdropFilter: layer ? getComputedStyle(layer).backdropFilter : "",
+    };
+  });
+  assert(modalState.bodyOverflow === "hidden", "Modal must lock background scrolling.");
+  assert(modalState.backgroundInert && modalState.backgroundHidden, "Modal must make background content inert.");
+  assert(modalState.focusInside, "Modal must move focus into the dialog.");
+  assert(modalState.backdropFilter.includes("blur"), "Modal backdrop must apply a blur.");
+
+  await page.mouse.click(4, 4);
+  assert(await prospectDialog.isVisible(), "Backdrop click must not discard the open form.");
+  const modalFocusable = prospectDialog.locator('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+  assert(await modalFocusable.count() > 1, "Modal must expose keyboard-focusable controls.");
+  await modalFocusable.first().focus();
+  await page.keyboard.press("Shift+Tab");
+  assert(await modalFocusable.last().evaluate((element) => element === document.activeElement), "Shift+Tab must wrap focus to the last modal control.");
+  await page.keyboard.press("Tab");
+  assert(await modalFocusable.first().evaluate((element) => element === document.activeElement), "Tab must wrap focus to the first modal control.");
+
+  await page.keyboard.press("Escape");
+  await prospectDialog.waitFor({ state: "hidden" });
+  assert(await createProspectButton.getAttribute("aria-expanded") === "false", "Escape must close the dialog and reset its trigger.");
+  await createProspectButton.click();
+  await prospectDialog.waitFor({ state: "visible" });
+
   await prospectDialog.locator('input[name="name"]').fill(prospectName);
   await prospectDialog.locator('input[name="source"]').fill("CI browser smoke");
   await prospectDialog.locator('textarea[name="notes"]').fill("Prospect créé par le test d'interface isolé.");
