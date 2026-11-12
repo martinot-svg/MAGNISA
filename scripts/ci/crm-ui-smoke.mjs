@@ -141,7 +141,7 @@ try {
   await page.getByRole("button", { name: /Enregistrer l.intervention/ }).first().click();
   const contributionDialog = page.getByRole("dialog").last();
   await contributionDialog.waitFor({ state: "visible", timeout: 10000 });
-  const contributionForm = contributionDialog.locator("form").filter({ has: contributionDialog.locator('textarea[name="description"]') }).first();
+  const contributionForm = contributionDialog.locator("form").first();
   await contributionForm.locator('select[name="contributor_user_id"]').selectOption(collaboratorId);
   await contributionForm.locator('select[name="intervention_type"]').selectOption("qualification");
   await contributionForm.locator('select[name="contribution_role"]').selectOption("qualifier");
