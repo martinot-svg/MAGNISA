@@ -112,12 +112,15 @@ try {
   await prospectDialog.getByRole("button", { name: "Créer le prospect" }).click();
   await prospectDialog.getByRole("alert").waitFor({ state: "visible" });
   assert(await prospectDialog.isVisible(), "A rejected server action must keep the modal open.");
+  await page.waitForFunction(() => document.querySelector('input[name="name"]')?.value === "X");
   assert(await prospectNameInput.inputValue() === "X", "A rejected server action must preserve entered values.");
 
   await prospectNameInput.fill(prospectName);
   await prospectDialog.locator('input[name="source"]').fill("CI browser smoke");
   await prospectDialog.locator('textarea[name="notes"]').fill("Prospect créé par le test d'interface isolé.");
   await prospectDialog.getByRole("button", { name: "Créer le prospect" }).click();
+  await prospectDialog.waitFor({ state: "hidden" });
+  await page.getByRole("status").filter({ hasText: "Opération enregistrée." }).waitFor();
 
   const prospect = await waitForRow(async () => admin.from("prospects")
     .select("id,converted_customer_id").eq("organization_id", membership.organization_id)
