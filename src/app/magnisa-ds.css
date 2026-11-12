@@ -369,3 +369,94 @@ html body .appShell>main{
     transition-duration:.01ms!important;
   }
 }
+
+/* ---------- Tableaux fluides : aucune barre de défilement horizontale ---------- */
+/* Les colonnes partagent la largeur disponible ; les libellés longs reviennent
+   à la ligne au lieu d'être tronqués ou de forcer la largeur du tableau. */
+html body .appShell .tableWrap{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  overflow-x:hidden;
+  overflow-y:visible;
+  overscroll-behavior-x:auto;
+}
+html body .appShell .tableWrap>table,
+html body .appShell table{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  table-layout:fixed;
+  border-spacing:0;
+}
+html body .appShell table th,
+html body .appShell table td{
+  min-width:0;
+  max-width:100%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:normal;
+  hyphens:auto;
+  vertical-align:middle;
+  padding:10px 8px;
+}
+html body .appShell table th{
+  line-height:1.35;
+  font-size:clamp(.68rem,.72vw,.75rem);
+}
+html body .appShell table td{
+  line-height:1.4;
+  font-size:clamp(.75rem,.85vw,.875rem);
+}
+html body .appShell table th.right,
+html body .appShell table td.right,
+html body .appShell table .right{
+  text-align:right;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  font-variant-numeric:tabular-nums;
+}
+html body .appShell .tableWrap :is(a,button,code,strong,span){
+  max-width:100%;
+  overflow-wrap:anywhere;
+  word-break:normal;
+}
+html body .appShell .tableWrap .actions{
+  min-width:0;
+  flex-wrap:wrap;
+  gap:6px;
+}
+html body .appShell .tableWrap .actions :is(a,button,.button){
+  min-width:0;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+@media(max-width:980px){
+  html body .appShell table th,
+  html body .appShell table td{
+    padding:8px 6px;
+  }
+}
+@media(max-width:620px){
+  html body .appShell .tableWrap{
+    margin-inline:0;
+    border-radius:0;
+    border-inline:0;
+  }
+  html body .appShell table th{
+    font-size:10px;
+    letter-spacing:0;
+    padding:7px 4px;
+  }
+  html body .appShell table td{
+    font-size:11px;
+    line-height:1.35;
+    padding:8px 4px;
+  }
+  html body .appShell table :is(input,select,textarea){
+    width:100%;
+    min-width:0;
+    max-width:100%;
+    font-size:12px;
+  }
+}
