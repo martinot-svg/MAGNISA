@@ -369,3 +369,36 @@ html body .appShell>main{
     transition-duration:.01ms!important;
   }
 }
+
+
+/* ---------- Lisibilité des tableaux : valeurs courtes sur une ligne ---------- */
+.appShell .tableWrap{
+  overflow-x:auto;
+  max-width:100%;
+}
+.appShell table{
+  width:100%;
+}
+.appShell table td{
+  white-space:nowrap;
+  overflow-wrap:normal;
+  word-break:normal;
+}
+.appShell table td :is(time,.date,.date-value,[data-date]){
+  white-space:nowrap;
+  display:inline-block;
+}
+/* Les champs explicitement descriptifs restent autorisés à occuper plusieurs lignes. */
+.appShell table td :is(.wrap,.cell-wrap,.description,.notes,.long-text,[data-wrap="true"]),
+.appShell table td[data-wrap="true"]{
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:normal;
+}
+.appShell table td :is(p,.muted) {
+  white-space:inherit;
+}
+.appShell table td .actions{
+  white-space:nowrap;
+  flex-wrap:nowrap;
+}
