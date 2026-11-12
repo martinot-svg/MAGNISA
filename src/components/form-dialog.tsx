@@ -13,16 +13,16 @@ type FormControlSnapshot = {
   selected?: string[];
 };
 
-type FormDialogContextValue = { wrapAction: (action: ServerAction) => ServerAction };
+type FormDialogContextValue = { wrapAction: (action: ServerAction, propagateErrors?: boolean) => ServerAction };
 const FormDialogContext = createContext<FormDialogContextValue | null>(null);
 
 /** Connect a nested client form to the surrounding FormDialog lifecycle. */
 export function useFormDialogAction(action: ServerAction): ServerAction {
   const context = useContext(FormDialogContext);
-  return useMemo(() => context?.wrapAction(action) ?? action, [context, action]);
+  return useMemo(() => context?.wrapAction(action, true) ?? action, [context, action]);
 }
 
-function replaceServerActions(node: ReactNode, wrapAction: (action: ServerAction) => ServerAction): { children: ReactNode[]; found: boolean } {
+function replaceServerActions(node: ReactNode, wrapAction: (action: ServerAction, propagateErrors?: boolean) => ServerAction): { children: ReactNode[]; found: boolean } {
   const nodes = Children.toArray(node);
   let found = false;
   const children = nodes.map((child) => {
@@ -69,12 +69,12 @@ export function FormDialog({
     requestAnimationFrame(() => openerRef.current?.focus());
   }, [isBusy]);
 
-  const wrapAction = useCallback((action: ServerAction): ServerAction => async (formData) => {
+  const wrapAction = useCallback((action: ServerAction, propagateErrors = false): ServerAction => async (formData) => {
     await executeFormDialogAction(action, formData, pendingRef, {
       setPending,
       setError,
       onSuccess: () => { setSuccess(true); setOpen(false); },
-    });
+    }, propagateErrors);
   }, []);
   const dialogContextValue = useMemo(() => ({ wrapAction }), [wrapAction]);
   const wrappedChildren = replaceServerActions(children, wrapAction);
@@ -93,7 +93,7 @@ export function FormDialog({
           }
           return [];
         });
-      }} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}>
+      }} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         {wrappedChildren.children}
       </fieldset>
     ) : children}

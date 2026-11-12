@@ -50,6 +50,18 @@ describe("FormDialog server action lifecycle", () => {
     expect(events.setPending).toHaveBeenLastCalledWith(false);
   });
 
+  it("can propagate errors to client-owned submit handlers without losing the pending lifecycle", async () => {
+    const events = callbacks();
+    const pending = { current: false };
+    await expect(executeFormDialogAction(async () => { throw new Error("Commande refusée"); }, new FormData(), pending, events, true))
+      .rejects.toThrow("Commande refusée");
+    expect(events.setError).toHaveBeenCalledOnce();
+    expect(events.setError).toHaveBeenCalledWith(null);
+    expect(events.onSuccess).not.toHaveBeenCalled();
+    expect(events.setPending).toHaveBeenLastCalledWith(false);
+    expect(pending.current).toBe(false);
+  });
+
   it("treats returned server errors as failures", async () => {
     const events = callbacks();
     const action = async () => ({ error: "Conflit métier" }) as unknown as void;

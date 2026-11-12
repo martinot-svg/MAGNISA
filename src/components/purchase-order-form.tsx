@@ -30,7 +30,6 @@ export function PurchaseOrderForm({suppliers,items,customers}:{suppliers:Supplie
       const valid=lines.map(l=>{const item=items.find(i=>i.id===l.item_id);return {...l,description:l.description||item?.name||"",unit:item?.base_unit||l.unit,beneficiary_customer_id:l.beneficiary_customer_id||null,mandate_supplier_document_reference:l.mandate_supplier_document_reference||null};});
       formData.set("supplier_id",supplier);formData.set("currency",currency);formData.set("expected_date",expectedDate);formData.set("notes",notes);formData.set("lines_json",JSON.stringify(valid));
       await submitAction(formData);
-      window.location.reload();
     }catch(e){setError(e instanceof Error?e.message:"La commande n'a pas pu être enregistrée.");}
     finally{setBusy(false);}
   };

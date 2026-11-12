@@ -29,6 +29,7 @@ export async function executeFormDialogAction(
   formData: FormData,
   pendingRef: PendingRef,
   callbacks: Callbacks,
+  propagateErrors = false,
 ): Promise<void> {
   if (pendingRef.current) return;
   pendingRef.current = true;
@@ -43,6 +44,7 @@ export async function executeFormDialogAction(
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (/NEXT_REDIRECT/i.test(message)) throw error;
+    if (propagateErrors) throw error;
     callbacks.setError(formatFormDialogError(error));
   } finally {
     pendingRef.current = false;
