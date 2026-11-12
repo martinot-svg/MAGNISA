@@ -137,7 +137,10 @@ try {
   await page.goto(`${baseUrl}/prospects/${prospect.id}`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: prospectName }).waitFor();
   const contributionDescription = "Qualification CRM UI " + Date.now();
-  const contributionForm = page.locator("form").filter({ has: page.locator('textarea[name="description"]') }).first();
+  await page.getByRole("button", { name: /Enregistrer l.intervention/ }).first().click();
+  const contributionDialog = page.getByRole("dialog").last();
+  await contributionDialog.waitFor({ state: "visible", timeout: 10000 });
+  const contributionForm = contributionDialog.locator("form").filter({ has: contributionDialog.locator('textarea[name="description"]') }).first();
   await contributionForm.locator('select[name="contributor_user_id"]').selectOption(collaboratorId);
   await contributionForm.locator('select[name="intervention_type"]').selectOption("qualification");
   await contributionForm.locator('select[name="contribution_role"]').selectOption("qualifier");
@@ -145,7 +148,8 @@ try {
   await initialStage.selectOption("completed");
   assert(await initialStage.inputValue() === "completed", "The UI must submit the explicitly selected initial intervention stage.");
   await contributionForm.locator('textarea[name="description"]').fill(contributionDescription);
-  await contributionForm.getByRole("button", { name: "Enregistrer l'intervention" }).click();
+  await contributionForm.getByRole("button", { name: /Enregistrer l.intervention/ }).click();
+  await contributionDialog.waitFor({ state: "hidden", timeout: 20000 });
 
   const intervention = await waitForRow(async () => admin.from("prospect_interventions")
     .select("id,stage_status,validation_status,contributor_user_id,created_by").eq("organization_id", membership.organization_id)
