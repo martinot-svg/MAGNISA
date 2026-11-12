@@ -136,6 +136,7 @@ try {
 
   await page.goto(`${baseUrl}/prospects/${prospect.id}`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: prospectName }).waitFor();
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   const contributionDescription = "Qualification CRM UI " + Date.now();
   await page.getByRole("button", { name: /Enregistrer l.intervention/ }).first().click();
   const contributionDialog = page.getByRole("dialog").last();
