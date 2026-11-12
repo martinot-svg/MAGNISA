@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, requirePermission } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { FormDialog } from "@/components/form-dialog";
 
 const SOURCES = [
   { key: "dgi-legislation", title: "DGI - Textes et législation", url: "https://portal.impots.mg/textes/", additionalUrls: ["https://www.impots.mg/explorer?langue=2&path=%2Flegislation"] },
@@ -141,10 +142,16 @@ export default async function RegulatoryWatchPage({ searchParams }: { searchPara
       <h2>État général de la surveillance</h2>
       <p><strong>{enabled ? "Surveillance activée" : "Surveillance désactivée"}</strong></p>
       <p className="muted">Le contrôle automatique est programmé chaque jour à 08 h 15, heure de Madagascar. La désactivation générale arrête les consultations de toutes les sources pour cette organisation.</p>
-      <form action={updateWatchSetting} className="form">
-        <input type="hidden" name="enabled" value={enabled ? "false" : "true"}/>
-        <button className="button">{enabled ? "Désactiver la surveillance" : "Activer la surveillance"}</button>
-      </form>
+      <FormDialog
+        title="Configurer la veille réglementaire"
+        buttonLabel={enabled ? "Désactiver la surveillance" : "Activer la surveillance"}
+        buttonClassName="button"
+      >
+        <form action={updateWatchSetting} className="form">
+          <input type="hidden" name="enabled" value={enabled ? "false" : "true"}/>
+          <button className="button primary">Confirmer</button>
+        </form>
+      </FormDialog>
       <p className="muted">Configuration réservée au propriétaire, à l'administrateur ou au directeur.</p>
     </section>
 
@@ -161,7 +168,19 @@ export default async function RegulatoryWatchPage({ searchParams }: { searchPara
             <td>{dateTime(row?.last_attempt_at)}</td>
             <td>{dateTime(row?.last_success_at)}</td>
             <td>{row?.last_error ? <span className="errorText">{row.last_error}</span> : row?.last_http_status ? "HTTP " + row.last_http_status : "Pas encore contrôlée"}</td>
-            <td><form action={updateSourceSetting}><input type="hidden" name="source_key" value={source.key}/><input type="hidden" name="enabled" value={sourceEnabled ? "false" : "true"}/><button className="button">{sourceEnabled ? "Désactiver" : "Activer"}</button></form></td>
+            <td>
+              <FormDialog
+                title={`Configurer ${source.title}`}
+                buttonLabel={sourceEnabled ? "Désactiver" : "Activer"}
+                buttonClassName="button"
+              >
+                <form action={updateSourceSetting} className="form">
+                  <input type="hidden" name="source_key" value={source.key}/>
+                  <input type="hidden" name="enabled" value={sourceEnabled ? "false" : "true"}/>
+                  <button className="button primary">Confirmer</button>
+                </form>
+              </FormDialog>
+            </td>
           </tr>;
         })}
       </tbody></table></div>
@@ -171,11 +190,16 @@ export default async function RegulatoryWatchPage({ searchParams }: { searchPara
       <h2>Plafond de déduction santé IRSA</h2>
       <p>Référentiel actuellement validé : <strong>{current ? (Number(current.irsa_health_deduction_rate) * 100).toLocaleString("fr-FR") + " %" : "Aucun référentiel actif"}</strong>{current ? " depuis le " + current.effective_from : ""}.</p>
       <p className="muted">Pour préparer une hausse à 3 % ou une baisse à 0,5 %, crée une nouvelle version datée. Elle ne sera appliquée qu'après examen du texte officiel et validation du référentiel.</p>
-      <form action={createHealthCeilingDraft} className="form"><div className="grid2">
-        <div className="field"><label>Nouveau plafond (%)</label><input name="rate_percent" type="number" min="0" max="100" step="0.01" placeholder="Ex. 3 ou 0,5" required/></div>
-        <div className="field"><label>Date d'entrée en vigueur</label><input name="effective_from" type="date" required/></div>
-        <div className="field"><label>URL du texte officiel</label><input name="legal_reference" type="url" placeholder="https://..." required/></div>
-      </div><button className="button primary">Créer une version à vérifier</button></form>
+      <FormDialog title="Créer une version du plafond IRSA santé" buttonLabel="Créer une version à vérifier">
+        <form action={createHealthCeilingDraft} className="form">
+          <div className="grid2">
+            <div className="field"><label>Nouveau plafond (%)</label><input name="rate_percent" type="number" min="0" max="100" step="0.01" placeholder="Ex. 3 ou 0,5" required/></div>
+            <div className="field"><label>Date d'entrée en vigueur</label><input name="effective_from" type="date" required/></div>
+            <div className="field"><label>URL du texte officiel</label><input name="legal_reference" type="url" placeholder="https://..." required/></div>
+          </div>
+          <button className="button primary">Créer une version à vérifier</button>
+        </form>
+      </FormDialog>
       <p className="muted">La version reste en attente. Pour l'examiner et l'activer, ouvre les <Link href="/paie/parametres">paramètres de paie</Link>. Aucun bulletin passé n'est recalculé.</p>
     </section>
 
@@ -193,7 +217,17 @@ export default async function RegulatoryWatchPage({ searchParams }: { searchPara
           <td><a href={event.source_final_url || event.source_url} target="_blank" rel="noreferrer">{event.source_title}</a><br/><span className="muted">{dateTime(event.detected_at)}</span></td>
           <td>{event.review_status === "unreviewed" ? "À vérifier" : event.review_status === "reviewed" ? "Examiné" : event.review_status === "validated" ? "Changement confirmé" : "Non pertinent"}</td>
           <td><details><summary>Afficher l'extrait détecté</summary><p><strong>Avant</strong></p><pre className="muted" style={{ whiteSpace: "pre-wrap", maxHeight: 180, overflow: "auto" }}>{event.previous_excerpt || "Aucun extrait initial disponible"}</pre><p><strong>Après</strong></p><pre className="muted" style={{ whiteSpace: "pre-wrap", maxHeight: 180, overflow: "auto" }}>{event.current_excerpt || "Aucun extrait disponible"}</pre></details></td>
-          <td>{event.review_status === "unreviewed" ? <form action={reviewRegulatoryEvent} className="form"><input type="hidden" name="event_id" value={event.id}/><div className="field"><label>Note de vérification</label><textarea name="review_note" maxLength={1000} rows={2}/></div><button className="button" name="review_status" value="reviewed">Marquer examiné</button><button className="button primary" name="review_status" value="validated">Valider le changement réglementaire</button><button className="button" name="review_status" value="not_relevant">Classer non pertinent</button></form> : <span className="muted">{event.review_note || "Décision enregistrée le " + dateTime(event.reviewed_at)}</span>}</td>
+          <td>{event.review_status === "unreviewed" ? (
+            <FormDialog title={`Revue réglementaire : ${event.source_title}`} buttonLabel="Examiner" buttonClassName="button">
+              <form action={reviewRegulatoryEvent} className="form">
+                <input type="hidden" name="event_id" value={event.id}/>
+                <div className="field"><label>Note de vérification</label><textarea name="review_note" maxLength={1000} rows={3}/></div>
+                <button className="button" name="review_status" value="reviewed">Marquer examiné</button>
+                <button className="button primary" name="review_status" value="validated">Valider le changement réglementaire</button>
+                <button className="button" name="review_status" value="not_relevant">Classer non pertinent</button>
+              </form>
+            </FormDialog>
+          ) : <span className="muted">{event.review_note || "Décision enregistrée le " + dateTime(event.reviewed_at)}</span>}</td>
         </tr>)}
       </tbody></table></div>}
       <p className="muted">Une validation réglementaire exige une justification écrite et confirme la portée juridique de l’alerte. Elle ne modifie jamais automatiquement les paramètres de paie : un nouveau référentiel doit ensuite être préparé, vérifié et activé séparément.</p>

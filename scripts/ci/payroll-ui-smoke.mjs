@@ -271,6 +271,148 @@ try {
   process.stdout.write("PASS UI: authenticated fixed-assets register, depreciation, component and IFRS sections\n");
   process.stdout.write("PASS RLS: authenticated read allowed and direct depreciation write denied\n");
 
+
+  const { data: regulatoryEvent, error: regulatoryInsertError } = await admin
+    .from("regulatory_watch_events")
+    .insert({
+      organization_id: testOrganizationId,
+      source_key: "dgi-legislation",
+      source_title: "UI TEST regulatory event",
+      source_url: "https://www.impots.mg/ui-test",
+      current_hash: "ui-test-" + Date.now(),
+      current_excerpt: "Texte réglementaire de test.",
+    })
+    .select("id")
+    .single();
+  if (regulatoryInsertError) throw regulatoryInsertError;
+  const regulatoryResponse = await page.goto(`${baseUrl}/paie/veille-reglementaire`, { waitUntil: "domcontentloaded" });
+  assert(regulatoryResponse?.ok(), `Regulatory-watch route returned ${regulatoryResponse?.status()}`);
+  await page.getByRole("heading", { name: "Veille réglementaire automatique" }).waitFor({ timeout: 15000 });
+  // The route can render its server HTML before client event handlers hydrate in next dev.
+  // Wait for the page to become network-idle before exercising the client-side modal trigger.
+  await page.waitForLoadState("networkidle", { timeout: 15000 });
+  const regulatoryRow = page.locator("tbody tr").filter({ hasText: "UI TEST regulatory event" }).first();
+  await regulatoryRow.getByRole("button", { name: "Examiner" }).click();
+  const regulatoryDialog = page.getByRole("dialog");
+  await regulatoryDialog.waitFor({ state: "visible" });
+  const closeButton = regulatoryDialog.locator('button[aria-label="Fermer la fenêtre"]');
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Fermer la fenêtre");
+  assert(await closeButton.evaluate((button) => button === document.activeElement),
+    "Opening a modal must move focus to its first focusable control.");
+  const backgroundInactive = await page.evaluate(() =>
+    Array.from(document.body.children)
+      .filter((element) => !element.classList.contains("magnisa-modal-backdrop"))
+      .every((element) => element.inert),
+  );
+  assert(backgroundInactive, "The page behind an open modal must be inert.");
+  await page.keyboard.press("Escape");
+  await regulatoryDialog.waitFor({ state: "hidden" });
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-haspopup") === "dialog");
+  await regulatoryRow.getByRole("button", { name: "Examiner" }).click();
+  await regulatoryDialog.waitFor({ state: "visible" });
+  await regulatoryDialog.locator('button[aria-label="Fermer la fenêtre"]').click();
+  await regulatoryDialog.waitFor({ state: "hidden" });
+  await regulatoryRow.getByRole("button", { name: "Examiner" }).click();
+  await regulatoryDialog.waitFor({ state: "visible" });
+  await regulatoryDialog.locator('textarea[name="review_note"]').fill("Trop court");
+  await regulatoryDialog.getByRole("button", { name: "Valider le changement réglementaire" }).click();
+  const regulatoryAlert = regulatoryDialog.getByRole("alert");
+  await regulatoryAlert.waitFor({ state: "visible" });
+  assert((await regulatoryAlert.innerText()).includes("au moins 20 caractères"),
+    "A short regulatory justification must produce an accessible modal error.");
+  assert(await regulatoryDialog.isVisible(), "Regulatory review modal must remain open after server validation failure.");
+  assert(await regulatoryDialog.locator('textarea[name="review_note"]').inputValue() === "Trop court",
+    "Regulatory review modal must preserve the submitted note after failure.");
+  await regulatoryDialog.locator('textarea[name="review_note"]').fill("Justification réglementaire vérifiée par le responsable paie.");
+  await Promise.all([
+    page.waitForURL((url) => url.pathname === "/paie/veille-reglementaire" && url.searchParams.has("reviewed"), { timeout: 30000 }),
+    regulatoryDialog.getByRole("button", { name: "Valider le changement réglementaire" }).click(),
+  ]);
+  const reviewedEvent = await admin.from("regulatory_watch_events")
+    .select("review_status,review_note").eq("id", regulatoryEvent.id).single();
+  if (reviewedEvent.error) throw reviewedEvent.error;
+  assert(reviewedEvent.data.review_status === "validated", "Valid regulatory review was not persisted.");
+  assert(reviewedEvent.data.review_note?.length >= 20, "Regulatory review justification was not persisted.");
+  const regulatoryCleanup = await admin.from("regulatory_watch_events").delete().eq("id", regulatoryEvent.id);
+  if (regulatoryCleanup.error) throw regulatoryCleanup.error;
+  process.stdout.write("PASS UI: regulatory review modal preserves validation errors and persists a valid decision\\n");
+
+  const latestValidatedRule = await admin.from("payroll_rule_sets").select("effective_from")
+    .eq("organization_id", testOrganizationId).eq("status", "validated")
+    .order("effective_from", { ascending: false }).limit(1).maybeSingle();
+  if (latestValidatedRule.error) throw latestValidatedRule.error;
+  assert(latestValidatedRule.data, "A validated payroll rule is required for the IRSA draft modal test.");
+  const futureRuleDate = new Date(latestValidatedRule.data.effective_from + "T00:00:00.000Z");
+  futureRuleDate.setUTCFullYear(futureRuleDate.getUTCFullYear() + 1);
+  const futureRuleDateText = futureRuleDate.toISOString().slice(0, 10);
+  await page.getByRole("button", { name: "Créer une version à vérifier" }).click();
+  const healthDraftDialog = page.getByRole("dialog");
+  await healthDraftDialog.waitFor({ state: "visible" });
+  await healthDraftDialog.locator('input[name="rate_percent"]').fill("3");
+  await healthDraftDialog.locator('input[name="effective_from"]').fill(futureRuleDateText);
+  await healthDraftDialog.locator('input[name="legal_reference"]').fill("https://evil.example/regulatory-text");
+  await healthDraftDialog.getByRole("button", { name: "Créer une version à vérifier" }).click();
+  const healthDraftAlert = healthDraftDialog.getByRole("alert");
+  await healthDraftAlert.waitFor({ state: "visible" });
+  assert((await healthDraftAlert.innerText()).includes("domaine de la source officielle"),
+    "An unapproved regulatory domain must be rejected inside the modal.");
+  assert(await healthDraftDialog.isVisible(), "IRSA draft modal must remain open after validation failure.");
+  assert(await healthDraftDialog.locator('input[name="legal_reference"]').inputValue() === "https://evil.example/regulatory-text",
+    "IRSA draft modal must preserve the invalid URL for correction.");
+  process.stdout.write("PASS UI: IRSA draft modal preserves server-side domain validation errors\\n");
+
+  const existingFiscalYears = await admin.from("accounting_fiscal_years")
+    .select("period_start,period_end").eq("organization_id", testOrganizationId);
+  if (existingFiscalYears.error) throw existingFiscalYears.error;
+  const earliestFiscalYear = existingFiscalYears.data
+    .map((year) => Number(String(year.period_start).slice(0, 4)))
+    .sort((a, b) => a - b)[0];
+  const fiscalYearNumber = earliestFiscalYear ? earliestFiscalYear - 1 : 2000;
+  const fiscalStart = String(fiscalYearNumber).padStart(4, "0") + "-01-01";
+  const fiscalEnd = String(fiscalYearNumber).padStart(4, "0") + "-12-31";
+  const fiscalLabel = "UI zero-opening " + Date.now();
+  const fiscalResponse = await page.goto(`${baseUrl}/exercices-comptables`, { waitUntil: "domcontentloaded" });
+  assert(fiscalResponse?.ok(), `Fiscal-year route returned ${fiscalResponse?.status()}`);
+  await page.getByRole("heading", { name: "Exercices comptables" }).waitFor({ timeout: 15000 });
+  await page.waitForLoadState("networkidle", { timeout: 15000 });
+  await page.getByRole("button", { name: "Créer un exercice" }).click();
+  const fiscalDialog = page.getByRole("dialog");
+  await fiscalDialog.waitFor({ state: "visible" });
+  await fiscalDialog.locator('input[name="label"]').fill(fiscalLabel);
+  await fiscalDialog.locator('input[name="period_start"]').fill(fiscalEnd);
+  await fiscalDialog.locator('input[name="period_end"]').fill(fiscalStart);
+  await fiscalDialog.getByRole("button", { name: "Créer l'exercice" }).click();
+  const fiscalAlert = fiscalDialog.getByRole("alert");
+  await fiscalAlert.waitFor({ state: "visible" });
+  assert((await fiscalAlert.innerText()).includes("Exercice comptable invalide"),
+    "An invalid fiscal period must be shown inside the modal instead of escaping as a server error.");
+  assert(await fiscalDialog.locator('input[name="label"]').inputValue() === fiscalLabel,
+    "Fiscal-year modal must preserve the label after server validation failure.");
+  await fiscalDialog.locator('input[name="period_start"]').fill(fiscalStart);
+  await fiscalDialog.locator('input[name="period_end"]').fill(fiscalEnd);
+  await fiscalDialog.getByRole("button", { name: "Créer l'exercice" }).click();
+  await fiscalDialog.waitFor({ state: "hidden", timeout: 30000 });
+  const createdFiscalYear = await admin.from("accounting_fiscal_years")
+    .select("id,status,opening_entry_id").eq("organization_id", testOrganizationId)
+    .eq("label", fiscalLabel).single();
+  if (createdFiscalYear.error) throw createdFiscalYear.error;
+  assert(createdFiscalYear.data.status === "open", "A first fiscal year without opening balances must be created as open.");
+  assert(createdFiscalYear.data.opening_entry_id === null,
+    "A first fiscal year without opening balances must not create an artificial opening journal.");
+  const fiscalRow = page.locator("tbody tr").filter({ hasText: fiscalLabel }).first();
+  await fiscalRow.getByRole("button", { name: "Clôturer" }).click();
+  const closeFiscalDialog = page.getByRole("dialog");
+  await closeFiscalDialog.waitFor({ state: "visible" });
+  await closeFiscalDialog.getByRole("button", { name: "Confirmer la clôture" }).click();
+  await closeFiscalDialog.waitFor({ state: "hidden", timeout: 30000 });
+  const closedFiscalYear = await admin.from("accounting_fiscal_years")
+    .select("status,closed_at").eq("organization_id", testOrganizationId)
+    .eq("id", createdFiscalYear.data.id).single();
+  if (closedFiscalYear.error) throw closedFiscalYear.error;
+  assert(closedFiscalYear.data.status === "closed" && closedFiscalYear.data.closed_at,
+    "Fiscal-year closure modal must persist the server-confirmed closed state.");
+  process.stdout.write("PASS UI: fiscal-year modal preserves errors, creates a zero-opening first year and confirms closure\\n");
+
   assert(pageErrors.length === 0, `Browser page errors: ${pageErrors.join(" | ")}`);
   process.stdout.write("PASS UI: no uncaught browser page errors\n");
 } finally {
