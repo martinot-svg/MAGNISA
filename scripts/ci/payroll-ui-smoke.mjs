@@ -68,15 +68,26 @@ const openRuleActions = async (page, name) => {
   return row;
 };
 const waitForNotice = async (page, fragment) => {
-  const notice = page.getByRole("status");
-  await notice.waitFor();
+  // Server-action redirects render the result message in the page notice;
+  // locate the specific text instead of the first status node (which may be
+  // a transient FormDialog status from the previous render).
+  const notice = page.getByText(fragment, { exact: false }).first();
+  await notice.waitFor({ state: "visible", timeout: 15000 });
   const content = await notice.innerText();
   assert(content.includes(fragment), `Expected notice containing "${fragment}", received "${content}"`);
 };
-const clickAction = async (page, button) => {
+const clickAction = async (page, button, prepareForm) => {
+  // History actions are launched from FormDialog triggers. Open the
+  // confirmation modal, optionally prepare its fields, then submit its form.
+  await button.click();
+  const dialog = page.getByRole("dialog").last();
+  await dialog.waitFor({ state: "visible", timeout: 10000 });
+  const form = dialog.locator("form").last();
+  if (prepareForm) await prepareForm(form);
+  const submit = form.locator("button").last();
   await Promise.all([
     page.waitForURL((url) => url.pathname === "/paie/parametres" && url.searchParams.has("result"), { timeout: 30000 }),
-    button.click(),
+    submit.click(),
   ]);
 };
 const openHistory = async (page) => {
@@ -166,8 +177,8 @@ try {
   await resetPage(page);
 
   row = await openRuleActions(page, "UI TEST delete draft");
-  await row.locator('input[name="delete_confirmation"]').fill("SUPPRIMER");
-  await clickAction(page, row.getByRole("button", { name: /Supprimer définitivement/ }));
+  await clickAction(page, row.getByRole("button", { name: /Supprimer définitivement/ }),
+    (form) => form.locator('input[name="delete_confirmation"]').fill("SUPPRIMER"));
   await waitForNotice(page, "supprimé définitivement");
   const deleted = await admin.from("payroll_rule_sets").select("id").eq("id", ids.draft).maybeSingle();
   assert(!deleted.data, "Draft rule still exists after UI deletion.");
@@ -198,20 +209,34 @@ try {
   await page.getByRole("heading", { name: "Registre des immobilisations" }).waitFor({ timeout: 15000 });
   await page.getByRole("heading", { name: "Planifier et comptabiliser les dotations" }).waitFor({ timeout: 10000 });
   await page.getByRole("heading", { name: "Mise en service des immobilisations en cours" }).waitFor({ timeout: 10000 });
-  const registrationAccountSelect = page.locator('select[name="pcg_asset_account_code"]');
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+  await page.getByRole("button", { name: "Nouvelle immobilisation" }).click();
+  let registrationDialog = page.getByRole("dialog").last();
+  await registrationDialog.waitFor({ state: "visible", timeout: 10000 });
+  const registrationAccountSelect = registrationDialog.locator('select[name="pcg_asset_account_code"]');
   await registrationAccountSelect.waitFor({ state: "visible", timeout: 10000 });
   assert(await registrationAccountSelect.getAttribute("required") !== null, "Fixed-asset account must be mandatory.");
   assert(await registrationAccountSelect.locator('option[value="215"]').count() === 1, "PCG account 215 must be selectable from the catalogue when creating an asset.");
-  const commissioningAccountSelect = page.locator('select[name="new_asset_account_code"]');
+  await registrationDialog.locator('button[aria-label="Fermer la fenêtre"]').click();
+  await registrationDialog.waitFor({ state: "hidden", timeout: 10000 });
+  await page.getByRole("button", { name: "Comptabiliser la mise en service" }).click();
+  const commissioningDialog = page.getByRole("dialog").last();
+  await commissioningDialog.waitFor({ state: "visible", timeout: 10000 });
+  const commissioningAccountSelect = commissioningDialog.locator('select[name="new_asset_account_code"]');
   await commissioningAccountSelect.waitFor({ state: "visible", timeout: 10000 });
   assert(await commissioningAccountSelect.getAttribute("required") !== null, "Commissioning target account must be mandatory.");
   assert(await commissioningAccountSelect.locator('option[value="215"]').count() === 1, "PCG account 215 must be selectable for commissioning.");
+  await commissioningDialog.locator('button[aria-label="Fermer la fenêtre"]').click();
+  await commissioningDialog.waitFor({ state: "hidden", timeout: 10000 });
   process.stdout.write("PASS UI: commissioning target account is selected from the PCG catalogue\\n");
   await page.getByRole("heading", { name: "Ventilation par composants" }).waitFor({ timeout: 10000 });
   await page.getByRole("heading", { name: "Rapprochement IFRS distinct" }).waitFor({ timeout: 10000 });
   const assetCode = `UI-IMM-${Date.now()}`;
   const assetDate = new Date().toISOString().slice(0, 10);
-  const registrationForm = page.locator("form").filter({ has: page.locator('input[name="asset_code"]') });
+  await page.getByRole("button", { name: "Nouvelle immobilisation" }).click();
+  registrationDialog = page.getByRole("dialog").last();
+  await registrationDialog.waitFor({ state: "visible", timeout: 10000 });
+  const registrationForm = registrationDialog.locator("form").first();
   await registrationForm.locator('input[name="asset_code"]').fill(assetCode);
   await registrationForm.locator('input[name="name"]').fill("UI authenticated fixed asset test");
   await registrationForm.locator('input[name="category"]').fill("equipment");
@@ -231,6 +256,7 @@ try {
   await registrationForm.locator('input[name="pcg_disposal_expense_account_code"]').fill("652");
   await registrationForm.locator('input[name="pcg_disposal_income_account_code"]').fill("752");
   await registrationForm.getByRole("button", { name: "Enregistrer la fiche" }).click();
+  await registrationDialog.waitFor({ state: "hidden", timeout: 20000 });
   const createdAssetRow = page.locator("tbody tr").filter({ hasText: assetCode });
   await createdAssetRow.waitFor({ state: "visible", timeout: 20000 });
   const createdAsset = await admin.from("fixed_assets")
@@ -240,6 +266,10 @@ try {
   assert(createdAsset.data.pcg_asset_account_code === "215", "Created asset must retain selected PCG 215.");
   assert(Number(createdAsset.data.net_book_value) === 123456, "Created asset must retain its gross net book value before depreciation.");
   await createdAssetRow.getByRole("button", { name: "Comptabiliser" }).click();
+  const acquisitionDialog = page.getByRole("dialog").last();
+  await acquisitionDialog.waitFor({ state: "visible", timeout: 10000 });
+  await acquisitionDialog.locator("form").getByRole("button", { name: "Comptabiliser" }).click();
+  await acquisitionDialog.waitFor({ state: "hidden", timeout: 20000 });
   await createdAssetRow.getByText("Comptabilisée").waitFor({ state: "visible", timeout: 20000 });
   const postedAsset = await admin.from("fixed_assets")
     .select("id,acquisition_journal_entry_id").eq("organization_id", testOrganizationId)
@@ -357,6 +387,11 @@ try {
   assert((await healthDraftAlert.innerText()).includes("domaine de la source officielle"),
     "An unapproved regulatory domain must be rejected inside the modal.");
   assert(await healthDraftDialog.isVisible(), "IRSA draft modal must remain open after validation failure.");
+  await page.waitForFunction(
+    () => document.querySelector('input[name="legal_reference"]')?.value === "https://evil.example/regulatory-text",
+    null,
+    { timeout: 5000 },
+  );
   assert(await healthDraftDialog.locator('input[name="legal_reference"]').inputValue() === "https://evil.example/regulatory-text",
     "IRSA draft modal must preserve the invalid URL for correction.");
   process.stdout.write("PASS UI: IRSA draft modal preserves server-side domain validation errors\\n");

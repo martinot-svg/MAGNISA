@@ -5,6 +5,15 @@ on:
       - "supabase/**"
       - ".github/workflows/supabase-migration-replay.yml"
       - "scripts/ci/**"
+      - "scripts/qa/**"
+      - "src/**"
+      - "middleware.ts"
+      - "next.config.*"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "vitest.config.ts"
+      - "public/**"
   push:
     branches:
       - main
@@ -12,6 +21,16 @@ on:
     paths:
       - "supabase/**"
       - ".github/workflows/supabase-migration-replay.yml"
+      - "scripts/ci/**"
+      - "scripts/qa/**"
+      - "src/**"
+      - "middleware.ts"
+      - "next.config.*"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "vitest.config.ts"
+      - "public/**"
 permissions:
   contents: read
 concurrency:

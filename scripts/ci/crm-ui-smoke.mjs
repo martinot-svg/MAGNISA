@@ -61,7 +61,13 @@ try {
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   await page.getByRole("link", { name: "Configurer les interventions" }).click();
   await page.getByRole("heading", { name: "Types d'intervention" }).waitFor();
-  assert(await page.locator("tbody tr").count() === 11, "The configurable intervention catalog must show 11 types.");
+  // The editable catalog is intentionally inside the shared FormDialog.
+  await page.getByRole("button", { name: "Enregistrer la configuration" }).click();
+  const interventionDialog = page.getByRole("dialog");
+  await interventionDialog.waitFor({ state: "visible", timeout: 10000 });
+  assert(await interventionDialog.locator("tbody tr").count() === 11, "The configurable intervention catalog must show 11 types.");
+  await interventionDialog.locator('button[aria-label="Fermer la fenêtre"]').click();
+  await interventionDialog.waitFor({ state: "hidden" });
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Prospects" }).waitFor();
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
@@ -130,8 +136,12 @@ try {
 
   await page.goto(`${baseUrl}/prospects/${prospect.id}`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: prospectName }).waitFor();
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   const contributionDescription = "Qualification CRM UI " + Date.now();
-  const contributionForm = page.locator("form").filter({ has: page.locator('textarea[name="description"]') }).first();
+  await page.getByRole("button", { name: /Enregistrer l.intervention/ }).first().click();
+  const contributionDialog = page.getByRole("dialog").last();
+  await contributionDialog.waitFor({ state: "visible", timeout: 10000 });
+  const contributionForm = contributionDialog.locator("form").first();
   await contributionForm.locator('select[name="contributor_user_id"]').selectOption(collaboratorId);
   await contributionForm.locator('select[name="intervention_type"]').selectOption("qualification");
   await contributionForm.locator('select[name="contribution_role"]').selectOption("qualifier");
@@ -139,7 +149,8 @@ try {
   await initialStage.selectOption("completed");
   assert(await initialStage.inputValue() === "completed", "The UI must submit the explicitly selected initial intervention stage.");
   await contributionForm.locator('textarea[name="description"]').fill(contributionDescription);
-  await contributionForm.getByRole("button", { name: "Enregistrer l'intervention" }).click();
+  await contributionForm.getByRole("button", { name: /Enregistrer l.intervention/ }).click();
+  await contributionDialog.waitFor({ state: "hidden", timeout: 20000 });
 
   const intervention = await waitForRow(async () => admin.from("prospect_interventions")
     .select("id,stage_status,validation_status,contributor_user_id,created_by").eq("organization_id", membership.organization_id)
@@ -149,13 +160,17 @@ try {
   assert(intervention.contributor_user_id === collaboratorId && intervention.created_by === userId,
     "A delegated contribution must preserve contributor identity separately from its author.");
   await page.getByText(contributionDescription).waitFor({ state: "visible", timeout: 10000 });
-  await page.getByRole("button", { name: "Valider" }).first().waitFor({ state: "visible", timeout: 10000 });
-  assert(await page.getByRole("button", { name: "Valider" }).count() >= 1,
-    "An independent owner must be offered validation for another contributor.");
   const pendingRow = page.locator("tr").filter({ hasText: contributionDescription });
-  const validationForm = pendingRow.locator("form").filter({ has: page.getByRole("button", { name: "Valider" }) });
+  await pendingRow.getByRole("button", { name: "Ouvrir la décision" }).first().click();
+  const validationDialog = page.getByRole("dialog").last();
+  await validationDialog.waitFor({ state: "visible", timeout: 10000 });
+  const validationForm = validationDialog.locator("form");
+  await validationForm.getByRole("button", { name: "Valider" }).waitFor({ state: "visible", timeout: 10000 });
+  assert(await validationForm.getByRole("button", { name: "Valider" }).count() === 1,
+    "An independent owner must be offered validation for another contributor.");
   await validationForm.locator('input[name="reason"]').fill("Justificatif et identité du contributeur contrôlés indépendamment.");
   await validationForm.getByRole("button", { name: "Valider" }).click();
+  await validationDialog.waitFor({ state: "hidden", timeout: 20000 });
   await pendingRow.getByText("Validée").waitFor();
   const validatedContributor = await admin.from("prospect_contributors").select("id")
     .eq("organization_id", membership.organization_id).eq("prospect_id", prospect.id)
@@ -164,9 +179,14 @@ try {
   assert(validatedContributor.data.length === 1, "Independent validation must register the eligible commission contributor.");
 
   const contributionRow = page.locator("tr").filter({ hasText: contributionDescription });
-  await contributionRow.locator('select[name="stage_status"]').selectOption("in_progress");
-  await contributionRow.locator('input[name="reason"]').fill("Progression enregistrée par le collaborateur.");
-  await contributionRow.getByRole("button", { name: "Mettre à jour" }).click();
+  await contributionRow.getByRole("button", { name: "Modifier le statut" }).click();
+  const statusDialog = page.getByRole("dialog").last();
+  await statusDialog.waitFor({ state: "visible", timeout: 10000 });
+  const statusForm = statusDialog.locator("form");
+  await statusForm.locator('select[name="stage_status"]').selectOption("in_progress");
+  await statusForm.locator('input[name="reason"]').fill("Progression enregistrée par le collaborateur.");
+  await statusForm.getByRole("button", { name: "Mettre à jour" }).click();
+  await statusDialog.waitFor({ state: "hidden", timeout: 20000 });
   const persistedStage = await waitForRow(async () => {
     const result = await admin.from("prospect_interventions")
       .select("stage_status").eq("organization_id", membership.organization_id)
@@ -186,8 +206,16 @@ try {
   process.stdout.write("PASS CRM UI: prospect creation, intervention, beneficiary guard and stage history\n");
 
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
-  const prospectRow = page.locator("tr").filter({ hasText: prospectName });
+  await page.getByRole("heading", { name: "Prospects" }).waitFor({ state: "visible", timeout: 15000 });
+  // The conversion trigger is a client-side FormDialog control; wait for
+  // hydration before interacting with the freshly rendered prospects table.
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+  const prospectRow = page.locator("tr").filter({ hasText: prospectName }).first();
   await prospectRow.getByRole("button", { name: "Clôturer comme gagné" }).click();
+  const conversionDialog = page.getByRole("dialog").last();
+  await conversionDialog.waitFor({ state: "visible", timeout: 10000 });
+  await conversionDialog.locator("form button").last().click();
+  await conversionDialog.waitFor({ state: "hidden", timeout: 20000 });
   let converted = null;
   for (let attempt = 0; attempt < 20; attempt++) {
     const result = await admin.from("prospects").select("converted_customer_id")
@@ -200,15 +228,21 @@ try {
 
   await page.goto(`${baseUrl}/clients/${converted.converted_customer_id}/contributions`, { waitUntil: "domcontentloaded" });
   await page.getByText("Client · Journal collaboratif").waitFor();
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   await page.getByText(contributionDescription).waitFor();
 
   const followUpDescription = "Suivi client CRM UI " + Date.now();
-  await page.locator('select[name="contributor_user_id"]').first().selectOption(collaboratorId);
-  await page.locator('select[name="intervention_type"]').first().selectOption("follow_up");
-  await page.locator('select[name="contribution_role"]').first().selectOption("account_manager");
-  await page.locator('select[name="stage_status"]').first().selectOption("completed");
-  await page.locator('textarea[name="description"]').first().fill(followUpDescription);
-  await page.getByRole("button", { name: "Enregistrer l'intervention" }).click();
+  await page.getByRole("button", { name: /Enregistrer l.intervention/ }).first().click();
+  const followUpDialog = page.getByRole("dialog").last();
+  await followUpDialog.waitFor({ state: "visible", timeout: 10000 });
+  const followUpForm = followUpDialog.locator("form");
+  await followUpForm.locator('select[name="contributor_user_id"]').selectOption(collaboratorId);
+  await followUpForm.locator('select[name="intervention_type"]').selectOption("follow_up");
+  await followUpForm.locator('select[name="contribution_role"]').selectOption("account_manager");
+  await followUpForm.locator('select[name="stage_status"]').selectOption("completed");
+  await followUpForm.locator('textarea[name="description"]').fill(followUpDescription);
+  await followUpForm.getByRole("button", { name: /Enregistrer l.intervention/ }).click();
+  await followUpDialog.waitFor({ state: "hidden", timeout: 20000 });
   await page.getByText(followUpDescription).waitFor();
   const followUp = await waitForRow(async () => admin.from("prospect_interventions")
     .select("id,customer_id").eq("organization_id", membership.organization_id)

@@ -58,15 +58,29 @@ try {
 
   await page.goto(`${baseUrl}/commandes`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Commandes" }).waitFor();
+  // Wait for client hydration before clicking FormDialog triggers.
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   const orderNumber = freeOrderId.endsWith("134") ? "CI-RACE-ORDER-A" : "CI-RACE-ORDER-B";
   let orderRow = page.locator("tr").filter({ hasText: orderNumber });
   await orderRow.waitFor({ state: "visible" });
-  await orderRow.locator("summary").filter({ hasText: "Stock & livraisons" }).click();
-  let forms = orderRow.locator("details").filter({ hasText: "Stock & livraisons" }).locator("form");
-  const reserveForm = forms.nth(0);
+  let stockDetails = orderRow.locator("details").filter({ hasText: "Stock & livraisons" });
+  if (!(await stockDetails.evaluate((element) => element.open))) {
+    await stockDetails.locator("summary").click();
+  }
+  // Reservation and delivery forms are opened by FormDialog triggers; the
+  // inputs only exist inside the dialog after the trigger is activated.
+  const reserveTrigger = stockDetails.locator('button[aria-haspopup="dialog"]').filter({ hasText: "Réserver" }).first();
+  await reserveTrigger.waitFor({ state: "visible" });
+  await reserveTrigger.click();
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('button[aria-haspopup="dialog"]'))
+    .some((button) => button.getAttribute("aria-expanded") === "true"), null, { timeout: 10000 });
+  const reserveDialog = page.locator('.magnisa-modal-backdrop [role="dialog"]').last();
+  await reserveDialog.waitFor({ state: "visible", timeout: 10000 });
+  const reserveForm = reserveDialog.locator("form");
   await reserveForm.locator('select[name="stock_location_id"]').selectOption(locationId);
   await reserveForm.locator('input[name="quantity"]').fill("1");
   await reserveForm.getByRole("button", { name: "Réserver" }).click();
+  await reserveDialog.waitFor({ state: "hidden", timeout: 20000 });
 
   const newReservation = await waitFor(() => admin.from("stock_reservations")
     .select("id,quantity_reserved,status").eq("organization_id", orgId)
@@ -75,17 +89,24 @@ try {
   assert(Number(newReservation.quantity_reserved) === 1, "UI reservation quantity was not persisted.");
 
   await page.getByRole("heading", { name: "Commandes" }).waitFor();
-  await page.locator(`select[name="reservation_id"] option[value="${newReservation.id}"]`)
-    .waitFor({ state: "attached", timeout: 10000 });
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   orderRow = page.locator("tr").filter({ hasText: orderNumber });
-  await orderRow.locator("summary").filter({ hasText: "Stock & livraisons" }).click();
-  forms = orderRow.locator("details").filter({ hasText: "Stock & livraisons" }).locator("form");
-  const deliveryForm = forms.nth(1);
+  stockDetails = orderRow.locator("details").filter({ hasText: "Stock & livraisons" });
+  if (!(await stockDetails.evaluate((element) => element.open))) {
+    await stockDetails.locator("summary").click();
+  }
+  await stockDetails.getByRole("button", { name: "Enregistrer livraison" }).first().click();
+  const deliveryDialog = page.getByRole("dialog").last();
+  await deliveryDialog.waitFor({ state: "visible", timeout: 10000 });
+  const deliveryForm = deliveryDialog.locator("form");
+  await deliveryForm.locator(`select[name="reservation_id"] option[value="${newReservation.id}"]`)
+    .waitFor({ state: "attached", timeout: 10000 });
   await deliveryForm.locator('select[name="stock_location_id"]').selectOption(locationId);
   await deliveryForm.locator('select[name="reservation_id"]').selectOption(newReservation.id);
   await deliveryForm.locator('input[name="quantity"]').fill("1");
   await deliveryForm.locator('input[name="delivery_reference"]').fill("CI-BROWSER-DELIVERY-01");
   await deliveryForm.getByRole("button", { name: "Enregistrer livraison" }).click();
+  await deliveryDialog.waitFor({ state: "hidden", timeout: 20000 });
 
   const delivery = await waitFor(() => admin.from("sales_deliveries")
     .select("id,status").eq("organization_id", orgId).eq("order_id", freeOrderId)
