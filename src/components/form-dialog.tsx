@@ -1,9 +1,10 @@
 "use client";
 
-import { Children, cloneElement, Fragment, isValidElement, useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { Children, cloneElement, createContext, Fragment, isValidElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { ModalFrame } from "@/components/modal-frame";
+import { executeFormDialogAction, type FormDialogServerAction } from "@/lib/form-dialog-action";
 
-type ServerAction = (formData: FormData) => unknown | Promise<unknown>;
+type ServerAction = FormDialogServerAction;
 type ActionElementProps = { action?: string | ServerAction; children?: ReactNode };
 type FormControlSnapshot = {
   index: number;
@@ -12,21 +13,32 @@ type FormControlSnapshot = {
   selected?: string[];
 };
 
-function errorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : "";
-  if (/NEXT_REDIRECT/i.test(message)) throw error;
-  if (/permission denied|row.level security|not authorized|unauthorized/i.test(message)) {
-    return "Tu n'as pas les autorisations nécessaires pour effectuer cette opération.";
-  }
-  if (/duplicate key|unique constraint/i.test(message)) {
-    return "Un enregistrement avec ces informations existe déjà.";
-  }
-  if (/failed to fetch|networkerror|fetch failed/i.test(message)) {
-    return "Le serveur n'a pas répondu. Vérifie la connexion puis réessaie.";
-  }
-  return message && message.length <= 240
-    ? message
-    : "L'opération n'a pas abouti. Vérifie les informations puis réessaie.";
+type FormDialogContextValue = { wrapAction: (action: ServerAction) => ServerAction };
+const FormDialogContext = createContext<FormDialogContextValue | null>(null);
+
+/** Connect a nested client form to the surrounding FormDialog lifecycle. */
+export function useFormDialogAction(action: ServerAction): ServerAction {
+  const context = useContext(FormDialogContext);
+  return useMemo(() => context?.wrapAction(action) ?? action, [context, action]);
+}
+
+function replaceServerActions(node: ReactNode, wrapAction: (action: ServerAction) => ServerAction): { children: ReactNode[]; found: boolean } {
+  const nodes = Children.toArray(node);
+  let found = false;
+  const children = nodes.map((child) => {
+    if (!isValidElement<ActionElementProps>(child)) return child;
+    if (typeof child.props.action === "function") {
+      found = true;
+      return cloneElement(child, { action: wrapAction(child.props.action) });
+    }
+    const nested = replaceServerActions(child.props.children, wrapAction);
+    if (nested.found) {
+      found = true;
+      return cloneElement(child, undefined, ...nested.children);
+    }
+    return child;
+  });
+  return { children, found };
 }
 
 export function FormDialog({
@@ -57,38 +69,37 @@ export function FormDialog({
     requestAnimationFrame(() => openerRef.current?.focus());
   }, [isBusy]);
 
-  const childNodes = Children.toArray(children);
-  const actionIndex = childNodes.findIndex(
-    (child) => isValidElement<ActionElementProps>(child) && typeof child.props.action === "function",
-  );
-  const actionElement = actionIndex >= 0
-    ? childNodes[actionIndex] as ReactElement<ActionElementProps>
-    : null;
-  const originalAction = actionElement?.props.action;
-
-  const wrappedAction: ServerAction | undefined = actionElement && typeof originalAction === "function"
-    ? async (formData: FormData) => {
-        if (pendingRef.current) return;
-        pendingRef.current = true;
-        setPending(true);
-        setError(null);
-        try {
-          const result = await originalAction(formData);
-          if (result && typeof result === "object" && "error" in result && result.error) {
-            throw new Error(String(result.error));
+  const wrapAction = useCallback((action: ServerAction): ServerAction => async (formData) => {
+    await executeFormDialogAction(action, formData, pendingRef, {
+      setPending,
+      setError,
+      onSuccess: () => { setSuccess(true); setOpen(false); },
+    });
+  }, []);
+  const dialogContextValue = useMemo(() => ({ wrapAction }), [wrapAction]);
+  const wrappedChildren = replaceServerActions(children, wrapAction);
+  const content = <>
+    {wrappedChildren.found ? (
+      <fieldset disabled={pending} onSubmitCapture={(event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLFormElement)) return;
+        formSnapshotRef.current = Array.from(target.elements).flatMap((element, index): FormControlSnapshot[] => {
+          if (element instanceof HTMLInputElement) {
+            return element.type === "file" ? [] : [{ index, value: element.value, checked: element.checked }];
           }
-          setSuccess(true);
-          setOpen(false);
-        } catch (actionError) {
-          // The Server Action response may replace the original form nodes during the
-          // RSC refresh. Restore by index against the current DOM, not stale references.
-          setError(errorMessage(actionError));
-        } finally {
-          pendingRef.current = false;
-          setPending(false);
-        }
-      }
-    : undefined;
+          if (element instanceof HTMLTextAreaElement) return [{ index, value: element.value }];
+          if (element instanceof HTMLSelectElement) {
+            return [{ index, value: element.value, selected: Array.from(element.selectedOptions).map((option) => option.value) }];
+          }
+          return [];
+        });
+      }} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}>
+        {wrappedChildren.children}
+      </fieldset>
+    ) : children}
+    {pending ? <p className="muted" role="status" aria-live="polite">Traitement en cours…</p> : null}
+    {error ? <div className="error" role="alert" aria-live="assertive">{error}</div> : null}
+  </>;
 
   useEffect(() => {
     if (!error || !formSnapshotRef.current) return;
@@ -114,31 +125,6 @@ export function FormDialog({
     return () => cancelAnimationFrame(frame);
   }, [error]);
 
-  const content = actionElement && wrappedAction
-    ? <>
-        {childNodes.map((child, index) => index === actionIndex
-          ? <fieldset key={index} disabled={pending} onSubmitCapture={(event) => {
-              const target = event.target;
-              if (!(target instanceof HTMLFormElement)) return;
-              formSnapshotRef.current = Array.from(target.elements).flatMap((element, index): FormControlSnapshot[] => {
-                if (element instanceof HTMLInputElement) {
-                  return element.type === "file" ? [] : [{ index, value: element.value, checked: element.checked }];
-                }
-                if (element instanceof HTMLTextAreaElement) return [{ index, value: element.value }];
-                if (element instanceof HTMLSelectElement) {
-                  return [{ index, value: element.value, selected: Array.from(element.selectedOptions).map((option) => option.value) }];
-                }
-                return [];
-              });
-            }} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}>
-              {cloneElement(actionElement, { action: wrappedAction })}
-            </fieldset>
-          : <Fragment key={index}>{child}</Fragment>)}
-        {pending ? <p className="muted" role="status" aria-live="polite">Traitement en cours…</p> : null}
-        {error ? <div className="error" role="alert" aria-live="assertive">{error}</div> : null}
-      </>
-    : children;
-
   return (
     <>
       <button
@@ -156,7 +142,7 @@ export function FormDialog({
         {buttonLabel}
       </button>
       {success && !open ? <p className="success" role="status">Opération enregistrée.</p> : null}
-      {open ? <ModalFrame title={title} onClose={close} isBusy={isBusy || pending}><div ref={contentRef}>{content}</div></ModalFrame> : null}
+      {open ? <ModalFrame title={title} onClose={close} isBusy={isBusy || pending}><FormDialogContext.Provider value={dialogContextValue}><div ref={contentRef}>{content}</div></FormDialogContext.Provider></ModalFrame> : null}
     </>
   );
 }
