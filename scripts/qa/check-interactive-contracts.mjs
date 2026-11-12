@@ -13,6 +13,8 @@ const modalRequiredFiles = new Map([
   ["src/app/(app)/immobilisations/page.tsx", 15],
   ["src/app/(app)/factures/[id]/page.tsx", 7],
   ["src/app/(app)/paie/parametres/page.tsx", 7],
+  ["src/app/(app)/commandes/page.tsx", 6],
+  ["src/app/(app)/inventaires/page.tsx", 5],
 ]);
 const modalWriteFormCounts = new Map([...modalRequiredFiles.keys()].map((file) => [file, 0]));
 let formCount = 0;
