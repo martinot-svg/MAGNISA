@@ -296,6 +296,7 @@ try {
   const regulatoryDialog = page.getByRole("dialog");
   await regulatoryDialog.waitFor({ state: "visible" });
   const closeButton = regulatoryDialog.locator('button[aria-label="Fermer la fenêtre"]');
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Fermer la fenêtre");
   assert(await closeButton.evaluate((button) => button === document.activeElement),
     "Opening a modal must move focus to its first focusable control.");
   const backgroundInactive = await page.evaluate(() =>
