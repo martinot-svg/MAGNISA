@@ -288,6 +288,9 @@ try {
   const regulatoryResponse = await page.goto(`${baseUrl}/paie/veille-reglementaire`, { waitUntil: "domcontentloaded" });
   assert(regulatoryResponse?.ok(), `Regulatory-watch route returned ${regulatoryResponse?.status()}`);
   await page.getByRole("heading", { name: "Veille réglementaire automatique" }).waitFor({ timeout: 15000 });
+  // The route can render its server HTML before client event handlers hydrate in next dev.
+  // Wait for the page to become network-idle before exercising the client-side modal trigger.
+  await page.waitForLoadState("networkidle", { timeout: 15000 });
   const regulatoryRow = page.locator("tbody tr").filter({ hasText: "UI TEST regulatory event" }).first();
   await regulatoryRow.getByRole("button", { name: "Examiner" }).click();
   const regulatoryDialog = page.getByRole("dialog");
