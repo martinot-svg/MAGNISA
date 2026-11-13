@@ -1,4 +1,3 @@
-import "server-only";
 import { getMailProvider } from "./index";
 import { MailProviderError, type MailProviderId, type MailProviderContext } from "./types";
 
