@@ -1,20 +1,30 @@
 import { NextResponse } from "next/server";
 import { requireOrganization } from "@/lib/current-org";
-import { deleteGmailDraft, getGmailAccess } from "@/lib/google/gmail";
+import { mailProviderHttpError, resolveUserMailProvider } from "@/lib/magnimail/providers/resolve";
 
 export async function DELETE(
-  _: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
-    const { organizationId, user } = await requireOrganization();
-    const { accessToken } = await getGmailAccess(organizationId, user.id);
-    await deleteGmailDraft(accessToken, id);
+    if (!id || id.length > 512) {
+      return NextResponse.json({ error: "Identifiant de brouillon invalide." }, { status: 400 });
+    }
+
+    const ctx = await requireOrganization();
+    const connectionId = new URL(request.url).searchParams.get("connectionId");
+    const { provider, context } = await resolveUserMailProvider(ctx, connectionId);
+
+    if (!provider.capabilities.drafts) {
+      return NextResponse.json({ error: "Ce fournisseur ne gère pas les brouillons." }, { status: 501 });
+    }
+
+    await provider.deleteDraft({ context, draftId: id });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("MagniMail delete draft failed", error);
-    const message = error instanceof Error ? error.message : "Suppression impossible.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("MGMail delete draft failed", error);
+    const detail = mailProviderHttpError(error);
+    return NextResponse.json({ error: detail.error }, { status: detail.status });
   }
 }
