@@ -22,15 +22,18 @@ export const GENERATED_USERNAME_PATTERN = /^[a-z]{2,10}$/;
 
 /** Display preview only. PostgreSQL assigns and reserves the final unique value. */
 export function usernameStemFromNames(givenNames: string, familyName: string): string {
-  return `${givenNames} ${familyName}`
+  const normalizePart = (value: string) => value
     .toLowerCase()
     .replace(/œ/g, "oe")
     .replace(/æ/g, "ae")
     .replace(/ß/g, "ss")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z]/g, "")
-    .slice(0, 10);
+    .replace(/[^a-z]/g, "");
+  const first = normalizePart(givenNames);
+  const last = normalizePart(familyName);
+  const firstPart = first.slice(0, last.length ? 9 : 10);
+  return (firstPart + last.slice(0, 10 - firstPart.length)).slice(0, 10);
 }
 
 
