@@ -11,8 +11,8 @@ import { headers } from "next/headers";
 const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(10),
-  first_name: z.string().trim().min(1).max(60),
-  last_name: z.string().trim().min(1).max(60),
+  first_name: z.string().trim().min(1).max(59),
+  last_name: z.string().trim().min(1).max(59),
   country_code: z.string().regex(/^[0-9]{3}$/),
   locality_code: z.string().regex(/^[0-9]{3}$/),
 });
@@ -45,6 +45,8 @@ export async function signUp(formData: FormData) {
     password: parsed.data.password,
     options: { data: {
       full_name: `${parsed.data.first_name.trim()} ${parsed.data.last_name.trim()}`,
+      given_names: parsed.data.first_name.trim(),
+      family_name: parsed.data.last_name.trim(),
     } },
   });
 
