@@ -130,3 +130,8 @@ html body .mg-app.mg-collapsed .mg-nav-link{justify-content:center;padding:10px}
  }
  .mg-app .magnisa-dashboard .magnisa-chart-card>div{min-width:0;max-width:100%}
 }
+
+/* Les graphiques du tableau de bord restent dans leur cellule Bento, à toutes largeurs. */
+html body .mg-app .magnisa-dashboard .magnisa-chart-card svg{
+  min-width:0!important;width:100%!important;max-width:100%!important;height:auto
+}
