@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/current-org";
-import { REGISTRATION_COUNTRY_CODE, REGISTRATION_COUNTRY_NAME, REGISTRATION_LOCALITIES, NEW_USERNAME_PATTERN, USERNAME_PATTERN, normalizeUsername } from "@/lib/auth/magnisa-identity";
+import { REGISTRATION_COUNTRY_CODE, REGISTRATION_COUNTRY_NAME, REGISTRATION_REGIONS, NEW_USERNAME_PATTERN, USERNAME_PATTERN, isValidRegistrationRegion, normalizeUsername } from "@/lib/auth/magnisa-identity";
 import { FormDialog } from "@/components/form-dialog";
 
 async function saveProfile(formData: FormData) {
@@ -8,7 +8,10 @@ async function saveProfile(formData: FormData) {
   const { supabase, user } = await requireUser();
   const fullName = String(formData.get("full_name") || "").trim();
   const username = normalizeUsername(String(formData.get("username") || ""));
-  const locality = String(formData.get("locality_code") || "");
+  const region = String(formData.get("region_code") || "");
+  const localityName = String(formData.get("locality_name") || "").trim();
+  const { data: alreadyRegistered, error: statusError } = await supabase.rpc("has_magnisa_registration");
+  if (statusError) throw new Error("Impossible de vérifier le lieu d'inscription.");
   const { data: oldProfile, error: profileError } = await supabase
     .from("profiles").select("username").eq("id", user.id).single();
   if (profileError) throw new Error("Profil indisponible.");
@@ -17,15 +20,18 @@ async function saveProfile(formData: FormData) {
     (username !== oldProfile?.username && !NEW_USERNAME_PATTERN.test(username))) {
     throw new Error("Le nouveau nom d’utilisateur doit comporter 3 à 10 lettres.");
   }
-  if (locality && !REGISTRATION_LOCALITIES.some(item => item.code === locality)) {
-    throw new Error("Localité d'inscription invalide.");
+  if (!alreadyRegistered && (!isValidRegistrationRegion(REGISTRATION_COUNTRY_CODE, region) ||
+      localityName.length < 2 || localityName.length > 160)) {
+    throw new Error("Région ou localité d'inscription invalide.");
   }
-  const { error } = await supabase.rpc("claim_magnisa_identity", {
-    p_full_name: fullName,
-    p_username: username,
-    p_country: locality ? REGISTRATION_COUNTRY_CODE : "",
-    p_locality: locality,
-  });
+  const { error } = alreadyRegistered
+    ? await supabase.rpc("claim_magnisa_identity", {
+        p_full_name: fullName, p_username: username, p_country: "", p_locality: "",
+      })
+    : await supabase.rpc("claim_magnisa_identity_with_location", {
+        p_full_name: fullName, p_username: username,
+        p_region_code: region, p_locality_name: localityName,
+      });
   if (error) {
     if (error.code === "23505") throw new Error("Ce nom d’utilisateur est déjà utilisé.");
     throw new Error(error.message || "Impossible d'enregistrer l'identité MAGNISA.");
@@ -86,11 +92,16 @@ export default async function MyMagnisaProfile() {
                     <input value={REGISTRATION_COUNTRY_NAME} readOnly />
                     <input type="hidden" name="country_code" value={REGISTRATION_COUNTRY_CODE}/>
                   </div>
-                  <div className="field"><label htmlFor="profile-locality">Localité au moment de l'inscription</label>
-                    <select id="profile-locality" name="locality_code" required defaultValue="">
-                      <option value="" disabled>Choisir ma localité</option>
-                      {REGISTRATION_LOCALITIES.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}
+                  <div className="field"><label htmlFor="profile-region">Région d'inscription</label>
+                    <select id="profile-region" name="region_code" required defaultValue="">
+                      <option value="" disabled>Sélectionner une région</option>
+                      {REGISTRATION_REGIONS.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}
                     </select>
+                  </div>
+                  <div className="field"><label htmlFor="profile-locality">Ville, commune, fokontany ou village d'inscription</label>
+                    <input id="profile-locality" name="locality_name" required minLength={2}
+                      maxLength={160} placeholder="Saisir votre localité exacte" />
+                    <small>Vous pouvez saisir librement une localité absente de la liste nationale.</small>
                   </div>
                 </>
               )}
