@@ -1,16 +1,21 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/current-org";
-import { REGISTRATION_COUNTRY_CODE, REGISTRATION_COUNTRY_NAME, REGISTRATION_LOCALITIES, USERNAME_PATTERN, normalizeUsername } from "@/lib/auth/magnisa-identity";
+import { REGISTRATION_COUNTRY_CODE, REGISTRATION_COUNTRY_NAME, REGISTRATION_LOCALITIES, NEW_USERNAME_PATTERN, USERNAME_PATTERN, normalizeUsername } from "@/lib/auth/magnisa-identity";
 import { FormDialog } from "@/components/form-dialog";
 
 async function saveProfile(formData: FormData) {
   "use server";
-  const { supabase } = await requireUser();
+  const { supabase, user } = await requireUser();
   const fullName = String(formData.get("full_name") || "").trim();
   const username = normalizeUsername(String(formData.get("username") || ""));
   const locality = String(formData.get("locality_code") || "");
-  if (fullName.length < 2 || fullName.length > 120 || !USERNAME_PATTERN.test(username)) {
-    throw new Error("Nom complet ou nom d’utilisateur invalide.");
+  const { data: oldProfile, error: profileError } = await supabase
+    .from("profiles").select("username").eq("id", user.id).single();
+  if (profileError) throw new Error("Profil indisponible.");
+  // Existing legacy handles remain valid unless the owner elects to rename them.
+  if (fullName.length < 2 || fullName.length > 120 ||
+    (username !== oldProfile?.username && !NEW_USERNAME_PATTERN.test(username))) {
+    throw new Error("Le nouveau nom d’utilisateur doit comporter 3 à 10 lettres.");
   }
   if (locality && !REGISTRATION_LOCALITIES.some(item => item.code === locality)) {
     throw new Error("Localité d'inscription invalide.");
@@ -69,10 +74,11 @@ export default async function MyMagnisaProfile() {
                 <input id="profile-full-name" name="full_name" required minLength={2} maxLength={120}
                   autoComplete="name" defaultValue={profile.full_name || ""} />
               </div>
-              <div className="field"><label htmlFor="profile-username">Nom d’utilisateur</label>
+              <div className="field"><label htmlFor="profile-username">Nom d’utilisateur (@)</label>
                 <input id="profile-username" name="username" required minLength={3} maxLength={30}
-                  autoComplete="username" pattern="[A-Za-z][A-Za-z0-9._]{2,29}"
+                  autoComplete="username" pattern={USERNAME_PATTERN.source.slice(1,-1)}
                   defaultValue={profile.username || ""} />
+                <small>Tout nouveau nom doit comporter 3 à 10 lettres minuscules. Le préfixe @ est ajouté automatiquement.</small>
               </div>
               {!registered && (
                 <>
