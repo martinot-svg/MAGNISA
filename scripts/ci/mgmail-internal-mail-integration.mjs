@@ -206,6 +206,38 @@ const permissionB=required(await b.userClient.rpc("mgmail_has_internal_access",{
 }),"Permission lecteur seul");
 assert(permissionA===true && permissionB===false,
   "Les droits de lecture et d'envoi doivent être indépendants.");
+required(await a.userClient.from("mgmail_internal_messages").insert({
+  organization_id:organizationId,sender_mailbox_id:ownerBox,recipient_mailbox_id:direction,
+  subject:"Envoi délégué MGMail",body_text:"Message envoyé avec droit explicite.",
+}),"Envoi partagé autorisé");
+denied(await b.userClient.from("mgmail_internal_messages").insert({
+  organization_id:organizationId,sender_mailbox_id:ownerBox,recipient_mailbox_id:finance,
+  subject:"Envoi interdit",body_text:"L'accès lecture ne donne pas le droit d'envoyer.",
+}).select("id"),"Envoi refusé à un lecteur seul");
+required(await b.userClient.from("mgmail_internal_messages").insert({
+  organization_id:organizationId,sender_mailbox_id:direction,recipient_mailbox_id:ownerBox,
+  subject:"Réponse à la boîte commune",body_text:"Notification et état de lecture individuel.",
+}),"Message reçu dans la boîte commune");
+const shared=required(await owner.from("mgmail_internal_messages").select("id")
+  .eq("organization_id",organizationId).eq("subject","Réponse à la boîte commune"),
+  "Accès propriétaire aux messages partagés");
+assert(shared.length===1,"La boîte de service doit recevoir le message.");
+const sharedId=shared[0].id;
+for(const [recipient,session] of [[ownerId,owner],[a.userId,a.userClient]]) {
+  const notice=required(await session.from("notifications").select("id")
+    .eq("organization_id",organizationId).eq("recipient_user_id",recipient)
+    .eq("entity_id",sharedId),"Notification de boîte partagée");
+  assert(notice.length===1,"Chaque lecteur autorisé doit recevoir une notification.");
+}
+required(await a.userClient.from("mgmail_internal_message_reads").insert({
+  organization_id:organizationId,message_id:sharedId,user_id:a.userId,
+}),"Lecture personnelle du message partagé");
+const mineRead=required(await a.userClient.from("mgmail_internal_message_reads")
+  .select("message_id").eq("message_id",sharedId),"Lecture collaborateur");
+const ownerRead=required(await owner.from("mgmail_internal_message_reads")
+  .select("message_id").eq("message_id",sharedId),"Lecture administrateur");
+assert(mineRead.length===1 && ownerRead.length===0,
+  "La lecture d'un collaborateur ne doit pas effacer les non-lus d'un autre.");
 
 // Une personne hors de l'organisation n'a pas accès au répertoire.
 const outsiderEmail = `mgmail-outsider-${suffix}@magnisa.test`;
