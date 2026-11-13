@@ -4,8 +4,9 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { signupEmailPolicy } from "@/lib/auth/domain";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isValidRegistrationLocality, normalizeUsername, USERNAME_PATTERN, NEW_USERNAME_PATTERN } from "@/lib/auth/magnisa-identity";
+import { isValidRegistrationRegion, normalizeUsername, USERNAME_PATTERN, NEW_USERNAME_PATTERN } from "@/lib/auth/magnisa-identity";
 import { createHmac } from "node:crypto";
+import { resolveLocality } from "@/lib/geo/madagascar-localities";
 import { headers } from "next/headers";
 
 const signupSchema = z.object({
@@ -16,7 +17,9 @@ const signupSchema = z.object({
   username: z.string().trim().min(3).max(11),
   confirm_password: z.string().min(10),
   country_code: z.string().regex(/^[0-9]{3}$/),
-  locality_code: z.string().regex(/^[0-9]{3}$/),
+  region_code: z.string().regex(/^9[0-2][0-9]$/),
+  locality_name: z.string().trim().min(2).max(160),
+  locality_ref: z.string().trim().max(20).optional(),
 });
 
 export async function signUp(formData: FormData) {
@@ -31,9 +34,12 @@ export async function signUp(formData: FormData) {
   if (!NEW_USERNAME_PATTERN.test(username)) {
     return { error: "Le nom d’utilisateur doit comporter de 3 à 10 lettres minuscules après @." };
   }
-  if (!isValidRegistrationLocality(parsed.data.country_code, parsed.data.locality_code)) {
-    return { error: "Sélectionne une localité d’inscription proposée par MAGNISA." };
+  if (!isValidRegistrationRegion(parsed.data.country_code, parsed.data.region_code)) {
+    return { error: "Sélectionne une région de Madagascar." };
   }
+  const chosen = resolveLocality(parsed.data.locality_ref || "", parsed.data.region_code);
+  const normalizedPlace = parsed.data.locality_name.trim().toLocaleLowerCase("fr");
+  const validated = chosen?.name.toLocaleLowerCase("fr") === normalizedPlace ? chosen : null;
 
   const policy = signupEmailPolicy(parsed.data.email);
   if (!policy.ok) return { error: policy.reason };
@@ -69,10 +75,13 @@ export async function signUp(formData: FormData) {
   // Auth user_metadata is readable by the user: NEVER store geographic codes there.
   // The server calls a service-role-only RPC to attach the immutable origin privately.
   if (data.user.email?.trim().toLowerCase() === email && data.user.id) {
-    const { error: originError } = await admin.rpc("register_magnisa_signup_origin", {
+    const { error: originError } = await admin.rpc("register_magnisa_signup_location", {
       p_user: data.user.id,
-      p_country: parsed.data.country_code,
-      p_locality: parsed.data.locality_code,
+      p_region_code: parsed.data.region_code,
+      p_locality_name: parsed.data.locality_name,
+      p_locality_ref: validated?.ref || null,
+      p_commune: validated?.commune || null,
+      p_district: validated?.district || null,
     });
     if (originError) {
       // Do not invalidate an already-created Supabase Auth account. The user can
