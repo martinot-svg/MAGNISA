@@ -24,6 +24,17 @@ try{
     throw new Error("Wizard has unexpected mobile horizontal overflow");
 
   const companyName="Entreprise navigateur Morombe CI";
+  // Real upload fixture: a valid tiny PNG with no commercial data.
+  const pixel=Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAOa1ytYAAAAASUVORK5CYII=",
+    "base64"
+  );
+  await page.locator("#company-color-logo").setInputFiles({
+    name:"logo-couleur.png",mimeType:"image/png",buffer:pixel
+  });
+  await page.locator("#company-inverse-logo").setInputFiles({
+    name:"logo-inverse.png",mimeType:"image/png",buffer:pixel
+  });
   await page.locator("#co-legal-name").fill(companyName);
   await page.locator("#co-sector").selectOption("G");
   await page.locator("#co-group").selectOption({label:"Commerce de détail"});
@@ -46,14 +57,18 @@ try{
     throw new Error("Entered locality missing in final summary");
   await page.getByRole("button",{name:"Créer mon entreprise"}).click();
   await page.getByRole("heading",{name:"Entreprise créée"}).waitFor({timeout:30000});
+  await page.getByText("Les logos choisis ont été traités.").waitFor({timeout:30000});
   const {data:created,error}=await admin.from("organizations")
     .select("id,name").eq("name",companyName).order("created_at",{ascending:false}).limit(1).single();
   if(error||!created?.id)throw error??new Error("No organization was persisted");
   const {data:settings,error:settingsError}=await admin.from("company_settings")
-    .select("onboarding_profile,income_tax_regime,vat_status").eq("organization_id",created.id).single();
+    .select("onboarding_profile,income_tax_regime,vat_status,logo_storage_path,logo_inverse_storage_path,document_theme").eq("organization_id",created.id).single();
   if(settingsError||settings.income_tax_regime!=="IS"||
     settings.onboarding_profile.localityName!=="Ambahikily"||
-    settings.vat_status!=="A_VERIFIER")
+    settings.vat_status!=="A_VERIFIER"||
+    !settings.logo_storage_path?.includes("/color-")||
+    !settings.logo_inverse_storage_path?.includes("/inverse-")||
+    !settings.document_theme?.primaryColor)
     throw new Error("Company fiscal profile or locality was not persisted");
   await page.getByRole("link",{name:"Accéder aux paramètres de l'entreprise"}).click();
   await page.getByRole("heading",{name:"Paramètres de l'entreprise"}).waitFor({timeout:20000});
