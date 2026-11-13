@@ -69,6 +69,16 @@ describe("resolveOrganizationLogoUrl", () => {
     expect(mock.createSignedUrl).toHaveBeenCalledWith("org-1/color.png",3600);
   });
 
+  it("keeps a finalized light-theme snapshot when current company uses a dark theme", async () => {
+    const mock=storageClient({data:{signedUrl:"https://signed.example/issued.png"},error:null});
+    await resolveOrganizationLogoUrl(mock.client,
+      {logo_storage_path:"org-1/issued.png",logo_inverse_storage_path:"org-1/issued-inverse.png",
+        document_theme:{backgroundColor:"#FFFFFF"}},
+      {logo_storage_path:"org-1/latest.png",logo_inverse_storage_path:"org-1/latest-inverse.png",
+        document_theme:{backgroundColor:"#102030"}}
+    );
+    expect(mock.createSignedUrl).toHaveBeenCalledWith("org-1/issued.png",3600);
+  });
   it("returns null when no usable logo exists", async () => {
     const mock = storageClient({ data: null, error: null });
     await expect(resolveOrganizationLogoUrl(mock.client, { logo_url: null, logo_storage_path: null })).resolves.toBeNull();
