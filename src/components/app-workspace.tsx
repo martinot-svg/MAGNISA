@@ -80,7 +80,7 @@ export function AppWorkspace({ links, notifications, signOut, children }: {
   let previousGroup = "";
   return (
     <MotionConfig reducedMotion="user">
-      <div className={"appShell mg-app" + (collapsed ? " mg-collapsed" : "") + (open ? " mg-drawer-open" : "")}>
+      <div data-mg-hydrated={hydrated ? "true" : "false"} className={"appShell mg-app" + (collapsed ? " mg-collapsed" : "") + (open ? " mg-drawer-open" : "")}>
         <AnimatePresence>
           {narrow && open ? (
             <motion.button key="backdrop" className="mg-backdrop" type="button"
