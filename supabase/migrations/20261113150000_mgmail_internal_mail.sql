@@ -95,29 +95,47 @@ create policy mgmail_messages_select
     )
   );
 
+-- Contrôle explicite des droits : une fonction invoker (sans élévation
+-- de privilège) évite les ambiguïtés de résolution des colonnes imbriquées
+-- dans les politiques RLS et peut être testée avec un vrai JWT collaborateur.
+create or replace function public.mgmail_can_send_internal(
+  p_organization_id uuid,
+  p_sender_mailbox_id uuid,
+  p_recipient_mailbox_id uuid
+) returns boolean
+language sql stable security invoker
+set search_path=pg_catalog,public
+as $$
+  select
+    public.is_org_member(p_organization_id)
+    and exists (
+      select 1
+      from public.mgmail_internal_mailboxes s
+      join public.mgmail_internal_mailboxes r
+        on r.organization_id=s.organization_id
+      join public.organization_members sm
+        on sm.organization_id=s.organization_id
+       and sm.user_id=s.owner_user_id
+       and sm.status='active'
+      join public.organization_members rm
+        on rm.organization_id=r.organization_id
+       and rm.user_id=r.owner_user_id
+       and rm.status='active'
+      where s.organization_id=p_organization_id
+        and s.id=p_sender_mailbox_id
+        and s.owner_user_id=(select auth.uid())
+        and s.is_active and s.can_send
+        and r.id=p_recipient_mailbox_id
+        and r.is_active
+    );
+$$;
+revoke all on function public.mgmail_can_send_internal(uuid,uuid,uuid) from public,anon;
+grant execute on function public.mgmail_can_send_internal(uuid,uuid,uuid) to authenticated;
+
 create policy mgmail_messages_insert
   on public.mgmail_internal_messages for insert to authenticated
   with check (
-    public.is_org_member(organization_id)
-    and exists (
-      select 1 from public.mgmail_internal_mailboxes sender
-      where sender.organization_id = mgmail_internal_messages.organization_id
-        and sender.id = sender_mailbox_id
-        and sender.owner_user_id = auth.uid()
-        and sender.is_active and sender.can_send
-    )
-    and exists (
-      select 1 from public.mgmail_internal_mailboxes recipient
-      where recipient.organization_id = mgmail_internal_messages.organization_id
-        and recipient.id = recipient_mailbox_id
-        and recipient.is_active
-        and exists (
-          select 1 from public.organization_members m
-          where m.organization_id = recipient.organization_id
-            and m.user_id = recipient.owner_user_id
-            and m.status = 'active'
-        )
-    )
+    public.mgmail_can_send_internal(organization_id,sender_mailbox_id,recipient_mailbox_id)
   );
 
 -- Retirer TRUNCATE, DELETE et les modifications de propriété implicites.
