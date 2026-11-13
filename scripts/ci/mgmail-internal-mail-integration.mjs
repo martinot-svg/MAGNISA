@@ -122,6 +122,35 @@ const sentMessageRows = required(await a.userClient.from("mgmail_internal_messag
 assert(sentMessageRows.length === 1, "L'expéditeur ne peut pas retrouver le message créé.");
 const outgoing = sentMessageRows[0];
 
+// Réception d'une notification personnelle dans MAGNISA (pas d'envoi
+// automatique d'e-mail Internet).
+const notice = required(await b.userClient.from("notifications")
+  .select("id,entity_id,dedupe_key")
+  .eq("organization_id", organizationId)
+  .eq("recipient_user_id", b.userId)
+  .eq("entity_id", outgoing.id), "Notification du destinataire");
+assert(notice.length === 1 && notice[0].dedupe_key ===
+  `mgmail-internal-message:${outgoing.id}`,
+  "Chaque message interne doit créer une seule notification pour son destinataire.");
+const otherNotice = required(await a.userClient.from("notifications")
+  .select("id")
+  .eq("organization_id", organizationId)
+  .eq("recipient_user_id", b.userId)
+  .eq("entity_id", outgoing.id), "Isolation de notification");
+assert(otherNotice.length === 0, "L'expéditeur ne peut pas lire la notification privée d'autrui.");
+
+const initialRead = required(await b.userClient.from("mgmail_internal_messages")
+  .select("id,read_at").eq("id", outgoing.id).single(), "État de lecture initial");
+assert(initialRead.read_at === null, "Le message doit être non lu lors de sa réception.");
+const readResult = required(await b.userClient.from("mgmail_internal_messages")
+  .update({ read_at: new Date().toISOString() })
+  .eq("id", outgoing.id).select("id,read_at").single(), "Marquage du message comme lu");
+assert(!!readResult.read_at, "Le destinataire doit pouvoir marquer son message comme lu.");
+const unauthorizedRead = await a.userClient.from("mgmail_internal_messages")
+  .update({ read_at: new Date().toISOString() })
+  .eq("id", outgoing.id).select("id");
+denied(unauthorizedRead, "Un expéditeur ne peut pas marquer le message d'autrui comme lu");
+
 const inboxB = required(await b.userClient.from("mgmail_internal_messages")
   .select("id").eq("id", outgoing.id), "Lecture destinataire");
 assert(inboxB.length === 1, "Le collaborateur destinataire ne reçoit pas le message.");
