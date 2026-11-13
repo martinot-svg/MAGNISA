@@ -126,3 +126,46 @@ export function renderBillingPreavis(input: {
     ].join("\n"),
   };
 }
+
+/**
+ * Valeurs de préavis choisies librement par l'administrateur.
+ * La saisie refuse les doublons, les valeurs non entières et les listes vides.
+ */
+export function parsePreavisOffsets(input: string): PreavisRule[] {
+  const values = input.split(/[,;\s]+/).map((part) => part.trim()).filter(Boolean);
+  if (!values.length || values.length > 20) {
+    throw new Error("Saisir entre 1 et 20 délais de préavis.");
+  }
+  const used = new Set<number>();
+  return values.map((raw) => {
+    if (!/^\d+$/.test(raw)) throw new Error("Les délais doivent être des nombres entiers de jours.");
+    const daysBefore = Number(raw);
+    if (!Number.isSafeInteger(daysBefore) || daysBefore < 1 || daysBefore > 3650) {
+      throw new Error("Chaque délai doit être compris entre 1 et 3650 jours.");
+    }
+    if (used.has(daysBefore)) throw new Error("Les délais de préavis doivent être uniques.");
+    used.add(daysBefore);
+    const tone: PreavisTone = daysBefore <= 1 ? "dernier"
+      : daysBefore <= 5 ? "important"
+      : daysBefore <= 10 ? "courtois" : "information";
+    return { id: `j${daysBefore}`, daysBefore, tone, enabled: true };
+  }).sort((a, b) => b.daysBefore - a.daysBefore);
+}
+
+/** Lire une politique enregistrée sans faire confiance au JSON de la base. */
+export function validatedPreavisRules(raw: unknown): PreavisRule[] | null {
+  if (!Array.isArray(raw)) return null;
+  const rules: PreavisRule[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") return null;
+    const r = item as Partial<PreavisRule>;
+    if (typeof r.id !== "string" || !r.id.trim() ||
+      !Number.isSafeInteger(r.daysBefore) || (r.daysBefore as number) < 1 ||
+      (r.daysBefore as number) > 3650 ||
+      !["information", "courtois", "important", "dernier"].includes(r.tone || "") ||
+      typeof r.enabled !== "boolean") return null;
+    rules.push(r as PreavisRule);
+  }
+  if (rules.length > 20 || new Set(rules.map((r) => r.daysBefore)).size !== rules.length) return null;
+  return rules;
+}
