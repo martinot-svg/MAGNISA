@@ -75,6 +75,25 @@ denied(await a.userClient.from("mgmail_internal_mailboxes").insert({
   organization_id: organizationId, local_part: `usurpation-${suffix}`, owner_user_id: a.userId,
 }).select("id"), "Création non autorisée d'une boîte");
 
+// Vérifier d'abord que les membres et leurs boîtes sont effectivement visibles
+// dans le contexte JWT utilisateur, avant de tester l'insertion d'un message.
+const senderVisible = required(await a.userClient
+  .from("mgmail_internal_mailboxes")
+  .select("id,owner_user_id,is_active,can_read,can_send")
+  .eq("organization_id", organizationId).eq("id", finance), "Boîte expéditeur");
+const recipientVisible = required(await a.userClient
+  .from("mgmail_internal_mailboxes")
+  .select("id,owner_user_id,is_active,can_read,can_send")
+  .eq("organization_id", organizationId).eq("id", direction), "Boîte destinataire");
+const ownMembership = required(await a.userClient.from("organization_members")
+  .select("user_id,status").eq("organization_id", organizationId)
+  .eq("user_id", a.userId), "Appartenance de l'expéditeur");
+assert(senderVisible.length === 1 && senderVisible[0].owner_user_id === a.userId
+  && senderVisible[0].can_send && senderVisible[0].can_read, "Boîte expéditeur inaccessible");
+assert(recipientVisible.length === 1 && recipientVisible[0].owner_user_id === b.userId
+  && recipientVisible[0].is_active, "Boîte destinataire inaccessible");
+assert(ownMembership.length === 1 && ownMembership[0].status === "active",
+  "Adhésion du collaborateur non visible");
 // Échanges internes entre deux collaborateurs de la même entreprise.
 const outgoing = required(await a.userClient.from("mgmail_internal_messages").insert({
   organization_id: organizationId, sender_mailbox_id: finance,
