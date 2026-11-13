@@ -23,12 +23,12 @@ export default function Signup() {
       </div>
       <form action={action} className="form">
         <div className="field"><label htmlFor="signup-first-name">Prénom(s)</label>
-          <input id="signup-first-name" name="first_name" required minLength={1} maxLength={60}
+          <input id="signup-first-name" name="first_name" required minLength={1} maxLength={59}
             autoComplete="given-name" value={firstName} onChange={event => setFirstName(event.target.value)}
             placeholder="Ex. Francky" />
         </div>
         <div className="field"><label htmlFor="signup-last-name">Nom</label>
-          <input id="signup-last-name" name="last_name" required minLength={1} maxLength={60}
+          <input id="signup-last-name" name="last_name" required minLength={1} maxLength={59}
             autoComplete="family-name" value={lastName} onChange={event => setLastName(event.target.value)}
             placeholder="Ex. Kevin" />
         </div>
