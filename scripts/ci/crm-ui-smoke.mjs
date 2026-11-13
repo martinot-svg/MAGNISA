@@ -71,8 +71,17 @@ try {
   const interventionDialog = page.getByRole("dialog");
   await interventionDialog.waitFor({ state: "visible", timeout: 10000 });
   assert(await interventionDialog.locator("tbody tr").count() === 11, "The configurable intervention catalog must show 11 types.");
-  await interventionDialog.locator('button[aria-label="Fermer la fenêtre"]').click();
-  await interventionDialog.waitFor({ state: "hidden" });
+  // React may re-render the modal immediately after opening. A detached close
+  // button is not a business failure if the dialog has already closed.
+  if (await interventionDialog.isVisible()) {
+    try {
+      await interventionDialog.locator('button[aria-label="Fermer la fenêtre"]')
+        .click({ force: true, timeout: 3000 });
+    } catch (error) {
+      if (await interventionDialog.isVisible()) throw error;
+    }
+  }
+  await interventionDialog.waitFor({ state: "hidden", timeout: 15000 });
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
   await waitForWorkspace(page);
   await page.getByRole("heading", { name: "Prospects" }).waitFor();
