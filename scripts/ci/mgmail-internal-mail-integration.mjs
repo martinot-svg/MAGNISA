@@ -288,6 +288,12 @@ const ownerToDeparted = required(await owner.rpc("mgmail_can_send_internal", {
 }), "Prévention des envois vers un ancien membre");
 assert(ownerToDeparted === false,
   "Un collaborateur suspendu ne peut plus recevoir de messages.");
+const grantAfterDeparture=required(await owner.from("mgmail_internal_mailbox_grants")
+  .select("is_active").eq("organization_id",organizationId)
+  .eq("mailbox_id",ownerBox).eq("user_id",b.userId).single(),
+  "Délégation du collaborateur suspendu");
+assert(grantAfterDeparture.is_active===false,
+  "Les délégations doivent être désactivées au départ d'un collaborateur.");
 
 process.stdout.write(
   "PASS MGMail: envoi/réception interne, confidentialité, permissions et isolation des entreprises.\n",
