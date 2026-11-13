@@ -54,7 +54,7 @@ async function createAccount(fd: FormData) {
 }
 
 export default async function Treasury(){const ctx=await requireOrganization();await requirePermission(ctx,"treasury.view");const {supabase,organizationId}=ctx;
-  const [{ data: accounts = [] }, { data: org }, {data:transactions=[]},{data:reconciliations=[]},{data:internalTransfers=[]}] = await Promise.all([
+  const [{ data: accountsData, error: accountsError }, { data: org }, {data:transactionsData, error:transactionsError},{data:reconciliationsData, error:reconciliationsError},{data:internalTransfersData, error:internalTransfersError}] = await Promise.all([
     supabase
       .from("financial_accounts")
       .select("id,name,type,balance,is_active,mvola_account_category,details,magnisa_reference")
@@ -65,6 +65,19 @@ export default async function Treasury(){const ctx=await requireOrganization();a
     supabase.from("magnisa_account_reconciliation").select("financial_account_id,name,balance,movements_sum,balance_difference,reconciliation_status").eq("organization_id",organizationId),
     supabase.from("magnisa_internal_transfers").select("id,magnisa_reference,source_account_id,destination_account_id,transfer_date,received_date,source_debit,destination_credit,operator_fee,source_reference,destination_reference,status").eq("organization_id",organizationId).order("transfer_date",{ascending:false}).limit(100),
   ]);
+  // PostgREST returns data:null on a query error; a default value in destructuring
+  // only handles undefined. Never crash the whole treasury page on an unavailable
+  // optional transfer/reconciliation view, nor pretend the data were genuinely empty.
+  const accounts=accountsData??[];
+  const transactions=transactionsData??[];
+  const reconciliations=reconciliationsData??[];
+  const internalTransfers=internalTransfersData??[];
+  if(accountsError||transactionsError) {
+    console.error("[tresorerie] Required query failed", accountsError?.code, transactionsError?.code);
+    throw new Error("Les comptes ou mouvements de trésorerie ne peuvent pas être chargés.");
+  }
+  if(reconciliationsError) console.error("[tresorerie] Reconciliation query failed", reconciliationsError.code, reconciliationsError.message);
+  if(internalTransfersError) console.error("[tresorerie] Transfer query failed", internalTransfersError.code, internalTransfersError.message);
 
   const organizationCurrency = org?.currency || "MGA";
   const comparableTransactions = transactions.filter((t:any) => {
@@ -111,11 +124,15 @@ export default async function Treasury(){const ctx=await requireOrganization();a
           <h2>Transferts internes - opérations réelles</h2>
           <p className="muted">Enregistre uniquement un débit déjà constaté sur le compte source. Le destinataire n'est crédité dans MAGNISA qu'après confirmation de son crédit réel.</p>
           <div>
-            <FormDialog title="Enregistrer un virement interne" buttonLabel="+ Enregistrer un virement"><InternalTransferForm action={recordInternalTransferDebit} accounts={accounts.filter((a:any)=>a.is_active)} requestKey={randomUUID()}/></FormDialog>
+            {internalTransfersError
+              ? <p role="alert" className="error">Le suivi des transferts internes est temporairement indisponible. Aucun nouveau virement ne peut être confirmé depuis cet écran tant que les données ne sont pas accessibles.</p>
+              : <FormDialog title="Enregistrer un virement interne" buttonLabel="+ Enregistrer un virement"><InternalTransferForm action={recordInternalTransferDebit} accounts={accounts.filter((a:any)=>a.is_active)} requestKey={randomUUID()}/></FormDialog>}
 
           </div>
           <h3>Suivi et confirmation des crédits</h3>
-          {!internalTransfers.length?<EmptyState title="Aucun transfert suivi" description="Le premier transfert réel enregistré apparaîtra ici."/>:
+          {internalTransfersError
+            ? <p className="muted" role="status">Le registre des transferts ne peut pas être consulté pour le moment.</p>
+            : !internalTransfers.length?<EmptyState title="Aucun transfert suivi" description="Le premier transfert réel enregistré apparaîtra ici."/>:
           <div className="card" style={{overflowX:"auto"}}><table style={{width:"100%"}}><thead><tr><th>Date / référence</th><th>Trajet</th><th>Débit source</th><th>Frais</th><th>Crédit attendu</th><th>État / confirmation</th></tr></thead><tbody>
           {internalTransfers.map((t:any)=><tr key={t.id}>
             <td>{t.transfer_date}<div><code>{t.magnisa_reference||"-"}</code></div><div className="muted">Source : {t.source_reference}</div></td>
@@ -135,7 +152,9 @@ export default async function Treasury(){const ctx=await requireOrganization();a
         </section>}
         reconciliation={<section className="section"><h2>Rapprochement des comptes</h2>
           <p className="muted">Contrôle de cohérence entre les soldes MAGNISA et les mouvements enregistrés. Ce contrôle ne constitue pas un rapprochement avec un relevé bancaire externe.</p>
-          {!reconciliations.length?<EmptyState title="Aucun rapprochement disponible" description="Aucune donnée de contrôle à afficher."/>:
+          {reconciliationsError
+            ? <p className="error" role="alert">Les données de rapprochement sont actuellement indisponibles.</p>
+            : !reconciliations.length?<EmptyState title="Aucun rapprochement disponible" description="Aucune donnée de contrôle à afficher."/>:
           <div className="card" style={{overflowX:"auto"}}><table style={{width:"100%"}}><thead><tr><th>Compte</th><th>Solde</th><th>Somme des mouvements</th><th>Écart</th><th>État</th></tr></thead><tbody>
           {reconciliations.map((a:any)=><tr key={a.financial_account_id}><td>{a.name}</td><td>{money(a.balance,org?.currency||"MGA")}</td><td>{money(a.movements_sum,org?.currency||"MGA")}</td><td>{money(a.balance_difference,org?.currency||"MGA")}</td><td>{a.reconciliation_status||"À contrôler"}</td></tr>)}
           </tbody></table></div>}
