@@ -15,6 +15,7 @@ import {
   gmailJson,
   parseAddressList,
   sendGmailRaw,
+  sendGmailDraft,
   updateGmailDraft,
   type GmailDraft,
   type GmailMessage,
@@ -78,6 +79,7 @@ function toMime(connectionEmail: string, message: MailDraftInput) {
     subject: message.subject,
     body: message.textBody,
     inReplyTo: message.replyToMessageId,
+    references: message.references,
     attachments: message.attachments?.map((file) => ({
       data: file.content,
       filename: file.filename,
@@ -172,7 +174,13 @@ export const gmailProvider: MailProviderAdapter = {
 
   async sendMessage({ context, message }) {
     const { accessToken, connection } = await gmailConnection(context);
-    const result = await sendGmailRaw(accessToken, toMime(connection.email, message), message.threadId);
+    const raw = toMime(connection.email, message);
+    const result = message.draftId
+      ? await (async () => {
+          await updateGmailDraft(accessToken, message.draftId!, raw, message.threadId);
+          return sendGmailDraft(accessToken, message.draftId!);
+        })()
+      : await sendGmailRaw(accessToken, raw, message.threadId);
     return { messageId: result.id, threadId: result.threadId || null };
   },
 
