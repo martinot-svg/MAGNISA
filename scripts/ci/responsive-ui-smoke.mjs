@@ -29,6 +29,10 @@ try {
     await page.setViewportSize({width,height});
     await page.goto(baseUrl+"/dashboard",{waitUntil:"domcontentloaded"});
     await page.locator(".mg-app").waitFor({state:"visible"});
+    await page.waitForFunction(
+      () => document.querySelector(".mg-app")?.getAttribute("data-mg-hydrated") === "true",
+      null, { timeout: 15000 }
+    );
     if (width < 1024) {
       // DOM content can be present before the client-side media-query hook hydrates.
       await page.waitForFunction(
