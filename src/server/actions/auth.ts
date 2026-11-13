@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { signupEmailPolicy } from "@/lib/auth/domain";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isValidRegistrationLocality, USERNAME_PATTERN, usernameStemFromNames } from "@/lib/auth/magnisa-identity";
+import { isValidRegistrationLocality, USERNAME_PATTERN, GENERATED_USERNAME_PATTERN, usernameStemFromNames } from "@/lib/auth/magnisa-identity";
 import { createHmac } from "node:crypto";
 import { headers } from "next/headers";
 
@@ -122,7 +122,7 @@ export async function resendEmailCode(formData: FormData) {
 
 export async function signIn(formData: FormData) {
   const parsed = z.object({
-    identifier: z.string().trim().min(3).max(254),
+    identifier: z.string().trim().min(2).max(254),
     password: z.string().min(1),
   }).safeParse({ identifier: formData.get("identifier") ?? formData.get("email"), password: formData.get("password") });
   if (!parsed.success) return { error: "Identifiants invalides." };
@@ -130,7 +130,7 @@ export async function signIn(formData: FormData) {
   const identifier = parsed.data.identifier.trim().toLowerCase();
   let email = identifier;
   if (!identifier.includes("@")) {
-    if (!USERNAME_PATTERN.test(identifier)) {
+    if (!USERNAME_PATTERN.test(identifier) && !GENERATED_USERNAME_PATTERN.test(identifier)) {
       return { error: "Connexion impossible. Vérifie tes identifiants." };
     }
     try {
