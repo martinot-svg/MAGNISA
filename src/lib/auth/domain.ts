@@ -1,18 +1,47 @@
-const BLOCKED_FREE_DOMAINS = new Set([
-  "outlook.com","hotmail.com","live.com","yahoo.com","yahoo.fr","icloud.com","me.com","aol.com","proton.me","protonmail.com"
-]);
-const DISPOSABLE_HINTS = ["mailinator","tempmail","10minutemail","guerrillamail","yopmail","trashmail","dispostable"];
+const DISPOSABLE_HINTS = [
+  "mailinator",
+  "tempmail",
+  "10minutemail",
+  "guerrillamail",
+  "yopmail",
+  "trashmail",
+  "dispostable",
+];
 
 export function signupEmailPolicy(email: string) {
-  const normalized=email.trim().toLowerCase();
-  const at=normalized.lastIndexOf("@");
-  if(at<=0||at===normalized.length-1) return {ok:false,reason:"Adresse e-mail invalide."};
-  const domain=normalized.slice(at+1);
-  if(domain==="gmail.com") return {ok:true,kind:"gmail" as const,normalized};
-  if(DISPOSABLE_HINTS.some(x=>domain.includes(x))) return {ok:false,reason:"Les adresses e-mail temporaires ou jetables ne sont pas acceptées."};
-  if(BLOCKED_FREE_DOMAINS.has(domain)) return {ok:false,reason:"Utilise une adresse Gmail ou une adresse professionnelle liée au domaine de ton organisation."};
-  if(!domain.includes(".")||domain.startsWith(".")||domain.endsWith(".")) return {ok:false,reason:"Le domaine professionnel est invalide."};
-  return {ok:true,kind:"professional" as const,normalized};
+  const normalized = email.trim().toLowerCase();
+  const parts = normalized.split("@");
+  if (
+    parts.length !== 2 ||
+    !parts[0] ||
+    !parts[1] ||
+    parts[0].length > 64 ||
+    normalized.length > 254 ||
+    /\s/.test(normalized)
+  ) {
+    return { ok: false, reason: "Adresse e-mail invalide." };
+  }
+
+  const domain = parts[1];
+  const labels = domain.split(".");
+  if (
+    domain.length > 253 ||
+    labels.length < 2 ||
+    labels.some((label) => !label || label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label))
+  ) {
+    return { ok: false, reason: "Adresse e-mail invalide." };
+  }
+
+  if (DISPOSABLE_HINTS.some((hint) => domain.includes(hint))) {
+    return {
+      ok: false,
+      reason: "Les adresses e-mail temporaires ou jetables ne sont pas acceptées.",
+    };
+  }
+
+  return { ok: true, kind: "email" as const, normalized };
 }
 
-export function isAllowedSignupEmail(email:string){return signupEmailPolicy(email).ok;}
+export function isAllowedSignupEmail(email: string) {
+  return signupEmailPolicy(email).ok;
+}
