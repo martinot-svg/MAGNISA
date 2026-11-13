@@ -108,3 +108,16 @@ html body .mg-app.mg-collapsed .mg-nav-link{justify-content:center;padding:10px}
  .mg-app .magnisa-dashboard-toolbar .magnisa-toolbar-fields>label{min-width:0}
  .mg-app .magnisa-dashboard .magnisa-chart-tools{width:100%}
 }
+
+/* Couleurs héritées : tous les modules utilisent la même palette, sans toucher au site public. */
+.mg-app{
+ --bg:#edf3fa;--card:#fff;--ink:#243652;--muted:#51617B;--line:#d8e2ef;
+ --cyan:#01D1FC;--blue:#0058F1;--deep:#0A25CF;
+ --violet:#8A21F5;--magenta:#C314FB;--brand:#0058F1;--brand2:#4635FA;
+}
+.mg-app :is(.input,input:not([type=checkbox]):not([type=radio]),select,textarea){border-radius:12px;max-width:100%}
+.mg-app .btn{border-radius:12px;color:#0C1A4B;min-height:40px;transition:box-shadow .2s,transform .2s}
+.mg-app .btn:focus-visible{outline:3px solid #0058F1;outline-offset:3px}
+.mg-app .btn:active:not(:disabled){box-shadow:var(--mg-inset);transform:translateY(1px)}
+.mg-app :is(.tabs,.pagination,.breadcrumbs){min-width:0;max-width:100%}
+.mg-app :is(.tabs,.pagination){overflow-x:auto;overscroll-behavior-x:contain}
