@@ -13,6 +13,37 @@ export const REGISTRATION_LOCALITIES = [
   { code: "601", name: "Toliara I" },
   { code: "602", name: "Toliara II" },
 ] as const;
+// Internal codes describe regional registration origin, NOT the person's precise locality.
+export const REGISTRATION_REGIONS = [
+  { code: "901", name: "Alaotra-Mangoro" },
+  { code: "902", name: "Ambatosoa" },
+  { code: "903", name: "Amoron'i Mania" },
+  { code: "904", name: "Analamanga" },
+  { code: "905", name: "Analanjirofo" },
+  { code: "906", name: "Androy" },
+  { code: "907", name: "Anosy" },
+  { code: "908", name: "Atsimo-Andrefana" },
+  { code: "909", name: "Atsimo-Atsinanana" },
+  { code: "910", name: "Atsinanana" },
+  { code: "911", name: "Betsiboka" },
+  { code: "912", name: "Boeny" },
+  { code: "913", name: "Bongolava" },
+  { code: "914", name: "DIANA" },
+  { code: "915", name: "Fitovinany" },
+  { code: "916", name: "Haute Matsiatra" },
+  { code: "917", name: "Ihorombe" },
+  { code: "918", name: "Itasy" },
+  { code: "919", name: "Melaky" },
+  { code: "920", name: "Menabe" },
+  { code: "921", name: "SAVA" },
+  { code: "922", name: "Sofia" },
+  { code: "923", name: "Vakinankaratra" },
+  { code: "924", name: "Vatovavy" },
+] as const;
+export function isValidRegistrationRegion(country: string, region: string): boolean {
+  return country === REGISTRATION_COUNTRY_CODE &&
+    REGISTRATION_REGIONS.some((item) => item.code === region);
+}
 // Legacy usernames remain valid for login and existing accounts.
 export const USERNAME_PATTERN = /^[a-z][a-z0-9._]{2,29}$/;
 // New user-facing handles: @ followed by 3-10 ASCII letters.
