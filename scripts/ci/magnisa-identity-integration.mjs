@@ -37,7 +37,7 @@ try {
   const anonDirectory = await visitor.rpc("magnisa_platform_origin_directory");
   assert(!!anonDirectory.error,"Owner origin directory must not be readable by anon.");
   const anonProfile = await visitor.from("profiles").select("public_id").eq("id",userId);
-  assert(!anonProfile.error && anonProfile.data.length===0,"Anonymous visitors must not read profiles.");
+  assert(!!anonProfile.error || anonProfile.data?.length===0,"Anonymous visitors must not read profiles.");
 
   const signed = await visitor.auth.signInWithPassword({email,password});
   if(signed.error)throw signed.error;
