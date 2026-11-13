@@ -14,29 +14,37 @@ const allowedRoles = new Set([
   "viewer",
 ]);
 
-const blockedDomains = new Set([
-  "outlook.com",
-  "hotmail.com",
-  "live.com",
-  "yahoo.com",
-  "icloud.com",
-  "aol.com",
-  "proton.me",
-  "protonmail.com",
-  "mailinator.com",
-  "guerrillamail.com",
-  "10minutemail.com",
-  "tempmail.com",
-  "yopmail.com",
-  "trashmail.com",
-]);
+const disposableHints = [
+  "mailinator",
+  "tempmail",
+  "10minutemail",
+  "guerrillamail",
+  "yopmail",
+  "trashmail",
+  "dispostable",
+];
 
 function allowedEmail(email: string) {
   const normalized = email.trim().toLowerCase();
   const parts = normalized.split("@");
-  if (parts.length !== 2 || !parts[0] || !parts[1] || !parts[1].includes(".")) return false;
+  if (
+    parts.length !== 2 ||
+    !parts[0] ||
+    !parts[1] ||
+    parts[0].length > 64 ||
+    normalized.length > 254 ||
+    /\\s/.test(normalized)
+  ) return false;
+
   const domain = parts[1];
-  return domain === "gmail.com" || !blockedDomains.has(domain);
+  const labels = domain.split(".");
+  if (
+    domain.length > 253 ||
+    labels.length < 2 ||
+    labels.some((label) => !label || label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label))
+  ) return false;
+
+  return !disposableHints.some((hint) => domain.includes(hint));
 }
 
 Deno.serve(async (req: Request) => {
