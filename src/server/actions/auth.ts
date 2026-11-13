@@ -149,7 +149,7 @@ export async function signIn(formData: FormData) {
       const requestHeaders = await headers();
       const ip = requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
       const secret = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-      const fingerprint = createHmac("sha256", secret).update(ip + ":" + identifier).digest("hex");
+      const fingerprint = createHmac("sha256", secret).update(ip + ":" + handle).digest("hex");
       const { data: allowed, error: throttleError } = await admin.rpc("consume_magnisa_username_login_attempt", {
         p_fingerprint: fingerprint,
       });
