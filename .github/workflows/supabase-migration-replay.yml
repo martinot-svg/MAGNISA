@@ -172,6 +172,14 @@ jobs:
           done
           cat /tmp/magnisa-next.log
           exit 1
+      - name: Test authenticated payroll and fixed-asset UI actions
+        run: node scripts/ci/payroll-ui-smoke.mjs
+      - name: Test authenticated CRM UI actions
+        if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
+        run: node scripts/ci/crm-ui-smoke.mjs
+      - name: Test authenticated stock reservation and delivery UI actions
+        if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
+        run: node scripts/ci/stock-ui-smoke.mjs
       - name: Test Neumorphism responsive at 13 desktop, tablet and mobile sizes
         if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
         run: node scripts/ci/responsive-ui-smoke.mjs
@@ -182,14 +190,6 @@ jobs:
           name: magnisa-responsive-viewports
           path: test-results/responsive/*.png
           if-no-files-found: ignore
-      - name: Test authenticated payroll and fixed-asset UI actions
-        run: node scripts/ci/payroll-ui-smoke.mjs
-      - name: Test authenticated CRM UI actions
-        if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
-        run: node scripts/ci/crm-ui-smoke.mjs
-      - name: Test authenticated stock reservation and delivery UI actions
-        if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
-        run: node scripts/ci/stock-ui-smoke.mjs
       - name: Stop MAGNISA local server
         if: always()
         run: |
