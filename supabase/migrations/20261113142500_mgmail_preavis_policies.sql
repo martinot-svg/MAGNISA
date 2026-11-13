@@ -67,5 +67,5 @@ create policy mgmail_preavis_policies_update
   );
 
 -- Tout accès non couvert par ces politiques est refusé.
-revoke all on table public.mgmail_preavis_policies from anon;
+revoke all on table public.mgmail_preavis_policies from anon, authenticated;
 grant select, insert, update on table public.mgmail_preavis_policies to authenticated;
