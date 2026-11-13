@@ -92,15 +92,15 @@ $$;
 
 create or replace function private.magnisa_issue_profile_id()
 returns trigger language plpgsql security definer set search_path = '' as $$
-declare v_meta jsonb; v_name text; v_username text; v_country text; v_locality text;
+declare v_meta jsonb; v_name text; v_username text;
         v_id text; v_attempt integer;
 begin
   select coalesce(raw_user_meta_data, '{}'::jsonb) into v_meta
     from auth.users where id=new.id;
   v_name := btrim(coalesce(v_meta->>'full_name',''));
   v_username := lower(btrim(coalesce(v_meta->>'username','')));
-  v_country := v_meta->>'country_code';
-  v_locality := v_meta->>'locality_code';
+  -- The country/locality are NEVER stored in user_metadata, which is visible
+  -- to the user through Supabase Auth. Registration uses a private RPC instead.
 
   -- Assign an opaque ID even for invitations and pre-existing accounts.
   for v_attempt in 1..8 loop
@@ -116,11 +116,7 @@ begin
     update public.profiles set full_name=v_name,username=v_username,
       username_changed_at=now() where id=new.id;
   end if;
-  if v_country ~ '^[0-9]{3}$' and v_locality ~ '^[0-9]{3}$'
-     and exists (select 1 from private.magnisa_location_codes
-                 where country_code=v_country and locality_code=v_locality) then
-    perform private.magnisa_register_location(new.id,v_country,v_locality);
-  end if;
+
   return new;
 end;
 $$;
@@ -190,6 +186,25 @@ grant execute on function public.claim_magnisa_identity(text,text,text,text) to 
 revoke all on function private.magnisa_random_public_id() from public,anon,authenticated;
 revoke all on function private.magnisa_register_location(uuid,text,text) from public,anon,authenticated;
 revoke all on function private.magnisa_issue_profile_id() from public,anon,authenticated;
+
+-- Server-side signup completion: only service_role may attach the private
+-- geographic identity to a newly created Supabase Auth user. No location codes
+-- are ever placed in raw_user_meta_data / JWT claims / client profiles.
+create or replace function public.register_magnisa_signup_origin(
+  p_user uuid, p_country text, p_locality text
+) returns void language plpgsql security definer set search_path='' as $
+begin
+  if current_setting('request.jwt.claim.role',true) is distinct from 'service_role' then
+    raise exception 'Service interne uniquement' using errcode='42501';
+  end if;
+  if not exists (select 1 from public.profiles where id=p_user) then
+    raise exception 'Utilisateur inexistant' using errcode='P0002';
+  end if;
+  perform private.magnisa_register_location(p_user,p_country,p_locality);
+end;
+$;
+revoke all on function public.register_magnisa_signup_origin(uuid,text,text) from public,anon,authenticated;
+grant execute on function public.register_magnisa_signup_origin(uuid,text,text) to service_role;
 
 -- Only the existence of an immutable registration may be seen by that user.
 create or replace function public.has_magnisa_registration()
