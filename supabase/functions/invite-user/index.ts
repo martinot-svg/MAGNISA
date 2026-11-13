@@ -14,29 +14,14 @@ const allowedRoles = new Set([
   "viewer",
 ]);
 
-const blockedDomains = new Set([
-  "outlook.com",
-  "hotmail.com",
-  "live.com",
-  "yahoo.com",
-  "icloud.com",
-  "aol.com",
-  "proton.me",
-  "protonmail.com",
-  "mailinator.com",
-  "guerrillamail.com",
-  "10minutemail.com",
-  "tempmail.com",
-  "yopmail.com",
-  "trashmail.com",
-]);
+const disposableDomains = ["mailinator.com", "guerrillamail.com", "10minutemail.com", "tempmail.com", "yopmail.com", "trashmail.com"];
 
 function allowedEmail(email: string) {
   const normalized = email.trim().toLowerCase();
   const parts = normalized.split("@");
   if (parts.length !== 2 || !parts[0] || !parts[1] || !parts[1].includes(".")) return false;
   const domain = parts[1];
-  return domain === "gmail.com" || !blockedDomains.has(domain);
+  return !disposableDomains.some((blocked) => domain === blocked || domain.endsWith("." + blocked));
 }
 
 Deno.serve(async (req: Request) => {
