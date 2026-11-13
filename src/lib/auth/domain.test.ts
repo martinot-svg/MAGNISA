@@ -31,7 +31,7 @@ describe("signupEmailPolicy", () => {
     "person@@example.com",
     "person name@example.com",
     "person@mailinator.com",
-    "person@temporary-mail.example",
+    "person@tempmail.example",
   ])("rejects malformed or disposable address: %s", (email) => {
     expect(signupEmailPolicy(email).ok).toBe(false);
     expect(isAllowedSignupEmail(email)).toBe(false);
