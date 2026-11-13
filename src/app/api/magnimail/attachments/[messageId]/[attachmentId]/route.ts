@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireOrganization } from "@/lib/current-org";
-import { getGmailAccess, gmailJson } from "@/lib/google/gmail";
+import { mailProviderHttpError, resolveUserMailProvider } from "@/lib/magnimail/providers/resolve";
 
 function safeFilename(value: string) {
   return value.replace(/[\r\n"\\/]+/g, "_").slice(0, 180) || "piece-jointe";
+}
+function safeMimeType(value: string) {
+  return /^[a-z\d][a-z\d.+-]*\/[a-z\d][a-z\d.+-]*$/i.test(value)
+    ? value
+    : "application/octet-stream";
 }
 
 export async function GET(
@@ -12,33 +17,35 @@ export async function GET(
 ) {
   try {
     const { messageId, attachmentId } = await params;
-    const { organizationId, user } = await requireOrganization();
-    const { accessToken } = await getGmailAccess(organizationId, user.id);
-    const data = await gmailJson<{ data?: string; size?: number }>(
-      accessToken,
-      `/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`,
-    );
-
-    if (!data.data) {
-      return NextResponse.json({ error: "Pièce jointe introuvable." }, { status: 404 });
+    if (!messageId || !attachmentId || messageId.length > 512 || attachmentId.length > 512) {
+      return NextResponse.json({ error: "Identifiants de pièce jointe invalides." }, { status: 400 });
     }
 
-    const url = new URL(request.url);
-    const filename = safeFilename(url.searchParams.get("filename") || "piece-jointe");
-    const mimeType = String(url.searchParams.get("mimeType") || "application/octet-stream");
-    const buffer = Buffer.from(data.data, "base64url");
+    const ctx = await requireOrganization();
+    const connectionId = request.nextUrl.searchParams.get("connectionId");
+    const { provider, context } = await resolveUserMailProvider(ctx, connectionId);
 
-    return new NextResponse(buffer as BodyInit, {
+    if (!provider.capabilities.attachments) {
+      return NextResponse.json({ error: "Ce fournisseur ne gère pas les pièces jointes." }, { status: 501 });
+    }
+
+    // Filename and MIME type come from the authorized mailbox, never the URL.
+    const file = await provider.getAttachment({ context, messageId, attachmentId });
+    const filename = safeFilename(file.filename);
+    const mimeType = safeMimeType(file.mimeType);
+
+    return new NextResponse(file.content as BodyInit, {
       headers: {
         "Content-Type": mimeType,
-        "Content-Length": String(buffer.length),
+        "Content-Length": String(file.content.length),
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch (error) {
-    console.error("MagniMail attachment failed", error);
-    const message = error instanceof Error ? error.message : "Téléchargement impossible.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("MGMail attachment failed", error);
+    const detail = mailProviderHttpError(error);
+    return NextResponse.json({ error: detail.error }, { status: detail.status });
   }
 }
