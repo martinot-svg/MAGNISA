@@ -13,8 +13,8 @@ const signupSchema = z.object({
   password: z.string().min(10),
   full_name: z.string().trim().min(2).max(120),
   username: z.string().trim().min(3).max(30),
-  country_code: z.string().regex(/^\\d{3}$/),
-  locality_code: z.string().regex(/^\\d{3}$/),
+  country_code: z.string().regex(/^[0-9]{3}$/),
+  locality_code: z.string().regex(/^[0-9]{3}$/),
 });
 
 export async function signUp(formData: FormData) {
