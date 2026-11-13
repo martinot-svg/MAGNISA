@@ -190,6 +190,16 @@ jobs:
           name: magnisa-responsive-viewports
           path: test-results/responsive/*.png
           if-no-files-found: ignore
+      - name: Audit responsive of all accessible ERP modules at three screen classes
+        if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
+        run: node scripts/ci/modules-responsive-ui-smoke.mjs
+      - name: Upload module-by-module responsive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: magnisa-all-modules-responsive
+          path: test-results/modules-responsive/
+          if-no-files-found: ignore
       - name: Stop MAGNISA local server
         if: always()
         run: |
