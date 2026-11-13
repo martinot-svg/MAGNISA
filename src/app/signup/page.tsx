@@ -1,13 +1,16 @@
 "use client";
 import Link from "next/link";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signUp } from "@/server/actions/auth";
 import { BrandMark } from "@/components/brand-mark";
-import { REGISTRATION_LOCALITIES, REGISTRATION_COUNTRY_CODE, REGISTRATION_COUNTRY_NAME } from "@/lib/auth/magnisa-identity";
+import { REGISTRATION_LOCALITIES, REGISTRATION_COUNTRY_CODE, REGISTRATION_COUNTRY_NAME, usernameStemFromNames } from "@/lib/auth/magnisa-identity";
 
 export default function Signup() {
   const router = useRouter();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const usernamePreview = usernameStemFromNames(firstName, lastName);
   const [state, action, pending] = useActionState<any, FormData>(async (_:any, data:FormData) => signUp(data), {});
   useEffect(() => {
     if (state?.email) router.push(`/verify-email?email=${encodeURIComponent(state.email)}`);
@@ -19,14 +22,21 @@ export default function Signup() {
         <p className="muted">Ton identité est unique sur MAGNISA. Ton numéro public à 14 chiffres sera attribué automatiquement ; les codes géographiques restent confidentiels.</p>
       </div>
       <form action={action} className="form">
-        <div className="field"><label htmlFor="signup-full-name">Nom complet</label>
-          <input id="signup-full-name" name="full_name" required minLength={2} maxLength={120} autoComplete="name" placeholder="Prénom et nom" />
+        <div className="field"><label htmlFor="signup-first-name">Prénom(s)</label>
+          <input id="signup-first-name" name="first_name" required minLength={1} maxLength={60}
+            autoComplete="given-name" value={firstName} onChange={event => setFirstName(event.target.value)}
+            placeholder="Ex. Francky" />
         </div>
-        <div className="field"><label htmlFor="signup-username">Nom d'utilisateur</label>
-          <input id="signup-username" name="username" required minLength={3} maxLength={30}
-            pattern="[A-Za-z][A-Za-z0-9._]{2,29}" autoCapitalize="none" autoComplete="username"
-            placeholder="exemple.utilisateur" aria-describedby="username-help" />
-          <small id="username-help">3 à 30 caractères : lettres, chiffres, points et tiret bas. Utilisable pour te connecter.</small>
+        <div className="field"><label htmlFor="signup-last-name">Nom</label>
+          <input id="signup-last-name" name="last_name" required minLength={1} maxLength={60}
+            autoComplete="family-name" value={lastName} onChange={event => setLastName(event.target.value)}
+            placeholder="Ex. Kevin" />
+        </div>
+        <div className="field">
+          <label>Nom d'utilisateur généré automatiquement</label>
+          <output aria-live="polite" aria-label="Aperçu du nom d'utilisateur" className="muted"
+            style={{fontWeight:700,wordBreak:"break-word"}}>{usernamePreview.length >= 2 ? "@" + usernamePreview : "Renseigne ton prénom et ton nom"}</output>
+          <small>Lettres minuscules uniquement, 10 maximum. En cas d'homonyme, MAGNISA ajoute un suffixe alphabétique.</small>
         </div>
         <div className="field"><label htmlFor="signup-email">Adresse e-mail</label>
           <input id="signup-email" name="email" type="email" required autoComplete="email" placeholder="direction@entreprise.mg"/>
