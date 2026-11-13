@@ -95,12 +95,19 @@ assert(recipientVisible.length === 1 && recipientVisible[0].owner_user_id === b.
 assert(ownMembership.length === 1 && ownMembership[0].status === "active",
   "Adhésion du collaborateur non visible");
 // Échanges internes entre deux collaborateurs de la même entreprise.
-const outgoing = required(await a.userClient.from("mgmail_internal_messages").insert({
+// Le parcours applicatif utilise INSERT sans RETURNING : vérifier cette voie
+// puis récupérer le message par SELECT authentifié et RLS.
+required(await a.userClient.from("mgmail_internal_messages").insert({
   organization_id: organizationId, sender_mailbox_id: finance,
   recipient_mailbox_id: direction, subject: "Facture interne MGMail",
   body_text: "Message interne de contrôle, sans fournisseur Google.",
-}).select("id").single(), "Envoi interne");
-assert(!!outgoing.id, "Message interne non créé.");
+}), "Envoi interne");
+const sentMessageRows = required(await a.userClient.from("mgmail_internal_messages")
+  .select("id").eq("organization_id", organizationId)
+  .eq("sender_mailbox_id", finance).eq("recipient_mailbox_id", direction)
+  .eq("subject", "Facture interne MGMail"), "Consultation après envoi");
+assert(sentMessageRows.length === 1, "L'expéditeur ne peut pas retrouver le message créé.");
+const outgoing = sentMessageRows[0];
 
 const inboxB = required(await b.userClient.from("mgmail_internal_messages")
   .select("id").eq("id", outgoing.id), "Lecture destinataire");
