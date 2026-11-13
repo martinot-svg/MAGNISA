@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "motion/react";
 import { Bell, BarChart3, CircleDollarSign, ChevronRight, FileText, LayoutDashboard, Menu, Package, PanelLeftClose, PanelLeftOpen, Settings2, ShoppingCart, Users, Wallet, X } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
+import { motionTiming, motionVariants } from "@/lib/motion-config";
 
 export type WorkspaceLink = { key: string; label: string; href: string; group: string };
 function iconFor(key: string) {
@@ -132,10 +133,15 @@ export function AppWorkspace({ links, notifications, signOut, children }: {
               {notifications}
             </div>
           </header>
-          <motion.div className="mg-content" initial={false}
-            animate={{ opacity: 1 }} transition={{ duration: reducedMotion ? 0 : .18 }}>
-            {children}
-          </motion.div>
+          <AnimatePresence initial={false} mode="wait">
+            <motion.div key={pathname} className="mg-content"
+              initial={reducedMotion ? false : motionVariants.fade.initial}
+              animate={motionVariants.fade.animate}
+              exit={reducedMotion ? undefined : motionVariants.fade.exit}
+              transition={reducedMotion ? motionTiming.none : motionTiming.fast}>
+              {children}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
     </MotionConfig>
