@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
 import { requireUser } from "@/lib/current-org";
 import { selectOrganizationAction } from "@/server/actions/organization";
@@ -48,6 +49,7 @@ export default async function SelectOrganizationPage() {
         </p>
       </div>
 
+      <Link href="/creer-entreprise" className="button">+ Créer une nouvelle entreprise</Link>
       {memberships.map((membership) => (
         <form
           action={selectOrganizationAction}
