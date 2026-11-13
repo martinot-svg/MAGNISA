@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { motion, useReducedMotion } from "motion/react";
 
 type ModalFrameProps = {
   title: string;
@@ -25,6 +26,7 @@ export function ModalFrame({
   closeOnEscape = true,
 }: ModalFrameProps) {
   const titleId = useId();
+  const reducedMotion = useReducedMotion();
   const dialogRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
@@ -123,7 +125,10 @@ export function ModalFrame({
         WebkitBackdropFilter: "blur(5px)",
       }}
     >
-      <section
+      <motion.section
+        initial={reducedMotion ? false : { opacity: 0, y: 10, scale: .99 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: reducedMotion ? 0 : .2, ease: "easeOut" }}
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
@@ -177,7 +182,7 @@ export function ModalFrame({
         <div style={{ minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", padding: "clamp(14px, 2.5vw, 24px)" }}>
           {children}
         </div>
-      </section>
+      </motion.section>
     </div>,
     document.body,
   );
