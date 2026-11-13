@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PREAVIS_RULES, planBillingPreavis, renderBillingPreavis } from "./preavis";
+import { DEFAULT_PREAVIS_RULES, planBillingPreavis, renderBillingPreavis, parsePreavisOffsets, validatedPreavisRules } from "./preavis";
 
 describe("MGMail — préavis de facturation", () => {
   it("calcule les délais par défaut en jours civils", () => {
@@ -80,6 +80,23 @@ describe("MGMail — préavis de facturation", () => {
       contractStatus: "active",
       rules: DEFAULT_PREAVIS_RULES,
     })).toThrow(/Date/);
+  });
+
+  it("accepte des délais libres avec niveaux d'urgence cohérents", () => {
+    const rules = parsePreavisOffsets("30, 12, 7, 2, 1");
+    expect(rules.map((x) => x.daysBefore)).toEqual([30, 12, 7, 2, 1]);
+    expect(rules.map((x) => x.tone)).toEqual([
+      "information", "information", "courtois", "important", "dernier",
+    ]);
+    expect(validatedPreavisRules(rules)).toEqual(rules);
+  });
+
+  it("rejette les configurations de préavis malformées", () => {
+    expect(() => parsePreavisOffsets("7,7")).toThrow(/uniques/);
+    expect(() => parsePreavisOffsets("0,3")).toThrow(/compris/);
+    expect(() => parsePreavisOffsets("2.5")).toThrow(/entiers/);
+    expect(validatedPreavisRules([{ id: "j3", daysBefore: -3, enabled: true, tone: "dernier" }])).toBeNull();
+    expect(validatedPreavisRules("15,10,5")).toBeNull();
   });
 
   it("rédige un préavis sans prétendre que la facture est émise ou impayée", () => {
