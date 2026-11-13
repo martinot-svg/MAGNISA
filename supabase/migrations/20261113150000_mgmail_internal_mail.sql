@@ -111,6 +111,12 @@ create policy mgmail_messages_insert
       where recipient.organization_id = mgmail_internal_messages.organization_id
         and recipient.id = recipient_mailbox_id
         and recipient.is_active
+        and exists (
+          select 1 from public.organization_members m
+          where m.organization_id = recipient.organization_id
+            and m.user_id = recipient.owner_user_id
+            and m.status = 'active'
+        )
     )
   );
 
