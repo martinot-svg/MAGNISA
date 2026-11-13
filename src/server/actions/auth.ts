@@ -49,8 +49,6 @@ export async function signUp(formData: FormData) {
     options: { data: {
       full_name: parsed.data.full_name.trim(),
       username,
-      country_code: parsed.data.country_code,
-      locality_code: parsed.data.locality_code,
     } },
   });
 
@@ -63,6 +61,21 @@ export async function signUp(formData: FormData) {
   }
 
   if (!data.user) return { error: "Création du compte impossible." };
+
+  // Auth user_metadata is readable by the user: NEVER store geographic codes there.
+  // The server calls a service-role-only RPC to attach the immutable origin privately.
+  if (data.user.email?.trim().toLowerCase() === email && data.user.id) {
+    const { error: originError } = await admin.rpc("register_magnisa_signup_origin", {
+      p_user: data.user.id,
+      p_country: parsed.data.country_code,
+      p_locality: parsed.data.locality_code,
+    });
+    if (originError) {
+      // Do not invalidate an already-created Supabase Auth account. The user can
+      // complete the origin from /mon-profil after confirming the email.
+      console.error("[magnisa-identity] Origin registration pending:", originError.code);
+    }
+  }
 
   return {
     success: "Un code de vérification à 6 chiffres a été envoyé par e-mail.",
