@@ -56,12 +56,16 @@ create table if not exists private.magnisa_public_id_registry (
   public_id text primary key check (public_id ~ '^[0-9]{14}
 create or replace function private.magnisa_random_public_id()
 returns text language plpgsql volatile security definer
-set search_path = '' as $$
-declare v_hex text; v_num bigint; v_id text; v_attempt integer;
+set search_path = '' as $magnisa$
+declare v_hex text; v_num bigint; v_id text; v_attempt integer; v_byte integer;
 begin
   for v_attempt in 1..12 loop
     v_hex := replace(pg_catalog.gen_random_uuid()::text, '-', '');
-    v_num := (('x' || substr(v_hex, 1, 12))::bit(48)::bigint % 90000000000000) + 10000000000000;
+    v_num := 0;
+    for v_byte in 0..5 loop
+      v_num := v_num*256 + pg_catalog.get_byte(pg_catalog.decode(substr(v_hex,1,12),'hex'), v_byte);
+    end loop;
+    v_num := (v_num % 90000000000000) + 10000000000000;
     v_id := v_num::text;
     insert into private.magnisa_public_id_registry(public_id) values (v_id)
       on conflict do nothing;
@@ -69,10 +73,10 @@ begin
   end loop;
   raise exception 'Impossible de générer un identifiant utilisateur unique';
 end;
-$$;
+$magnisa$;
 
 create or replace function private.magnisa_register_location(p_user uuid, p_country text, p_locality text)
-returns void language plpgsql security definer set search_path = '' as $$
+returns void language plpgsql security definer set search_path = '' as $magnisa$
 declare v_n bigint;
 begin
   if not exists (select 1 from private.magnisa_location_codes
@@ -88,10 +92,10 @@ begin
   values (p_user,p_country,p_locality,v_n,p_country||p_locality||lpad(v_n::text,8,'0'))
   on conflict (user_id) do nothing;
 end;
-$$;
+$magnisa$;
 
 create or replace function private.magnisa_issue_profile_id()
-returns trigger language plpgsql security definer set search_path = '' as $$
+returns trigger language plpgsql security definer set search_path = '' as $magnisa$
 declare v_meta jsonb; v_name text; v_username text;
         v_id text; v_attempt integer;
 begin
@@ -119,14 +123,14 @@ begin
 
   return new;
 end;
-$$;
+$magnisa$;
 
 drop trigger if exists magnisa_profile_issue_id on public.profiles;
 create trigger magnisa_profile_issue_id after insert on public.profiles
 for each row execute function private.magnisa_issue_profile_id();
 
 -- Add opaque IDs to legacy users without guessing their birthplace/locality.
-do $$
+do $magnisa$
 declare p record; v_attempt integer;
 begin
   for p in select id from public.profiles where public_id is null order by created_at,id loop
@@ -139,14 +143,14 @@ begin
       end;
     end loop;
   end loop;
-end $$;
+end $magnisa$;
 
 -- The authenticated user can only claim/update their own username and their
 -- immutable registration origin. RLS is not used as a shortcut to other profiles.
 create or replace function public.claim_magnisa_identity(
   p_full_name text, p_username text, p_country text, p_locality text
 ) returns void language plpgsql security definer
-set search_path = '' as $$
+set search_path = '' as $magnisa$
 declare v_user uuid; v_existing text; v_changed timestamptz; v_name text; v_username text;
 begin
   v_user := (select auth.uid());
@@ -180,7 +184,7 @@ begin
 exception when unique_violation then
   raise exception 'Ce nom utilisateur est déjà utilisé' using errcode='23505';
 end;
-$$;
+$magnisa$;
 revoke all on function public.claim_magnisa_identity(text,text,text,text) from public,anon;
 grant execute on function public.claim_magnisa_identity(text,text,text,text) to authenticated;
 revoke all on function private.magnisa_random_public_id() from public,anon,authenticated;
@@ -259,7 +263,7 @@ create table if not exists private.magnisa_username_login_limits(
 alter table private.magnisa_username_login_limits enable row level security;
 revoke all on private.magnisa_username_login_limits from public,anon,authenticated;
 create or replace function public.consume_magnisa_username_login_attempt(p_fingerprint text)
-returns boolean language plpgsql security definer set search_path = '' as $$
+returns boolean language plpgsql security definer set search_path = '' as $magnisa$
 declare v_attempts integer;
 begin
   if current_setting('request.jwt.claim.role',true) is distinct from 'service_role' then
@@ -276,7 +280,7 @@ begin
   returning attempts into v_attempts;
   return v_attempts<=10;
 end;
-$$;
+$magnisa$;
 revoke all on function public.consume_magnisa_username_login_attempt(text) from public,anon,authenticated;
 grant execute on function public.consume_magnisa_username_login_attempt(text) to service_role;
 
@@ -294,17 +298,17 @@ revoke all on private.magnisa_public_id_registry from public, anon, authenticate
 -- the geographic prefix nor reveals the registration sequence.
 create or replace function private.magnisa_random_public_id()
 returns text language plpgsql volatile security definer
-set search_path = '' as $$
+set search_path = '' as $magnisa$
 declare v_hex text; v_num bigint;
 begin
   v_hex := replace(pg_catalog.gen_random_uuid()::text, '-', '');
   v_num := (('x' || substr(v_hex, 1, 12))::bit(48)::bigint % 90000000000000) + 10000000000000;
   return v_num::text;
 end;
-$$;
+$magnisa$;
 
 create or replace function private.magnisa_register_location(p_user uuid, p_country text, p_locality text)
-returns void language plpgsql security definer set search_path = '' as $$
+returns void language plpgsql security definer set search_path = '' as $magnisa$
 declare v_n bigint;
 begin
   if not exists (select 1 from private.magnisa_location_codes
@@ -320,10 +324,10 @@ begin
   values (p_user,p_country,p_locality,v_n,p_country||p_locality||lpad(v_n::text,8,'0'))
   on conflict (user_id) do nothing;
 end;
-$$;
+$magnisa$;
 
 create or replace function private.magnisa_issue_profile_id()
-returns trigger language plpgsql security definer set search_path = '' as $$
+returns trigger language plpgsql security definer set search_path = '' as $magnisa$
 declare v_meta jsonb; v_name text; v_username text; v_country text; v_locality text;
         v_id text; v_attempt integer;
 begin
@@ -355,14 +359,14 @@ begin
   end if;
   return new;
 end;
-$$;
+$magnisa$;
 
 drop trigger if exists magnisa_profile_issue_id on public.profiles;
 create trigger magnisa_profile_issue_id after insert on public.profiles
 for each row execute function private.magnisa_issue_profile_id();
 
 -- Add opaque IDs to legacy users without guessing their birthplace/locality.
-do $$
+do $magnisa$
 declare p record; v_attempt integer;
 begin
   for p in select id from public.profiles where public_id is null order by created_at,id loop
@@ -375,14 +379,14 @@ begin
       end;
     end loop;
   end loop;
-end $$;
+end $magnisa$;
 
 -- The authenticated user can only claim/update their own username and their
 -- immutable registration origin. RLS is not used as a shortcut to other profiles.
 create or replace function public.claim_magnisa_identity(
   p_full_name text, p_username text, p_country text, p_locality text
 ) returns void language plpgsql security definer
-set search_path = '' as $$
+set search_path = '' as $magnisa$
 declare v_user uuid; v_existing text; v_changed timestamptz; v_name text; v_username text;
 begin
   v_user := (select auth.uid());
@@ -414,7 +418,7 @@ begin
 exception when unique_violation then
   raise exception 'Ce nom utilisateur est déjà utilisé' using errcode='23505';
 end;
-$$;
+$magnisa$;
 revoke all on function public.claim_magnisa_identity(text,text,text,text) from public,anon;
 grant execute on function public.claim_magnisa_identity(text,text,text,text) to authenticated;
 revoke all on function private.magnisa_random_public_id() from public,anon,authenticated;
@@ -430,7 +434,7 @@ create table if not exists private.magnisa_username_login_limits(
 alter table private.magnisa_username_login_limits enable row level security;
 revoke all on private.magnisa_username_login_limits from public,anon,authenticated;
 create or replace function public.consume_magnisa_username_login_attempt(p_fingerprint text)
-returns boolean language plpgsql security definer set search_path = '' as $$
+returns boolean language plpgsql security definer set search_path = '' as $magnisa$
 declare v_attempts integer;
 begin
   if current_setting('request.jwt.claim.role',true) is distinct from 'service_role' then
@@ -447,7 +451,7 @@ begin
   returning attempts into v_attempts;
   return v_attempts<=10;
 end;
-$$;
+$magnisa$;
 revoke all on function public.consume_magnisa_username_login_attempt(text) from public,anon,authenticated;
 grant execute on function public.consume_magnisa_username_login_attempt(text) to service_role;
 
