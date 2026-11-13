@@ -173,6 +173,24 @@ denied(await outsider.from("mgmail_internal_mailboxes").select("id")
 denied(await outsider.from("mgmail_internal_messages").select("id")
   .eq("organization_id", organizationId), "Messages hors organisation");
 
+// La suspension d'un membre désactive immédiatement ses boîtes.
+required(await admin.from("organization_members")
+  .update({ status: "suspended" })
+  .eq("organization_id", organizationId)
+  .eq("user_id", b.userId), "Suspension collaborateur");
+const mailboxAfterDeparture = required(await owner.from("mgmail_internal_mailboxes")
+  .select("is_active").eq("organization_id", organizationId)
+  .eq("id", direction).single(), "Suspension automatique de la boîte");
+assert(mailboxAfterDeparture.is_active === false,
+  "La boîte d'un collaborateur suspendu doit être désactivée.");
+const ownerToDeparted = required(await owner.rpc("mgmail_can_send_internal", {
+  p_organization_id: organizationId,
+  p_sender_mailbox_id: ownerBox,
+  p_recipient_mailbox_id: direction,
+}), "Prévention des envois vers un ancien membre");
+assert(ownerToDeparted === false,
+  "Un collaborateur suspendu ne peut plus recevoir de messages.");
+
 process.stdout.write(
   "PASS MGMail: envoi/réception interne, confidentialité, permissions et isolation des entreprises.\n",
 );
