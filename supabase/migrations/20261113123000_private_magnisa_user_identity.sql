@@ -51,6 +51,184 @@ create unique index if not exists magnisa_profiles_username_unique
 create unique index if not exists magnisa_profiles_public_id_unique
   on public.profiles (public_id) where public_id is not null;
 
+-- Keep issued numbers reserved forever, even after account deletion.
+create table if not exists private.magnisa_public_id_registry (
+  public_id text primary key check (public_id ~ '^[0-9]{14}
+create or replace function private.magnisa_random_public_id()
+returns text language plpgsql volatile security definer
+set search_path = '' as $$
+declare v_hex text; v_num bigint; v_id text; v_attempt integer;
+begin
+  for v_attempt in 1..12 loop
+    v_hex := replace(pg_catalog.gen_random_uuid()::text, '-', '');
+    v_num := (('x' || substr(v_hex, 1, 12))::bit(48)::bigint % 90000000000000) + 10000000000000;
+    v_id := v_num::text;
+    insert into private.magnisa_public_id_registry(public_id) values (v_id)
+      on conflict do nothing;
+    if found then return v_id; end if;
+  end loop;
+  raise exception 'Impossible de générer un identifiant utilisateur unique';
+end;
+$$;
+
+create or replace function private.magnisa_register_location(p_user uuid, p_country text, p_locality text)
+returns void language plpgsql security definer set search_path = '' as $$
+declare v_n bigint;
+begin
+  if not exists (select 1 from private.magnisa_location_codes
+                 where country_code=p_country and locality_code=p_locality) then
+    raise exception 'Lieu d’inscription non reconnu' using errcode='22023';
+  end if;
+  if exists (select 1 from private.magnisa_identity_mapping where user_id=p_user) then
+    return; -- Geographic identity is permanent; never overwrite a chosen origin.
+  end if;
+  v_n := nextval('private.magnisa_registration_number_seq'::regclass);
+  insert into private.magnisa_identity_mapping
+    (user_id,country_code,locality_code,registration_number,geographic_identity)
+  values (p_user,p_country,p_locality,v_n,p_country||p_locality||lpad(v_n::text,8,'0'))
+  on conflict (user_id) do nothing;
+end;
+$$;
+
+create or replace function private.magnisa_issue_profile_id()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare v_meta jsonb; v_name text; v_username text; v_country text; v_locality text;
+        v_id text; v_attempt integer;
+begin
+  select coalesce(raw_user_meta_data, '{}'::jsonb) into v_meta
+    from auth.users where id=new.id;
+  v_name := btrim(coalesce(v_meta->>'full_name',''));
+  v_username := lower(btrim(coalesce(v_meta->>'username','')));
+  v_country := v_meta->>'country_code';
+  v_locality := v_meta->>'locality_code';
+
+  -- Assign an opaque ID even for invitations and pre-existing accounts.
+  for v_attempt in 1..8 loop
+    v_id := private.magnisa_random_public_id();
+    begin
+      update public.profiles set public_id=v_id where id=new.id and public_id is null;
+      exit;
+    exception when unique_violation then
+      if v_attempt=8 then raise; end if;
+    end;
+  end loop;
+  if length(v_name) between 2 and 120 and v_username ~ '^[a-z][a-z0-9._]{2,29}$' then
+    update public.profiles set full_name=v_name,username=v_username,
+      username_changed_at=now() where id=new.id;
+  end if;
+  if v_country ~ '^[0-9]{3}$' and v_locality ~ '^[0-9]{3}$'
+     and exists (select 1 from private.magnisa_location_codes
+                 where country_code=v_country and locality_code=v_locality) then
+    perform private.magnisa_register_location(new.id,v_country,v_locality);
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists magnisa_profile_issue_id on public.profiles;
+create trigger magnisa_profile_issue_id after insert on public.profiles
+for each row execute function private.magnisa_issue_profile_id();
+
+-- Add opaque IDs to legacy users without guessing their birthplace/locality.
+do $$
+declare p record; v_attempt integer;
+begin
+  for p in select id from public.profiles where public_id is null order by created_at,id loop
+    for v_attempt in 1..8 loop
+      begin
+        update public.profiles set public_id=private.magnisa_random_public_id() where id=p.id;
+        exit;
+      exception when unique_violation then
+        if v_attempt=8 then raise; end if;
+      end;
+    end loop;
+  end loop;
+end $$;
+
+-- The authenticated user can only claim/update their own username and their
+-- immutable registration origin. RLS is not used as a shortcut to other profiles.
+create or replace function public.claim_magnisa_identity(
+  p_full_name text, p_username text, p_country text, p_locality text
+) returns void language plpgsql security definer
+set search_path = '' as $$
+declare v_user uuid; v_existing text; v_changed timestamptz; v_name text; v_username text;
+begin
+  v_user := (select auth.uid());
+  if v_user is null then
+    raise exception 'Connexion requise' using errcode='28000';
+  end if;
+  v_name := btrim(coalesce(p_full_name,''));
+  v_username := lower(btrim(coalesce(p_username,'')));
+  if length(v_name) not between 2 and 120 then
+    raise exception 'Nom complet invalide' using errcode='22023';
+  end if;
+  if v_username !~ '^[a-z][a-z0-9._]{2,29}$' then
+    raise exception 'Nom utilisateur invalide' using errcode='22023';
+  end if;
+  select username,username_changed_at into v_existing,v_changed
+    from public.profiles where id=v_user for update;
+  if not found then
+    raise exception 'Profil indisponible' using errcode='P0002';
+  end if;
+  if v_existing is distinct from v_username and v_existing is not null
+     and v_changed > now()-interval '30 days' then
+    raise exception 'Modification du nom utilisateur limitée à une fois tous les 30 jours'
+      using errcode='22023';
+  end if;
+  update public.profiles set full_name=v_name,username=v_username,
+    username_changed_at=case when v_existing is distinct from v_username then now() else v_changed end,
+    updated_at=now() where id=v_user;
+  perform private.magnisa_register_location(v_user,p_country,p_locality);
+exception when unique_violation then
+  raise exception 'Ce nom utilisateur est déjà utilisé' using errcode='23505';
+end;
+$$;
+revoke all on function public.claim_magnisa_identity(text,text,text,text) from public,anon;
+grant execute on function public.claim_magnisa_identity(text,text,text,text) to authenticated;
+revoke all on function private.magnisa_random_public_id() from public,anon,authenticated;
+revoke all on function private.magnisa_register_location(uuid,text,text) from public,anon,authenticated;
+revoke all on function private.magnisa_issue_profile_id() from public,anon,authenticated;
+
+-- Login throttling: called by service_role only, keyed with server HMAC (no raw IP).
+create table if not exists private.magnisa_username_login_limits(
+  fingerprint text primary key check (length(fingerprint)=64),
+  window_start timestamptz not null default now(),
+  attempts integer not null default 0
+);
+alter table private.magnisa_username_login_limits enable row level security;
+revoke all on private.magnisa_username_login_limits from public,anon,authenticated;
+create or replace function public.consume_magnisa_username_login_attempt(p_fingerprint text)
+returns boolean language plpgsql security definer set search_path = '' as $$
+declare v_attempts integer;
+begin
+  if current_setting('request.jwt.claim.role',true) is distinct from 'service_role' then
+    return false;
+  end if;
+  if p_fingerprint !~ '^[a-f0-9]{64}$' then return false; end if;
+  insert into private.magnisa_username_login_limits(fingerprint,window_start,attempts)
+    values(p_fingerprint,now(),1)
+  on conflict(fingerprint) do update set
+    window_start=case when private.magnisa_username_login_limits.window_start < now()-interval '15 minutes'
+      then now() else private.magnisa_username_login_limits.window_start end,
+    attempts=case when private.magnisa_username_login_limits.window_start < now()-interval '15 minutes'
+      then 1 else private.magnisa_username_login_limits.attempts+1 end
+  returning attempts into v_attempts;
+  return v_attempts<=10;
+end;
+$$;
+revoke all on function public.consume_magnisa_username_login_attempt(text) from public,anon,authenticated;
+grant execute on function public.consume_magnisa_username_login_attempt(text) to service_role;
+
+-- Owner-only mapping stays in a non-exposed private schema, never included
+-- in client APIs, organization member lists or normal profile queries.
+comment on table private.magnisa_identity_mapping is
+ 'Highly confidential registration origin mapping. No anon/authenticated grants. Assign platform-owner access separately after identity verification.';
+),
+  issued_at timestamptz not null default now()
+);
+alter table private.magnisa_public_id_registry enable row level security;
+revoke all on private.magnisa_public_id_registry from public, anon, authenticated;
+
 -- The 14-digit external identifier is random. The public number neither embeds
 -- the geographic prefix nor reveals the registration sequence.
 create or replace function private.magnisa_random_public_id()
