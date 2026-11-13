@@ -82,7 +82,7 @@ create table if not exists public.mgmail_external_messages (
   identity_id uuid not null,
   direction text not null check(direction in ('incoming','outgoing')),
   status text not null check(status in (
-    'queued','sending','accepted','delivered','failed','bounced','received'
+    'queued','sending','accepted','delivered','failed','bounced','uncertain','received'
   )),
   from_email text not null,
   to_emails text[] not null default '{}',
