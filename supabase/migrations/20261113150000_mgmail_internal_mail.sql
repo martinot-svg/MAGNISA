@@ -138,7 +138,7 @@ create or replace function private.mgmail_suspend_departed_member()
 returns trigger
 language plpgsql security definer
 set search_path=pg_catalog,public,private
-as $
+as $mgmail_suspend$
 begin
   if tg_op='DELETE' then
     update public.mgmail_internal_mailboxes
@@ -153,7 +153,7 @@ begin
   end if;
   return new;
 end;
-$;
+$mgmail_suspend$;
 revoke all on function private.mgmail_suspend_departed_member()
   from public,anon,authenticated;
 drop trigger if exists trg_mgmail_suspend_departed_member
