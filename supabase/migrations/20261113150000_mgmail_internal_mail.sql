@@ -17,6 +17,8 @@ create table if not exists public.mgmail_internal_mailboxes (
   display_name text not null default ''
     check (char_length(display_name) <= 120),
   is_active boolean not null default true,
+  can_read boolean not null default true,
+  can_send boolean not null default true,
   created_at timestamptz not null default now(),
   unique (organization_id, local_part)
 );
@@ -88,6 +90,7 @@ create policy mgmail_messages_select
       select 1 from public.mgmail_internal_mailboxes mailbox
       where mailbox.organization_id = mgmail_internal_messages.organization_id
         and mailbox.owner_user_id = auth.uid()
+        and mailbox.is_active and mailbox.can_read
         and mailbox.id in (sender_mailbox_id, recipient_mailbox_id)
     )
   );
@@ -101,7 +104,7 @@ create policy mgmail_messages_insert
       where sender.organization_id = mgmail_internal_messages.organization_id
         and sender.id = sender_mailbox_id
         and sender.owner_user_id = auth.uid()
-        and sender.is_active
+        and sender.is_active and sender.can_send
     )
     and exists (
       select 1 from public.mgmail_internal_mailboxes recipient
@@ -118,7 +121,7 @@ revoke all on table public.mgmail_internal_messages from anon, authenticated;
 grant select, insert (organization_id, slug)
   on public.mgmail_internal_namespaces to authenticated;
 grant select, insert (organization_id, local_part, owner_user_id, display_name),
-  update (display_name, is_active)
+  update (display_name, is_active, can_read, can_send)
   on public.mgmail_internal_mailboxes to authenticated;
 grant select, insert (
   organization_id, sender_mailbox_id, recipient_mailbox_id, subject, body_text
