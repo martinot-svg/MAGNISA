@@ -13,6 +13,8 @@ grant update (can_external_read,can_external_send)
   on public.mgmail_internal_mailboxes to authenticated;
 grant update (can_external_read,can_external_send)
   on public.mgmail_internal_mailbox_grants to authenticated;
+grant insert (can_external_read,can_external_send)
+  on public.mgmail_internal_mailbox_grants to authenticated;
 
 create table if not exists public.mgmail_external_identities (
   id uuid primary key default gen_random_uuid(),
