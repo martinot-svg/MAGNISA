@@ -13,7 +13,7 @@ create table if not exists public.mgmail_internal_mailboxes (
   organization_id uuid not null references public.mgmail_internal_namespaces(organization_id) on delete cascade,
   local_part text not null
     check (local_part ~ '^[a-z][a-z0-9._-]*$' and char_length(local_part) between 2 and 64),
-  owner_user_id uuid not null references auth.users(id) on delete restrict,
+  owner_user_id uuid references auth.users(id) on delete set null,
   display_name text not null default ''
     check (char_length(display_name) <= 120),
   is_active boolean not null default true,
