@@ -136,6 +136,17 @@ export default function Signup() {
             Votre lieu d'inscription reste confidentiel.</small>
         </div>
         {state?.error && <p role="alert" className="error">{state.error}</p>}
+        {Array.isArray(state?.suggestions) && state.suggestions.length > 0 &&
+          <div className="field" aria-label="Autres noms d’utilisateur disponibles">
+            <small>Choisissez une variante pour continuer :</small>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+              {state.suggestions.map((suggestion: string) =>
+                <button key={suggestion} type="button" className="button"
+                  onClick={() => { setCustomized(true); setUsername(suggestion); }}>
+                  @{suggestion}
+                </button>)}
+            </div>
+          </div>}
         <button className="button primary" disabled={pending}>{pending ? "Création…" : "Créer mon compte personnel"}</button>
       </form>
       <p className="muted"><Link href="/login">J'ai déjà un compte</Link></p>
