@@ -3,10 +3,18 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { signupEmailPolicy } from "@/lib/auth/domain";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isValidRegistrationLocality, normalizeUsername, USERNAME_PATTERN } from "@/lib/auth/magnisa-identity";
+import { createHmac } from "node:crypto";
+import { headers } from "next/headers";
 
 const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(10),
+  full_name: z.string().trim().min(2).max(120),
+  username: z.string().trim().min(3).max(30),
+  country_code: z.string().regex(/^\\d{3}$/),
+  locality_code: z.string().regex(/^\\d{3}$/),
 });
 
 export async function signUp(formData: FormData) {
@@ -15,14 +23,35 @@ export async function signUp(formData: FormData) {
     return { error: "Adresse e-mail ou mot de passe invalide. Le mot de passe doit comporter au moins 10 caractères." };
   }
 
+  const username = normalizeUsername(parsed.data.username);
+  if (!USERNAME_PATTERN.test(username)) {
+    return { error: "Le nom d’utilisateur doit avoir 3 à 30 caractères (lettres minuscules, chiffres, points ou _)." };
+  }
+  if (!isValidRegistrationLocality(parsed.data.country_code, parsed.data.locality_code)) {
+    return { error: "Sélectionne une localité d’inscription proposée par MAGNISA." };
+  }
+
   const policy = signupEmailPolicy(parsed.data.email);
   if (!policy.ok) return { error: policy.reason };
 
   const email = policy.normalized!;
   const supabase = await createClient();
+  // Validation serveur uniquement : pas d'accès direct des visiteurs à l'annuaire des comptes.
+  const admin = createAdminClient();
+  const { data: taken, error: checkError } = await admin.from("profiles")
+    .select("id").eq("username", username).maybeSingle();
+  if (checkError) return { error: "Vérification du nom d’utilisateur indisponible." };
+  if (taken) return { error: "Ce nom d’utilisateur est déjà utilisé. Choisis-en un autre." };
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password: parsed.data.password,
+    options: { data: {
+      full_name: parsed.data.full_name.trim(),
+      username,
+      country_code: parsed.data.country_code,
+      locality_code: parsed.data.locality_code,
+    } },
   });
 
   if (error) {
@@ -83,16 +112,47 @@ export async function resendEmailCode(formData: FormData) {
 }
 
 export async function signIn(formData: FormData) {
-  const parsed = z.object({ email: z.string().email(), password: z.string().min(1) }).safeParse(Object.fromEntries(formData));
+  const parsed = z.object({
+    identifier: z.string().trim().min(3).max(254),
+    password: z.string().min(1),
+  }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Identifiants invalides." };
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({
-    email: parsed.data.email.trim().toLowerCase(),
-    password: parsed.data.password,
-  });
+  const identifier = parsed.data.identifier.trim().toLowerCase();
+  let email = identifier;
+  if (!identifier.includes("@")) {
+    if (!USERNAME_PATTERN.test(identifier)) {
+      return { error: "Connexion impossible. Vérifie tes identifiants." };
+    }
+    try {
+      const admin = createAdminClient();
+      // Shared, atomic rate limit before username lookup. Never expose the email.
+      const requestHeaders = await headers();
+      const ip = requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+      const secret = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+      const fingerprint = createHmac("sha256", secret).update(ip + ":" + identifier).digest("hex");
+      const { data: allowed, error: throttleError } = await admin.rpc("consume_magnisa_username_login_attempt", {
+        p_fingerprint: fingerprint,
+      });
+      if (throttleError || allowed !== true) {
+        return { error: "Connexion temporairement limitée. Réessaie plus tard." };
+      }
+      const { data: profile, error: lookupError } = await admin.from("profiles")
+        .select("email").eq("username", identifier).maybeSingle();
+      if (lookupError || !profile) {
+        return { error: "Connexion impossible. Vérifie tes identifiants." };
+      }
+      email = profile.email;
+    } catch {
+      return { error: "Connexion impossible. Réessaie plus tard." };
+    }
+  } else if (!z.email().safeParse(identifier).success) {
+    return { error: "Connexion impossible. Vérifie tes identifiants." };
+  }
 
-  if (error) return { error: "Connexion impossible. Vérifie tes identifiants et la confirmation de l'adresse." };
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword({ email, password: parsed.data.password });
+  if (error) return { error: "Connexion impossible. Vérifie tes identifiants." };
   redirect("/dashboard");
 }
 
