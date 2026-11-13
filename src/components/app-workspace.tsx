@@ -32,6 +32,8 @@ export function AppWorkspace({ links, notifications, signOut, children }: {
   const reducedMotion = useReducedMotion();
   const [collapsed, setCollapsed] = useState(false);
   const [narrow, setNarrow] = useState(false);
+  // Keep the off-canvas navigation out of the tab order until hydration knows the viewport.
+  const [hydrated, setHydrated] = useState(false);
   const [open, setOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -41,6 +43,7 @@ export function AppWorkspace({ links, notifications, signOut, children }: {
     const media = window.matchMedia("(max-width: 1023px)");
     const refresh = () => { setNarrow(media.matches); if (!media.matches) setOpen(false); };
     refresh();
+    setHydrated(true);
     media.addEventListener("change", refresh);
     return () => media.removeEventListener("change", refresh);
   }, []);
@@ -87,7 +90,7 @@ export function AppWorkspace({ links, notifications, signOut, children }: {
           ) : null}
         </AnimatePresence>
         <aside className="mg-sidebar" id="mg-nav" ref={navigation} aria-label="Navigation des modules"
-          inert={narrow && !open}>
+          inert={!open && (narrow || !hydrated)}>
           <div className="mg-brand-row">
             <BrandMark href="/dashboard" compact />
             <button type="button" className="mg-icon-button mg-collapse-trigger"
