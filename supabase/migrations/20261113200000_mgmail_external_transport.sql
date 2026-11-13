@@ -119,8 +119,16 @@ create policy mgmail_external_messages_select
       select 1 from public.mgmail_external_identities identity
       where identity.id=mgmail_external_messages.identity_id
         and identity.organization_id=mgmail_external_messages.organization_id
-        and public.mgmail_can_external_access(
-          identity.organization_id,identity.mailbox_id,'read')
+        and (
+          public.mgmail_can_external_access(
+            identity.organization_id,identity.mailbox_id,'read')
+          or (
+            mgmail_external_messages.direction='outgoing'
+            and mgmail_external_messages.created_by=(select auth.uid())
+            and public.mgmail_can_external_access(
+              identity.organization_id,identity.mailbox_id,'send')
+          )
+        )
     )
   );
 revoke all on public.mgmail_external_messages from anon,authenticated;
