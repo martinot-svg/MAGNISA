@@ -43,6 +43,10 @@ const waitForRow = async (query, attempts = 20) => {
   throw new Error("Timed out waiting for a CRM database write.");
 };
 
+// Wait for hydration after hard navigations: SSR HTML can appear before dialog handlers bind.
+const waitForWorkspace = (page) => page.locator('.mg-app[data-mg-hydrated="true"]')
+  .waitFor({ state: "visible", timeout: 20000 });
+
 const browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
 try {
   const page = await browser.newPage();
@@ -57,6 +61,7 @@ try {
   await page.waitForURL((target) => target.pathname === "/dashboard", { timeout: 30000 });
 
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
+  await waitForWorkspace(page);
   await page.getByRole("heading", { name: "Prospects" }).waitFor();
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   await page.getByRole("link", { name: "Configurer les interventions" }).click();
@@ -69,6 +74,7 @@ try {
   await interventionDialog.locator('button[aria-label="Fermer la fenêtre"]').click();
   await interventionDialog.waitFor({ state: "hidden" });
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
+  await waitForWorkspace(page);
   await page.getByRole("heading", { name: "Prospects" }).waitFor();
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
 
@@ -135,6 +141,7 @@ try {
   if (await closeDialog.count()) await closeDialog.click();
 
   await page.goto(`${baseUrl}/prospects/${prospect.id}`, { waitUntil: "domcontentloaded" });
+  await waitForWorkspace(page);
   await page.getByRole("heading", { name: prospectName }).waitFor();
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   const contributionDescription = "Qualification CRM UI " + Date.now();
@@ -206,6 +213,7 @@ try {
   process.stdout.write("PASS CRM UI: prospect creation, intervention, beneficiary guard and stage history\n");
 
   await page.goto(`${baseUrl}/prospects`, { waitUntil: "domcontentloaded" });
+  await waitForWorkspace(page);
   await page.getByRole("heading", { name: "Prospects" }).waitFor({ state: "visible", timeout: 15000 });
   // The conversion trigger is a client-side FormDialog control; wait for
   // hydration before interacting with the freshly rendered prospects table.
@@ -227,6 +235,7 @@ try {
   assert(converted?.converted_customer_id, "Prospect conversion did not create a customer.");
 
   await page.goto(`${baseUrl}/clients/${converted.converted_customer_id}/contributions`, { waitUntil: "domcontentloaded" });
+  await waitForWorkspace(page);
   await page.getByText("Client · Journal collaboratif").waitFor();
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   await page.getByText(contributionDescription).waitFor();
