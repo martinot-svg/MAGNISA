@@ -34,6 +34,8 @@ const required = (response, label) => {
 const denied = (response, label) => {
   if (!response.error && Array.isArray(response.data) && response.data.length === 0) return;
   assert(!!response.error, `${label} : une action interdite a été autorisée.`);
+  assert(response.error.code === "42501",
+    `${label} : erreur inattendue ${response.error.code} au lieu d'un refus RLS.`);
 };
 
 const suffix = randomUUID().slice(0, 8);
