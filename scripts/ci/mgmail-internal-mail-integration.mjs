@@ -94,6 +94,19 @@ assert(recipientVisible.length === 1 && recipientVisible[0].owner_user_id === b.
   && recipientVisible[0].is_active, "Boîte destinataire inaccessible");
 assert(ownMembership.length === 1 && ownMembership[0].status === "active",
   "Adhésion du collaborateur non visible");
+const allowedSend = required(await a.userClient.rpc("mgmail_can_send_internal", {
+  p_organization_id: organizationId,
+  p_sender_mailbox_id: finance,
+  p_recipient_mailbox_id: direction,
+}), "Permission interne d'envoi");
+assert(allowedSend === true, "La permission MGMail doit autoriser l'envoi d'un collaborateur actif.");
+
+const forbiddenSend = required(await a.userClient.rpc("mgmail_can_send_internal", {
+  p_organization_id: organizationId,
+  p_sender_mailbox_id: direction,
+  p_recipient_mailbox_id: finance,
+}), "Permission d'usurpation");
+assert(forbiddenSend === false, "Un collaborateur ne peut pas utiliser l'adresse d'un collègue.");
 // Échanges internes entre deux collaborateurs de la même entreprise.
 // Le parcours applicatif utilise INSERT sans RETURNING : vérifier cette voie
 // puis récupérer le message par SELECT authentifié et RLS.
