@@ -61,7 +61,34 @@ try {
           .filter(item => item.right > limit + 2 && item.left < limit && item.width > 0)
           .sort((a,b) => b.right - a.right).slice(0,24);
       });
-      throw new Error(`Débordement horizontal document à ${width}x${height} : ${state.documentWidth} > ${state.viewportWidth} ; éléments : ${JSON.stringify(offenders)}`);
+      await page.screenshot({path:resolve(`test-results/responsive/overflow-${width}x${height}.png`),fullPage:false});
+      const diagnostics = await page.evaluate(() => {
+        const elem = document.documentElement, body = document.body;
+        const overview = { innerWidth:window.innerWidth, clientWidth:elem.clientWidth,
+          htmlScrollWidth:elem.scrollWidth, bodyScrollWidth:body.scrollWidth,
+          bodyWidth:Math.round(body.getBoundingClientRect().width),
+          shellWidth:Math.round(document.querySelector(".mg-app")?.getBoundingClientRect().width||0) };
+        const large = Array.from(document.body.querySelectorAll("*"))
+          .map(e => ({name:e.tagName+"."+String(e.className).slice(0,70),w:e.clientWidth,s:e.scrollWidth,
+            ownOverflow:getComputedStyle(e).overflowX, x:Math.round(e.getBoundingClientRect().left)}))
+          .filter(e => e.s > e.w + 4 && e.w > 0)
+          .sort((a,b) => b.s-b.w-(a.s-a.w)).slice(0,35);
+        const hidden = {};
+        for (const selector of [".mg-sidebar",".mg-topbar",".mg-content",
+          ".magnisa-dashboard",".magnisa-dashboard-toolbar",".magnisa-dashboard-kpis",
+          ".magnisa-dashboard-charts",".magnisa-chart-card","svg"]) {
+          const nodes = Array.from(document.querySelectorAll(selector));
+          const prior = nodes.map(e => e.getAttribute("style"));
+          nodes.forEach(e => e.style.setProperty("display","none","important"));
+          hidden[selector] = elem.scrollWidth;
+          nodes.forEach((e,i) => {
+            if (prior[i]===null) e.removeAttribute("style");
+            else e.setAttribute("style",prior[i]);
+          });
+        }
+        return {overview,large,hidden};
+      });
+      throw new Error(`Débordement horizontal document à ${width}x${height}: ${state.documentWidth} > ${state.viewportWidth}; rects=${JSON.stringify(offenders)}, diagnostics=${JSON.stringify(diagnostics)}`);
     }
     assert(state.navCount > 0,"La navigation fonctionnelle est absente.");
     assert(!state.kpiWrapped,"Un montant KPI peut être coupé ou éclaté en plusieurs lignes.");
