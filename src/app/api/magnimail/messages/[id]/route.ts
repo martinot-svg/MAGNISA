@@ -11,6 +11,7 @@ import {
   type GmailMessage,
 } from "@/lib/google/gmail";
 import { matchCustomerByEmails, recordMailHistory } from "@/lib/magnimail/history";
+import { mailProviderHttpError, resolveUserMailProvider } from "@/lib/magnimail/providers/resolve";
 
 function textFromHtml(value: string) {
   return value
@@ -143,27 +144,42 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const ctx = await requireOrganization();
-    const { organizationId, user } = ctx;
-    const { accessToken } = await getGmailAccess(organizationId, user.id);
-    let payload: { action?: string } | null = null;
-    try { payload = (await request.json()) as { action?: string }; } catch { payload = null; }
-    const action = payload?.action;
-
-    if (!["trash", "untrash"].includes(String(action))) {
-      return NextResponse.json({ error: "Action MagniMail invalide." }, { status: 400 });
+    if (!id || id.length > 512) {
+      return NextResponse.json({ error: "Identifiant du message invalide." }, { status: 400 });
     }
 
-    const result = await gmailJson<GmailMessage>(
-      accessToken,
-      `/messages/${encodeURIComponent(id)}/${action}`,
-      { method: "POST", body: "{}" },
-    );
+    let payload: { action?: string } | null = null;
+    try {
+      payload = (await request.json()) as { action?: string };
+    } catch {
+      payload = null;
+    }
+    const action = payload?.action;
+    if (action !== "trash" && action !== "untrash") {
+      return NextResponse.json({ error: "Action MGMail invalide." }, { status: 400 });
+    }
 
-    return NextResponse.json({ ok: true, id: result.id, labelIds: result.labelIds || [] });
+    const ctx = await requireOrganization();
+    const { provider, context } = await resolveUserMailProvider(
+      ctx,
+      request.nextUrl.searchParams.get("connectionId"),
+    );
+    const supported = action === "trash"
+      ? provider.capabilities.moveToTrash
+      : provider.capabilities.restoreFromTrash;
+    if (!supported) {
+      return NextResponse.json({ error: "Action non disponible pour ce fournisseur." }, { status: 501 });
+    }
+    await provider.moveMessage({
+      context,
+      messageId: id,
+      destination: action === "trash" ? "trash" : "inbox",
+    });
+
+    return NextResponse.json({ ok: true, id });
   } catch (error) {
-    console.error("MagniMail action failed", error);
-    const message = error instanceof Error ? error.message : "Action impossible.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("MGMail move message failed", error);
+    const detail = mailProviderHttpError(error);
+    return NextResponse.json({ error: detail.error }, { status: detail.status });
   }
 }
