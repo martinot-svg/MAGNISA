@@ -48,8 +48,21 @@ try {
         chartWidth: chart?.getBoundingClientRect().width ?? 0,
       };
     });
-    assert(state.documentWidth <= state.viewportWidth + 3,
-      `Débordement horizontal document à ${width}x${height} : ${state.documentWidth} > ${state.viewportWidth}`);
+    if (state.documentWidth > state.viewportWidth + 3) {
+      const offenders = await page.evaluate(() => {
+        const limit = document.documentElement.clientWidth;
+        return Array.from(document.body.querySelectorAll("*"))
+          .map(el => {
+            const r = el.getBoundingClientRect();
+            return { tag:el.tagName, cls:String(el.className).slice(0,90), width:Math.round(r.width),
+              left:Math.round(r.left), right:Math.round(r.right), scroll:el.scrollWidth,
+              position:getComputedStyle(el).position };
+          })
+          .filter(item => item.right > limit + 2 && item.left < limit && item.width > 0)
+          .sort((a,b) => b.right - a.right).slice(0,24);
+      });
+      throw new Error(`Débordement horizontal document à ${width}x${height} : ${state.documentWidth} > ${state.viewportWidth} ; éléments : ${JSON.stringify(offenders)}`);
+    }
     assert(state.navCount > 0,"La navigation fonctionnelle est absente.");
     assert(!state.kpiWrapped,"Un montant KPI peut être coupé ou éclaté en plusieurs lignes.");
     if(width < 1024) {
