@@ -3,7 +3,7 @@
 create table if not exists public.mgmail_agenda_events (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
-  created_by uuid not null references auth.users(id) on delete restrict,
+  created_by uuid references auth.users(id) on delete set null,
   scope text not null check (scope in ('personal','service','company')),
   department text,
   title text not null check (char_length(btrim(title)) between 2 and 180),
@@ -28,6 +28,21 @@ create table if not exists public.mgmail_agenda_events (
   ),
   constraint mgmail_agenda_reminders_count check (cardinality(reminder_days) <= 20)
 );
+-- Empêcher les délais non valides même lors d'un accès API direct.
+create or replace function public.mgmail_valid_agenda_reminders(p_days integer[])
+returns boolean language sql immutable strict
+set search_path=pg_catalog,public
+as $valid$
+  select cardinality(p_days) <= 20
+    and not exists(select 1 from unnest(p_days) as v where v < 0 or v > 365)
+    and cardinality(p_days) = (select count(distinct v) from unnest(p_days) as v);
+$valid$;
+revoke all on function public.mgmail_valid_agenda_reminders(integer[]) from public,anon;
+grant execute on function public.mgmail_valid_agenda_reminders(integer[]) to authenticated;
+alter table public.mgmail_agenda_events
+  add constraint mgmail_agenda_reminders_valid
+  check (public.mgmail_valid_agenda_reminders(reminder_days));
+
 create index if not exists mgmail_agenda_org_dates_idx
   on public.mgmail_agenda_events(organization_id,start_day,end_day)
   where status <> 'cancelled';
