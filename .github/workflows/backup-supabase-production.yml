@@ -386,12 +386,34 @@ jobs:
               WHERE version IN (
                 '20261107170000','20261109170000','20261109290000','20261109300000',
                 '20261110000000','20261110090000','20261110091500','20261110093000',
-                '20261110094000','20261110095000','20261110100000'
+                '20261110094000','20261110095000','20261110100000',
+                '20261112090000','20261112100000'
               )
-            ) <> 11 THEN
-              RAISE EXCEPTION 'The exact eleven allowlisted migration versions were not recorded';
+            ) <> 13 THEN
+              RAISE EXCEPTION 'The exact thirteen allowlisted migration versions were not recorded';
             END IF;
-          END $$;
+
+            IF NOT EXISTS (
+              SELECT 1 FROM public.pcg2005_balance_sheet_rules
+              WHERE account_code='4456' AND section='current_assets'
+                AND line_key='tax_and_public_authority_balances' AND normal_side='debit'
+            ) OR NOT EXISTS (
+              SELECT 1 FROM public.pcg2005_balance_sheet_rules
+              WHERE account_code='4457' AND section='current_liabilities'
+                AND line_key='tax_payables' AND normal_side='credit'
+            ) OR NOT EXISTS (
+              SELECT 1 FROM public.pcg2005_balance_sheet_passif_rules
+              WHERE account_code='4457' AND section='current_liabilities'
+                AND line_key='tax_payables' AND normal_side='credit'
+            ) THEN
+              RAISE EXCEPTION 'PCG 4456/4457 balance-sheet classifications are incomplete';
+            END IF;
+
+            IF EXISTS (SELECT 1 FROM public.pcg2005_balance_sheet_mapping_gaps)
+               OR EXISTS (SELECT 1 FROM public.pcg2005_balance_sheet_passif_mapping_gaps) THEN
+              RAISE EXCEPTION 'Unmapped PCG balance-sheet presentation accounts remain';
+            END IF;
+          END $;
           SQL
 
           docker run --rm --network host postgres:17 \

@@ -15,7 +15,7 @@ export type FiscalStatements = {
   passifPresentation: PassifPresentation;
   cashReconciliation: any;
   inventoryValuation: any;
-  controls: {unmapped:number;unbalancedEntries:number;unclassifiedCashFlowEntries:number;cashFlowReconciliationDifference:number;operatingCashFlowReconciliationReady:boolean;pcgPresentationReady:boolean;assetPresentationReady:boolean;passifPresentationReady:boolean;cashReconciliationReady:boolean;inventoryCountReady:boolean;isClosed:boolean;notesReady:boolean;ready:boolean};
+  controls: {unmapped:number;unbalancedEntries:number;unclassifiedCashFlowEntries:number;cashFlowReconciliationDifference:number;operatingCashFlowReconciliationReady:boolean;pcgPresentationReady:boolean;assetPresentationReady:boolean;passifPresentationReady:boolean;balanceSheetReady:boolean;cashReconciliationReady:boolean;inventoryCountReady:boolean;isClosed:boolean;notesReady:boolean;ready:boolean};
   notes: string[];
 };
 
@@ -43,6 +43,25 @@ export function isFiscalStatementReady(input: FiscalStatementReadinessInput): bo
     && input.notesReady
     && input.operatingCashFlowReconciliationReady
     && input.pcgPresentationReady
+    && input.assetPresentationReady
+    && input.passifPresentationReady;
+}
+
+export type BalanceSheetReadinessInput = {
+  isClosed: boolean;
+  unmapped: number;
+  unbalancedEntries: number;
+  balanceDifference: number;
+  assetPresentationReady: boolean;
+  passifPresentationReady: boolean;
+};
+
+/** A balance sheet is validated only when both sides reconcile and every supporting control passes. */
+export function isBalanceSheetReady(input: BalanceSheetReadinessInput): boolean {
+  return input.isClosed
+    && input.unmapped === 0
+    && input.unbalancedEntries === 0
+    && Math.abs(input.balanceDifference) < 0.01
     && input.assetPresentationReady
     && input.passifPresentationReady;
 }
@@ -858,6 +877,14 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   if(integrityError)throw new Error(integrityError.message);
   const unbalancedEntries=(integrity||[]).filter((x:any)=>x.integrity_status!=="equilibree").length;
   const assetPresentationControlsReady=assetPresentationReady&&unbalancedEntries===0;
+  const balanceSheetReady=isBalanceSheetReady({
+    isClosed:year.status==="closed",
+    unmapped,
+    unbalancedEntries,
+    balanceDifference,
+    assetPresentationReady:assetPresentationControlsReady,
+    passifPresentationReady,
+  });
   const noteLabels:Record<string,string>={
     accounting_policies:"Règles et méthodes comptables",
     valuation_methods:"Méthodes d'évaluation et estimations",
@@ -891,7 +918,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     assets,liabilities,equity,expenses,income,equityChanges,cashFlows,assetPresentation,passifPresentation,cashReconciliation,inventoryValuation,
     openingCash:round(openingCash),closingCash:round(closingCash),profit,priorYearLabel:priorYear?.label||null,
     totals:{assets:totalAssets,liabilities:totalLiabilities,equity:totalEquity,balanceDifference},
-    controls:{unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,operatingCashFlowReconciliationReady,pcgPresentationReady,assetPresentationReady:assetPresentationControlsReady,passifPresentationReady,cashReconciliationReady,inventoryCountReady,isClosed:year.status==="closed",notesReady,ready},notes};
+    controls:{unmapped,unbalancedEntries,unclassifiedCashFlowEntries,cashFlowReconciliationDifference,operatingCashFlowReconciliationReady,pcgPresentationReady,assetPresentationReady:assetPresentationControlsReady,passifPresentationReady,balanceSheetReady,cashReconciliationReady,inventoryCountReady,isClosed:year.status==="closed",notesReady,ready},notes};
 }
 
 export async function getFiscalStatementContext(yearId:string){
