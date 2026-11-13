@@ -79,12 +79,30 @@ export async function saveCompanyOnboardingBranding(args: {
       return {error:"Logo introuvable dans le stockage sécurisé."};
     }
   }
-  const payload: Record<string,string> = {};
+  const payload: Record<string,unknown> = {};
   if (colorPath) payload.logo_storage_path = colorPath;
   if (inversePath) payload.logo_inverse_storage_path = inversePath;
-  if (colorPath && args.primaryColor && COLOR.test(args.primaryColor)) payload.primary_color=args.primaryColor;
-  if (colorPath && args.secondaryColor && COLOR.test(args.secondaryColor)) payload.secondary_color=args.secondaryColor;
-  if (colorPath && args.accentColor && COLOR.test(args.accentColor)) payload.accent_color=args.accentColor;
+  const palette = {
+    primaryColor: colorPath && args.primaryColor && COLOR.test(args.primaryColor) ? args.primaryColor : null,
+    secondaryColor: colorPath && args.secondaryColor && COLOR.test(args.secondaryColor) ? args.secondaryColor : null,
+    accentColor: colorPath && args.accentColor && COLOR.test(args.accentColor) ? args.accentColor : null,
+  };
+  if (palette.primaryColor) payload.primary_color=palette.primaryColor;
+  if (palette.secondaryColor) payload.secondary_color=palette.secondaryColor;
+  if (palette.accentColor) payload.accent_color=palette.accentColor;
+  if (Object.values(palette).some(Boolean)) {
+    const {data:existing,error:readError}=await supabase.from("company_settings")
+      .select("document_theme").eq("organization_id",id).single();
+    if(readError)return {error:"Impossible de lire la charte documentaire actuelle."};
+    const current=existing?.document_theme && typeof existing.document_theme==="object" &&
+      !Array.isArray(existing.document_theme) ? existing.document_theme : {};
+    payload.document_theme={
+      ...current,
+      ...(palette.primaryColor ? {primaryColor:palette.primaryColor} : {}),
+      ...(palette.secondaryColor ? {secondaryColor:palette.secondaryColor} : {}),
+      ...(palette.accentColor ? {accentColor:palette.accentColor} : {}),
+    };
+  }
 
   const { data, error } = await supabase.from("company_settings")
     .update(payload).eq("organization_id",id).select("organization_id").single();
