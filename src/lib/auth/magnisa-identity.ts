@@ -57,6 +57,22 @@ export function generateUsername(firstName: string, lastName: string): string {
   const givenPart = given.slice(0, family ? Math.min(7, Math.max(3, 10 - Math.min(3, family.length))) : 10);
   return (givenPart + family).slice(0, 10);
 }
+// Deterministic candidate handles for a collision. Availability must always
+// be checked server-side, since generating a variant does not reserve it.
+export function usernameVariants(base: string): string[] {
+  const normalized = normalizeUsername(base).replace(/[^a-z]/g,"").slice(0,10);
+  if (normalized.length < 3) return [];
+  const root = normalized.slice(0,8);
+  const variants: string[] = [];
+  const alphabet = "abcdefghijklmnopqrstuvwxyz";
+  for (const a of alphabet) {
+    for (const b of alphabet) {
+      const value = root + a + b;
+      if (value !== normalized && NEW_USERNAME_PATTERN.test(value)) variants.push(value);
+    }
+  }
+  return variants;
+}
 export const PUBLIC_ID_PATTERN = /^[0-9]{14}$/;
 
 export function normalizeUsername(input: string): string {
