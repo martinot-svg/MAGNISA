@@ -128,3 +128,59 @@ grant select on public.mgmail_external_messages to authenticated;
 
 -- Only service_role (not browser sessions) may provision identities or record mail.
 -- A public alias like @mitalia.digital is not automatically provisioned by MAGNISA.
+
+-- Incoming public mail is notified only to users with the necessary
+-- *external* read permission. Never copy private message content to the
+-- shared organization notification feed.
+create or replace function private.mgmail_notify_external_received()
+returns trigger
+language plpgsql security definer
+set search_path=pg_catalog,public,private
+as $mgmail_public_notice$
+declare
+  v_reader uuid;
+begin
+  if new.direction<>'incoming' then return new; end if;
+  for v_reader in
+    select distinct readers.user_id
+    from public.mgmail_external_identities identity
+    join public.mgmail_internal_mailboxes box
+      on box.id=identity.mailbox_id and box.organization_id=identity.organization_id
+    cross join lateral (
+      select box.owner_user_id as user_id
+      where box.can_read and box.can_external_read
+      union all
+      select g.user_id
+      from public.mgmail_internal_mailbox_grants g
+      where g.organization_id=box.organization_id and g.mailbox_id=box.id
+        and g.can_read and g.can_external_read and g.is_active
+    ) readers
+    join public.organization_members m
+      on m.organization_id=new.organization_id and m.user_id=readers.user_id
+        and m.status='active'
+    where identity.id=new.identity_id and identity.organization_id=new.organization_id
+      and box.is_active and readers.user_id is not null
+  loop
+    insert into public.notifications(
+      organization_id,recipient_user_id,category,priority,title,body,
+      action_url,entity_type,entity_id,metadata,dedupe_key
+    ) values (
+      new.organization_id,v_reader,'service','info',
+      'Nouveau message externe dans MGMail',
+      'Un e-mail externe est arrivé dans une boîte que vous êtes autorisé à consulter.',
+      '/magnimail/externe',
+      'mgmail_external_message',new.id,
+      jsonb_build_object('channel','internet','message_id',new.id),
+      'mgmail-external-received:'||new.id::text
+    ) on conflict (organization_id,recipient_user_id,dedupe_key) do nothing;
+  end loop;
+  return new;
+end;
+$mgmail_public_notice$;
+revoke all on function private.mgmail_notify_external_received()
+  from public,anon,authenticated;
+drop trigger if exists trg_mgmail_external_received on public.mgmail_external_messages;
+create trigger trg_mgmail_external_received
+  after insert on public.mgmail_external_messages
+  for each row execute function private.mgmail_notify_external_received();
+
