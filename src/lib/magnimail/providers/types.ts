@@ -1,5 +1,5 @@
 /**
- * Contrat commun des fournisseurs de messagerie MAGNIMAIL.
+ * Contrat commun des fournisseurs de messagerie MGMail.
  *
  * Les routes HTTP et l'interface ne doivent dépendre ni de Gmail ni de Microsoft Graph.
  * Chaque adaptateur traduit les identifiants et les capacités propres au fournisseur
@@ -53,7 +53,9 @@ export type MailDraftInput = {
   textBody: string;
   htmlBody?: string;
   replyToMessageId?: string;
+  references?: string;
   threadId?: string;
+  draftId?: string;
   attachments?: Array<{
     filename: string;
     mimeType: string;
