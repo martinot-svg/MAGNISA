@@ -56,7 +56,10 @@ try {
       assert(state.buttonVisible,`Bouton de menu invisible à ${width}px`);
       assert(state.navInert,"La sidebar masquée doit être inaccessible au clavier.");
       await page.getByRole("button",{name:"Ouvrir le menu des modules"}).click();
-      await page.getByRole("link",{name:"MAGNISA",exact:true}).first().waitFor({state:"visible"});
+      await page.waitForFunction(() => {
+        const sidebar = document.querySelector(".mg-sidebar");
+        return sidebar && sidebar.getBoundingClientRect().left >= -1 && !sidebar.inert;
+      }, null, { timeout: 5000 });
       const openState = await page.locator(".mg-sidebar").evaluate(el=>({
         left:el.getBoundingClientRect().left,
         visible:el.getBoundingClientRect().right>0,
