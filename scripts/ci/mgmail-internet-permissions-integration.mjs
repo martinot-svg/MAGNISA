@@ -51,7 +51,6 @@ if(!namespaceResult.data) {
 
 const mailbox=ok(await owner.from("mgmail_internal_mailboxes").insert({
   organization_id:org,local_part:`finance-${suffix}`,owner_user_id:a.id,
-  can_read:true,can_send:true,
 }).select("id").single(),"Boîte finance").id;
 
 const identityEmail=`finance-${suffix}@example.org`;
