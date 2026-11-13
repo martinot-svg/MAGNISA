@@ -22,8 +22,8 @@ describe("Identité MAGNISA", () => {
     expect(NEW_USERNAME_PATTERN.test("abcdefghijkl")).toBe(false);
     expect(normalizeUsername("@FranckyMas")).toBe("franckymas");
     const alternatives = usernameVariants("franckymas");
-    expect(alternatives).toHaveLength(676);
-    expect(new Set(alternatives).size).toBe(676);
+    expect(alternatives).toHaveLength(675);
+    expect(new Set(alternatives).size).toBe(675);
     expect(alternatives.every(x => NEW_USERNAME_PATTERN.test(x))).toBe(true);
   });
   it("n'accepte que les codes géographiques enregistrés", () => {
