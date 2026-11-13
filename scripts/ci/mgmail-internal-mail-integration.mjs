@@ -238,6 +238,21 @@ const ownerRead=required(await owner.from("mgmail_internal_message_reads")
   .select("message_id").eq("message_id",sharedId),"Lecture administrateur");
 assert(mineRead.length===1 && ownerRead.length===0,
   "La lecture d'un collaborateur ne doit pas effacer les non-lus d'un autre.");
+denied(await b.userClient.from("mgmail_internal_mailbox_grants")
+  .update({can_send:true}).eq("organization_id",organizationId)
+  .eq("mailbox_id",ownerBox).eq("user_id",b.userId).select("mailbox_id"),
+  "Interdiction de modifier ses propres droits");
+required(await owner.from("mgmail_internal_mailbox_grants")
+  .update({can_read:false,can_send:false,is_active:false})
+  .eq("organization_id",organizationId).eq("mailbox_id",ownerBox)
+  .eq("user_id",a.userId),"Révocation du partage");
+const afterRevoke=required(await a.userClient.rpc("mgmail_has_internal_access",{
+  p_org:organizationId,p_mailbox:ownerBox,p_action:"read",
+}),"Vérification de la révocation");
+assert(afterRevoke===false,"Un accès retiré doit être refusé immédiatement.");
+const hiddenShared=required(await a.userClient.from("mgmail_internal_messages")
+  .select("id").eq("id",sharedId),"Protection des messages après révocation");
+assert(hiddenShared.length===0,"Les messages doivent disparaître après révocation.");
 
 // Une personne hors de l'organisation n'a pas accès au répertoire.
 const outsiderEmail = `mgmail-outsider-${suffix}@magnisa.test`;
