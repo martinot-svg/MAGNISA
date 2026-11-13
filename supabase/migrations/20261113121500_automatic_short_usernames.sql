@@ -74,9 +74,9 @@ end;
 $username$;
 revoke all on function private.magnisa_generate_username(text,text) from public,anon,authenticated;
 
--- Applies to every new Auth user with a full name, not only the signup screen.
--- Legacy admin-created accounts passing an explicit valid alias retain it,
--- preserving test fixtures and pre-existing integration contracts.
+-- Applies to every new Auth user with a full name, even direct API requests.
+-- Never accept a username from Auth metadata: signups must not bypass the
+-- ten-letter allocation policy. Existing usernames are not overwritten.
 create or replace function private.magnisa_issue_profile_id()
 returns trigger language plpgsql security definer set search_path=''
 as $username$
@@ -90,7 +90,7 @@ begin
   select coalesce(raw_user_meta_data,'{}'::jsonb) into v_meta
     from auth.users where id=new.id;
   v_name := pg_catalog.btrim(coalesce(v_meta->>'full_name',''));
-  v_username := pg_catalog.lower(pg_catalog.btrim(coalesce(v_meta->>'username','')));
+  -- Client-provided usernames in Auth metadata are untrusted and ignored.
 
   for v_attempt in 1..8 loop
     v_id := private.magnisa_random_public_id();
@@ -104,10 +104,8 @@ begin
   end loop;
 
   if pg_catalog.length(v_name) between 2 and 120 then
-    if v_username !~ '^[a-z][a-z0-9._]{2,29}$' then
-      v_username := private.magnisa_generate_username(
-        coalesce(v_meta->>'given_names',v_name), v_meta->>'family_name');
-    end if;
+    v_username := private.magnisa_generate_username(
+      coalesce(v_meta->>'given_names',v_name), v_meta->>'family_name');
     update public.profiles
       set full_name=v_name, username=v_username, username_changed_at=now()
       where id=new.id;

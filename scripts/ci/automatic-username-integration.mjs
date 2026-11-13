@@ -30,11 +30,12 @@ try {
   verify(accented.username==="elodierabe","Accent normalization mismatch");
   const long=await create("Alexandrie","Rakoto");
   verify(long.username==="alexandrir","Family name lost");
-  const legacy=await create("Utilisateur","Historique","legacy.name");
-  verify(legacy.username==="legacy.name","Legacy username changed");
-  for(const item of [first,homonym,accented,long,legacy])
+  const spoofed=await create("Utilisateur","Historique","legacy.name");
+  verify(spoofed.username!=="legacy.name" && /^[a-z]{2,10}$/.test(spoofed.username),
+    "Client-supplied Auth metadata must not bypass auto-generation");
+  for(const item of [first,homonym,accented,long,spoofed])
     verify(/^[0-9]{14}$/.test(item.public_id),"Public ID changed");
-  console.log("PASS automatically generated usernames, homonyms, accents, legacy compatibility");
+  console.log("PASS automatically generated usernames, homonyms, accents, and metadata override protection");
 } finally {
   for(const id of ids.reverse())await admin.auth.admin.deleteUser(id);
 }
