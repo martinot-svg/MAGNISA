@@ -1,16 +1,22 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/current-org";
-import { REGISTRATION_COUNTRY_CODE, REGISTRATION_COUNTRY_NAME, REGISTRATION_LOCALITIES, USERNAME_PATTERN, normalizeUsername } from "@/lib/auth/magnisa-identity";
+import { REGISTRATION_COUNTRY_CODE, REGISTRATION_COUNTRY_NAME, REGISTRATION_LOCALITIES, GENERATED_USERNAME_PATTERN, normalizeUsername } from "@/lib/auth/magnisa-identity";
 import { FormDialog } from "@/components/form-dialog";
 
 async function saveProfile(formData: FormData) {
   "use server";
-  const { supabase } = await requireUser();
+  const { supabase, user } = await requireUser();
   const fullName = String(formData.get("full_name") || "").trim();
   const username = normalizeUsername(String(formData.get("username") || ""));
   const locality = String(formData.get("locality_code") || "");
-  if (fullName.length < 2 || fullName.length > 120 || !USERNAME_PATTERN.test(username)) {
-    throw new Error("Nom complet ou nom d’utilisateur invalide.");
+  if (fullName.length < 2 || fullName.length > 120) {
+    throw new Error("Le prénom et le nom sont requis (120 caractères maximum).");
+  }
+  const { data: existingProfile, error: profileError } = await supabase.from("profiles")
+    .select("username").eq("id", user.id).single();
+  if (profileError) throw new Error("Impossible de vérifier le nom d’utilisateur actuel.");
+  if (username && username !== existingProfile.username && !GENERATED_USERNAME_PATTERN.test(username)) {
+    throw new Error("Le nom d’utilisateur doit contenir entre 2 et 10 lettres, sans chiffres ni signes.");
   }
   if (locality && !REGISTRATION_LOCALITIES.some(item => item.code === locality)) {
     throw new Error("Localité d'inscription invalide.");
@@ -61,7 +67,7 @@ export default async function MyMagnisaProfile() {
         </section>
         <section className="card">
           <h2>Mes informations</h2>
-          <p className="muted">Le nom d'utilisateur peut changer une fois tous les 30 jours. Le lieu de l'inscription est enregistré une seule fois dans l'espace confidentiel.</p>
+          <p className="muted">Le nom d'utilisateur est généré automatiquement à partir des prénoms et du nom, sur 10 lettres maximum. Une modification ultérieure reste possible tous les 30 jours. Le lieu d'inscription est confidentiel et permanent.</p>
           <p>{registered ? "Lieu d'inscription définitivement enregistré." : "Lieu d'inscription à renseigner pour finaliser ton identité."}</p>
           <FormDialog title="Modifier mon profil" buttonLabel="Modifier mon profil">
             <form action={saveProfile} className="form">
@@ -69,10 +75,13 @@ export default async function MyMagnisaProfile() {
                 <input id="profile-full-name" name="full_name" required minLength={2} maxLength={120}
                   autoComplete="name" defaultValue={profile.full_name || ""} />
               </div>
-              <div className="field"><label htmlFor="profile-username">Nom d’utilisateur</label>
-                <input id="profile-username" name="username" required minLength={3} maxLength={30}
-                  autoComplete="username" pattern="[A-Za-z][A-Za-z0-9._]{2,29}"
-                  defaultValue={profile.username || ""} />
+              <div className="field"><label htmlFor="profile-username">Nom d’utilisateur (10 lettres maximum)</label>
+                <input id="profile-username" name="username" minLength={2}
+                  maxLength={profile.username && !GENERATED_USERNAME_PATTERN.test(profile.username) ? 30 : 10}
+                  autoComplete="username"
+                  pattern={profile.username && !GENERATED_USERNAME_PATTERN.test(profile.username) ? "[A-Za-z][A-Za-z0-9._]{1,29}" : "[A-Za-z]{2,10}"}
+                  defaultValue={profile.username || ""} placeholder="Généré automatiquement" />
+                <small>Pour les comptes sans nom d’utilisateur, MAGNISA le génère dès l’enregistrement du profil. Les anciens noms restent valables.</small>
               </div>
               {!registered && (
                 <>
