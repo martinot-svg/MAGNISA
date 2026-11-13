@@ -10,7 +10,7 @@ import { motionTiming, motionVariants } from "@/lib/motion-config";
 export type WorkspaceLink = { key: string; label: string; href: string; group: string };
 function iconFor(key: string) {
   if (key === "dashboard") return LayoutDashboard;
-  if (["clients","prospects","users","payroll","commissions"].includes(key)) return Users;
+  if (["clients","prospects","users","payroll","commissions","profile"].includes(key)) return Users;
   if (["invoices","quotes","reports","financial_statements","document_templates"].includes(key)) return FileText;
   if (["suppliers","orders","procurement","customer_mandates"].includes(key)) return ShoppingCart;
   if (["inventory","stock_operations","services"].includes(key)) return Package;
