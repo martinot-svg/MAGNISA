@@ -43,6 +43,42 @@ try {
   if(signed.error)throw signed.error;
   const reg = await visitor.rpc("has_magnisa_registration");
   assert(!reg.error && reg.data===true,"Registration origin should be recorded.");
+  // Five-step company onboarding must create the business and its fiscal profile atomically.
+  const companyPayload = {
+    legalName:"Entreprise test Morombe",tradeName:"",slogan:"",
+    sectorCode:"G",primaryActivity:"Épicerie",secondaryActivities:["Livraison et coursier"],
+    legalForm:"EI",registrationStatus:"pending",nif:"",stat:"",rcs:"",
+    country:"MG",regionCode:"908",localityName:"Ambahikily",localityRef:"",
+    address:"District de Morombe",phone:"",email:"",currency:"MGA",
+    taxRegime:"IS",vatStatus:"A_VERIFIER",fiscalStart:"2026-01-01",
+    fiscalEnd:"2026-12-31",hasExistingAccounts:false,fiscalProfileConfirmed:false,
+  };
+  const createdCompany = await visitor.rpc("magnisa_create_onboarded_company",{p_payload:companyPayload});
+  if(createdCompany.error || !createdCompany.data){
+    throw createdCompany.error || new Error("Cannot create company through onboarding RPC");
+  }
+  const createdCompanyId = createdCompany.data;
+  const [newCompany,settings,membership] = await Promise.all([
+    admin.from("organizations").select("name,currency").eq("id",createdCompanyId).single(),
+    admin.from("company_settings").select("activity_sector,income_tax_regime,vat_status,fiscal_profile_confirmed,onboarding_profile").eq("organization_id",createdCompanyId).single(),
+    admin.from("organization_members").select("role,status").eq("organization_id",createdCompanyId).eq("user_id",userId).single(),
+  ]);
+  assert(!newCompany.error && newCompany.data.name==="Entreprise test Morombe","Company creation must register its declared name.");
+  assert(!settings.error && settings.data.activity_sector==="G","Company's primary sector must be saved.");
+  assert(settings.data.income_tax_regime==="IS" && settings.data.vat_status==="A_VERIFIER" && settings.data.fiscal_profile_confirmed===false,
+    "Tax regime and VAT are declared, not pre-confirmed.");
+  assert(settings.data.onboarding_profile.localityName==="Ambahikily" &&
+    settings.data.onboarding_profile.fiscalStart==="2026-01-01",
+    "Exact company locality and initial fiscal dates must be retained.");
+  assert(!membership.error && membership.data.role==="owner" && membership.data.status==="active",
+    "The creator must be the company owner.");
+  const anonymousCompany=await createClient(url,anonKey,{auth:{persistSession:false,autoRefreshToken:false}})
+    .rpc("magnisa_create_onboarded_company",{p_payload:companyPayload});
+  assert(!!anonymousCompany.error,"Anonymous users must not create companies.");
+  console.log("OK company onboarding RPC, RLS, fiscal configuration and ownership");
+  const deletedCompany=await admin.from("organizations").delete().eq("id",createdCompanyId);
+  if(deletedCompany.error)throw deletedCompany.error;
+
   const denied = await visitor.rpc("magnisa_platform_origin_directory");
   assert(!!denied.error,"An ordinary authenticated user must not read the private origin directory.");
   const profiles = await visitor.from("profiles").select("public_id,username").eq("id",userId).single();
