@@ -121,3 +121,12 @@ html body .mg-app.mg-collapsed .mg-nav-link{justify-content:center;padding:10px}
 .mg-app .btn:active:not(:disabled){box-shadow:var(--mg-inset);transform:translateY(1px)}
 .mg-app :is(.tabs,.pagination,.breadcrumbs){min-width:0;max-width:100%}
 .mg-app :is(.tabs,.pagination){overflow-x:auto;overscroll-behavior-x:contain}
+
+/* Corrige le débordement SVG réel constaté en Playwright à 360px.
+   Les axes et barres s'adaptent, sans clipper toute la page ou les tableaux. */
+@media(max-width:620px){
+ html body .mg-app .magnisa-dashboard .magnisa-chart-card svg{
+   min-width:0!important;width:100%!important;max-width:100%!important;height:auto
+ }
+ .mg-app .magnisa-dashboard .magnisa-chart-card>div{min-width:0;max-width:100%}
+}
