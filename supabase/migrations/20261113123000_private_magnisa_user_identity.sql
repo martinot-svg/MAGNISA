@@ -205,7 +205,7 @@ create or replace function public.register_magnisa_signup_origin(
   p_user uuid, p_country text, p_locality text
 ) returns void language plpgsql security definer set search_path='' as $magnisa$
 begin
-  if current_setting('request.jwt.claim.role',true) is distinct from 'service_role' then
+  if coalesce((select auth.jwt())->>'role','') <> 'service_role' then
     raise exception 'Service interne uniquement' using errcode='42501';
   end if;
   if not exists (select 1 from public.profiles where id=p_user) then
@@ -273,7 +273,7 @@ create or replace function public.consume_magnisa_username_login_attempt(p_finge
 returns boolean language plpgsql security definer set search_path = '' as $magnisa$
 declare v_attempts integer;
 begin
-  if current_setting('request.jwt.claim.role',true) is distinct from 'service_role' then
+  if coalesce((select auth.jwt())->>'role','') <> 'service_role' then
     return false;
   end if;
   if p_fingerprint !~ '^[a-f0-9]{64}$' then return false; end if;
