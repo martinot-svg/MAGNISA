@@ -1,4 +1,9 @@
-type LogoSource = { logo_url?: string | null; logo_storage_path?: string | null };
+type LogoSource = {
+  logo_url?: string | null;
+  logo_storage_path?: string | null;
+  logo_inverse_storage_path?: string | null;
+  document_theme?: unknown;
+};
 
 const PRIVATE_BRANDING_BUCKET = "organization-branding";
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
@@ -22,6 +27,19 @@ function pathFromBrandingUrl(value: string): string | null {
   return null;
 }
 
+function usesDarkBackground(sources: LogoSource[]): boolean {
+  return sources.some(source => {
+    const theme = source.document_theme;
+    if(!theme || typeof theme!=="object" || Array.isArray(theme))return false;
+    const value=(theme as Record<string,unknown>).backgroundColor;
+    if(typeof value!=="string" || !/^#[a-fA-F0-9]{6}$/.test(value))return false;
+    const red=parseInt(value.slice(1,3),16);
+    const green=parseInt(value.slice(3,5),16);
+    const blue=parseInt(value.slice(5,7),16);
+    return (red*.2126 + green*.7152 + blue*.0722) < 120;
+  });
+}
+
 /**
  * Resolve a company logo stored in the private branding bucket.
  * Legacy public URLs are parsed back into a Storage object path and re-signed.
@@ -31,9 +49,11 @@ export async function resolveOrganizationLogoUrl(
   supabase: any,
   ...sources: LogoSource[]
 ): Promise<string | null> {
+  const useInverse=usesDarkBackground(sources);
   for (const source of sources) {
     const legacyUrl = source.logo_url?.trim() || "";
-    const path = source.logo_storage_path?.trim() || pathFromBrandingUrl(legacyUrl);
+    const path = (useInverse ? source.logo_inverse_storage_path?.trim() : "") ||
+      source.logo_storage_path?.trim() || pathFromBrandingUrl(legacyUrl);
 
     if (path) {
       const { data, error } = await supabase.storage
