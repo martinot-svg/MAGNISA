@@ -3,6 +3,7 @@ import {Inter} from "next/font/google";
 import "./globals.css";
 import "./magnisa-ds.css";
 import "./magnisa-ds-tables.css";
+import "./magnisa-neumorphism.css";
 import { FormValidityGuard } from "@/components/form-validity-guard";
 import { MotionReveal } from "@/components/motion-reveal";
 
