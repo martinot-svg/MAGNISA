@@ -1,0 +1,60 @@
+/* MAGNISA — complément responsive des tableaux.
+   Correction additive de la règle de grille fixe introduite par #183.
+   Aucun changement de palette, de composants, de données ou de logique. */
+
+/* Les tableaux conservent leur largeur disponible, mais ne doivent pas
+   comprimer une valeur numérique en plusieurs lignes. */
+html body .appShell .tableWrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+html body .appShell .tableWrap > table,
+html body .appShell table {
+  table-layout: auto;
+  min-width: 100%;
+  max-width: none;
+}
+html body .appShell table th,
+html body .appShell table td {
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: manual;
+}
+html body .appShell table th {
+  font-size: 14px;
+  white-space: nowrap;
+}
+html body .appShell table td {
+  font-size: 15px;
+}
+html body .appShell table :is(th.right, td.right, .right, .amount, .money, .numeric, [data-type="currency"], [data-type="number"]) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  font-variant-numeric: tabular-nums;
+}
+html body .appShell .tableWrap :is(.right, .amount, .money, .numeric, [data-type="currency"], [data-type="number"]) :is(span, strong, code) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+/* Ne pas casser les libellés de commandes : défilement du tableau en secours. */
+html body .appShell .tableWrap .actions :is(a, button, .button) {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+@media (max-width: 767px) {
+  html body .appShell .tableWrap {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  html body .appShell table th {
+    font-size: 14px;
+    padding: 9px 8px;
+  }
+  html body .appShell table td {
+    font-size: 14px;
+    padding: 9px 8px;
+  }
+}
