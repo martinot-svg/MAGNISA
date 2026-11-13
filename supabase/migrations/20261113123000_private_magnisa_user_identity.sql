@@ -29,7 +29,7 @@ create table if not exists private.magnisa_identity_mapping (
 );
 alter table private.magnisa_location_codes enable row level security;
 alter table private.magnisa_identity_mapping enable row level security;
-revoke all on all tables in schema private from public, anon, authenticated;
+revoke all on private.magnisa_location_codes, private.magnisa_identity_mapping from public, anon, authenticated;
 revoke all on sequence private.magnisa_registration_number_seq from public, anon, authenticated;
 
 alter table public.profiles
