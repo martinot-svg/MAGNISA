@@ -30,7 +30,7 @@ export default function Signup() {
     const timeout = setTimeout(() => {
       const q = new URLSearchParams({ region, q: locality.trim() });
       fetch(`/api/localities/suggest?${q}`, { signal: controller.signal })
-        .then(response => response.ok ? response.json() : { results: [] })
+        .then(response => response.ok ? response.json() : { results: [] as LocalitySuggestion[] })
         .then(payload => { if (!controller.signal.aborted) setSuggestions(payload.results || []); })
         .catch(() => { if (!controller.signal.aborted) setSuggestions([]); })
         .finally(() => { if (!controller.signal.aborted) setSearching(false); });
