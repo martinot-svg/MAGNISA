@@ -16,6 +16,24 @@ export const REGISTRATION_LOCALITIES = [
 export const USERNAME_PATTERN = /^[a-z][a-z0-9._]{2,29}$/;
 export const PUBLIC_ID_PATTERN = /^[0-9]{14}$/;
 
+/** New auto-generated usernames: ASCII letters only, two to ten letters.
+ * Legacy usernames remain valid for sign-in to avoid breaking existing accounts. */
+export const GENERATED_USERNAME_PATTERN = /^[a-z]{2,10}$/;
+
+/** Display preview only. PostgreSQL assigns and reserves the final unique value. */
+export function usernameStemFromNames(givenNames: string, familyName: string): string {
+  return `${givenNames} ${familyName}`
+    .toLowerCase()
+    .replace(/œ/g, "oe")
+    .replace(/æ/g, "ae")
+    .replace(/ß/g, "ss")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z]/g, "")
+    .slice(0, 10);
+}
+
+
 export function normalizeUsername(input: string): string {
   return input.trim().toLowerCase();
 }
