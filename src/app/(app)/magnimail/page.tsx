@@ -23,6 +23,7 @@ export default async function MGMailPage({
   const query = await searchParams;
   const { supabase, organizationId, user, role } = await requireOrganization();
   const canViewBillingPreavis = await hasPermission({ supabase, organizationId, role }, "sales.view");
+  const canConfigureMail = role === "owner" || role === "admin";
   const { data: gmail } = await supabase
     .from("email_connections")
     .select("email,status,scopes")
@@ -55,7 +56,7 @@ export default async function MGMailPage({
             Les adresses internes, domaines personnalisés et autres fournisseurs
             seront proposés après leur mise en service et leurs vérifications.
           </p>
-          <a className="button" href="/parametres">Consulter la configuration e-mail</a>
+          {canConfigureMail && <a className="button" href="/parametres">Consulter la configuration e-mail</a>}
           {canViewBillingPreavis && <a className="button" href="/magnimail/preavis">Préavis de facturation</a>}
         </div>
         <div className="grid2">
@@ -65,7 +66,11 @@ export default async function MGMailPage({
               Vous pouvez connecter Gmail si vous souhaitez utiliser une boîte
               existante. Ce choix n'est pas obligatoire pour votre compte MAGNISA.
             </p>
-            <a className="button" href="/api/integrations/google/start">Connecter Gmail (facultatif)</a>
+            {canConfigureMail ? (
+              <a className="button" href="/api/integrations/google/start">Connecter Gmail (facultatif)</a>
+            ) : (
+              <p className="muted">Seul un administrateur peut connecter une boîte e-mail.</p>
+            )}
           </div>
           <div className="card">
             <h2>Autres messageries professionnelles</h2>
