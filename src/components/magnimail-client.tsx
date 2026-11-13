@@ -106,6 +106,7 @@ const emptyCompose = {
 
 export function MGMailClient({
   connectedEmail,
+  canViewBillingPreavis = false,
   initialTo = "",
   initialCustomerId = "",
   initialSubject = "",
@@ -117,6 +118,7 @@ export function MGMailClient({
   initialPaymentId = "",
 }: {
   connectedEmail: string;
+  canViewBillingPreavis?: boolean;
   initialTo?: string;
   initialCustomerId?: string;
   initialSubject?: string;
@@ -447,6 +449,11 @@ export function MGMailClient({
             <a className="button ghost" href="/parametres" style={{ width: "100%" }}>
               Comptes e-mail
             </a>
+            {canViewBillingPreavis && (
+              <a className="button ghost" href="/magnimail/preavis" style={{ width: "100%" }}>
+                Préavis de facturation
+              </a>
+            )}
           </div>
         </aside>
 
