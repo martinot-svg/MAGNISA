@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import type { MailProviderId } from "@/lib/magnimail/providers/types";
 
 export type MailHistoryInput = {
   organizationId: string;
   connectionId?: string | null;
-  provider?: "google" | "microsoft";
+  provider?: MailProviderId;
   providerMessageId: string;
   providerThreadId?: string | null;
   direction: "incoming" | "outgoing" | "draft";
