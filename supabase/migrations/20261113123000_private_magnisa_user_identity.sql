@@ -178,7 +178,9 @@ begin
   update public.profiles set full_name=v_name,username=v_username,
     username_changed_at=case when v_existing is distinct from v_username then now() else v_changed end,
     updated_at=now() where id=v_user;
-  perform private.magnisa_register_location(v_user,p_country,p_locality);
+  if not exists (select 1 from private.magnisa_identity_mapping where user_id=v_user) then
+    perform private.magnisa_register_location(v_user,p_country,p_locality);
+  end if;
 exception when unique_violation then
   raise exception 'Ce nom utilisateur est déjà utilisé' using errcode='23505';
 end;
@@ -188,6 +190,50 @@ grant execute on function public.claim_magnisa_identity(text,text,text,text) to 
 revoke all on function private.magnisa_random_public_id() from public,anon,authenticated;
 revoke all on function private.magnisa_register_location(uuid,text,text) from public,anon,authenticated;
 revoke all on function private.magnisa_issue_profile_id() from public,anon,authenticated;
+
+-- Only the existence of an immutable registration may be seen by that user.
+create or replace function public.has_magnisa_registration()
+returns boolean language sql stable security definer set search_path = '' as $
+  select (select auth.uid()) is not null and exists (
+    select 1 from private.magnisa_identity_mapping where user_id=(select auth.uid())
+  );
+$;
+revoke all on function public.has_magnisa_registration() from public,anon;
+grant execute on function public.has_magnisa_registration() to authenticated;
+
+-- No organization owner is implicitly a platform owner. The platform allowlist
+-- is intentionally empty until the real platform owner is securely identified.
+create table if not exists private.magnisa_platform_identity_owners(
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  granted_at timestamptz not null default now()
+);
+alter table private.magnisa_platform_identity_owners enable row level security;
+revoke all on private.magnisa_platform_identity_owners from public,anon,authenticated;
+
+-- Server-side directory: only an explicitly enrolled platform owner with MFA
+-- may retrieve origin mapping; company owners/admins have NO inherited right.
+create or replace function public.magnisa_platform_origin_directory()
+returns table (user_public_id text, username text, origin_country text,
+               origin_locality text, registration_number bigint, registered_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $
+begin
+  if (select auth.uid()) is null or not exists(
+    select 1 from private.magnisa_platform_identity_owners where user_id=(select auth.uid())
+  ) then
+    raise exception 'Accès réservé au propriétaire de la plateforme' using errcode='42501';
+  end if;
+  if coalesce((select auth.jwt())->>'aal','') <> 'aal2' then
+    raise exception 'Authentification multifacteur requise' using errcode='42501';
+  end if;
+  return query select p.public_id,p.username,m.country_code,m.locality_code,
+       m.registration_number,m.registered_at
+    from private.magnisa_identity_mapping m
+    join public.profiles p on p.id=m.user_id
+    order by m.registration_number;
+end;
+$;
+revoke all on function public.magnisa_platform_origin_directory() from public,anon;
+grant execute on function public.magnisa_platform_origin_directory() to authenticated;
 
 -- Login throttling: called by service_role only, keyed with server HMAC (no raw IP).
 create table if not exists private.magnisa_username_login_limits(
