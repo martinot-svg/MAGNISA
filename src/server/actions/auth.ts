@@ -4,15 +4,17 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { signupEmailPolicy } from "@/lib/auth/domain";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isValidRegistrationLocality, normalizeUsername, USERNAME_PATTERN } from "@/lib/auth/magnisa-identity";
+import { isValidRegistrationLocality, normalizeUsername, USERNAME_PATTERN, NEW_USERNAME_PATTERN } from "@/lib/auth/magnisa-identity";
 import { createHmac } from "node:crypto";
 import { headers } from "next/headers";
 
 const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(10),
-  full_name: z.string().trim().min(2).max(120),
-  username: z.string().trim().min(3).max(30),
+  first_name: z.string().trim().min(1).max(60),
+  last_name: z.string().trim().min(1).max(60),
+  username: z.string().trim().min(3).max(11),
+  confirm_password: z.string().min(10),
   country_code: z.string().regex(/^[0-9]{3}$/),
   locality_code: z.string().regex(/^[0-9]{3}$/),
 });
@@ -24,8 +26,10 @@ export async function signUp(formData: FormData) {
   }
 
   const username = normalizeUsername(parsed.data.username);
-  if (!USERNAME_PATTERN.test(username)) {
-    return { error: "Le nom d’utilisateur doit avoir 3 à 30 caractères (lettres minuscules, chiffres, points ou _)." };
+  const fullName = `${parsed.data.first_name} ${parsed.data.last_name}`.trim();
+  if (parsed.data.password !== parsed.data.confirm_password) return { error: "Les mots de passe ne correspondent pas." };
+  if (!NEW_USERNAME_PATTERN.test(username)) {
+    return { error: "Le nom d’utilisateur doit comporter de 3 à 10 lettres minuscules après @." };
   }
   if (!isValidRegistrationLocality(parsed.data.country_code, parsed.data.locality_code)) {
     return { error: "Sélectionne une localité d’inscription proposée par MAGNISA." };
@@ -47,7 +51,7 @@ export async function signUp(formData: FormData) {
     email,
     password: parsed.data.password,
     options: { data: {
-      full_name: parsed.data.full_name.trim(),
+      full_name: fullName,
       username,
     } },
   });
@@ -132,9 +136,11 @@ export async function signIn(formData: FormData) {
   if (!parsed.success) return { error: "Identifiants invalides." };
 
   const identifier = parsed.data.identifier.trim().toLowerCase();
+  const isEmail = identifier.includes("@") && !identifier.startsWith("@");
+  const handle = normalizeUsername(identifier);
   let email = identifier;
-  if (!identifier.includes("@")) {
-    if (!USERNAME_PATTERN.test(identifier)) {
+  if (!isEmail) {
+    if (!USERNAME_PATTERN.test(handle)) {
       return { error: "Connexion impossible. Vérifie tes identifiants." };
     }
     try {
@@ -151,7 +157,7 @@ export async function signIn(formData: FormData) {
         return { error: "Connexion temporairement limitée. Réessaie plus tard." };
       }
       const { data: profile, error: lookupError } = await admin.from("profiles")
-        .select("email").eq("username", identifier).maybeSingle();
+        .select("email").eq("username", handle).maybeSingle();
       if (lookupError || !profile) {
         return { error: "Connexion impossible. Vérifie tes identifiants." };
       }
