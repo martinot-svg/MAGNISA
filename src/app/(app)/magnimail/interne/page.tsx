@@ -1,0 +1,291 @@
+import Link from "next/link";
+import { revalidatePath } from "next/cache";
+import { requireOrganization } from "@/lib/current-org";
+import { assertPermission, hasPermission } from "@/lib/permissions";
+import { FormDialog } from "@/components/form-dialog";
+
+const PATH = "/magnimail/interne";
+
+async function createNamespace(form: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "users.manage");
+  const slug = String(form.get("slug") || "").trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 2 || slug.length > 45) {
+    throw new Error("Identifiant d'entreprise invalide (lettres, chiffres et tirets).");
+  }
+  const { error } = await ctx.supabase.from("mgmail_internal_namespaces").insert({
+    organization_id: ctx.organizationId,
+    slug,
+  });
+  if (error) throw new Error("Identifiant déjà utilisé ou configuration impossible.");
+  revalidatePath(PATH);
+}
+
+async function createMailbox(form: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "users.manage");
+  const localPart = String(form.get("localPart") || "").trim().toLowerCase();
+  const ownerId = String(form.get("ownerId") || "").trim();
+  const displayName = String(form.get("displayName") || "").trim().slice(0, 120);
+  if (!/^[a-z][a-z0-9._-]{1,63}$/.test(localPart)) {
+    throw new Error("Nom d'adresse invalide (2 à 64 caractères).");
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(ownerId)) {
+    throw new Error("Collaborateur invalide.");
+  }
+  const { data: member, error: memberError } = await ctx.supabase
+    .from("organization_members")
+    .select("user_id")
+    .eq("organization_id", ctx.organizationId)
+    .eq("user_id", ownerId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (memberError || !member) throw new Error("Le destinataire doit être un collaborateur actif.");
+  const { error } = await ctx.supabase.from("mgmail_internal_mailboxes").insert({
+    organization_id: ctx.organizationId,
+    local_part: localPart,
+    owner_user_id: ownerId,
+    display_name: displayName,
+  });
+  if (error) throw new Error("Cette adresse existe déjà ou ne peut pas être attribuée.");
+  revalidatePath(PATH);
+}
+
+async function setMailboxPermissions(form: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "users.manage");
+  const id = String(form.get("mailboxId") || "");
+  if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id)) throw new Error("Boîte invalide.");
+  const { error } = await ctx.supabase
+    .from("mgmail_internal_mailboxes")
+    .update({
+      can_read: form.get("canRead") === "on",
+      can_send: form.get("canSend") === "on",
+      is_active: form.get("isActive") === "on",
+    })
+    .eq("id", id)
+    .eq("organization_id", ctx.organizationId);
+  if (error) throw new Error("Impossible de modifier les droits de cette boîte.");
+  revalidatePath(PATH);
+}
+
+async function sendInternal(form: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  const senderId = String(form.get("senderId") || "");
+  const recipientId = String(form.get("recipientId") || "");
+  const subject = String(form.get("subject") || "").trim();
+  const body = String(form.get("body") || "").trim();
+  if (!subject || subject.length > 180 || !body || body.length > 50000) {
+    throw new Error("Objet ou contenu du message invalide.");
+  }
+
+  const { data: sender } = await ctx.supabase
+    .from("mgmail_internal_mailboxes")
+    .select("id")
+    .eq("organization_id", ctx.organizationId)
+    .eq("id", senderId)
+    .eq("owner_user_id", ctx.user.id)
+    .eq("is_active", true)
+    .eq("can_send", true)
+    .maybeSingle();
+  const { data: recipient } = await ctx.supabase
+    .from("mgmail_internal_mailboxes")
+    .select("id")
+    .eq("organization_id", ctx.organizationId)
+    .eq("id", recipientId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (!sender || !recipient) throw new Error("Vous n'êtes pas autorisé à envoyer depuis cette boîte.");
+
+  const { error } = await ctx.supabase.from("mgmail_internal_messages").insert({
+    organization_id: ctx.organizationId,
+    sender_mailbox_id: sender.id,
+    recipient_mailbox_id: recipient.id,
+    subject,
+    body_text: body,
+  });
+  if (error) throw new Error("Envoi interne impossible : permissions ou boîte indisponible.");
+  revalidatePath(PATH);
+}
+
+export default async function MGMailInternalPage() {
+  const ctx = await requireOrganization();
+  const canManage = await hasPermission(ctx, "users.manage");
+  const [namespaceResult, mailboxesResult, messagesResult] = await Promise.all([
+    ctx.supabase.from("mgmail_internal_namespaces")
+      .select("slug").eq("organization_id", ctx.organizationId).maybeSingle(),
+    ctx.supabase.from("mgmail_internal_mailboxes")
+      .select("id,local_part,owner_user_id,display_name,is_active,can_read,can_send")
+      .eq("organization_id", ctx.organizationId).order("local_part"),
+    ctx.supabase.from("mgmail_internal_messages")
+      .select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,created_at")
+      .eq("organization_id", ctx.organizationId)
+      .order("created_at", { ascending: false }).limit(80),
+  ]);
+  const namespace = namespaceResult.data?.slug || "";
+  const mailboxes = mailboxesResult.data || [];
+  const messages = messagesResult.data || [];
+  const mine = mailboxes.filter((mailbox) =>
+    mailbox.owner_user_id === ctx.user.id && mailbox.is_active && mailbox.can_send
+  );
+  const directory = canManage
+    ? await ctx.supabase.rpc("organization_member_directory", { p_org: ctx.organizationId })
+    : null;
+  const members = (directory?.data || []).filter((member: { status: string }) => member.status === "active");
+  const mailboxById = new Map(mailboxes.map((mailbox) => [mailbox.id, mailbox]));
+  const address = (id: string) => {
+    const mailbox = mailboxById.get(id);
+    return mailbox ? `${mailbox.local_part}@${namespace}.mgmail` : "Boîte inconnue";
+  };
+
+  return (
+    <>
+      <div className="pageHead">
+        <div>
+          <p className="eyebrow">MGMail · Communication interne</p>
+          <h1>Messagerie des collaborateurs</h1>
+          <p>Échanges privés entre collaborateurs de cette entreprise, exclusivement dans MAGNISA.</p>
+        </div>
+        <Link className="button" href="/magnimail">Retour à MGMail</Link>
+      </div>
+      <div className="card section">
+        <strong>Canal interne MAGNISA uniquement.</strong>
+        <p className="muted">
+          Les identifiants en .mgmail ne sont pas des adresses Internet publiques :
+          ils ne peuvent pas encore écrire directement à Gmail, Proton ou Outlook.
+          L'envoi Internet nécessitera une boîte externe légitime configurée.
+        </p>
+      </div>
+      {namespaceResult.error || mailboxesResult.error || messagesResult.error ? (
+        <div className="card section" role="alert">
+          Impossible de charger les boîtes MGMail. La migration interne et les permissions
+          doivent être validées avant utilisation.
+        </div>
+      ) : !namespace ? (
+        <div className="card section">
+          <h2>Configurer l'espace de messagerie de l'entreprise</h2>
+          {canManage ? (
+            <FormDialog title="Créer l'identifiant interne de l'entreprise" buttonLabel="Configurer MGMail interne">
+              <form action={createNamespace} className="form">
+                <div className="field">
+                  <label htmlFor="mgmail-namespace">Nom d'entreprise pour les adresses internes</label>
+                  <input id="mgmail-namespace" name="slug" minLength={2} maxLength={45}
+                    placeholder="mitalia" pattern="[a-z0-9]+(-[a-z0-9]+)*" required />
+                  <small>Exemple : finance@mitalia.mgmail (interne seulement).</small>
+                </div>
+                <button className="button primary">Créer cet espace</button>
+              </form>
+            </FormDialog>
+          ) : <p className="muted">Un administrateur doit créer l'espace MGMail interne.</p>}
+        </div>
+      ) : (
+        <>
+          {canManage && (
+            <div className="card section">
+              <h2>Administration des boîtes</h2>
+              <p className="muted">Identifiant interne : @{namespace}.mgmail</p>
+              <FormDialog title="Créer une boîte MGMail pour un collaborateur" buttonLabel="+ Créer une boîte">
+                <form action={createMailbox} className="form">
+                  <div className="field">
+                    <label>Nom de l'adresse</label>
+                    <input name="localPart" placeholder="finance" minLength={2} maxLength={64} required />
+                  </div>
+                  <div className="field">
+                    <label>Nom affiché</label>
+                    <input name="displayName" placeholder="Service finance" maxLength={120} />
+                  </div>
+                  <div className="field">
+                    <label>Collaborateur</label>
+                    <select name="ownerId" required>
+                      <option value="">Choisir un collaborateur</option>
+                      {members.map((member: { user_id: string; email: string }) => (
+                        <option key={member.user_id} value={member.user_id}>{member.email}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button className="button primary">Créer et attribuer la boîte</button>
+                </form>
+              </FormDialog>
+              <div className="tableWrap">
+                <table>
+                  <thead><tr><th>Adresse</th><th>Lecture</th><th>Envoi</th><th>État</th><th>Gestion</th></tr></thead>
+                  <tbody>
+                    {mailboxes.map((mailbox) => (
+                      <tr key={mailbox.id}>
+                        <td>{address(mailbox.id)}</td>
+                        <td>{mailbox.can_read ? "Autorisé" : "Interdit"}</td>
+                        <td>{mailbox.can_send ? "Autorisé" : "Interdit"}</td>
+                        <td>{mailbox.is_active ? "Active" : "Suspendue"}</td>
+                        <td>
+                          <FormDialog title={`Autorisations : ${address(mailbox.id)}`} buttonLabel="Modifier les droits" buttonClassName="button">
+                            <form action={setMailboxPermissions} className="form">
+                              <input type="hidden" name="mailboxId" value={mailbox.id} />
+                              <label><input type="checkbox" name="canRead" defaultChecked={mailbox.can_read} /> Autoriser la lecture</label>
+                              <label><input type="checkbox" name="canSend" defaultChecked={mailbox.can_send} /> Autoriser les envois internes</label>
+                              <label><input type="checkbox" name="isActive" defaultChecked={mailbox.is_active} /> Boîte active</label>
+                              <button className="button primary">Enregistrer les droits</button>
+                            </form>
+                          </FormDialog>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          <div className="card section">
+            <h2>Messages internes</h2>
+            {mine.length > 0 && (
+              <FormDialog title="Nouveau message interne" buttonLabel="+ Nouveau message">
+                <form action={sendInternal} className="form">
+                  <div className="field">
+                    <label>Expéditeur</label>
+                    <select name="senderId" required>
+                      {mine.map((mailbox) => (
+                        <option key={mailbox.id} value={mailbox.id}>{address(mailbox.id)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Destinataire dans l'entreprise</label>
+                    <select name="recipientId" required>
+                      <option value="">Choisir une boîte active</option>
+                      {mailboxes.filter((mailbox) => mailbox.is_active).map((mailbox) => (
+                        <option key={mailbox.id} value={mailbox.id}>{address(mailbox.id)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field"><label>Objet</label><input name="subject" maxLength={180} required /></div>
+                  <div className="field"><label>Message</label><textarea name="body" maxLength={50000} rows={8} required /></div>
+                  <button className="button primary">Envoyer dans MAGNISA</button>
+                </form>
+              </FormDialog>
+            )}
+            {mine.length === 0 && <p className="muted">Aucune boîte active autorisée à envoyer ne vous est attribuée.</p>}
+            {messages.length === 0 ? (
+              <p className="muted">Aucun message interne pour vos boîtes.</p>
+            ) : (
+              <div>
+                {messages.map((message) => (
+                  <div key={message.id} style={{ borderBottom: "1px solid #e5e7eb", padding: "14px 0" }}>
+                    <strong>{message.subject}</strong>
+                    <p className="muted">
+                      De : {address(message.sender_mailbox_id)} · À : {address(message.recipient_mailbox_id)}
+                      {" · "}{new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(message.created_at))}
+                    </p>
+                    <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.body_text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
