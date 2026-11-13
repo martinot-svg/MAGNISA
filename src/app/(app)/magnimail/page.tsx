@@ -58,6 +58,7 @@ export default async function MGMailPage({
             reste à configurer et à vérifier.
           </p>
           <a className="button primary" href="/magnimail/interne">Ouvrir la messagerie interne</a>
+          <a className="button" href="/magnimail/agenda">Calendrier et agenda</a>
           {canConfigureMail && <a className="button" href="/parametres">Consulter la configuration e-mail</a>}
           {canViewBillingPreavis && <a className="button" href="/magnimail/preavis">Préavis de facturation</a>}
         </div>
@@ -139,6 +140,7 @@ export default async function MGMailPage({
       )}
       <div className="actions" style={{ marginBottom: 12 }}>
         <a className="button" href="/magnimail/interne">Boîtes internes des collaborateurs</a>
+        <a className="button" href="/magnimail/agenda">Calendrier et agenda</a>
       </div>
       <MGMailClient
         canViewBillingPreavis={canViewBillingPreavis}
