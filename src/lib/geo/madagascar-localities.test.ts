@@ -23,6 +23,6 @@ describe("Madagascar national locality suggestions", () => {
   it("handles accents, two-character searches and disallows unrestricted browsing", () => {
     expect(suggestMadagascarLocalities("908","a")).toEqual([]);
     expect(suggestMadagascarLocalities("916","Ambalaváo").length).toBeGreaterThan(0);
-    expect(suggestMadagascarLocalities("908","Morombe").length).toBeGreaterThan(0);
+    expect(suggestMadagascarLocalities("908","Ambahikily").some(x => x.district === "Morombe")).toBe(true);
   });
 });
