@@ -62,7 +62,9 @@ export async function POST(request: NextRequest) {
           direction: "incoming",
           status: "received",
           from_email: received.from,
-          to_emails: addresses,
+          // Do not expose recipients belonging to other organizations when a
+          // single external message targets multiple independent MGMail inboxes.
+          to_emails: [identity.email_address],
           subject: received.subject,
           body_text: received.text,
           provider_email_id: providerId,
