@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, hasPermission } from "@/lib/permissions";
 import { FormDialog } from "@/components/form-dialog";
+import { internalMGMailAddress, normalizeMGMailLocalPart, normalizeMGMailNamespace } from "@/lib/magnimail/internal-address";
 
 const PATH = "/magnimail/interne";
 
@@ -10,10 +11,7 @@ async function createNamespace(form: FormData) {
   "use server";
   const ctx = await requireOrganization();
   await assertPermission(ctx, "users.manage");
-  const slug = String(form.get("slug") || "").trim().toLowerCase();
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 2 || slug.length > 45) {
-    throw new Error("Identifiant d'entreprise invalide (lettres, chiffres et tirets).");
-  }
+  const slug = normalizeMGMailNamespace(String(form.get("slug") || ""));
   const { error } = await ctx.supabase.from("mgmail_internal_namespaces").insert({
     organization_id: ctx.organizationId,
     slug,
@@ -26,13 +24,10 @@ async function createMailbox(form: FormData) {
   "use server";
   const ctx = await requireOrganization();
   await assertPermission(ctx, "users.manage");
-  const localPart = String(form.get("localPart") || "").trim().toLowerCase();
+  const localPart = normalizeMGMailLocalPart(String(form.get("localPart") || ""));
   const ownerId = String(form.get("ownerId") || "").trim();
   const displayName = String(form.get("displayName") || "").trim().slice(0, 120);
-  if (!/^[a-z][a-z0-9._-]{1,63}$/.test(localPart)) {
-    throw new Error("Nom d'adresse invalide (2 à 64 caractères).");
-  }
-  if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(ownerId)) {
+   if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(ownerId)) {
     throw new Error("Collaborateur invalide.");
   }
   const { data: member, error: memberError } = await ctx.supabase
@@ -139,7 +134,7 @@ export default async function MGMailInternalPage() {
   const mailboxById = new Map(mailboxes.map((mailbox) => [mailbox.id, mailbox]));
   const address = (id: string) => {
     const mailbox = mailboxById.get(id);
-    return mailbox ? `${mailbox.local_part}@${namespace}.mgmail` : "Boîte inconnue";
+    return mailbox ? internalMGMailAddress(mailbox.local_part, namespace) : "Boîte inconnue";
   };
 
   return (
