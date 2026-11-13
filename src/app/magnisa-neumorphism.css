@@ -141,3 +141,16 @@ html body .mg-app .magnisa-dashboard .magnisa-chart-card svg{
 html body .mg-app .magnisa-dashboard{
   min-width:0;max-width:100%;overflow-x:clip;
 }
+
+/* Sidebar réellement non focalisable avant l'hydratation des états React sur mobile.
+   La visibilité se rétablit seulement après activation explicite du tiroir. */
+@media(max-width:1023px){
+ html body .mg-app>.mg-sidebar{
+   visibility:hidden;pointer-events:none;
+   transition:transform .24s cubic-bezier(.22,1,.36,1),visibility .24s;
+ }
+ html body .mg-app.mg-drawer-open>.mg-sidebar{
+   visibility:visible;pointer-events:auto;
+   transition:transform .24s cubic-bezier(.22,1,.36,1),visibility 0s;
+ }
+}
