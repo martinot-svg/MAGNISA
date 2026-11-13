@@ -95,11 +95,6 @@ async function gmailConnection(context: MailProviderContext) {
   return access;
 }
 
-const headers = new URLSearchParams({ format: "metadata" });
-for (const field of ["From", "To", "Cc", "Bcc", "Subject", "Date", "Message-ID", "References"]) {
-  headers.append("metadataHeaders", field);
-}
-
 export const gmailProvider: MailProviderAdapter = {
   provider: "google",
   capabilities: {
