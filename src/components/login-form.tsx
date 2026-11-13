@@ -8,7 +8,7 @@ export function LoginForm(){
   const [showPassword,setShowPassword]=useState(false);
 
   return <form action={action} className="form">
-    <div className="field"><label>Adresse e-mail</label><input name="email" type="email" required autoComplete="email"/></div>
+    <div className="field"><label htmlFor="login-identifier">E-mail ou nom d’utilisateur</label><input id="login-identifier" name="identifier" type="text" required autoComplete="username" autoCapitalize="none" spellCheck={false}/></div>
     <div className="field">
       <label htmlFor="login-password">Mot de passe</label>
       <div style={{position:"relative"}}>
