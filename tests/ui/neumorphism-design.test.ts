@@ -21,7 +21,8 @@ describe("MAGNISA Neumorphism UI", () => {
   it("conserve la navigation accessible sur mobile et sur ordinateur", () => {
     expect(shell).toContain('event.key === "Escape"');
     expect(shell).toContain('aria-current={active ? "page" : undefined}');
-    expect(shell).toContain('inert={narrow && !open}');
+    expect(shell).toContain('inert={!open && (narrow || !hydrated)}');
+    expect(shell).toContain('setHydrated(true)');
     expect(css).toContain("max-width:1023px");
     expect(css).toContain("max-width:620px");
   });
