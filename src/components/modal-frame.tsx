@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "motion/react";
+import { motionTiming, motionVariants } from "@/lib/motion-config";
 
 type ModalFrameProps = {
   title: string;
@@ -126,9 +127,9 @@ export function ModalFrame({
       }}
     >
       <motion.section
-        initial={reducedMotion ? false : { opacity: 0, y: 10, scale: .99 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: reducedMotion ? 0 : .2, ease: "easeOut" }}
+        initial={reducedMotion ? false : motionVariants.scaleIn.initial}
+        animate={motionVariants.scaleIn.animate}
+        transition={reducedMotion ? motionTiming.none : motionTiming.modal}
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
