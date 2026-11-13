@@ -14,10 +14,18 @@ let userId = null;
 try {
   const created = await admin.auth.admin.createUser({
     email, password, email_confirm:true,
-    user_metadata:{full_name:"Utilisateur MAGNISA Test",username,country_code:"261",locality_code:"601"},
+    user_metadata:{full_name:"Utilisateur MAGNISA Test",username},
   });
   if (created.error || !created.data.user) throw created.error || new Error("Cannot create user");
   userId = created.data.user.id;
+  const origin = await admin.rpc("register_magnisa_signup_origin",{
+    p_user:userId,p_country:"261",p_locality:"601"
+  });
+  if(origin.error)throw origin.error;
+  const privateMetadata = await admin.auth.admin.getUserById(userId);
+  assert(!privateMetadata.data.user?.user_metadata?.country_code &&
+    !privateMetadata.data.user?.user_metadata?.locality_code,
+    "Origin codes must NEVER leak in Auth user metadata.");
   const profile = await admin.from("profiles").select("public_id,username,full_name").eq("id",userId).single();
   if(profile.error) throw profile.error;
   assert(/^[0-9]{14}$/.test(profile.data.public_id),"Public id must contain 14 digits.");
@@ -57,7 +65,7 @@ try {
   const second=await admin.auth.admin.createUser({
     email:`identity-second-${suffix}@magnisa.test`,
     password, email_confirm:true,
-    user_metadata:{full_name:"Deuxième utilisateur Test",country_code:"261",locality_code:"101"}
+    user_metadata:{full_name:"Deuxième utilisateur Test"}
   });
   if(second.error||!second.data.user)throw second.error??new Error("Second user creation failed");
   const otherId=second.data.user.id;
