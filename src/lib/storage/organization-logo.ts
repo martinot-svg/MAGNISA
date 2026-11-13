@@ -52,18 +52,18 @@ export async function resolveOrganizationLogoUrl(
   const useInverse=usesDarkBackground(sources);
   for (const source of sources) {
     const legacyUrl = source.logo_url?.trim() || "";
-    const path = (useInverse ? source.logo_inverse_storage_path?.trim() : "") ||
-      source.logo_storage_path?.trim() || pathFromBrandingUrl(legacyUrl);
+    const colorPath = source.logo_storage_path?.trim() || pathFromBrandingUrl(legacyUrl);
+    const inversePath = useInverse ? source.logo_inverse_storage_path?.trim() : null;
+    const paths = [...new Set([inversePath,colorPath].filter((p):p is string=>!!p))];
 
-    if (path) {
+    for (const path of paths) {
       const { data, error } = await supabase.storage
         .from(PRIVATE_BRANDING_BUCKET)
         .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
       if (!error && data?.signedUrl) return data.signedUrl;
-      continue;
     }
-
-    if (legacyUrl) return legacyUrl;
+    // Never treat a private-bucket URL as an external public fallback.
+    if (legacyUrl && !pathFromBrandingUrl(legacyUrl)) return legacyUrl;
   }
 
   return null;
