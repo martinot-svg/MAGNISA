@@ -128,7 +128,7 @@ export async function signIn(formData: FormData) {
   const parsed = z.object({
     identifier: z.string().trim().min(3).max(254),
     password: z.string().min(1),
-  }).safeParse(Object.fromEntries(formData));
+  }).safeParse({ identifier: formData.get("identifier") ?? formData.get("email"), password: formData.get("password") });
   if (!parsed.success) return { error: "Identifiants invalides." };
 
   const identifier = parsed.data.identifier.trim().toLowerCase();
