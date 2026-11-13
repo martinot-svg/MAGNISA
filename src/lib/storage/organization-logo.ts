@@ -28,8 +28,14 @@ function pathFromBrandingUrl(value: string): string | null {
 }
 
 function usesDarkBackground(sources: LogoSource[]): boolean {
-  return sources.some(source => {
-    const theme = source.document_theme;
+  // The first captured theme wins: a newer company theme must not recolor
+  // already issued documents that have an immutable appearance snapshot.
+  const themeSource=sources.find(source =>
+    source.document_theme && typeof source.document_theme==="object" &&
+    !Array.isArray(source.document_theme)
+  );
+  return [themeSource].some(source => {
+    const theme = source?.document_theme;
     if(!theme || typeof theme!=="object" || Array.isArray(theme))return false;
     const value=(theme as Record<string,unknown>).backgroundColor;
     if(typeof value!=="string" || !/^#[a-fA-F0-9]{6}$/.test(value))return false;
