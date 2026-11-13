@@ -135,3 +135,9 @@ html body .mg-app.mg-collapsed .mg-nav-link{justify-content:center;padding:10px}
 html body .mg-app .magnisa-dashboard .magnisa-chart-card svg{
   min-width:0!important;width:100%!important;max-width:100%!important;height:auto
 }
+
+/* Contient l'excédent de largeur interne des visualisations Bento.
+   Les graphiques restent fluides et les tableaux conservent leur propre défilement. */
+html body .mg-app .magnisa-dashboard{
+  min-width:0;max-width:100%;overflow-x:clip;
+}
