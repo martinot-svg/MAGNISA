@@ -48,7 +48,7 @@ export async function parseComposeForm(form: FormData): Promise<ComposePayload> 
     if (!(entry instanceof File) || entry.size === 0) continue;
     total += entry.size;
     if (entry.size > 12 * 1024 * 1024 || total > 20 * 1024 * 1024) {
-      throw new Error("Les pièces jointes dépassent la limite MagniMail de 20 Mo.");
+      throw new Error("Les pièces jointes dépassent la limite MGMail de 20 Mo.");
     }
     const filename = entry.name.replace(/[\r\n"\\/]+/g, "_").slice(0, 180) || "piece-jointe";
     attachments.push({
