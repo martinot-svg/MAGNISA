@@ -87,6 +87,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     href: "/exercices-comptables", group: links[accounting].group,
   });
   links.push({ key: "notifications", label: "Notifications", href: "/notifications", group: "Communication" });
+  links.push({ key: "profile", label: "Mon profil", href: "/mon-profil", group: "Mon compte" });
   return (
     <AppWorkspace
       links={links}
