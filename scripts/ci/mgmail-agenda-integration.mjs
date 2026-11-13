@@ -82,6 +82,36 @@ const financeService=ok(await finance.account.from("mgmail_agenda_events")
   .select("id").single(),"Création dans son propre département").id;
 check(await readable(finance.account,financeService),"Événement créé non visible.");
 
+// Les rappels d'agenda passent uniquement par la routine serveur existante.
+// Le traitement et ses doublons sont testés sur une date locale déterministe.
+const forbiddenCron=await finance.account.rpc("run_mgmail_agenda_reminders",{
+  p_run_at:"2026-12-09T05:00:00.000Z",
+});
+check(!!forbiddenCron.error,"Un collaborateur ne peut pas déclencher le moteur global.");
+const runAt="2026-12-09T05:00:00.000Z";
+const createdReminders=ok(await admin.rpc("run_mgmail_agenda_reminders",{
+  p_run_at:runAt,
+}),"Exécution serveur du rappel");
+check(createdReminders>=7,"Les rappels attendus ne sont pas créés.");
+
+const readNotices=(account,id)=>account.from("notifications").select("id")
+  .eq("organization_id",org).eq("entity_id",id);
+for(const [person,account] of [[ownerId,owner],[finance.id,finance.account],[direction.id,direction.account]]) {
+  const companyNotices=ok(await readNotices(account,company),"Notification entreprise");
+  check(companyNotices.length===1,"Les collaborateurs actifs doivent être notifiés pour l'entreprise.");
+}
+check(ok(await readNotices(finance.account,serviceFinance),"Service Finance").length===1,
+  "Le service Finance ne reçoit pas son alerte.");
+check(ok(await readNotices(direction.account,serviceFinance),"Service Direction").length===0,
+  "Un autre service ne doit pas recevoir un rappel interne à Finance.");
+check(ok(await readNotices(owner,privateFinance),"Privé Finance").length===0,
+  "Un administrateur ne doit pas recevoir les rappels privés des collaborateurs.");
+check(ok(await readNotices(finance.account,privateFinance),"Personnel Finance").length===1,
+  "Le créateur doit recevoir son rappel personnel.");
+const retried=ok(await admin.rpc("run_mgmail_agenda_reminders",{p_run_at:runAt}),
+  "Relance du moteur");
+check(retried===0,"Une nouvelle exécution ne doit pas dupliquer les notifications.");
+
 const wrongEdit=await direction.account.from("mgmail_agenda_events")
   .update({title:"Modification non autorisée"}).eq("id",company).select("id");
 noRows(wrongEdit,"Modification d'entreprise par non-administrateur");
