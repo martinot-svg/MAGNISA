@@ -1,77 +1,76 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireOrganization } from "@/lib/current-org";
-import {
-  buildMimeMessage,
-  createGmailDraft,
-  getGmailAccess,
-  updateGmailDraft,
-} from "@/lib/google/gmail";
 import { matchCustomerByEmails, recordMailHistory } from "@/lib/magnimail/history";
 import { parseComposeForm, recipientEmails } from "@/lib/magnimail/compose";
+import { composeForMailProvider } from "@/lib/magnimail/providers/compose";
+import { mailProviderHttpError, resolveUserMailProvider } from "@/lib/magnimail/providers/resolve";
 
 export async function POST(request: NextRequest) {
   try {
-    const { organizationId, user, supabase } = await requireOrganization();
+    const ctx = await requireOrganization();
     const compose = await parseComposeForm(await request.formData());
-    const { connection, accessToken } = await getGmailAccess(organizationId, user.id);
+    const { provider, context, connection } = await resolveUserMailProvider(
+      ctx, request.nextUrl.searchParams.get("connectionId"),
+    );
 
-    const raw = buildMimeMessage({
-      from: connection.email,
-      to: compose.to,
-      cc: compose.cc || undefined,
-      bcc: compose.bcc || undefined,
-      subject: compose.subject,
-      body: compose.body,
-      attachments: compose.attachments,
-      inReplyTo: compose.inReplyTo,
-      references: compose.references,
+    if (!provider.capabilities.drafts) {
+      return NextResponse.json({ error: "Ce fournisseur ne gère pas les brouillons." }, { status: 501 });
+    }
+
+    const draft = await provider.saveDraft({
+      context,
+      message: composeForMailProvider(compose),
+      draftId: compose.draftId,
     });
 
-    const draft = compose.draftId
-      ? await updateGmailDraft(accessToken, compose.draftId, raw, compose.threadId)
-      : await createGmailDraft(accessToken, raw, compose.threadId);
+    // A failure in the optional CRM history must not turn a saved draft into a
+    // false error that prompts the user to create the same draft again.
+    try {
+      const recipients = [
+        ...recipientEmails(compose.to),
+        ...recipientEmails(compose.cc),
+        ...recipientEmails(compose.bcc),
+      ];
+      const customer = compose.customerId
+        ? { id: compose.customerId }
+        : await matchCustomerByEmails(ctx.supabase, ctx.organizationId, recipients);
 
-    const recipientList = [
-      ...recipientEmails(compose.to),
-      ...recipientEmails(compose.cc),
-      ...recipientEmails(compose.bcc),
-    ];
-    const customer = compose.customerId
-      ? { id: compose.customerId }
-      : await matchCustomerByEmails(supabase, organizationId, recipientList);
-
-    const providerMessageId = draft.message?.id || `draft:${draft.id}`;
-    await recordMailHistory({
-      organizationId,
-      connectionId: connection.id,
-      provider: "google",
-      providerMessageId,
-      providerThreadId: draft.message?.threadId || compose.threadId || null,
-      direction: "draft",
-      fromEmail: connection.email,
-      toEmails: recipientEmails(compose.to),
-      ccEmails: recipientEmails(compose.cc),
-      subject: compose.subject,
-      snippet: compose.body.slice(0, 240),
-      customerId: customer?.id || null,
-      quoteId: compose.quoteId || null,
-      invoiceId: compose.invoiceId || null,
-      projectId: compose.projectId || null,
-      creditNoteId: compose.creditNoteId || null,
-      paymentId: compose.paymentId || null,
-      attachmentNames: compose.attachments.map((file) => file.filename),
-      createdBy: user.id,
-    });
+      await recordMailHistory({
+        organizationId: ctx.organizationId,
+        connectionId: connection.id,
+        provider: provider.provider,
+        providerMessageId: draft.messageId || `draft:${draft.draftId}`,
+        providerThreadId: compose.threadId || null,
+        direction: "draft",
+        fromEmail: connection.email,
+        toEmails: recipientEmails(compose.to),
+        ccEmails: recipientEmails(compose.cc),
+        subject: compose.subject,
+        snippet: compose.body.slice(0, 240),
+        customerId: customer?.id || null,
+        quoteId: compose.quoteId || null,
+        invoiceId: compose.invoiceId || null,
+        projectId: compose.projectId || null,
+        creditNoteId: compose.creditNoteId || null,
+        paymentId: compose.paymentId || null,
+        attachmentNames: compose.attachments.map((file) => file.filename),
+        createdBy: ctx.user.id,
+      });
+    } catch (historyError) {
+      console.error("MGMail draft saved, but history sync failed", historyError);
+    }
 
     return NextResponse.json({
       ok: true,
-      draftId: draft.id,
-      messageId: draft.message?.id || null,
+      draftId: draft.draftId,
+      messageId: draft.messageId,
     });
   } catch (error) {
-    console.error("MagniMail draft failed", error);
-    const message = error instanceof Error ? error.message : "Impossible d'enregistrer le brouillon.";
-    const status = message.includes("invalide") || message.includes("limite") ? 400 : 500;
-    return NextResponse.json({ error: message }, { status });
+    console.error("MGMail draft failed", error);
+    if (error instanceof Error && /invalide|limite|dépassent/i.test(error.message)) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    const detail = mailProviderHttpError(error);
+    return NextResponse.json({ error: detail.error }, { status: detail.status });
   }
 }
