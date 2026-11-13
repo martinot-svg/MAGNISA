@@ -140,6 +140,8 @@ jobs:
       - name: Create authenticated local test user
         id: ui_user
         run: node scripts/ci/create-payroll-ui-user.mjs
+      - name: Verify MAGNISA identity privacy, username and opaque IDs
+        run: node scripts/ci/magnisa-identity-integration.mjs
       - name: Seed isolated payroll test organization
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/payroll-ui-seed.sql
