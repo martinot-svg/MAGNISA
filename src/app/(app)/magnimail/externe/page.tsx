@@ -86,7 +86,34 @@ export default async function MGMailInternetPage() {
                 )}
                 {message.last_error && <p className="muted">{message.last_error}</p>}
               </td>
-              <td>{statusLabels[message.status] || message.status}</td>
+              <td>
+                {statusLabels[message.status] || message.status}
+                {message.direction === "incoming" && accessible.some((item) =>
+                  item.id === message.identity_id && item.status === "active" && item.canSend
+                ) && (
+                  <FormDialog buttonLabel="Répondre" title="Répondre au correspondant externe" buttonClassName="button">
+                    <form action={sendExternal} className="form">
+                      <input type="hidden" name="identityId" value={message.identity_id} />
+                      <input type="hidden" name="requestKey" value={randomUUID()} />
+                      <div className="field">
+                        <label>Destinataire</label>
+                        <input name="to" defaultValue={message.from_email} readOnly required />
+                      </div>
+                      <div className="field">
+                        <label>Objet</label>
+                        <input name="subject" required maxLength={180}
+                          defaultValue={message.subject.startsWith("Re:") ? message.subject :
+                            `Re: ${message.subject}`} />
+                      </div>
+                      <div className="field">
+                        <label>Réponse</label>
+                        <textarea name="body" rows={7} maxLength={50000} required />
+                      </div>
+                      <button className="button primary" type="submit">Envoyer la réponse</button>
+                    </form>
+                  </FormDialog>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
