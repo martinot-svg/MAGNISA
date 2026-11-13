@@ -28,7 +28,7 @@ try {
 
   // Discover the real menu: do not assume a role can access optional or disabled modules.
   const modules = await page.locator(".mg-sidebar nav a.mg-nav-link").evaluateAll(anchors =>
-    anchors.map(a=>({label:a.textContent.trim().replace(/\\s+/g," "),path:new URL(a.href).pathname}))
+    anchors.map(a=>({label:a.textContent.trim().replace(/\s+/g," "),path:new URL(a.href).pathname}))
   );
   const unique = [...new Map(modules.map(m=>[m.path,m])).values()];
   if(unique.length < 20) throw new Error("Le menu de recette ne couvre pas assez de modules : "+unique.length);
