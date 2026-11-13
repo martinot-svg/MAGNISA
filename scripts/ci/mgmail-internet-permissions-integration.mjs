@@ -39,9 +39,15 @@ async function employee(){
   return {id,session};
 }
 const a=await employee(),b=await employee();
-ok(await owner.from("mgmail_internal_namespaces").insert({
-  organization_id:org,slug:`mgmail-net-ci-${suffix}`,
-}),"Espace interne");
+// Les autres recettes MGMail peuvent déjà avoir initialisé cet espace.
+const namespaceResult=await owner.from("mgmail_internal_namespaces")
+  .select("slug").eq("organization_id",org).maybeSingle();
+if(namespaceResult.error)throw namespaceResult.error;
+if(!namespaceResult.data) {
+  ok(await owner.from("mgmail_internal_namespaces").insert({
+    organization_id:org,slug:`mgmail-net-ci-${suffix}`,
+  }),"Espace interne");
+}
 
 const mailbox=ok(await owner.from("mgmail_internal_mailboxes").insert({
   organization_id:org,local_part:`finance-${suffix}`,owner_user_id:a.id,
