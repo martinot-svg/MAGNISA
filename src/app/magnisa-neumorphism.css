@@ -89,3 +89,22 @@ html body .mg-app.mg-collapsed .mg-nav-link{justify-content:center;padding:10px}
  .magnisa-modal-panel{max-height:calc(100dvh - 16px)!important;width:100%!important}
 }
 @media(prefers-reduced-motion:reduce){.mg-app .mg-sidebar,.mg-app .mg-icon-button,.mg-app .button{transition:none!important;animation:none!important}}
+
+/* Bento Grid du tableau de bord et montants sans découpe : les valeurs restent consultables. */
+.mg-app .magnisa-dashboard .magnisa-tile{background:#fff;border:1px solid #dbe4f1;box-shadow:var(--mg-outset);border-radius:18px}
+.mg-app .magnisa-dashboard .magnisa-kpi-value{font-size:clamp(1.15rem,2vw,2.25rem);white-space:nowrap!important;overflow-wrap:normal!important;word-break:normal;overflow-x:auto;max-width:100%;scrollbar-width:thin}
+.mg-app .magnisa-dashboard .magnisa-kpi-value>span{white-space:nowrap}
+.mg-app .magnisa-dashboard-toolbar select,.mg-app .magnisa-dashboard-toolbar .input{background:#f8faff;color:var(--mg-text);border:1px solid #cbd8e9;border-radius:12px;min-height:44px;box-shadow:var(--mg-inset)}
+.mg-app .magnisa-dashboard-toolbar .btn,.mg-app .magnisa-chart-tools .btn,.mg-app .magnisa-kpi-card .btn{background:#f6f9fe;border:1px solid #cedbec;color:#0C1A4B;min-height:36px;border-radius:10px;box-shadow:var(--mg-soft)}
+.mg-app .magnisa-dashboard-toolbar .btn:active,.mg-app .magnisa-chart-tools .btn:active{box-shadow:var(--mg-inset)}
+.mg-app .magnisa-dashboard .magnisa-chart-card{min-width:0}
+.mg-app .magnisa-dashboard .magnisa-chart-card svg{max-width:100%;height:auto}
+@media(min-width:751px) and (max-width:1023px){
+ .mg-app .magnisa-dashboard-kpis>.magnisa-kpi-card{grid-column:span 6!important}
+ .mg-app .magnisa-dashboard-charts>.magnisa-chart-card{grid-column:span 12!important}
+}
+@media(max-width:620px){
+ .mg-app .magnisa-dashboard-toolbar .magnisa-toolbar-fields{display:grid!important;grid-template-columns:minmax(0,1fr)!important;align-items:stretch!important}
+ .mg-app .magnisa-dashboard-toolbar .magnisa-toolbar-fields>label{min-width:0}
+ .mg-app .magnisa-dashboard .magnisa-chart-tools{width:100%}
+}
