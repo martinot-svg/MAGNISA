@@ -172,6 +172,16 @@ jobs:
           done
           cat /tmp/magnisa-next.log
           exit 1
+      - name: Test Neumorphism responsive at 13 desktop, tablet and mobile sizes
+        if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
+        run: node scripts/ci/responsive-ui-smoke.mjs
+      - name: Upload responsive screenshots from synthetic test data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: magnisa-responsive-viewports
+          path: test-results/responsive/*.png
+          if-no-files-found: ignore
       - name: Test authenticated payroll and fixed-asset UI actions
         run: node scripts/ci/payroll-ui-smoke.mjs
       - name: Test authenticated CRM UI actions
