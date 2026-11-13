@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { signupEmailPolicy } from "@/lib/auth/domain";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isValidRegistrationRegion, normalizeUsername, USERNAME_PATTERN, NEW_USERNAME_PATTERN } from "@/lib/auth/magnisa-identity";
+import { isValidRegistrationRegion, normalizeUsername, USERNAME_PATTERN, NEW_USERNAME_PATTERN, usernameVariants } from "@/lib/auth/magnisa-identity";
 import { createHmac } from "node:crypto";
 import { resolveLocality } from "@/lib/geo/madagascar-localities";
 import { headers } from "next/headers";
@@ -51,7 +51,16 @@ export async function signUp(formData: FormData) {
   const { data: taken, error: checkError } = await admin.from("profiles")
     .select("id").eq("username", username).maybeSingle();
   if (checkError) return { error: "Vérification du nom d’utilisateur indisponible." };
-  if (taken) return { error: "Ce nom d’utilisateur est déjà utilisé. Choisis-en un autre." };
+  if (taken) {
+    const variants = usernameVariants(username).slice(0,120);
+    const { data: occupied, error: suggestionsError } = await admin.from("profiles")
+      .select("username").in("username", variants);
+    const occupiedNames = new Set((occupied || []).map(item => item.username));
+    return {
+      error: "Ce nom d’utilisateur est déjà utilisé. Choisis un autre nom ci-dessous.",
+      suggestions: suggestionsError ? [] : variants.filter(item => !occupiedNames.has(item)).slice(0,3),
+    };
+  }
 
   const { data, error } = await supabase.auth.signUp({
     email,
