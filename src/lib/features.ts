@@ -12,7 +12,7 @@ export const FEATURE_CATALOG=[
   {key:"recurring_services",label:"Prestations récurrentes",href:"/prestations-recurrentes",required:false,group:"Clients & ventes",description:"Contrats périodiques, échéances et factures en brouillon."},
   {key:"invoices",label:"Factures clients",href:"/factures",required:false,group:"Clients & ventes",description:"Facturation directe ou issue d'un devis/commande."},
   {key:"payments",label:"Paiements clients",href:"/paiements",required:false,group:"Clients & ventes",description:"Encaissements et règlement des créances."},
-  {key:"magnimail",label:"MagniMail",href:"/magnimail",required:true,group:"Communication",description:"Messagerie clients intégrée : réception, envoi, brouillons, pièces jointes et historique."},
+  {key:"magnimail",label:"MGMail",href:"/magnimail",required:true,group:"Communication",description:"Messagerie clients intégrée : réception, envoi, brouillons, pièces jointes et historique."},
   {key:"suppliers",label:"Fournisseurs & achats",href:"/fournisseurs",required:false,group:"Achats & fournisseurs",description:"Fournisseurs, sous-traitants et factures fournisseurs."},
   {key:"inventory",label:"Articles & stocks",href:"/articles",required:false,group:"Achats & fournisseurs",description:"Catalogue général des articles, emplacements et quantités en stock."},
   {key:"stock_operations",label:"Mouvements de stock",href:"/mouvements-stock",required:false,group:"Achats & fournisseurs",description:"Disponibilités, réservations, livraisons, transferts et historique des mouvements."},
