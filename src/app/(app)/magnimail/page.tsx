@@ -1,4 +1,5 @@
 import { requireOrganization } from "@/lib/current-org";
+import { hasPermission } from "@/lib/permissions";
 import { MGMailClient } from "@/components/magnimail-client";
 import { DEFAULT_EMAIL_TEMPLATES, getEmailTemplate, renderEmailTemplate, type EmailTemplateKey } from "@/lib/magnimail/templates";
 
@@ -20,7 +21,8 @@ export default async function MGMailPage({
   }>;
 }) {
   const query = await searchParams;
-  const { supabase, organizationId, user } = await requireOrganization();
+  const { supabase, organizationId, user, role } = await requireOrganization();
+  const canViewBillingPreavis = await hasPermission({ supabase, organizationId, role }, "sales.view");
   const { data: gmail } = await supabase
     .from("email_connections")
     .select("email,status,scopes")
@@ -54,6 +56,7 @@ export default async function MGMailPage({
             seront proposés après leur mise en service et leurs vérifications.
           </p>
           <a className="button" href="/parametres">Consulter la configuration e-mail</a>
+          {canViewBillingPreavis && <a className="button" href="/magnimail/preavis">Préavis de facturation</a>}
         </div>
         <div className="grid2">
           <div className="card">
@@ -128,6 +131,7 @@ export default async function MGMailPage({
         </div>
       )}
       <MGMailClient
+        canViewBillingPreavis={canViewBillingPreavis}
         connectedEmail={gmail.email}
         initialTo={query.composeTo || ""}
         initialCustomerId={query.customerId || ""}
