@@ -195,6 +195,7 @@ export const gmailProvider: MailProviderAdapter = {
     const operation = destination === "trash" ? "trash" : "untrash";
     await gmailJson<void>(accessToken, `/messages/${encodeURIComponent(messageId)}/${operation}`, {
       method: "POST",
+      body: "{}",
     });
   },
 
