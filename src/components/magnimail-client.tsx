@@ -104,7 +104,7 @@ const emptyCompose = {
   paymentId: "",
 };
 
-export function MagniMailClient({
+export function MGMailClient({
   connectedEmail,
   initialTo = "",
   initialCustomerId = "",
@@ -161,7 +161,7 @@ export function MagniMailClient({
   const composeFieldId = useId();
 
   const title = useMemo(
-    () => folderLabels.find((entry) => entry.key === folder)?.label || "MagniMail",
+    () => folderLabels.find((entry) => entry.key === folder)?.label || "MGMail",
     [folder],
   );
 
@@ -297,7 +297,7 @@ export function MagniMailClient({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || "Envoi impossible.");
-      setFeedback("E-mail envoyé depuis MagniMail.");
+      setFeedback("E-mail envoyé depuis MGMail.");
       setTimeout(() => {
         setComposeOpen(false);
         setFeedback("");
@@ -408,7 +408,7 @@ export function MagniMailClient({
       <div className="pageHead">
         <div>
           <p className="eyebrow">Communication</p>
-          <h1>MagniMail</h1>
+          <h1>MGMail</h1>
           <p>
             Messagerie professionnelle intégrée à MAGNISA · connecté avec <b>{connectedEmail}</b>
           </p>
@@ -464,7 +464,7 @@ export function MagniMailClient({
                 <input
                   value={searchInput}
                   onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="Rechercher dans Gmail"
+                  placeholder="Rechercher dans MGMail"
                   style={{ flex: 1 }}
                 />
                 <button className="button" type="submit">
@@ -697,7 +697,7 @@ export function MagniMailClient({
           isBusy={sending}
           width="min(760px, 100%)"
         >
-            <p className="eyebrow">MagniMail</p>
+            <p className="eyebrow">MGMail</p>
 
             <div className="form">
               <div className="field">
