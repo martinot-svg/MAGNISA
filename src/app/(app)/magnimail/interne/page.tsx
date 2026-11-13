@@ -136,6 +136,29 @@ export default async function MGMailInternalPage() {
     const mailbox = mailboxById.get(id);
     return mailbox ? internalMGMailAddress(mailbox.local_part, namespace) : "Boîte inconnue";
   };
+  const readableMailboxIds = new Set(
+    mailboxes.filter((mailbox) =>
+      mailbox.owner_user_id === ctx.user.id && mailbox.is_active && mailbox.can_read
+    ).map((mailbox) => mailbox.id),
+  );
+  const inbox = messages.filter((message) => readableMailboxIds.has(message.recipient_mailbox_id));
+  const sent = messages.filter((message) => readableMailboxIds.has(message.sender_mailbox_id));
+  const renderMessages = (items: typeof messages) => items.length === 0 ? (
+    <p className="muted">Aucun message dans cette boîte.</p>
+  ) : (
+    <div>
+      {items.map((message) => (
+        <div key={message.id} style={{ borderBottom: "1px solid #e5e7eb", padding: "14px 0" }}>
+          <strong>{message.subject}</strong>
+          <p className="muted">
+            De : {address(message.sender_mailbox_id)} · À : {address(message.recipient_mailbox_id)}
+            {" · "}{new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(message.created_at))}
+          </p>
+          <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.body_text}</p>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <>
@@ -262,22 +285,11 @@ export default async function MGMailInternalPage() {
               </FormDialog>
             )}
             {mine.length === 0 && <p className="muted">Aucune boîte active autorisée à envoyer ne vous est attribuée.</p>}
-            {messages.length === 0 ? (
-              <p className="muted">Aucun message interne pour vos boîtes.</p>
-            ) : (
-              <div>
-                {messages.map((message) => (
-                  <div key={message.id} style={{ borderBottom: "1px solid #e5e7eb", padding: "14px 0" }}>
-                    <strong>{message.subject}</strong>
-                    <p className="muted">
-                      De : {address(message.sender_mailbox_id)} · À : {address(message.recipient_mailbox_id)}
-                      {" · "}{new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(message.created_at))}
-                    </p>
-                    <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.body_text}</p>
-                  </div>
-                ))}
-              </div>
-            )}
+            <h3>Boîte de réception interne</h3>
+            {renderMessages(inbox)}
+            <h3>Envoyés internes</h3>
+            {renderMessages(sent)}
+
           </div>
         </>
       )}
