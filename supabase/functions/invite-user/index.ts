@@ -33,7 +33,7 @@ function allowedEmail(email: string) {
     !parts[1] ||
     parts[0].length > 64 ||
     normalized.length > 254 ||
-    /\\s/.test(normalized)
+    /\s/.test(normalized)
   ) return false;
 
   const domain = parts[1];
