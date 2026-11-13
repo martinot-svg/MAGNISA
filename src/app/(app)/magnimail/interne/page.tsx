@@ -196,10 +196,13 @@ export default async function MGMailInternalPage() {
           </p>
           <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.body_text}</p>
           {kind === "inbox" && !message.read_at && (
-            <form action={markInternalRead}>
-              <input type="hidden" name="messageId" value={message.id} />
-              <button className="button" type="submit">Marquer comme lu</button>
-            </form>
+            <FormDialog title="Confirmer la lecture du message" buttonLabel="Marquer comme lu" buttonClassName="button">
+              <form action={markInternalRead} className="form">
+                <input type="hidden" name="messageId" value={message.id} />
+                <p>Confirmer la lecture de ce message dans MGMail.</p>
+                <button className="button primary" type="submit">Confirmer</button>
+              </form>
+            </FormDialog>
           )}
         </div>
       ))}
