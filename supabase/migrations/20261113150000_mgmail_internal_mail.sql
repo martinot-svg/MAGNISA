@@ -113,14 +113,6 @@ as $$
       from public.mgmail_internal_mailboxes s
       join public.mgmail_internal_mailboxes r
         on r.organization_id=s.organization_id
-      join public.organization_members sm
-        on sm.organization_id=s.organization_id
-       and sm.user_id=s.owner_user_id
-       and sm.status='active'
-      join public.organization_members rm
-        on rm.organization_id=r.organization_id
-       and rm.user_id=r.owner_user_id
-       and rm.status='active'
       where s.organization_id=p_organization_id
         and s.id=p_sender_mailbox_id
         and s.owner_user_id=(select auth.uid())
@@ -137,6 +129,38 @@ create policy mgmail_messages_insert
   with check (
     public.mgmail_can_send_internal(organization_id,sender_mailbox_id,recipient_mailbox_id)
   );
+
+-- L'annuaire des collègues est volontairement masqué aux employés.
+-- Pour ne pas élargir cette RLS, la désactivation d'un membre suspend
+-- ses boîtes immédiatement, y compris en cas de suppression de l'adhésion.
+-- Un membre réactivé ne récupère pas automatiquement ses droits d'envoi.
+create or replace function private.mgmail_suspend_departed_member()
+returns trigger
+language plpgsql security definer
+set search_path=pg_catalog,public,private
+as $mgmail_suspend$
+begin
+  if tg_op='DELETE' then
+    update public.mgmail_internal_mailboxes
+      set is_active=false
+      where organization_id=old.organization_id and owner_user_id=old.user_id;
+    return old;
+  end if;
+  if new.status is distinct from 'active' then
+    update public.mgmail_internal_mailboxes
+      set is_active=false
+      where organization_id=new.organization_id and owner_user_id=new.user_id;
+  end if;
+  return new;
+end;
+$mgmail_suspend$;
+revoke all on function private.mgmail_suspend_departed_member()
+  from public,anon,authenticated;
+drop trigger if exists trg_mgmail_suspend_departed_member
+  on public.organization_members;
+create trigger trg_mgmail_suspend_departed_member
+  after update of status or delete on public.organization_members
+  for each row execute function private.mgmail_suspend_departed_member();
 
 -- Retirer TRUNCATE, DELETE et les modifications de propriété implicites.
 revoke all on table public.mgmail_internal_namespaces from anon, authenticated;
