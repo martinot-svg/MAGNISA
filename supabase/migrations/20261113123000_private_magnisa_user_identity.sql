@@ -1,7 +1,8 @@
 -- MAGNISA: public 14-digit opaque IDs and confidential registration origin.
 -- Public UUID keys remain unchanged; no salary, accounting or membership migration.
 create schema if not exists private;
-revoke all on schema private from public, anon, authenticated;
+-- Preserve pre-existing schema USAGE required by MAGNISA accounting and stock RPCs.
+-- New identity tables below have no authenticated/anon table privileges.
 create sequence if not exists private.magnisa_registration_number_seq
   as bigint start with 1 increment by 1 minvalue 1 maxvalue 99999999 no cycle;
 
