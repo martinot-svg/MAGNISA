@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidRegistrationLocality, normalizeUsername, PUBLIC_ID_PATTERN, REGISTRATION_LOCALITIES, USERNAME_PATTERN } from "@/lib/auth/magnisa-identity";
+import { generateUsername, NEW_USERNAME_PATTERN, isValidRegistrationLocality, normalizeUsername, PUBLIC_ID_PATTERN, REGISTRATION_LOCALITIES, USERNAME_PATTERN } from "@/lib/auth/magnisa-identity";
 describe("Identité MAGNISA", () => {
   it("conserve un numéro public composé exactement de 14 chiffres", () => {
     expect(PUBLIC_ID_PATTERN.test("73849206152843")).toBe(true);
@@ -12,6 +12,15 @@ describe("Identité MAGNISA", () => {
     for(const alias of ["ab","a-b","a b","a@b","équipe","01test"]) {
       expect(USERNAME_PATTERN.test(alias)).toBe(false);
     }
+  });
+  it("génère des @noms personnalisables de dix lettres maximum", () => {
+    expect(generateUsername("Francky","Masinjaka")).toBe("franckymas");
+    expect(generateUsername("Émilie","Rakoto")).toBe("emilierako");
+    expect(NEW_USERNAME_PATTERN.test("franckymas")).toBe(true);
+    expect(NEW_USERNAME_PATTERN.test("nom.usage")).toBe(false);
+    expect(NEW_USERNAME_PATTERN.test("123nom")).toBe(false);
+    expect(NEW_USERNAME_PATTERN.test("abcdefghijkl")).toBe(false);
+    expect(normalizeUsername("@FranckyMas")).toBe("franckymas");
   });
   it("n'accepte que les codes géographiques enregistrés", () => {
     expect(REGISTRATION_LOCALITIES.length).toBeGreaterThan(4);
