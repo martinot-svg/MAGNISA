@@ -107,6 +107,42 @@ async function sendInternal(form: FormData) {
   revalidatePath(PATH);
 }
 
+async function markInternalRead(form: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  const messageId = String(form.get("messageId") || "").trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(messageId)) {
+    throw new Error("Message invalide.");
+  }
+  const { data: message, error: messageError } = await ctx.supabase
+    .from("mgmail_internal_messages")
+    .select("id,recipient_mailbox_id")
+    .eq("id", messageId)
+    .eq("organization_id", ctx.organizationId)
+    .maybeSingle();
+  if (messageError || !message) throw new Error("Message indisponible.");
+
+  const { data: mailbox } = await ctx.supabase
+    .from("mgmail_internal_mailboxes")
+    .select("id")
+    .eq("id", message.recipient_mailbox_id)
+    .eq("organization_id", ctx.organizationId)
+    .eq("owner_user_id", ctx.user.id)
+    .eq("is_active", true)
+    .eq("can_read", true)
+    .maybeSingle();
+  if (!mailbox) throw new Error("Vous ne pouvez pas modifier la lecture de ce message.");
+  const { error } = await ctx.supabase
+    .from("mgmail_internal_messages")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", messageId)
+    .eq("recipient_mailbox_id", mailbox.id)
+    .eq("organization_id", ctx.organizationId)
+    .is("read_at", null);
+  if (error) throw new Error("Impossible de marquer le message comme lu.");
+  revalidatePath(PATH);
+}
+
 export default async function MGMailInternalPage() {
   const ctx = await requireOrganization();
   const canManage = await hasPermission(ctx, "users.manage");
@@ -117,7 +153,7 @@ export default async function MGMailInternalPage() {
       .select("id,local_part,owner_user_id,display_name,is_active,can_read,can_send")
       .eq("organization_id", ctx.organizationId).order("local_part"),
     ctx.supabase.from("mgmail_internal_messages")
-      .select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,created_at")
+      .select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,read_at,created_at")
       .eq("organization_id", ctx.organizationId)
       .order("created_at", { ascending: false }).limit(80),
   ]);
@@ -143,18 +179,28 @@ export default async function MGMailInternalPage() {
   );
   const inbox = messages.filter((message) => readableMailboxIds.has(message.recipient_mailbox_id));
   const sent = messages.filter((message) => readableMailboxIds.has(message.sender_mailbox_id));
-  const renderMessages = (items: typeof messages) => items.length === 0 ? (
+  const unreadCount = inbox.filter((message) => !message.read_at).length;
+  const renderMessages = (items: typeof messages, kind: "inbox" | "sent") => items.length === 0 ? (
     <p className="muted">Aucun message dans cette boîte.</p>
   ) : (
     <div>
       {items.map((message) => (
         <div key={message.id} style={{ borderBottom: "1px solid #e5e7eb", padding: "14px 0" }}>
           <strong>{message.subject}</strong>
+          {kind === "inbox" && !message.read_at && (
+            <span className="badge" style={{ marginLeft: 10 }}>Non lu</span>
+          )}
           <p className="muted">
             De : {address(message.sender_mailbox_id)} · À : {address(message.recipient_mailbox_id)}
             {" · "}{new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(message.created_at))}
           </p>
           <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.body_text}</p>
+          {kind === "inbox" && !message.read_at && (
+            <form action={markInternalRead}>
+              <input type="hidden" name="messageId" value={message.id} />
+              <button className="button" type="submit">Marquer comme lu</button>
+            </form>
+          )}
         </div>
       ))}
     </div>
@@ -285,10 +331,10 @@ export default async function MGMailInternalPage() {
               </FormDialog>
             )}
             {mine.length === 0 && <p className="muted">Aucune boîte active autorisée à envoyer ne vous est attribuée.</p>}
-            <h3>Boîte de réception interne</h3>
-            {renderMessages(inbox)}
+            <h3>Boîte de réception interne ({unreadCount} non lus affichés)</h3>
+            {renderMessages(inbox, "inbox")}
             <h3>Envoyés internes</h3>
-            {renderMessages(sent)}
+            {renderMessages(sent, "sent")}
 
           </div>
         </>
