@@ -345,5 +345,5 @@ jobs:
                OR EXISTS (SELECT 1 FROM public.pcg2005_balance_sheet_passif_mapping_gaps) THEN
               RAISE EXCEPTION 'Unmapped PCG balance-sheet presentation accounts remain';
             END IF;
-          END $;
+          END $$;
           SQL
