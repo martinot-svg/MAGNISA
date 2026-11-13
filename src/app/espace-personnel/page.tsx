@@ -9,10 +9,11 @@ export default async function PersonalSpace() {
   ]);
   if(profileError||membershipsError)throw new Error("Espace personnel indisponible.");
   const ids=(memberships||[]).map(m=>m.organization_id);
-  const {data:companies,error} = ids.length ? await supabase.from("organizations")
-    .select("id,name").in("id",ids):{data:[],error:null};
-  if(error)throw new Error("Impossible de charger les entreprises.");
-  const names=new Map((companies||[]).map(c=>[c.id,c.name]));
+  const organizationsResult = ids.length ? await supabase.from("organizations")
+    .select("id,name").in("id",ids):null;
+  if(organizationsResult?.error)throw new Error("Impossible de charger les entreprises.");
+  const companies: Array<{id:string;name:string}> = organizationsResult?.data ?? [];
+  const names=new Map(companies.map(company=>[company.id,company.name]));
   return <main className="auth authPremium" style={{maxWidth:850,margin:"0 auto"}}>
     <p className="eyebrow">MAGNISA — Compte personnel</p>
     <h1>Mon espace personnel</h1>
