@@ -29,7 +29,8 @@ export default function Signup() {
           <small id="username-help">3 à 30 caractères : lettres, chiffres, points et tiret bas. Utilisable pour te connecter.</small>
         </div>
         <div className="field"><label htmlFor="signup-email">Adresse e-mail</label>
-          <input id="signup-email" name="email" type="email" required autoComplete="email" placeholder="direction@entreprise.mg"/>
+          <input id="signup-email" name="email" type="email" required autoComplete="email" placeholder="nom@exemple.com" aria-describedby="signup-email-help"/>
+          <small id="signup-email-help">Gmail, Outlook, Yahoo, iCloud, Proton ou adresse professionnelle : aucun fournisseur n’est obligatoire.</small>
         </div>
         <div className="field"><label htmlFor="signup-password">Mot de passe</label>
           <input id="signup-password" name="password" type="password" minLength={10} required autoComplete="new-password"/>
