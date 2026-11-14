@@ -4,9 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const ownerEmail = process.env.TEST_EMAIL;
-const ownerPassword = process.env.TEST_PASSWORD;
-if (!url || !anonKey || !serviceKey || !ownerEmail || !ownerPassword) {
+if (!url || !anonKey || !serviceKey) {
   throw new Error("Environnement MGMail d'intégration isolée incomplet.");
 }
 
@@ -15,16 +13,33 @@ const client = (key) => createClient(url, key, {
 });
 const admin = client(serviceKey);
 const owner = client(anonKey);
+
+// Each run owns a dedicated fixture in the disposable CI Supabase database.
+// This avoids implicit dependence on payroll/CRM users or their memberships.
+const fixtureId = randomUUID().slice(0, 12);
+const ownerEmail = `mgmail-owner-${fixtureId}@magnisa.test`;
+const ownerPassword = `MG-${randomBytes(18).toString("hex")}!a9`;
+const createdOwner = await admin.auth.admin.createUser({
+  email: ownerEmail, password: ownerPassword, email_confirm: true,
+});
+if (createdOwner.error || !createdOwner.data.user) {
+  throw createdOwner.error || new Error("Création du compte de test MGMail impossible.");
+}
 const auth = await owner.auth.signInWithPassword({
   email: ownerEmail, password: ownerPassword,
 });
-if (auth.error || !auth.data.user) throw auth.error || new Error("Connexion propriétaire impossible.");
-const ownerId = auth.data.user.id;
-
-const membership = await admin.from("organization_members").select("organization_id")
-  .eq("user_id", ownerId).eq("status", "active").limit(1).single();
-if (membership.error) throw membership.error;
-const organizationId = membership.data.organization_id;
+if (auth.error || auth.data.user?.id !== createdOwner.data.user.id) {
+  throw auth.error || new Error("Connexion propriétaire impossible.");
+}
+const ownerId = createdOwner.data.user.id;
+const organization = await owner.rpc("create_organization", {
+  p_name: `MGMail intégration ${fixtureId}`,
+  p_currency: "MGA",
+});
+if (organization.error || typeof organization.data !== "string") {
+  throw organization.error || new Error("Création de l'entreprise MGMail impossible.");
+}
+const organizationId = organization.data;
 
 const assert = (value, message) => { if (!value) throw new Error(message); };
 const required = (response, label) => {
