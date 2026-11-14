@@ -11,6 +11,7 @@ import {
 import { MGMailPreavisForm } from "@/components/mgmail-preavis-form";
 import { FormDialog } from "@/components/form-dialog";
 import { configureMGMailBillingPreavis } from "@/lib/magnimail/scheduled-actions";
+import { madagascarCivilDate } from "@/lib/magnimail/scheduled";
 
 function dateLabel(value: string) {
   return new Intl.DateTimeFormat("fr-FR", {
@@ -132,7 +133,7 @@ export default async function BillingPreavisPreview() {
   const globalPolicy = policies.find((policy) => policy.contractId === null);
 
   // Prévisualisation seulement ; aucune action d'envoi de courrier.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = madagascarCivilDate();
   const previews = contracts.map((contract) => {
     const policy = policies.find((item) => item.contractId === contract.id) ?? globalPolicy;
     return {
