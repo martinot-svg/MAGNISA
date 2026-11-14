@@ -189,7 +189,7 @@ export default async function BillingPreavisPreview() {
             </p>
             {!canConfigureDelivery ? (
               <p className="muted">Seuls les responsables disposant des droits de facturation et d'administration peuvent activer les préavis Internet.</p>
-            ) : usableIdentities.length === 0 ? (
+            ) : usableIdentities.length === 0 && deliveryConfigs.size === 0 ? (
               <p className="muted">Aucune adresse MGMail Internet autorisée et vérifiée. Configurez d'abord une boîte d'envoi externe.</p>
             ) : (
               <div className="tableWrap">
@@ -215,6 +215,11 @@ export default async function BillingPreavisPreview() {
                                   <label>Adresse MGMail expéditrice</label>
                                   <select name="identityId" defaultValue={config?.identity_id || ""} required>
                                     <option value="">Choisir une adresse autorisée</option>
+                                    {config?.identity_id && !usableIdentities.some((identity) => identity.id === config.identity_id) && (
+                                      <option value={config.identity_id}>
+                                        Adresse précédemment configurée (inactive ou sans réception) — désactivation possible
+                                      </option>
+                                    )}
                                     {usableIdentities.map((identity) => (
                                       <option key={identity.id} value={identity.id}>{identity.email_address}</option>
                                     ))}
