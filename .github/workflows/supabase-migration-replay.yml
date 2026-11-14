@@ -50,6 +50,10 @@ jobs:
         run: supabase start -x studio,edge-runtime,logflare,vector,analytics
       - name: Replay every migration from a clean database
         run: supabase db reset --yes
+      - name: Verify MGMail production schema contract (read-only)
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/mgmail-internal-schema-contract.sql
       - name: Verify supplier invoice matching, VAT, multi-order and customer mandate accounting
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\"')
