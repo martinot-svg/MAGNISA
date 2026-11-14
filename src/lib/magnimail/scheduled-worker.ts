@@ -83,9 +83,8 @@ export async function queueDueBillingPreavis(admin: Admin, now: Date): Promise<n
     }
     const contracts = contractsResult.data || [];
     const customerIds = [...new Set(contracts.map((contract) => contract.customer_id))];
-    const customersResult = customerIds.length
-      ? await admin.from("customers").select("id,organization_id,name,email,is_active").in("id", customerIds)
-      : { data: [], error: null };
+    const customersResult = await admin.from("customers")
+      .select("id,organization_id,name,email,is_active").in("id", customerIds);
     if (customersResult.error) throw new Error("Consultation clients MGMail impossible.");
 
     // Une facture déjà préparée pour l'échéance rend le préavis inutile.
