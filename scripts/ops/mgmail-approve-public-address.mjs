@@ -58,14 +58,23 @@ const domainResponse = await fetch(`https://api.resend.com/domains/${encodeURICo
 });
 if (!domainResponse.ok) throw new Error(`Fournisseur : échec de la vérification du domaine (HTTP ${domainResponse.status}).`);
 const info = await domainResponse.json();
-const verifiedRecords = new Set((Array.isArray(info.records) ? info.records : [])
-  .filter((record) => record.status === "verified")
-  .map((record) => String(record.record).toLowerCase()));
+const dnsRecords = Array.isArray(info.records) ? info.records.map((record) => ({
+  label: String(record.record || "").toLowerCase(),
+  type: String(record.type || "").toUpperCase(),
+  verified: record.status === "verified",
+})) : [];
+const has = (label, type) => dnsRecords.some((record) =>
+  record.label === label && record.type === type && record.verified);
+const spfRecords = dnsRecords.filter((record) => record.label === "spf");
+const sendingReady = has("dkim", "TXT") && has("spf", "TXT") &&
+  spfRecords.every((record) => record.verified);
+const receivingReady = dnsRecords.some((record) =>
+  record.type === "MX" && ["receiving","mx"].includes(record.label) &&
+  record.verified);
 if (info.id !== providerId || info.name !== domain || info.status !== "verified" ||
     info.capabilities?.sending !== "enabled" ||
     info.capabilities?.receiving !== "enabled" ||
-    !verifiedRecords.has("dkim") || !verifiedRecords.has("spf") ||
-    !verifiedRecords.has("receiving")) {
+    !sendingReady || !receivingReady) {
   throw new Error("Domaine non vérifié pour l'envoi ET la réception, ou nom de domaine différent.");
 }
 
