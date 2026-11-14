@@ -29,21 +29,34 @@ export default async function MagniMailPage({
     .eq("provider", "google")
     .maybeSingle();
 
+  // Le canal interne fonctionne sans connexion Gmail ni domaine Internet.
+  const internalPortal = (
+    <div className="card section">
+      <h2>Boîtes MGMail des collaborateurs</h2>
+      <p>Créer, attribuer et partager des boîtes internes ; échanger des messages
+        entre collaborateurs autorisés, même sans compte Gmail.</p>
+      <p className="muted">Les identifiants en .mgmail sont réservés à MAGNISA :
+        ils ne reçoivent pas directement les courriels Internet.</p>
+      <a className="button primary" href="/magnimail/interne">Ouvrir la messagerie interne</a>
+    </div>
+  );
+
   if (!gmail || gmail.status !== "active") {
     return (
       <>
         <div className="pageHead">
           <div>
             <p className="eyebrow">Communication</p>
-            <h1>MagniMail</h1>
-            <p>Centralise les e-mails clients directement dans MAGNISA.</p>
+            <h1>MGMail</h1>
+            <p>Messagerie interne sécurisée et connexions e-mail externes facultatives.</p>
           </div>
         </div>
+        {internalPortal}
         <div className="grid2">
           <div className="card">
-            <h2>Gmail</h2>
+            <h2>Gmail — facultatif</h2>
             <p className="muted">
-              Connecte Gmail pour la boîte de réception, les envoyés, brouillons, réponses,
+              Connecte Gmail uniquement si tu souhaites utiliser une boîte externe pour la réception, les envoyés, les brouillons, les réponses,
               pièces jointes et l'envoi des documents MAGNISA.
             </p>
             <a className="button primary" href="/api/integrations/google/start">
@@ -94,6 +107,7 @@ export default async function MagniMailPage({
 
   return (
     <>
+      {internalPortal}
       {needsUpgrade && (
         <div
           className="card"
