@@ -1,3 +1,5 @@
+// Personal and professional email providers are equally valid for MAGNISA accounts.
+// Only temporary/disposable services are excluded.
 const DISPOSABLE_HINTS = [
   "mailinator",
   "tempmail",

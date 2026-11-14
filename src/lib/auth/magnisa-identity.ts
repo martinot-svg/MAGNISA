@@ -13,7 +13,66 @@ export const REGISTRATION_LOCALITIES = [
   { code: "601", name: "Toliara I" },
   { code: "602", name: "Toliara II" },
 ] as const;
+// Internal codes describe regional registration origin, NOT the person's precise locality.
+export const REGISTRATION_REGIONS = [
+  { code: "901", name: "Alaotra-Mangoro" },
+  { code: "902", name: "Ambatosoa" },
+  { code: "903", name: "Amoron'i Mania" },
+  { code: "904", name: "Analamanga" },
+  { code: "905", name: "Analanjirofo" },
+  { code: "906", name: "Androy" },
+  { code: "907", name: "Anosy" },
+  { code: "908", name: "Atsimo-Andrefana" },
+  { code: "909", name: "Atsimo-Atsinanana" },
+  { code: "910", name: "Atsinanana" },
+  { code: "911", name: "Betsiboka" },
+  { code: "912", name: "Boeny" },
+  { code: "913", name: "Bongolava" },
+  { code: "914", name: "DIANA" },
+  { code: "915", name: "Fitovinany" },
+  { code: "916", name: "Haute Matsiatra" },
+  { code: "917", name: "Ihorombe" },
+  { code: "918", name: "Itasy" },
+  { code: "919", name: "Melaky" },
+  { code: "920", name: "Menabe" },
+  { code: "921", name: "SAVA" },
+  { code: "922", name: "Sofia" },
+  { code: "923", name: "Vakinankaratra" },
+  { code: "924", name: "Vatovavy" },
+] as const;
+export function isValidRegistrationRegion(country: string, region: string): boolean {
+  return country === REGISTRATION_COUNTRY_CODE &&
+    REGISTRATION_REGIONS.some((item) => item.code === region);
+}
+// Legacy usernames remain valid for login and existing accounts.
 export const USERNAME_PATTERN = /^[a-z][a-z0-9._]{2,29}$/;
+// New user-facing handles: @ followed by 3-10 ASCII letters.
+export const NEW_USERNAME_PATTERN = /^[a-z]{3,10}$/;
+
+export function generateUsername(firstName: string, lastName: string): string {
+  const letters = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");
+  const given = letters(firstName);
+  const family = letters(lastName);
+  // Keep some of both names when possible, even when the given name is long.
+  const givenPart = given.slice(0, family ? Math.min(7, Math.max(3, 10 - Math.min(3, family.length))) : 10);
+  return (givenPart + family).slice(0, 10);
+}
+// Deterministic candidate handles for a collision. Availability must always
+// be checked server-side, since generating a variant does not reserve it.
+export function usernameVariants(base: string): string[] {
+  const normalized = normalizeUsername(base).replace(/[^a-z]/g,"").slice(0,10);
+  if (normalized.length < 3) return [];
+  const root = normalized.slice(0,8);
+  const variants: string[] = [];
+  const alphabet = "abcdefghijklmnopqrstuvwxyz";
+  for (const a of alphabet) {
+    for (const b of alphabet) {
+      const value = root + a + b;
+      if (value !== normalized && NEW_USERNAME_PATTERN.test(value)) variants.push(value);
+    }
+  }
+  return variants;
+}
 export const PUBLIC_ID_PATTERN = /^[0-9]{14}$/;
 
 /** New auto-generated usernames: ASCII letters only, two to ten letters.
@@ -38,7 +97,7 @@ export function usernameStemFromNames(givenNames: string, familyName: string): s
 
 
 export function normalizeUsername(input: string): string {
-  return input.trim().toLowerCase();
+  return input.trim().replace(/^@/, "").toLowerCase();
 }
 export function isValidRegistrationLocality(country: string, locality: string): boolean {
   return country === REGISTRATION_COUNTRY_CODE &&

@@ -49,6 +49,36 @@ describe("resolveOrganizationLogoUrl", () => {
     expect(mock.from).not.toHaveBeenCalled();
   });
 
+  it("uses the inverse logo for a dark document background", async () => {
+    const mock = storageClient({ data: { signedUrl: "https://signed.example/inverse.png" }, error: null });
+    const url = await resolveOrganizationLogoUrl(mock.client, {
+      logo_storage_path:"org-1/color.png",
+      logo_inverse_storage_path:"org-1/inverse.png",
+      document_theme:{ backgroundColor:"#13243A" },
+    });
+    expect(url).toBe("https://signed.example/inverse.png");
+    expect(mock.createSignedUrl).toHaveBeenCalledWith("org-1/inverse.png",3600);
+  });
+  it("keeps the colour logo on a light background", async () => {
+    const mock = storageClient({data:{signedUrl:"https://signed.example/color.png"},error:null});
+    await resolveOrganizationLogoUrl(mock.client,{
+      logo_storage_path:"org-1/color.png",
+      logo_inverse_storage_path:"org-1/inverse.png",
+      document_theme:{ backgroundColor:"#FFFFFF" },
+    });
+    expect(mock.createSignedUrl).toHaveBeenCalledWith("org-1/color.png",3600);
+  });
+
+  it("keeps a finalized light-theme snapshot when current company uses a dark theme", async () => {
+    const mock=storageClient({data:{signedUrl:"https://signed.example/issued.png"},error:null});
+    await resolveOrganizationLogoUrl(mock.client,
+      {logo_storage_path:"org-1/issued.png",logo_inverse_storage_path:"org-1/issued-inverse.png",
+        document_theme:{backgroundColor:"#FFFFFF"}},
+      {logo_storage_path:"org-1/latest.png",logo_inverse_storage_path:"org-1/latest-inverse.png",
+        document_theme:{backgroundColor:"#102030"}}
+    );
+    expect(mock.createSignedUrl).toHaveBeenCalledWith("org-1/issued.png",3600);
+  });
   it("returns null when no usable logo exists", async () => {
     const mock = storageClient({ data: null, error: null });
     await expect(resolveOrganizationLogoUrl(mock.client, { logo_url: null, logo_storage_path: null })).resolves.toBeNull();

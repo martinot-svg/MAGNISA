@@ -1,3 +1,33 @@
-import { requireUser } from "@/lib/current-org";import { redirect } from "next/navigation";
-async function createOrg(formData:FormData){"use server";const {supabase,user}=await requireUser();const name=String(formData.get("name")||"").trim();const currency=String(formData.get("currency")||"MGA");if(name.length<2) return; const {data,error}=await supabase.rpc("create_organization",{p_name:name,p_currency:currency});if(error) throw new Error(error.message);redirect("/parametres?onboarding=1");}
-export default async function Onboarding(){const {supabase,user}=await requireUser();const {data}=await supabase.from("organization_members").select("organization_id").eq("user_id",user.id).eq("status","active").limit(1);if(data?.length)redirect("/dashboard");return <main className="auth authPremium"><h1>Configurer l'entreprise</h1><p className="muted">Aucune donnée de démonstration n'est créée. Renseigne uniquement les informations réelles.</p><form action={createOrg} className="form"><div className="field"><label>Raison sociale / nom de l'entreprise</label><input name="name" required minLength={2}/></div><div className="field"><label>Devise</label><select name="currency" defaultValue="MGA"><option value="MGA">Ariary (MGA)</option><option value="EUR">Euro (EUR)</option><option value="USD">Dollar US (USD)</option></select></div><button className="button primary">Créer l'espace entreprise</button></form></main>}
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { requireUser } from "@/lib/current-org";
+
+export default async function Onboarding() {
+  const { supabase, user } = await requireUser();
+  const { data: memberships, error } = await supabase.from("organization_members")
+    .select("organization_id").eq("user_id",user.id).eq("status","active").limit(1);
+  if(error)throw new Error("Impossible de vérifier vos entreprises.");
+  if(memberships?.length)redirect("/choisir-organisation");
+  return <main className="auth authPremium" style={{maxWidth:840,margin:"0 auto"}}>
+    <p className="eyebrow">Bienvenue sur MAGNISA</p>
+    <h1>Que souhaitez-vous faire ?</h1>
+    <p className="muted">Ton compte personnel est créé. Tu peux commencer sans entreprise et changer de choix plus tard.</p>
+    <div className="grid2">
+      <section className="card">
+        <h2>Créer une entreprise</h2>
+        <p>Ouvrir un espace de gestion avec les informations juridiques, les activités, le logo, la fiscalité et l'exercice comptable.</p>
+        <Link className="button primary" href="/creer-entreprise">Créer mon entreprise</Link>
+      </section>
+      <section className="card">
+        <h2>Rejoindre une entreprise</h2>
+        <p>Accepter un lien d'invitation sécurisé envoyé par un administrateur à ton e-mail personnel.</p>
+        <Link className="button" href="/espace-personnel#invitations">Mes invitations</Link>
+      </section>
+      <section className="card">
+        <h2>Mon espace personnel</h2>
+        <p>Consulter ton profil, tes entreprises, tes invitations et les paramètres de sécurité.</p>
+        <Link className="button" href="/espace-personnel">Accéder à mon espace personnel</Link>
+      </section>
+    </div>
+  </main>;
+}

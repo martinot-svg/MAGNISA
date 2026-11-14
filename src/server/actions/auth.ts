@@ -4,17 +4,22 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { signupEmailPolicy } from "@/lib/auth/domain";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isValidRegistrationLocality, USERNAME_PATTERN, GENERATED_USERNAME_PATTERN, usernameStemFromNames } from "@/lib/auth/magnisa-identity";
+import { isValidRegistrationRegion, normalizeUsername, USERNAME_PATTERN, NEW_USERNAME_PATTERN, GENERATED_USERNAME_PATTERN, usernameVariants } from "@/lib/auth/magnisa-identity";
 import { createHmac } from "node:crypto";
+import { resolveLocality } from "@/lib/geo/madagascar-localities";
 import { headers } from "next/headers";
 
 const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(10),
-  first_name: z.string().trim().min(1).max(59),
-  last_name: z.string().trim().min(1).max(59),
+  first_name: z.string().trim().min(1).max(60),
+  last_name: z.string().trim().min(1).max(60),
+  username: z.string().trim().min(3).max(11),
+  confirm_password: z.string().min(10),
   country_code: z.string().regex(/^[0-9]{3}$/),
-  locality_code: z.string().regex(/^[0-9]{3}$/),
+  region_code: z.string().regex(/^9[0-2][0-9]$/),
+  locality_name: z.string().trim().min(2).max(160),
+  locality_ref: z.string().trim().max(20).optional(),
 });
 
 export async function signUp(formData: FormData) {
@@ -23,13 +28,18 @@ export async function signUp(formData: FormData) {
     return { error: "Adresse e-mail ou mot de passe invalide. Le mot de passe doit comporter au moins 10 caractères." };
   }
 
-  const generatedStem = usernameStemFromNames(parsed.data.first_name, parsed.data.last_name);
-  if (generatedStem.length < 2) {
-    return { error: "Les prénoms et le nom doivent contenir au moins deux lettres reconnues." };
+  const username = normalizeUsername(parsed.data.username);
+  const fullName = `${parsed.data.first_name} ${parsed.data.last_name}`.trim();
+  if (parsed.data.password !== parsed.data.confirm_password) return { error: "Les mots de passe ne correspondent pas." };
+  if (!NEW_USERNAME_PATTERN.test(username)) {
+    return { error: "Le nom d’utilisateur doit comporter de 3 à 10 lettres minuscules après @." };
   }
-  if (!isValidRegistrationLocality(parsed.data.country_code, parsed.data.locality_code)) {
-    return { error: "Sélectionne une localité d’inscription proposée par MAGNISA." };
+  if (!isValidRegistrationRegion(parsed.data.country_code, parsed.data.region_code)) {
+    return { error: "Sélectionne une région de Madagascar." };
   }
+  const chosen = resolveLocality(parsed.data.locality_ref || "", parsed.data.region_code);
+  const normalizedPlace = parsed.data.locality_name.trim().toLocaleLowerCase("fr");
+  const validated = chosen?.name.toLocaleLowerCase("fr") === normalizedPlace ? chosen : null;
 
   const policy = signupEmailPolicy(parsed.data.email);
   if (!policy.ok) return { error: policy.reason };
@@ -38,15 +48,30 @@ export async function signUp(formData: FormData) {
   const supabase = await createClient();
   // The database trigger allocates a unique username atomically; there is no
   // preflight lookup that could race between simultaneous registrations.
+  // However, we still pre-check to offer user-friendly suggestions on collision.
   const admin = createAdminClient();
+  const { data: taken, error: checkError } = await admin.from("profiles")
+    .select("id").eq("username", username).maybeSingle();
+  if (checkError) return { error: "Vérification du nom d’utilisateur indisponible." };
+  if (taken) {
+    const variants = usernameVariants(username).slice(0, 120);
+    const { data: occupied, error: suggestionsError } = await admin.from("profiles")
+      .select("username").in("username", variants);
+    const occupiedNames = new Set((occupied || []).map(item => item.username));
+    return {
+      error: "Ce nom d’utilisateur est déjà utilisé. Choisis un autre nom ci-dessous.",
+      suggestions: suggestionsError ? [] : variants.filter(item => !occupiedNames.has(item)).slice(0, 3),
+    };
+  }
 
   const { data, error } = await supabase.auth.signUp({
     email,
     password: parsed.data.password,
     options: { data: {
-      full_name: `${parsed.data.first_name.trim()} ${parsed.data.last_name.trim()}`,
+      full_name: fullName,
       given_names: parsed.data.first_name.trim(),
       family_name: parsed.data.last_name.trim(),
+      username,
     } },
   });
 
@@ -63,10 +88,13 @@ export async function signUp(formData: FormData) {
   // Auth user_metadata is readable by the user: NEVER store geographic codes there.
   // The server calls a service-role-only RPC to attach the immutable origin privately.
   if (data.user.email?.trim().toLowerCase() === email && data.user.id) {
-    const { error: originError } = await admin.rpc("register_magnisa_signup_origin", {
+    const { error: originError } = await admin.rpc("register_magnisa_signup_location", {
       p_user: data.user.id,
-      p_country: parsed.data.country_code,
-      p_locality: parsed.data.locality_code,
+      p_region_code: parsed.data.region_code,
+      p_locality_name: parsed.data.locality_name,
+      p_locality_ref: validated?.ref || null,
+      p_commune: validated?.commune || null,
+      p_district: validated?.district || null,
     });
     if (originError) {
       // Do not invalidate an already-created Supabase Auth account. The user can
@@ -130,9 +158,12 @@ export async function signIn(formData: FormData) {
   if (!parsed.success) return { error: "Identifiants invalides." };
 
   const identifier = parsed.data.identifier.trim().toLowerCase();
+  const isEmail = identifier.includes("@") && !identifier.startsWith("@");
+  const handle = normalizeUsername(identifier);
   let email = identifier;
-  if (!identifier.includes("@")) {
-    if (!USERNAME_PATTERN.test(identifier) && !GENERATED_USERNAME_PATTERN.test(identifier)) {
+  if (!isEmail) {
+    // Accept both current handles (3-10, lowercase letters) and legacy generated ones (2-10).
+    if (!USERNAME_PATTERN.test(handle) && !GENERATED_USERNAME_PATTERN.test(handle)) {
       return { error: "Connexion impossible. Vérifie tes identifiants." };
     }
     try {
@@ -141,7 +172,7 @@ export async function signIn(formData: FormData) {
       const requestHeaders = await headers();
       const ip = requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
       const secret = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-      const fingerprint = createHmac("sha256", secret).update(ip + ":" + identifier).digest("hex");
+      const fingerprint = createHmac("sha256", secret).update(ip + ":" + handle).digest("hex");
       const { data: allowed, error: throttleError } = await admin.rpc("consume_magnisa_username_login_attempt", {
         p_fingerprint: fingerprint,
       });
@@ -149,7 +180,7 @@ export async function signIn(formData: FormData) {
         return { error: "Connexion temporairement limitée. Réessaie plus tard." };
       }
       const { data: profile, error: lookupError } = await admin.from("profiles")
-        .select("email").eq("username", identifier).maybeSingle();
+        .select("email").eq("username", handle).maybeSingle();
       if (lookupError || !profile) {
         return { error: "Connexion impossible. Vérifie tes identifiants." };
       }
