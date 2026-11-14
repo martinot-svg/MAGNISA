@@ -72,7 +72,7 @@ export default async function MyMagnisaProfile() {
         </section>
         <section className="card">
           <h2>Mes informations</h2>
-          <p className="muted">Le nom d'utilisateur peut changer une fois tous les 30 jours. Le lieu de l'inscription est enregistré une seule fois dans l'espace confidentiel.</p>
+          <p className="muted">Le nom d'utilisateur est généré automatiquement à partir des prénoms et du nom, sur 10 lettres maximum. Une modification ultérieure reste possible tous les 30 jours. Le lieu d'inscription est confidentiel et permanent.</p>
           <p>{registered ? "Lieu d'inscription définitivement enregistré." : "Lieu d'inscription à renseigner pour finaliser ton identité."}</p>
           <FormDialog title="Modifier mon profil" buttonLabel="Modifier mon profil">
             <form action={saveProfile} className="form">
@@ -83,8 +83,8 @@ export default async function MyMagnisaProfile() {
               <div className="field"><label htmlFor="profile-username">Nom d’utilisateur (@)</label>
                 <input id="profile-username" name="username" required minLength={3} maxLength={30}
                   autoComplete="username" pattern={USERNAME_PATTERN.source.slice(1,-1)}
-                  defaultValue={profile.username || ""} />
-                <small>Tout nouveau nom doit comporter 3 à 10 lettres minuscules. Le préfixe @ est ajouté automatiquement.</small>
+                  defaultValue={profile.username || ""} placeholder="Généré automatiquement" />
+                <small>Tout nouveau nom doit comporter 3 à 10 lettres minuscules. Le préfixe @ est ajouté automatiquement. Les anciens noms restent valables.</small>
               </div>
               {!registered && (
                 <>

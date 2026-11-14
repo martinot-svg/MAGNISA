@@ -8,14 +8,14 @@ const admin = createClient(url,secret,{auth:{autoRefreshToken:false,persistSessi
 const assert = (ok,description) => {if(!ok)throw new Error(description);};
 const suffix = Date.now();
 const email = `identity-fixture-${suffix}@magnisa.test`;
-const username = `identity.test${suffix}`.slice(0,30);
+let username = "";
 const password = "Fixture-Identity-2026!Aa";
 let userId = null;
 let createdCompanyId = null;
 try {
   const created = await admin.auth.admin.createUser({
     email, password, email_confirm:true,
-    user_metadata:{full_name:"Utilisateur MAGNISA Test",username},
+    user_metadata:{full_name:"Utilisateur MAGNISA Test"},
   });
   if (created.error || !created.data.user) throw created.error || new Error("Cannot create user");
   userId = created.data.user.id;
@@ -30,7 +30,8 @@ try {
   const profile = await admin.from("profiles").select("public_id,username,full_name").eq("id",userId).single();
   if(profile.error) throw profile.error;
   assert(/^[0-9]{14}$/.test(profile.data.public_id),"Public id must contain 14 digits.");
-  assert(profile.data.username===username,"Signup username must be registered exactly.");
+  assert(/^[a-z]{2,10}$/.test(profile.data.username),"Signup username must be generated automatically.");
+  username=profile.data.username;
   assert(profile.data.full_name==="Utilisateur MAGNISA Test","Full name must be saved.");
   console.log("OK profile with unique opaque 14-digit ID");
 
@@ -86,11 +87,11 @@ try {
 
   const changeTooSoon = await visitor.rpc("claim_magnisa_identity",{
     p_full_name:"Utilisateur MAGNISA Test",
-    p_username:username.slice(0,26)+"z",
+    p_username:username.slice(0,9)+"z",
     p_country:"",
     p_locality:"",
   });
-  assert(!!changeTooSoon.error,"Username rename inside 30 days must be rejected.");
+  assert(!!changeTooSoon.error && changeTooSoon.error.message.includes("30 jours"),"Username rename inside 30 days must be rejected.");
   const same = await visitor.rpc("claim_magnisa_identity",{
     p_full_name:"Utilisateur MAGNISA Test",
     p_username:username,

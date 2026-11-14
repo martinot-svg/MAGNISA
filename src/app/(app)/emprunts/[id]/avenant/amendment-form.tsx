@@ -68,7 +68,6 @@ export function AmendmentForm({ loanId, principal, annualRatePercent, currentFre
 
       <section className="section">
         <h2>2. Nouvelle durée de remboursement</h2>
-        <p className="muted">Le taux, la périodicité et la méthode restent ceux du contrat principal. Cet avenant crée une nouvelle version de l'échéancier et permet de modifier la durée à partir du capital restant dû. Cette règle évite de créer une incohérence entre l'échéancier et les paramètres généraux du prêt.</p>
         <div className="grid2">
           <div className="field"><label>Capital de départ</label><input value={principal.toLocaleString("fr-FR")} readOnly /></div>
           <div className="field"><label>Taux annuel nominal (%)</label><input value={annualRatePercent} readOnly /></div>
@@ -80,7 +79,7 @@ export function AmendmentForm({ loanId, principal, annualRatePercent, currentFre
       </section>
 
       <section className="section">
-        <div className="pageHead"><div><h2>3. Prévisualisation</h2><p className="muted">L'avenant n'est pas enregistré tant que tu n'as pas validé le formulaire.</p></div></div>
+        <div className="pageHead"><div><h2>3. Prévisualisation</h2></div></div>
         {!schedule ? <p className="muted">Renseigne une première échéance valide pour générer l'aperçu.</p> : (
           <>
             <div className="grid2">

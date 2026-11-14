@@ -75,6 +75,27 @@ export function usernameVariants(base: string): string[] {
 }
 export const PUBLIC_ID_PATTERN = /^[0-9]{14}$/;
 
+/** New auto-generated usernames: ASCII letters only, two to ten letters.
+ * Legacy usernames remain valid for sign-in to avoid breaking existing accounts. */
+export const GENERATED_USERNAME_PATTERN = /^[a-z]{2,10}$/;
+
+/** Display preview only. PostgreSQL assigns and reserves the final unique value. */
+export function usernameStemFromNames(givenNames: string, familyName: string): string {
+  const normalizePart = (value: string) => value
+    .toLowerCase()
+    .replace(/œ/g, "oe")
+    .replace(/æ/g, "ae")
+    .replace(/ß/g, "ss")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z]/g, "");
+  const first = normalizePart(givenNames);
+  const last = normalizePart(familyName);
+  const firstPart = first.slice(0, last.length ? 9 : 10);
+  return (firstPart + last.slice(0, 10 - firstPart.length)).slice(0, 10);
+}
+
+
 export function normalizeUsername(input: string): string {
   return input.trim().replace(/^@/, "").toLowerCase();
 }

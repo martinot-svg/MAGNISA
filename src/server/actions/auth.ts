@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { signupEmailPolicy } from "@/lib/auth/domain";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isValidRegistrationRegion, normalizeUsername, USERNAME_PATTERN, NEW_USERNAME_PATTERN, usernameVariants } from "@/lib/auth/magnisa-identity";
+import { isValidRegistrationRegion, normalizeUsername, USERNAME_PATTERN, NEW_USERNAME_PATTERN, GENERATED_USERNAME_PATTERN, usernameVariants } from "@/lib/auth/magnisa-identity";
 import { createHmac } from "node:crypto";
 import { resolveLocality } from "@/lib/geo/madagascar-localities";
 import { headers } from "next/headers";
@@ -46,19 +46,21 @@ export async function signUp(formData: FormData) {
 
   const email = policy.normalized!;
   const supabase = await createClient();
-  // Validation serveur uniquement : pas d'accès direct des visiteurs à l'annuaire des comptes.
+  // The database trigger allocates a unique username atomically; there is no
+  // preflight lookup that could race between simultaneous registrations.
+  // However, we still pre-check to offer user-friendly suggestions on collision.
   const admin = createAdminClient();
   const { data: taken, error: checkError } = await admin.from("profiles")
     .select("id").eq("username", username).maybeSingle();
   if (checkError) return { error: "Vérification du nom d’utilisateur indisponible." };
   if (taken) {
-    const variants = usernameVariants(username).slice(0,120);
+    const variants = usernameVariants(username).slice(0, 120);
     const { data: occupied, error: suggestionsError } = await admin.from("profiles")
       .select("username").in("username", variants);
     const occupiedNames = new Set((occupied || []).map(item => item.username));
     return {
       error: "Ce nom d’utilisateur est déjà utilisé. Choisis un autre nom ci-dessous.",
-      suggestions: suggestionsError ? [] : variants.filter(item => !occupiedNames.has(item)).slice(0,3),
+      suggestions: suggestionsError ? [] : variants.filter(item => !occupiedNames.has(item)).slice(0, 3),
     };
   }
 
@@ -67,6 +69,8 @@ export async function signUp(formData: FormData) {
     password: parsed.data.password,
     options: { data: {
       full_name: fullName,
+      given_names: parsed.data.first_name.trim(),
+      family_name: parsed.data.last_name.trim(),
       username,
     } },
   });
@@ -148,7 +152,7 @@ export async function resendEmailCode(formData: FormData) {
 
 export async function signIn(formData: FormData) {
   const parsed = z.object({
-    identifier: z.string().trim().min(3).max(254),
+    identifier: z.string().trim().min(2).max(254),
     password: z.string().min(1),
   }).safeParse({ identifier: formData.get("identifier") ?? formData.get("email"), password: formData.get("password") });
   if (!parsed.success) return { error: "Identifiants invalides." };
@@ -158,7 +162,8 @@ export async function signIn(formData: FormData) {
   const handle = normalizeUsername(identifier);
   let email = identifier;
   if (!isEmail) {
-    if (!USERNAME_PATTERN.test(handle)) {
+    // Accept both current handles (3-10, lowercase letters) and legacy generated ones (2-10).
+    if (!USERNAME_PATTERN.test(handle) && !GENERATED_USERNAME_PATTERN.test(handle)) {
       return { error: "Connexion impossible. Vérifie tes identifiants." };
     }
     try {

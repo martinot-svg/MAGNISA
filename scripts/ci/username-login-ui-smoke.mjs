@@ -8,15 +8,20 @@ const email = process.env.TEST_EMAIL;
 const password = process.env.TEST_PASSWORD;
 if (!apiUrl || !anonKey || !email || !password) throw new Error("Environnement Supabase de test isolé requis.");
 
-const username = "ci.identity.login";
 const supabase = createClient(apiUrl, anonKey, { auth: { autoRefreshToken:false, persistSession:false } });
 const signed = await supabase.auth.signInWithPassword({ email, password });
 if (signed.error) throw signed.error;
 const claim = await supabase.rpc("claim_magnisa_identity", {
-  p_full_name:"Compte de test MAGNISA", p_username:username,
+  p_full_name:"Compte de test MAGNISA", p_username:"",
   p_country:"261", p_locality:"601",
 });
 if (claim.error) throw new Error("Attribution du nom d'utilisateur test : "+claim.error.message);
+const { data: assigned, error: profileError } = await supabase.from("profiles")
+  .select("username").eq("id", signed.data.user.id).single();
+if (profileError || !assigned || !/^[a-z]{2,10}$/.test(assigned.username || "")) {
+  throw new Error("Le nom d'utilisateur automatique n'est pas disponible.");
+}
+const username = assigned.username;
 await supabase.auth.signOut();
 
 const browser = await chromium.launch({headless:true,args:["--no-sandbox"]});

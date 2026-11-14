@@ -43,11 +43,10 @@ export function LoanFinancialFields({ currency }: { currency: string }) {
         <div className="field"><label>Nombre d'échéances</label><input name="total_installments" type="number" min="1" max="1200" step="1" value={periods} onChange={(e) => setPeriods(e.target.value)} required /></div>
         <div className="field"><label>Périodicité</label><select name="payment_frequency" value={frequency} onChange={(e) => { setFrequency(e.target.value); if (!firstDueWasEdited && startDate) setFirstDueDate(addMonthsClamped(startDate, 12 / Number(e.target.value))); }}><option value="12">Mensuelle</option><option value="6">Bimestrielle</option><option value="4">Trimestrielle</option><option value="3">Quadrimestrielle</option><option value="2">Semestrielle</option><option value="1">Annuelle</option></select></div>
         <div className="field"><label>Méthode de remboursement</label><select name="repayment_method" value={method} onChange={(e) => setMethod(e.target.value as LoanRepaymentMethod)}><option value="annuity">Annuités constantes</option><option value="equal_principal">Capital constant</option><option value="bullet">In fine</option></select></div>
-        <div className="field"><label>Type de calcul des intérêts</label><select name="interest_type" value={interestType} onChange={(e) => setInterestType(e.target.value as LoanInterestType)}><option value="simple">Intérêt simple</option><option value="compound">Intérêt composé (taux annuel effectif)</option></select><p className="muted">Composé : le taux annuel effectif est converti en taux par échéance. Simple : le taux nominal annuel est proratisé.</p></div>
+        <div className="field"><label>Type de calcul des intérêts</label><select name="interest_type" value={interestType} onChange={(e) => setInterestType(e.target.value as LoanInterestType)}><option value="simple">Intérêt simple</option><option value="compound">Intérêt composé (taux annuel effectif)</option></select></div>
         <div className="field"><label>Base de calcul des intérêts</label><select name="interest_calculation_method" value={interestMethod} onChange={(e) => setInterestMethod(e.target.value as LoanInterestCalculationMethod)}><option value="outstanding_balance">Capital restant dû</option><option value="original_principal">Capital initial</option></select></div>
       </div>
       <input type="hidden" name="end_date" value={preview?.lastDueDate || ""} />
-      <p className="muted">Le taux périodique est calculé selon le type choisi. Le choix composé utilise un taux annuel effectif. Les intérêts impayés ne sont jamais capitalisés automatiquement. La date de fin est calculée à partir de la dernière échéance.</p>
       <section className="section" aria-live="polite">
         <h3>Aperçu financier avant enregistrement</h3>
         {preview ? (
@@ -62,9 +61,8 @@ export function LoanFinancialFields({ currency }: { currency: string }) {
               <thead><tr><th>N°</th><th>Date</th><th>Capital début</th><th>Intérêts</th><th>Capital remboursé</th><th>Échéance</th><th>Capital restant</th></tr></thead>
               <tbody>{preview.installments.slice(0, 5).map((row) => <tr key={row.number}><td>{row.number}</td><td>{row.dueDate}</td><td>{format(row.openingPrincipal)}</td><td>{format(row.interest)}</td><td>{format(row.principal)}</td><td>{format(row.payment)}</td><td>{format(row.closingPrincipal)}</td></tr>)}</tbody>
             </table></div>
-            {preview.installments.length > 5 && <p className="muted">Aperçu des 5 premières échéances sur {preview.installments.length}. L'échéancier complet sera enregistré.</p>}
           </>
-        ) : <p className="muted">Renseigne le capital et les paramètres du prêt pour afficher la simulation.</p>}
+        ) : null}
       </section>
     </>
   );

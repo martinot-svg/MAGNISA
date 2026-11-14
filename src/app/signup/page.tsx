@@ -77,13 +77,14 @@ export default function Signup() {
               }}
               style={{ width:"100%" }} />
           </div>
-          <small id="username-help">Généré à partir du prénom et du nom, personnalisable : 3 à 10 lettres. @ est ajouté automatiquement.</small>
+          <small id="username-help">Généré à partir du prénom et du nom, personnalisable : 3 à 10 lettres minuscules. En cas d'homonyme, MAGNISA ajoute un suffixe alphabétique. @ est ajouté automatiquement.</small>
           {customized && <button type="button" className="button" onClick={() => { setCustomized(false); setUsername(generateUsername(firstName,lastName)); }}>Reprendre le nom suggéré</button>}
         </div>
         <div className="field">
           <label htmlFor="signup-email">Adresse e-mail personnelle</label>
-          <input id="signup-email" name="email" type="email" required autoComplete="email" placeholder="prenom@exemple.com" />
-          <small>Gmail, Outlook, Yahoo, adresse professionnelle et autres fournisseurs sont acceptés.</small>
+          <input id="signup-email" name="email" type="email" required autoComplete="email"
+            placeholder="prenom@exemple.com" aria-describedby="signup-email-help" />
+          <small id="signup-email-help">Gmail, Outlook, Yahoo, iCloud, Proton, adresse professionnelle et autres fournisseurs sont acceptés : aucun fournisseur n'est obligatoire.</small>
         </div>
         <div className="field">
           <label htmlFor="signup-password">Mot de passe</label>
@@ -137,7 +138,7 @@ export default function Signup() {
         </div>
         {state?.error && <p role="alert" className="error">{state.error}</p>}
         {Array.isArray(state?.suggestions) && state.suggestions.length > 0 &&
-          <div className="field" aria-label="Autres noms d’utilisateur disponibles">
+          <div className="field" aria-label="Autres noms d'utilisateur disponibles">
             <small>Choisissez une variante pour continuer :</small>
             <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
               {state.suggestions.map((suggestion: string) =>
