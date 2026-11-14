@@ -63,7 +63,21 @@ async function openDialog(page,label){
 
 try {
   const a=await login(owner);
-  await a.page.goto(base+"/magnimail",{waitUntil:"domcontentloaded"});
+  // Orbit must work with the same MAGNISA login and the existing tenant.
+  await a.page.goto(base+"/orbit",{waitUntil:"domcontentloaded"});
+  await a.page.getByRole("heading",{name:"Magnisa Orbit"}).waitFor({timeout:20000});
+  for(const module of ["Magnisa Inbox","Magnisa Planner","Magnisa Time","Magnisa Action"]) {
+    await a.page.getByRole("link",{name:module,exact:true}).first().waitFor({timeout:15000});
+  }
+  for(const [path,heading] of [
+    ["/orbit/planner","Magnisa Planner"],
+    ["/orbit/time","Magnisa Time"],
+    ["/orbit/action","Magnisa Action"],
+  ]) {
+    await a.page.goto(base+path,{waitUntil:"domcontentloaded"});
+    await a.page.getByRole("heading",{name:heading}).waitFor({timeout:20000});
+  }
+  await a.page.goto(base+"/orbit/inbox",{waitUntil:"domcontentloaded"});
   await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   await a.page.getByRole("link",{name:"Ouvrir la messagerie interne"}).waitFor({timeout:20000});
   await a.page.getByRole("link",{name:"Ouvrir la messagerie interne"}).click();
