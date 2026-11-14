@@ -9,6 +9,8 @@ import {
   parsePreavisRulesJson,
 } from "@/lib/magnimail/preavis-config";
 import { MGMailPreavisForm } from "@/components/mgmail-preavis-form";
+import { FormDialog } from "@/components/form-dialog";
+import { configureMGMailBillingPreavis } from "@/lib/magnimail/scheduled-actions";
 
 function dateLabel(value: string) {
   return new Intl.DateTimeFormat("fr-FR", {
@@ -84,11 +86,12 @@ export default async function BillingPreavisPreview() {
   const ctx = await requireOrganization();
   await requirePermission(ctx, "sales.view");
   const canManage = await hasPermission(ctx, "orders.manage");
+  const canConfigureDelivery = canManage && await hasPermission(ctx, "users.manage");
 
-  const [contractResult, policyResult] = await Promise.all([
+  const [contractResult, policyResult, deliveryResult, identityResult] = await Promise.all([
     ctx.supabase
       .from("recurring_service_contracts")
-      .select("id,description,next_billing_date,status,frequency")
+      .select("id,customer_id,description,next_billing_date,status,frequency")
       .eq("organization_id", ctx.organizationId)
       .eq("status", "active")
       .order("next_billing_date", { ascending: true })
@@ -98,9 +101,27 @@ export default async function BillingPreavisPreview() {
       .select("recurring_contract_id,enabled,rules")
       .eq("organization_id", ctx.organizationId)
       .limit(200),
+    ctx.supabase.from("mgmail_preavis_delivery_configs")
+      .select("recurring_contract_id,identity_id,enabled,recipient_confirmed")
+      .eq("organization_id", ctx.organizationId).limit(200),
+    ctx.supabase.from("mgmail_external_identities")
+      .select("id,mailbox_id,email_address,status")
+      .eq("organization_id", ctx.organizationId).eq("status", "active").limit(100),
   ]);
 
   const contracts = contractResult.data || [];
+  const customerIds = [...new Set(contracts.map((contract) => contract.customer_id))];
+  const customerResult = customerIds.length ? await ctx.supabase.from("customers")
+    .select("id,name,email,is_active").eq("organization_id", ctx.organizationId)
+    .in("id", customerIds) : { data: [], error: null };
+  const customers = new Map((customerResult.data || []).map((customer) => [customer.id, customer]));
+  const deliveryConfigs = new Map((deliveryResult.data || []).map((config) => [config.recurring_contract_id, config]));
+  const usableIdentities = canConfigureDelivery ? (await Promise.all((identityResult.data || []).map(async (identity) => {
+    const result = await ctx.supabase.rpc("mgmail_can_external_access", {
+      p_org: ctx.organizationId, p_mailbox: identity.mailbox_id, p_action: "send",
+    });
+    return result.error || result.data !== true ? null : identity;
+  }))).filter((item): item is NonNullable<typeof item> => item !== null) : [];
   const policies = (policyResult.data || []).map((policy) => ({
     contractId: policy.recurring_contract_id as string | null,
     enabled: !!policy.enabled,
@@ -134,14 +155,16 @@ export default async function BillingPreavisPreview() {
         <Link className="button" href="/magnimail">Retour à MGMail</Link>
       </div>
       <div className="card section">
-        <strong>Configuration et simulation — aucun e-mail automatique n'est envoyé.</strong>
+        <strong>{process.env.MGMAIL_AUTO_SEND_ENABLED === "true"
+          ? "Programmation active uniquement pour les contrats explicitement autorisés."
+          : "Configuration et simulation — les envois automatiques ne sont pas activés."}</strong>
         <p className="muted">
-          Les règles enregistrées s'appliquent aux prévisualisations. Leur exécution
-          automatique nécessitera un canal d'envoi réellement configuré, une file
-          idempotente et des tests de réception externe.
+          Les délais restent personnalisables. Un préavis externe ne peut être mis
+          en file que si le responsable autorise le contrat et confirme le destinataire,
+          avec une adresse Internet vérifiée et un moteur MGMail activé côté serveur.
         </p>
       </div>
-      {contractResult.error || policyResult.error ? (
+      {contractResult.error || policyResult.error || deliveryResult.error || identityResult.error || customerResult.error ? (
         <div className="card section" role="alert">
           Impossible de charger les contrats ou les règles de préavis.
           Vérifiez l'application des migrations MGMail et les autorisations.
@@ -154,6 +177,66 @@ export default async function BillingPreavisPreview() {
             canManage={canManage}
             saveAction={savePreavisPolicy}
           />
+          <div className="card section">
+            <h2>Préavis automatiques envoyés aux clients</h2>
+            <p className="muted">
+              Un responsable peut autoriser les courriers J−15, J−10, J−5, J−1
+              ou tout autre délai enregistré pour chaque contrat. MGMail doit
+              pouvoir recevoir la réponse du client sur l'adresse expéditrice.
+              L'autorisation est désactivée par défaut.
+            </p>
+            {!canConfigureDelivery ? (
+              <p className="muted">Seuls les responsables disposant des droits de facturation et d'administration peuvent activer les préavis Internet.</p>
+            ) : usableIdentities.length === 0 ? (
+              <p className="muted">Aucune adresse MGMail Internet autorisée et vérifiée. Configurez d'abord une boîte d'envoi externe.</p>
+            ) : (
+              <div className="tableWrap">
+                <table>
+                  <thead><tr><th>Contrat</th><th>Client destinataire</th><th>État</th><th>Configuration</th></tr></thead>
+                  <tbody>
+                    {contracts.map((contract) => {
+                      const customer = customers.get(contract.customer_id);
+                      const config = deliveryConfigs.get(contract.id);
+                      return (
+                        <tr key={contract.id}>
+                          <td>{contract.description}</td>
+                          <td style={{ overflowWrap: "anywhere" }}>{customer?.email || "Adresse manquante"}</td>
+                          <td>{config?.enabled && config.recipient_confirmed
+                            ? "Autorisé" : "Inactif"}</td>
+                          <td>
+                            <FormDialog title="Autoriser les préavis du contrat" buttonLabel="Configurer" buttonClassName="button">
+                              <form action={configureMGMailBillingPreavis} className="form">
+                                <input type="hidden" name="contractId" value={contract.id} />
+                                <p>Prestation : {contract.description}</p>
+                                <p>Destinataire : {customer?.name || "Client"} — {customer?.email || "adresse manquante"}</p>
+                                <div className="field">
+                                  <label>Adresse MGMail expéditrice</label>
+                                  <select name="identityId" defaultValue={config?.identity_id || ""} required>
+                                    <option value="">Choisir une adresse autorisée</option>
+                                    {usableIdentities.map((identity) => (
+                                      <option key={identity.id} value={identity.id}>{identity.email_address}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <label><input type="checkbox" name="recipientConfirmed" defaultChecked={config?.recipient_confirmed || false} />
+                                  J'ai vérifié l'adresse du client et son accord pour les préavis de facturation.
+                                </label>
+                                <label><input type="checkbox" name="enabled" defaultChecked={config?.enabled || false} />
+                                  Activer les préavis externes pour cette prestation
+                                </label>
+                                <p className="muted">Aucun envoi ne part tant que le moteur sécurisé et le domaine Internet n'ont pas été activés.</p>
+                                <button className="button primary" type="submit">Enregistrer les autorisations</button>
+                              </form>
+                            </FormDialog>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
           {previews.length === 0 ? (
             <div className="card section"><p>Aucun contrat récurrent actif à prévisualiser.</p></div>
           ) : (
