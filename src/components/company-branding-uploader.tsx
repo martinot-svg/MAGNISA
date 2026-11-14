@@ -27,8 +27,8 @@ export function CompanyBrandingUploader({organizationId,disabled}:{organizationI
       };
       const colorPath=await upload(color,"color");
       const inversePath=await upload(inverse,"inverse");
-      let palette;
-      if(color)try{palette=await extractLogoPalette(color);}catch{}
+      let palette=color ? {primaryColor:"#1663FF",secondaryColor:"#7B4DFF",accentColor:"#D93CFF"} : undefined;
+      if(color)try{palette=await extractLogoPalette(color);}catch{/* retain defaults */}
       const r=await saveCompanyOnboardingBranding({
         organizationId,colorPath,inversePath,primaryColor:palette?.primaryColor,
         secondaryColor:palette?.secondaryColor,accentColor:palette?.accentColor,
