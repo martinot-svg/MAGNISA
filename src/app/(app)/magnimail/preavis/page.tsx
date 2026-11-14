@@ -111,9 +111,9 @@ export default async function BillingPreavisPreview() {
 
   const contracts = contractResult.data || [];
   const customerIds = [...new Set(contracts.map((contract) => contract.customer_id))];
-  const customerResult = customerIds.length ? await ctx.supabase.from("customers")
+  const customerResult = await ctx.supabase.from("customers")
     .select("id,name,email,is_active").eq("organization_id", ctx.organizationId)
-    .in("id", customerIds) : { data: [], error: null };
+    .in("id", customerIds);
   const customers = new Map((customerResult.data || []).map((customer) => [customer.id, customer]));
   const deliveryConfigs = new Map((deliveryResult.data || []).map((config) => [config.recurring_contract_id, config]));
   const usableIdentities = canConfigureDelivery ? (await Promise.all((identityResult.data || []).map(async (identity) => {
