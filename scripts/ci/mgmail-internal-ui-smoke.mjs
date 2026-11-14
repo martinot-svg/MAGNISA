@@ -84,6 +84,7 @@ try {
   await b.page.getByRole("heading",{name:"Messagerie des collaborateurs"}).waitFor({timeout:20000});
   await b.page.getByText(subject).waitFor({timeout:20000});
   await b.page.getByRole("button",{name:/Marquer comme lu/}).click();
+  await b.page.getByRole("button",{name:"Confirmer"}).click();
   await b.page.getByRole("heading",{name:/Boîte de réception interne \(0 non lus affichés\)/}).waitFor({timeout:20000});
   if(await b.page.getByRole("button",{name:/Créer une boîte/}).count()>0)
     throw new Error("Un employé ne doit pas créer une boîte sans permission");
