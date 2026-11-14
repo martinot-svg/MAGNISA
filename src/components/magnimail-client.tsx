@@ -163,7 +163,7 @@ export function MagniMailClient({
   const composeFieldId = useId();
 
   const title = useMemo(
-    () => folderLabels.find((entry) => entry.key === folder)?.label || "Magnisa Inbox",
+    () => folderLabels.find((entry) => entry.key === folder)?.label || "Magnibox",
     [folder],
   );
 
@@ -299,7 +299,7 @@ export function MagniMailClient({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || "Envoi impossible.");
-      setFeedback("E-mail envoyé depuis Magnisa Inbox.");
+      setFeedback("E-mail envoyé depuis Magnibox.");
       setTimeout(() => {
         setComposeOpen(false);
         setFeedback("");
@@ -423,7 +423,7 @@ export function MagniMailClient({
         <div className="pageHead">
           <div>
             <p className="eyebrow">Magnisa Orbit · Communication</p>
-            <h1>Magnisa Inbox</h1>
+            <h1>Magnibox</h1>
             <p>Messagerie professionnelle · Compte connecté : <b>{connectedEmail}</b></p>
           </div>
           <button className="button primary" onClick={() => startCompose()}>
@@ -711,7 +711,7 @@ export function MagniMailClient({
           isBusy={sending}
           width="min(760px, 100%)"
         >
-            <p className="eyebrow">Magnisa Inbox</p>
+            <p className="eyebrow">Magnibox</p>
 
             <div className="form">
               <div className="field">
