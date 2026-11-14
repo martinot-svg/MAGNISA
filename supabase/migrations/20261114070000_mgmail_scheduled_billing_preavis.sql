@@ -6,7 +6,7 @@ alter table public.mgmail_external_messages
   add column if not exists source_kind text not null default 'manual'
     check(source_kind in ('manual','scheduled','billing_preavis')),
   add column if not exists recurring_contract_id uuid
-    references public.recurring_service_contracts(id) on delete set null,
+    references public.recurring_service_contracts(id) on delete restrict,
   add column if not exists preavis_billing_date date,
   add column if not exists preavis_days_before integer
     check (preavis_days_before between 1 and 3650);
@@ -52,6 +52,12 @@ create index if not exists mgmail_outgoing_schedule_due_idx
 -- Un contrat doit appartenir à la même organisation que son option d'envoi.
 create unique index if not exists mgmail_recurring_contract_org_ref
   on public.recurring_service_contracts(id,organization_id);
+
+alter table public.mgmail_external_messages
+  add constraint mgmail_external_billing_contract_in_org
+  foreign key(recurring_contract_id,organization_id)
+  references public.recurring_service_contracts(id,organization_id)
+  on delete restrict;
 
 create table if not exists public.mgmail_preavis_delivery_configs (
   organization_id uuid not null references public.organizations(id) on delete cascade,
