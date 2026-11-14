@@ -1,4 +1,5 @@
 import { requireOrganization } from "@/lib/current-org";
+import { hasPermission } from "@/lib/permissions";
 import { MagniMailClient } from "@/components/magnimail-client";
 import { MGMailInternalContent } from "@/components/magnimail-internal-workspace";
 import { DEFAULT_EMAIL_TEMPLATES, getEmailTemplate, renderEmailTemplate, type EmailTemplateKey } from "@/lib/magnimail/templates";
@@ -21,7 +22,23 @@ export default async function MagniMailPage({
   }>;
 }) {
   const query = await searchParams;
-  const { supabase, organizationId, user } = await requireOrganization();
+  const ctx = await requireOrganization();
+  const { supabase, organizationId, user } = ctx;
+  const canManageMail = await hasPermission(ctx, "users.manage");
+  const professionalDomainsLink = canManageMail ? (
+    <div className="card section">
+      <div className="actions" style={{ justifyContent: "space-between", flexWrap: "wrap", alignItems: "center" }}>
+        <div>
+          <h2>Domaines et adresses professionnelles</h2>
+          <p className="muted">
+            Gérez les domaines et les demandes d'adresses de cette entreprise.
+            La réception et l'envoi Internet nécessitent une vérification et un transport actifs.
+          </p>
+        </div>
+        <a className="button" href="/orbit/magnibox/domaines">Administrer les domaines</a>
+      </div>
+    </div>
+  ) : null;
   const { data: gmail } = await supabase
     .from("email_connections")
     .select("email,status,scopes")
@@ -46,6 +63,7 @@ export default async function MagniMailPage({
           </div>
         </div>
         {inboxMessages}
+        {professionalDomainsLink}
         <div className="grid2">
           <div className="card">
             <h2>Ajouter un compte e-mail Internet (facultatif)</h2>
@@ -109,6 +127,7 @@ export default async function MagniMailPage({
         </div>
       </div>
       {inboxMessages}
+        {professionalDomainsLink}
       {needsUpgrade && (
         <div
           className="card"
