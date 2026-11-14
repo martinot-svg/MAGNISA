@@ -20,6 +20,7 @@ try{
   await page.waitForURL(u=>["/dashboard","/choisir-organisation"].includes(u.pathname),{timeout:30000});
   await page.goto(baseUrl+"/creer-entreprise",{waitUntil:"domcontentloaded"});
   await page.getByRole("heading",{name:"Créer une entreprise"}).waitFor({timeout:20000});
+  await page.locator('main[data-onboarding-hydrated="true"]').waitFor({timeout:20000});
   if(await page.locator("html").evaluate(el=>el.scrollWidth>el.clientWidth+12))
     throw new Error("Wizard has unexpected mobile horizontal overflow");
 
@@ -37,6 +38,7 @@ try{
   });
   await page.locator("#co-legal-name").fill(companyName);
   await page.locator("#co-sector").selectOption("G");
+  await page.locator("#co-group").waitFor({state:"visible",timeout:10000});
   await page.locator("#co-group").selectOption({label:"Commerce de détail"});
   await page.locator("#co-activity").selectOption({label:"Épicerie"});
   await page.getByRole("button",{name:"Suivant"}).click();
