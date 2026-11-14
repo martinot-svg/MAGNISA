@@ -101,6 +101,13 @@ export default async function MagniMailPage({
 
   return (
     <>
+      <div className="pageHead">
+        <div>
+          <p className="eyebrow">Magnisa Orbit · Communication</p>
+          <h1>Magnisa Inbox</h1>
+          <p>Une seule messagerie pour vos courriers et vos collaborateurs.</p>
+        </div>
+      </div>
       {inboxMessages}
       {needsUpgrade && (
         <div
