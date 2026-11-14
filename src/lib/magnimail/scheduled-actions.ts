@@ -66,7 +66,26 @@ export async function scheduleMGMailInternet(form: FormData) {
       request_key: requestKey,
       created_by: ctx.user.id,
     });
-  if (insertError && insertError.code !== "23505") {
+  if (insertError?.code === "23505") {
+    // Une tentative identique avec le même identifiant ne doit rien renvoyer.
+    // Ne jamais présenter comme programmée une demande qui réutilise la clé
+    // d'un autre collaborateur ou une clé associée à un contenu différent.
+    const existing = await admin.from("mgmail_external_messages")
+      .select("id,source_kind,created_by,scheduled_at,to_emails,subject,body_text")
+      .eq("organization_id", ctx.organizationId)
+      .eq("identity_id", identity.id)
+      .eq("request_key", requestKey)
+      .maybeSingle();
+    if (existing.error || !existing.data ||
+        existing.data.source_kind !== "scheduled" ||
+        existing.data.created_by !== ctx.user.id ||
+        existing.data.scheduled_at !== payload.scheduledAt ||
+        JSON.stringify(existing.data.to_emails) !== JSON.stringify(payload.to) ||
+        existing.data.subject !== payload.subject ||
+        existing.data.body_text !== payload.body) {
+      throw new Error("La référence d'envoi est déjà utilisée pour un autre message.");
+    }
+  } else if (insertError) {
     throw new Error("Impossible de programmer cet e-mail dans MGMail.");
   }
   revalidatePath("/magnimail/externe");
