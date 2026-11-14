@@ -54,10 +54,10 @@ export function parseIanaTlds(text: string): string[] {
 }
 export function buildTldCatalog(tlds: string[]): TldEntry[] {
   const delegated = new Set(tlds);
-  const result = tlds.map(tld => ({
+  const result: TldEntry[] = tlds.map(tld => ({
     suffix:"."+tld,type:"tld" as const,
     category:(tld==="mg"?"madagascar":categories.get(tld)||(tld.length===2?"national":"autre")) as TldCategory,
-    country:tld==="mg"?"MG":null,
+    country:tld.length===2?tld.toUpperCase():null,
     registry:tld==="mg"?"NIC.MG":null,
     eligibility:tld==="mg"?mgRules.mg:"Conditions du registre à vérifier avant toute inscription.",
     status:"non_verifie" as const, registrationAvailability:"non_verifiee" as const,
