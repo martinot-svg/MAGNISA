@@ -297,8 +297,6 @@ export default async function MGMailInternalPage() {
         <>
           {canManage && (
             <div className="card section">
-              <h2>Administration des boîtes</h2>
-              <p className="muted">Identifiant interne : @{namespace}.mgmail</p>
               <FormDialog title="Créer une boîte MGMail pour un collaborateur" buttonLabel="+ Créer une boîte">
                 <form action={createMailbox} className="form">
                   <div className="field">
