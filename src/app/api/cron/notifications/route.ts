@@ -21,16 +21,32 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createAdminClient();
-    const { data, error } = await supabase.rpc("run_loan_deadline_notifications", {
-      p_run_date: new Date().toISOString().slice(0, 10),
-    });
-
-    if (error) {
-      console.error("notification cron failed", error);
+    const now = new Date();
+    // Exécuter les deux routines indépendamment : la défaillance d'une famille
+    // de notifications ne doit pas empêcher la tentative de l'autre.
+    // Chaque routine déduplique ses alertes : un nouvel appel reste idempotent.
+    const [loans, agenda] = await Promise.all([
+      supabase.rpc("run_loan_deadline_notifications", {
+        p_run_date: now.toISOString().slice(0, 10),
+      }),
+      supabase.rpc("run_mgmail_agenda_reminders", {
+        p_run_at: now.toISOString(),
+      }),
+    ]);
+    if (loans.error || agenda.error) {
+      console.error("notification cron failed", {
+        loans: loans.error?.message,
+        agenda: agenda.error?.message,
+      });
       return NextResponse.json({ error: "Notification engine failed" }, { status: 500 });
     }
-
-    return NextResponse.json({ ok: true, result: data });
+    return NextResponse.json({
+      ok: true,
+      result: {
+        loan_notifications: loans.data,
+        mgmail_agenda_reminders: agenda.data,
+      },
+    });
   } catch (error) {
     console.error("notification cron error", error);
     return NextResponse.json({ error: "Notification engine failed" }, { status: 500 });
