@@ -19,6 +19,7 @@ async function createNamespace(form: FormData) {
   if (error) throw new Error("Identifiant déjà utilisé ou configuration impossible.");
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
+  revalidatePath("/orbit/magnibox");
   revalidatePath("/magnimail");
 }
 
@@ -49,6 +50,7 @@ async function createMailbox(form: FormData) {
   if (error) throw new Error("Cette adresse existe déjà ou ne peut pas être attribuée.");
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
+  revalidatePath("/orbit/magnibox");
   revalidatePath("/magnimail");
 }
 
@@ -70,6 +72,7 @@ async function setMailboxPermissions(form: FormData) {
   if (error) throw new Error("Impossible de modifier les droits de cette boîte.");
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
+  revalidatePath("/orbit/magnibox");
   revalidatePath("/magnimail");
 }
 
@@ -114,6 +117,7 @@ async function shareMailbox(form: FormData) {
   if (result.error) throw new Error("Impossible d'enregistrer les autorisations partagées.");
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
+  revalidatePath("/orbit/magnibox");
   revalidatePath("/magnimail");
 }
 
@@ -148,6 +152,7 @@ async function sendInternal(form: FormData) {
   if (error) throw new Error("Envoi interne impossible : permissions ou boîte indisponible.");
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
+  revalidatePath("/orbit/magnibox");
   revalidatePath("/magnimail");
 }
 
@@ -185,10 +190,11 @@ async function markInternalRead(form: FormData) {
   }
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
+  revalidatePath("/orbit/magnibox");
   revalidatePath("/magnimail");
 }
 
-/** Shared internal mail capability, embedded in the single Magnisa Inbox workspace. */
+/** Shared internal mail capability, embedded in the single Magnibox workspace. */
 export async function MGMailInternalContent({ embedded = false }: { embedded?: boolean } = {}) {
   const ctx = await requireOrganization();
   const canManage = await hasPermission(ctx, "users.manage");
@@ -256,7 +262,7 @@ export async function MGMailInternalContent({ embedded = false }: { embedded?: b
             <FormDialog title="Confirmer la lecture du message" buttonLabel="Marquer comme lu" buttonClassName="button">
               <form action={markInternalRead} className="form">
                 <input type="hidden" name="messageId" value={message.id} />
-                <p>Confirmer la lecture de ce message dans Magnisa Inbox.</p>
+                <p>Confirmer la lecture de ce message dans Magnibox.</p>
                 <button className="button primary" type="submit">Confirmer</button>
               </form>
             </FormDialog>
@@ -272,11 +278,11 @@ export async function MGMailInternalContent({ embedded = false }: { embedded?: b
         <>
           <div className="pageHead">
             <div>
-              <p className="eyebrow">Magnisa Orbit · Magnisa Inbox</p>
-              <h1>Magnisa Inbox</h1>
+              <p className="eyebrow">Magnisa Orbit · Magnibox</p>
+              <h1>Magnibox</h1>
               <p>Messages, boîtes et collaborateurs de l'entreprise.</p>
             </div>
-            <Link className="button" href="/orbit/inbox">Retour à la messagerie</Link>
+            <Link className="button" href="/orbit/magnibox">Retour à la messagerie</Link>
           </div>
           <div className="card section">
             <p className="muted">
@@ -289,7 +295,7 @@ export async function MGMailInternalContent({ embedded = false }: { embedded?: b
       )}
       {namespaceResult.error || mailboxesResult.error || messagesResult.error || grantsResult.error || readsResult.error ? (
         <div className="card section" role="alert">
-          Impossible de charger les boîtes Magnisa Inbox. La migration interne et les permissions
+          Impossible de charger les boîtes Magnibox. La migration interne et les permissions
           doivent être validées avant utilisation.
         </div>
       ) : !namespace ? (
