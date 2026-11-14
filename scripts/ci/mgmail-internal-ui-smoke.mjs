@@ -146,6 +146,35 @@ try {
   const sender=boxes.find(x=>x.local_part==="direction")?.id;
   const recipient=boxes.find(x=>x.local_part==="finance")?.id;
   if(!sender||!recipient)throw new Error("Boîtes collaborateur non enregistrées");
+  // The organization controls its own professional requests inside Magnibox.
+  await a.page.getByRole("link",{name:"Administrer les domaines"}).click();
+  await a.page.getByRole("heading",{name:"Domaines et adresses professionnelles"}).waitFor({timeout:20000});
+  if(new URL(a.page.url()).pathname!=="/orbit/magnibox/domaines")
+    throw Error("Professional domains must open inside Magnibox");
+  await openDialog(a.page,"+ Demander un domaine");
+  const requestedDomain="magnibox-"+fixture+".example.org";
+  await a.page.locator('input[name="domainName"]').fill(requestedDomain);
+  await a.page.getByRole("button",{name:"Enregistrer la demande"}).click();
+  await a.page.getByRole("cell",{name:requestedDomain}).waitFor({timeout:20000});
+  const {data:domainRequest,error:domainError}=await admin.from("mgmail_domain_requests")
+    .select("id,verification_token,status").eq("organization_id",organizationId)
+    .eq("domain_name",requestedDomain).single();
+  if(domainError||!domainRequest)throw domainError||Error("DNS challenge missing");
+  if(domainRequest.status!=="pending")throw Error("Domain must not auto-activate");
+  await a.page.getByRole("link",{name:"Vérifier le domaine et les DNS"}).click();
+  await a.page.getByRole("heading",{name:"Vérifier "+requestedDomain}).waitFor({timeout:30000});
+  await a.page.getByText("magnisa-orbit="+domainRequest.verification_token).waitFor({timeout:30000});
+  if(await a.page.getByRole("button",{name:"Valider le domaine"}).count())
+    throw Error("Domain may not be validated without real DNS proof");
+  await a.page.goto(base+"/orbit/magnibox/domaines",{waitUntil:"domcontentloaded"});
+  await openDialog(a.page,"+ Demander une adresse");
+  await a.page.locator('select[name="domainRequestId"]').selectOption({label:requestedDomain});
+  await a.page.locator('select[name="mailboxId"]').selectOption(recipient);
+  await a.page.locator('input[name="localPart"]').fill("finance");
+  await a.page.getByRole("button",{name:"Enregistrer la demande"}).click();
+  await a.page.getByRole("cell",{name:"finance@"+requestedDomain}).waitFor({timeout:20000});
+  console.log("Magnibox: public address request remains pending, not activated");
+  await a.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
   await openDialog(a.page,/Nouveau message/);
   await a.page.locator('select[name="senderId"]').selectOption(sender);
   await a.page.locator('select[name="recipientId"]').selectOption(recipient);
@@ -158,6 +187,10 @@ try {
   await a.context.close();
 
   const b=await login(employee);
+  await b.page.goto(base+"/orbit/magnibox/domaines/"+domainRequest.id,{waitUntil:"domcontentloaded"});
+  await b.page.getByRole("alert").waitFor({timeout:20000});
+  if(await b.page.getByText("magnisa-orbit="+domainRequest.verification_token).count())
+    throw Error("Collaborator can read a domain ownership challenge");
   await b.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
   await b.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   await b.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
