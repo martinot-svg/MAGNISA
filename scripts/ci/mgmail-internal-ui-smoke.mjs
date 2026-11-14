@@ -128,6 +128,9 @@ try {
   if(await a.page.getByText(/Identifiant interne\s*:/).count()) {
     throw new Error("L'ancien identifiant .mgmail a réapparu.");
   }
+  if((await a.page.locator("main").innerText()).includes(".mgmail")) {
+    throw new Error("Une ancienne extension de boîte interne apparaît encore dans Magnibox.");
+  }
   console.log("MGMail UI: espace interne créé");
 
   async function createMailbox(label,userId){
@@ -135,7 +138,7 @@ try {
     await a.page.locator('input[name="localPart"]').fill(label);
     await a.page.locator('select[name="ownerId"]').selectOption(userId);
     await a.page.getByRole("button",{name:"Créer et attribuer la boîte"}).click();
-    await a.page.getByRole("cell",{name:new RegExp(label+"@")}).first().waitFor({timeout:20000});
+    await a.page.getByRole("cell",{name:new RegExp("^"+label+" \\(")}).first().waitFor({timeout:20000});
     console.log("MGMail UI: boîte attribuée",label);
   }
   await createMailbox("direction",owner.id);
