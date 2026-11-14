@@ -43,6 +43,19 @@ function fakeAdmin(options: { senderActive?: boolean; identityActive?: boolean }
       update(values: Record<string, unknown>) {
         mode = "update"; updates = values; return q;
       },
+      // Supabase PostgREST query builders execute through their thenable
+      // interface when awaited without select()/maybeSingle().
+      then(
+        onFulfilled?: (value: { data: null; error: null }) => unknown,
+        onRejected?: (reason: unknown) => unknown,
+      ) {
+        if (mode === "update" && table === "mgmail_external_messages") {
+          const row = rows.find((item) => predicates.every((fn) =>
+            fn(item as unknown as Record<string, unknown>)));
+          if (row) Object.assign(row, updates);
+        }
+        return Promise.resolve({ data: null, error: null }).then(onFulfilled, onRejected);
+      },
       async range() {
         if (table === "mgmail_preavis_delivery_configs")
           return { data: [], error: null };
