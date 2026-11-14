@@ -109,7 +109,7 @@ try {
       route:a.page.url(),view:(await a.page.locator("main").innerText()).slice(0,900)}));
   }
 
-  await openDialog(a.page,"Configurer MGMail interne");
+  await openDialog(a.page,"Configurer la messagerie interne");
   await a.page.locator('input[name="slug"]').fill("mgmail-ui-"+fixture);
   await a.page.getByRole("button",{name:"Créer cet espace"}).click();
   // The obsolete administration heading and internal-domain banner are intentionally removed.
