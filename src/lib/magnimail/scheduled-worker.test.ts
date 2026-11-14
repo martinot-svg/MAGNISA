@@ -7,10 +7,14 @@ const ORG = "11111111-1111-4111-8111-111111111111";
 const USER = "22222222-2222-4222-8222-222222222222";
 const MAILBOX = "33333333-3333-4333-8333-333333333333";
 const IDENTITY = "44444444-4444-4444-8444-444444444444";
+const DOMAIN = "66666666-6666-4666-8666-666666666666";
 const MESSAGE = "55555555-5555-4555-8555-555555555555";
 const NOW = new Date("2026-11-14T05:00:00.000Z");
 
-function fakeAdmin(options: { senderActive?: boolean; identityActive?: boolean } = {}) {
+function fakeAdmin(options: {
+  senderActive?: boolean; identityActive?: boolean;
+  proofStale?: boolean; domainRevoked?: boolean;
+} = {}) {
   const rows = [{
     id: MESSAGE, organization_id: ORG, identity_id: IDENTITY,
     direction: "outgoing", source_kind: "scheduled",
@@ -84,7 +88,7 @@ function fakeAdmin(options: { senderActive?: boolean; identityActive?: boolean }
               id: IDENTITY, organization_id: ORG, mailbox_id: MAILBOX,
               status: options.identityActive === false ? "suspended" : "active",
               provider: "resend", email_address: "finance@mitalia.digital",
-              receive_enabled: true,
+              receive_enabled: true, verified_domain_id: DOMAIN,
             }],
             organization_members: options.senderActive === false ? [] : [{
               organization_id: ORG, user_id: USER, status: "active",
@@ -94,6 +98,16 @@ function fakeAdmin(options: { senderActive?: boolean; identityActive?: boolean }
               is_active: true, can_send: true, can_external_send: true,
             }],
             mgmail_internal_mailbox_grants: [],
+            mgmail_verified_domains: [{
+              id: DOMAIN, organization_id: ORG, domain_name: "mitalia.digital",
+              provider: "resend",
+              sending_verified: !options.domainRevoked,
+              receiving_verified: true,
+              ownership_approved: true,
+              provider_checked_at: options.proofStale
+                ? "2026-11-10T00:00:00.000Z"
+                : "2026-11-14T00:00:00.000Z",
+            }],
           };
           const records = allRecords[table] || [];
           data = records.find((row) => predicates.every((fn) => fn(row))) || null;
@@ -163,6 +177,26 @@ describe("MGMail worker — pas de faux envois ni de doublons", () => {
     });
     expect(result.cancelled).toBe(1);
     expect(fake.rows[0].status).toBe("cancelled");
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it("refuse un ancien contrôle DNS même avec un collaborateur autorisé", async () => {
+    const fake = fakeAdmin({ proofStale: true });
+    const transport = vi.fn<typeof fetch>();
+    const result = await runMGMailScheduledDispatch({
+      admin: fake.admin, now: NOW, env, transport,
+    });
+    expect(result.cancelled).toBe(1);
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it("empêche l'expédition si le domaine a perdu son autorisation", async () => {
+    const fake = fakeAdmin({ domainRevoked: true });
+    const transport = vi.fn<typeof fetch>();
+    const result = await runMGMailScheduledDispatch({
+      admin: fake.admin, now: NOW, env, transport,
+    });
+    expect(result.cancelled).toBe(1);
     expect(transport).not.toHaveBeenCalled();
   });
 
