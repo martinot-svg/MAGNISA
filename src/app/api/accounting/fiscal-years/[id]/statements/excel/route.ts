@@ -70,6 +70,7 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
  const notes=[row([str("ANNEXE AUX ÉTATS FINANCIERS")]),...s.notes.map((x,i)=>row([str("Note "+(i+1)),str(x)]))];
  const controls=[row([str("CONTRÔLES")]),row([str("Exercice clôturé"),str(s.controls.isClosed?"Oui":"Non")]),
  row([str("Comptes non imputés"),num(s.controls.unmapped)]),row([str("Écritures déséquilibrées"),num(s.controls.unbalancedEntries)]),row([str("Écritures de trésorerie non classées"),num(s.controls.unclassifiedCashFlowEntries)]),row([str("Écart de rapprochement de trésorerie"),num(s.controls.cashFlowReconciliationDifference)]),
+ row([str("Bilan prêt à être validé"),str(s.controls.balanceSheetReady?"Oui":"Non")]),
  row([str("Bilan équilibré"),str(Math.abs(s.totals.balanceDifference)<0.01?"Oui":"Non")]),
  row([str("Annexe renseignée"),str(s.controls.notesReady?"Oui":"Non")]),
  row([str("Ventilation PCG de l’actif"),str(s.controls.assetPresentationReady?"Validée":"À compléter")]),

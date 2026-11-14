@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyCashFlowCounterpart, isFiscalStatementReady, isInventoryCountReady, isLoanRepaymentEffectiveAtDate, isObligationBalanceReconstructable, taxSocialObligationAccountCode, type FiscalStatementReadinessInput } from "./fiscal-statements";
+import { classifyCashFlowCounterpart, isBalanceSheetReady, isFiscalStatementReady, isInventoryCountReady, isLoanRepaymentEffectiveAtDate, isObligationBalanceReconstructable, taxSocialObligationAccountCode, type FiscalStatementReadinessInput } from "./fiscal-statements";
 
 const valid: FiscalStatementReadinessInput = {
   isClosed:true,
@@ -14,6 +14,32 @@ const valid: FiscalStatementReadinessInput = {
   assetPresentationReady:true,
   passifPresentationReady:true,
 };
+
+
+describe("isBalanceSheetReady",()=>{
+  const validBalance={
+    isClosed:true,unmapped:0,unbalancedEntries:0,balanceDifference:0,
+    assetPresentationReady:true,passifPresentationReady:true,
+  };
+  it("accepts a closed balance sheet when both sides and all reconciliations are valid",()=>{
+    expect(isBalanceSheetReady(validBalance)).toBe(true);
+  });
+  it("blocks an open fiscal year",()=>{
+    expect(isBalanceSheetReady({...validBalance,isClosed:false})).toBe(false);
+  });
+  it("blocks unmapped accounts and unbalanced entries",()=>{
+    expect(isBalanceSheetReady({...validBalance,unmapped:1})).toBe(false);
+    expect(isBalanceSheetReady({...validBalance,unbalancedEntries:1})).toBe(false);
+  });
+  it("blocks any non-zero asset/passif difference at cent precision",()=>{
+    expect(isBalanceSheetReady({...validBalance,balanceDifference:0.01})).toBe(false);
+    expect(isBalanceSheetReady({...validBalance,balanceDifference:0.009})).toBe(true);
+  });
+  it("blocks an incomplete asset or passif presentation",()=>{
+    expect(isBalanceSheetReady({...validBalance,assetPresentationReady:false})).toBe(false);
+    expect(isBalanceSheetReady({...validBalance,passifPresentationReady:false})).toBe(false);
+  });
+});
 
 describe("isFiscalStatementReady",()=>{
   it("accepts only a closed and fully controlled statement set",()=>{

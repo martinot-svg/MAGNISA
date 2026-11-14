@@ -1,7 +1,7 @@
 "use client";
 export type VisualizationType="bar"|"horizontal"|"line"|"donut"|"stacked"|"area";
 export type ChartSeries={name:string;values:number[]};
-const colors=["#1663ff","#7b4dff","#e0a12b","#19a7a0","#f06e85","#64748b"];
+const colors=["#0058F1","#4635FA","#8A21F5","#0A25CF","#C314FB","#3B0592"];
 const format=(n:number)=>new Intl.NumberFormat("fr-FR",{notation:"compact",maximumFractionDigits:1}).format(n);
 export function FinanceChart({labels,series,type,unit="MGA"}:{labels:string[];series:ChartSeries[];type:VisualizationType;unit?:string}){
  const safe=series.map(s=>({...s,values:labels.map((_,i)=>Number.isFinite(s.values[i])?s.values[i]:0)}));
@@ -31,11 +31,11 @@ export function FinanceChart({labels,series,type,unit="MGA"}:{labels:string[];se
  const point=(s:ChartSeries)=>s.values.map((v,i)=>`${x(i)},${y(v)}`).join(" ");
  return <div style={{width:"100%",overflowX:"auto"}}>
  <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{minWidth:350}} role="img" aria-label={safe.map(s=>s.name+": "+s.values.map(amount).join(", ")).join("; ")}>
-  {[0,.25,.5,.75,1].map(fr=><g key={fr}><line x1={left} x2={w-12} y1={y(fr*max)} y2={y(fr*max)} stroke="currentColor" opacity=".14"/><text x={left-5} y={y(fr*max)+4} fill="currentColor" opacity=".65" textAnchor="end" fontSize="10">{format(fr*max)}</text></g>)}
-  {labels.map((label,i)=><text key={i} x={x(i)} y={h-8} fill="currentColor" opacity=".8" textAnchor="middle" fontSize="11">{label.slice(0,11)}</text>)}
-  {type==="bar"&&safe.flatMap((s,j)=>s.values.map((v,i)=>{const bw=plotW/labels.length*.75/safe.length;return <rect key={s.name+i} x={x(i)-plotW/labels.length*.375+j*bw} y={y(v)} width={Math.max(2,bw-2)} height={Math.max(0,top+plotH-y(v))} rx="2" fill={colors[j%colors.length]}><title>{s.name}: {amount(v)}</title></rect>}))}
-  {type==="stacked"&&labels.flatMap((_,i)=>{let base=0;return safe.map((s,j)=>{const v=Math.max(0,s.values[i]);const previous=base;base+=v;return <rect key={s.name+i} x={x(i)-plotW/labels.length*.29} width={plotW/labels.length*.58} y={y(base)} height={Math.max(0,y(previous)-y(base))} fill={colors[j%colors.length]}><title>{s.name}: {amount(v)}</title></rect>})})}
-  {(type==="line"||type==="area")&&safe.map((s,j)=><g key={s.name}>{type==="area"&&<polygon points={`${x(0)},${y(0)} ${point(s)} ${x(labels.length-1)},${y(0)}`} fill={colors[j%colors.length]} opacity=".13"/>}<polyline points={point(s)} stroke={colors[j%colors.length]} strokeWidth="2.6" strokeLinejoin="round" fill="none"/>{s.values.map((v,i)=><circle key={i} cx={x(i)} cy={y(v)} r="3" fill={colors[j%colors.length]}><title>{labels[i]} - {s.name}: {amount(v)}</title></circle>)}</g>)}
+  {[0,.25,.5,.75,1].map(fr=><g key={fr}><line x1={left} x2={w-12} y1={y(fr*max)} y2={y(fr*max)} stroke="currentColor" opacity=".14"/><text x={left-5} y={y(fr*max)+4} fill="currentColor" opacity="1" textAnchor="end" fontSize="10">{format(fr*max)}</text></g>)}
+  {labels.map((label,i)=><text key={i} x={x(i)} y={h-8} fill="currentColor" opacity="1" textAnchor="middle" fontSize="11">{label.slice(0,11)}</text>)}
+  {type==="bar"&&safe.flatMap((s,j)=>s.values.map((v,i)=>{const bw=plotW/labels.length*.75/safe.length;return <rect key={s.name+i} x={x(i)-plotW/labels.length*.375+j*bw} y={y(v)} width={Math.max(2,bw-2)} height={Math.max(0,top+plotH-y(v))} rx="2" fill={colors[j%colors.length]}><title>{`${s.name}: ${amount(v)}`}</title></rect>}))}
+  {type==="stacked"&&labels.flatMap((_,i)=>{let base=0;return safe.map((s,j)=>{const v=Math.max(0,s.values[i]);const previous=base;base+=v;return <rect key={s.name+i} x={x(i)-plotW/labels.length*.29} width={plotW/labels.length*.58} y={y(base)} height={Math.max(0,y(previous)-y(base))} fill={colors[j%colors.length]}><title>{`${s.name}: ${amount(v)}`}</title></rect>})})}
+  {(type==="line"||type==="area")&&safe.map((s,j)=><g key={s.name}>{type==="area"&&<polygon points={`${x(0)},${y(0)} ${point(s)} ${x(labels.length-1)},${y(0)}`} fill={colors[j%colors.length]} opacity=".13"/>}<polyline points={point(s)} stroke={colors[j%colors.length]} strokeWidth="2.6" strokeLinejoin="round" fill="none"/>{s.values.map((v,i)=><circle key={i} cx={x(i)} cy={y(v)} r="3" fill={colors[j%colors.length]}><title>{`${labels[i]} - ${s.name}: ${amount(v)}`}</title></circle>)}</g>)}
  </svg>
  <div style={{display:"flex",flexWrap:"wrap",gap:12,marginTop:8}}>{safe.map((s,i)=><span key={s.name} style={{fontSize:12,display:"inline-flex",alignItems:"center",gap:5}}><i style={{width:9,height:9,background:colors[i%colors.length],display:"inline-block",borderRadius:2}}/>{s.name}</span>)}</div>
  </div>

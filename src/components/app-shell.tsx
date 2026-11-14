@@ -1,11 +1,10 @@
-import Link from "next/link";
 import { FormDialog } from "@/components/form-dialog";
 import { signOut } from "@/server/actions/auth";
 import { requireOrganization } from "@/lib/current-org";
 import { FEATURE_CATALOG, type FeatureKey } from "@/lib/features";
 import { getEffectivePermissions, type Permission } from "@/lib/permissions";
-import { BrandMark } from "@/components/brand-mark";
 import { NotificationBell } from "@/components/notification-bell";
+import { AppWorkspace, type WorkspaceLink } from "@/components/app-workspace";
 
 const featurePermission: Partial<Record<FeatureKey, Permission>> = {
   prospects: "sales.view",
@@ -79,65 +78,30 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     return !requiredPermission || permissions.has(requiredPermission);
   });
 
-  let lastGroup = "";
-
+  const links: WorkspaceLink[] = visible.map(feature => ({
+    key: feature.key, label: feature.label, href: feature.href, group: feature.group,
+  }));
+  const accounting = links.findIndex(link => link.key === "accounting");
+  if (accounting >= 0) links.splice(accounting + 1, 0, {
+    key: "fiscal_years", label: "Exercices comptables",
+    href: "/exercices-comptables", group: links[accounting].group,
+  });
+  links.push({ key: "notifications", label: "Notifications", href: "/notifications", group: "Communication" });
+  links.push({ key: "profile", label: "Mon profil", href: "/mon-profil", group: "Mon compte" });
   return (
-    <div className="appShell">
-      <aside>
-        <BrandMark href="/dashboard" compact />
-        <nav>
-          {visible.map((feature) => {
-            const showGroup = feature.group !== lastGroup;
-            lastGroup = feature.group;
-
-            return (
-              <div key={feature.key}>
-                {showGroup ? (
-                  <div
-                    style={{
-                      padding: "15px 10px 5px",
-                      fontSize: 9,
-                      textTransform: "uppercase",
-                      letterSpacing: ".14em",
-                      color: "#71819f",
-                    }}
-                  >
-                    {feature.group}
-                  </div>
-                ) : null}
-                <Link href={feature.href}>{feature.label}</Link>
-                {feature.key === "accounting" ? <Link href="/exercices-comptables">Exercices comptables</Link> : null}
-              </div>
-            );
-          })}
-          <div>
-            <Link href="/notifications">Notifications</Link>
-          </div>
-        </nav>
+    <AppWorkspace
+      links={links}
+      notifications={<NotificationBell
+        userId={user.id} organizationId={organizationId} initialUnread={unreadCount ?? 0}
+      />}
+      signOut={
         <FormDialog title="Se déconnecter" buttonLabel="Se déconnecter" buttonClassName="button ghost">
           <form action={signOut}>
             <p>Confirme la fermeture de ta session MAGNISA.</p>
             <button className="button ghost">Confirmer la déconnexion</button>
           </form>
         </FormDialog>
-      </aside>
-      <main>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "center",
-            padding: "12px 20px 0",
-          }}
-        >
-          <NotificationBell
-            userId={user.id}
-            organizationId={organizationId}
-            initialUnread={unreadCount ?? 0}
-          />
-        </div>
-        {children}
-      </main>
-    </div>
+      }
+    >{children}</AppWorkspace>
   );
 }

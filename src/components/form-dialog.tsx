@@ -57,6 +57,8 @@ export function FormDialog({
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Do not expose a validation error before React has restored uncontrolled inputs.
+  const [errorReady, setErrorReady] = useState(false);
   const [success, setSuccess] = useState(false);
   const pendingRef = useRef(false);
   const formSnapshotRef = useRef<FormControlSnapshot[] | null>(null);
@@ -70,6 +72,7 @@ export function FormDialog({
   }, [isBusy]);
 
   const wrapAction = useCallback((action: ServerAction, propagateErrors = false): ServerAction => async (formData) => {
+    setErrorReady(false);
     await executeFormDialogAction(action, formData, pendingRef, {
       setPending,
       setError,
@@ -98,11 +101,15 @@ export function FormDialog({
       </fieldset>
     ) : children}
     {pending ? <p className="muted" role="status" aria-live="polite">Traitement en cours…</p> : null}
-    {error ? <div className="error" role="alert" aria-live="assertive">{error}</div> : null}
+    {error && errorReady ? <div className="error" role="alert" aria-live="assertive">{error}</div> : null}
   </>;
 
   useEffect(() => {
-    if (!error || !formSnapshotRef.current) return;
+    if (!error) return;
+    if (!formSnapshotRef.current) {
+      setErrorReady(true);
+      return;
+    }
     // React resets uncontrolled form controls when an action promise resolves.
     // Defer restoration past that reset (a timer plus two paint frames) so a
     // handled server-side validation error never erases the user's entries.
@@ -112,7 +119,10 @@ export function FormDialog({
       firstFrame = requestAnimationFrame(() => {
         secondFrame = requestAnimationFrame(() => {
           const form = contentRef.current?.querySelector("form");
-          if (!form) return;
+          if (!form) {
+            setErrorReady(true);
+            return;
+          }
           formSnapshotRef.current?.forEach(({ index, value, checked, selected }) => {
             const element = form.elements.item(index);
             if (element instanceof HTMLInputElement) {
@@ -128,6 +138,8 @@ export function FormDialog({
               }
             }
           });
+          // Notify users only after inputs are restored and stable.
+          setErrorReady(true);
         });
       });
     }, 0);
