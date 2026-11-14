@@ -18,6 +18,8 @@ async function createNamespace(form: FormData) {
   });
   if (error) throw new Error("Identifiant déjà utilisé ou configuration impossible.");
   revalidatePath(PATH);
+  revalidatePath("/orbit/inbox");
+  revalidatePath("/magnimail");
 }
 
 async function createMailbox(form: FormData) {
@@ -46,6 +48,8 @@ async function createMailbox(form: FormData) {
   });
   if (error) throw new Error("Cette adresse existe déjà ou ne peut pas être attribuée.");
   revalidatePath(PATH);
+  revalidatePath("/orbit/inbox");
+  revalidatePath("/magnimail");
 }
 
 async function setMailboxPermissions(form: FormData) {
@@ -65,6 +69,8 @@ async function setMailboxPermissions(form: FormData) {
     .eq("organization_id", ctx.organizationId);
   if (error) throw new Error("Impossible de modifier les droits de cette boîte.");
   revalidatePath(PATH);
+  revalidatePath("/orbit/inbox");
+  revalidatePath("/magnimail");
 }
 
 async function shareMailbox(form: FormData) {
@@ -107,6 +113,8 @@ async function shareMailbox(form: FormData) {
         .insert({ organization_id: ctx.organizationId, mailbox_id: mailboxId, user_id: userId, ...values });
   if (result.error) throw new Error("Impossible d'enregistrer les autorisations partagées.");
   revalidatePath(PATH);
+  revalidatePath("/orbit/inbox");
+  revalidatePath("/magnimail");
 }
 
 async function sendInternal(form: FormData) {
@@ -139,6 +147,8 @@ async function sendInternal(form: FormData) {
   });
   if (error) throw new Error("Envoi interne impossible : permissions ou boîte indisponible.");
   revalidatePath(PATH);
+  revalidatePath("/orbit/inbox");
+  revalidatePath("/magnimail");
 }
 
 async function markInternalRead(form: FormData) {
@@ -174,9 +184,12 @@ async function markInternalRead(form: FormData) {
     if (error && error.code !== "23505") throw new Error("Impossible de marquer le message comme lu.");
   }
   revalidatePath(PATH);
+  revalidatePath("/orbit/inbox");
+  revalidatePath("/magnimail");
 }
 
-export default async function MGMailInternalPage() {
+/** Shared internal mail capability, embedded in the single Magnisa Inbox workspace. */
+export async function MGMailInternalContent({ embedded = false }: { embedded?: boolean } = {}) {
   const ctx = await requireOrganization();
   const canManage = await hasPermission(ctx, "users.manage");
   const [namespaceResult, mailboxesResult, messagesResult, grantsResult, readsResult] = await Promise.all([
@@ -255,22 +268,25 @@ export default async function MGMailInternalPage() {
 
   return (
     <>
-      <div className="pageHead">
-        <div>
-          <p className="eyebrow">Magnisa Inbox · Communication interne</p>
-          <h1>Messagerie des collaborateurs</h1>
-          <p>Échanges privés entre collaborateurs de cette entreprise, exclusivement dans MAGNISA.</p>
-        </div>
-        <Link className="button" href="/magnimail">Retour à Magnisa Inbox</Link>
-      </div>
-      <div className="card section">
-        <strong>Canal interne MAGNISA uniquement.</strong>
-        <p className="muted">
-          Les identifiants en .mgmail ne sont pas des adresses Internet publiques :
-          ils ne peuvent pas encore écrire directement à Gmail, Proton ou Outlook.
-          L'envoi Internet nécessitera une boîte externe légitime configurée.
-        </p>
-      </div>
+      {!embedded && (
+        <>
+          <div className="pageHead">
+            <div>
+              <p className="eyebrow">Magnisa Orbit · Magnisa Inbox</p>
+              <h1>Magnisa Inbox</h1>
+              <p>Messages, boîtes et collaborateurs de l'entreprise.</p>
+            </div>
+            <Link className="button" href="/orbit/inbox">Retour à la messagerie</Link>
+          </div>
+          <div className="card section">
+            <p className="muted">
+              Les adresses privées .mgmail conservent leur acheminement dans MAGNISA.
+              Les adresses Internet personnalisées deviennent disponibles après vérification
+              du domaine et activation d'un véritable transport.
+            </p>
+          </div>
+        </>
+      )}
       {namespaceResult.error || mailboxesResult.error || messagesResult.error || grantsResult.error || readsResult.error ? (
         <div className="card section" role="alert">
           Impossible de charger les boîtes Magnisa Inbox. La migration interne et les permissions
@@ -408,4 +424,9 @@ export default async function MGMailInternalPage() {
       )}
     </>
   );
+}
+
+/** Backward-compatible historic route; all new navigation goes through /orbit/inbox. */
+export default function MGMailInternalPage() {
+  return <MGMailInternalContent />;
 }
