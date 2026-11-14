@@ -105,6 +105,7 @@ const emptyCompose = {
 };
 
 export function MagniMailClient({
+  embedded = false,
   connectedEmail,
   initialTo = "",
   initialCustomerId = "",
@@ -116,6 +117,7 @@ export function MagniMailClient({
   initialCreditNoteId = "",
   initialPaymentId = "",
 }: {
+  embedded?: boolean;
   connectedEmail: string;
   initialTo?: string;
   initialCustomerId?: string;
@@ -405,18 +407,30 @@ export function MagniMailClient({
 
   return (
     <div>
-      <div className="pageHead">
-        <div>
-          <p className="eyebrow">Communication</p>
-          <h1>Magnisa Inbox</h1>
-          <p>
-            Messagerie professionnelle intégrée à MAGNISA · connecté avec <b>{connectedEmail}</b>
-          </p>
+      {embedded ? (
+        <div className="card section">
+          <div className="actions" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
+            <div>
+              <h2>Courriers Internet</h2>
+              <p className="muted">Compte connecté : {connectedEmail}</p>
+            </div>
+            <button className="button primary" onClick={() => startCompose()}>
+              Écrire un e-mail Internet
+            </button>
+          </div>
         </div>
-        <button className="button primary" onClick={() => startCompose()}>
-          Nouveau message
-        </button>
-      </div>
+      ) : (
+        <div className="pageHead">
+          <div>
+            <p className="eyebrow">Magnisa Orbit · Communication</p>
+            <h1>Magnisa Inbox</h1>
+            <p>Messagerie professionnelle · Compte connecté : <b>{connectedEmail}</b></p>
+          </div>
+          <button className="button primary" onClick={() => startCompose()}>
+            Nouveau message
+          </button>
+        </div>
+      )}
 
       <div
         style={{
