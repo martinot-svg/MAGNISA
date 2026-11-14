@@ -84,11 +84,13 @@ create policy mgmail_preavis_delivery_create
   with check (
     public.has_org_permission(organization_id,'orders.manage')
     and public.has_org_permission(organization_id,'users.manage')
+    and configured_by=(select auth.uid())
     and exists (
       select 1 from public.mgmail_external_identities identity
       where identity.id=mgmail_preavis_delivery_configs.identity_id
         and identity.organization_id=mgmail_preavis_delivery_configs.organization_id
         and identity.status='active'
+        and identity.receive_enabled
         and public.mgmail_can_external_access(
           identity.organization_id,identity.mailbox_id,'send')
     )
@@ -102,18 +104,20 @@ create policy mgmail_preavis_delivery_update
   with check (
     public.has_org_permission(organization_id,'orders.manage')
     and public.has_org_permission(organization_id,'users.manage')
+    and configured_by=(select auth.uid())
     and exists (
       select 1 from public.mgmail_external_identities identity
       where identity.id=mgmail_preavis_delivery_configs.identity_id
         and identity.organization_id=mgmail_preavis_delivery_configs.organization_id
         and identity.status='active'
+        and identity.receive_enabled
         and public.mgmail_can_external_access(
           identity.organization_id,identity.mailbox_id,'send')
     )
   );
 revoke all on public.mgmail_preavis_delivery_configs from anon,authenticated;
 grant select, insert(organization_id,recurring_contract_id,identity_id,
-  enabled,recipient_confirmed,configured_by), update(identity_id,enabled,
+  enabled,recipient_confirmed,configured_by,updated_at), update(identity_id,enabled,
   recipient_confirmed,configured_by,updated_at)
   on public.mgmail_preavis_delivery_configs to authenticated;
 
