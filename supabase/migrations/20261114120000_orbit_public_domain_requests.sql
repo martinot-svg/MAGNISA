@@ -8,6 +8,23 @@ create table public.mgmail_domain_requests (
     check (char_length(domain_name) between 4 and 253
       and domain_name=lower(domain_name)
       and domain_name ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'),
+  -- 244 bits of unpredictable per-request challenge; visible only to domain admins via RLS.
+  -- A pending request cannot reserve another tenant's publicly routable domain.
+  verification_token text not null unique
+    default (replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''))
+    check (verification_token ~ '^[0-9a-f]{64}
+    check (status in ('pending','reviewing','verified','rejected')),
+  created_at timestamptz not null default now(),
+  verified_at timestamptz,
+  proof_reference text,
+  unique(organization_id,domain_name),
+  constraint mgmail_domain_proof_only_verified check (
+    (status='verified' and verified_at is not null and nullif(btrim(proof_reference),'') is not null)
+    or (status<>'verified' and verified_at is null)
+  ),
+  unique(id,organization_id,domain_name)
+);
+),
   requested_by uuid not null references auth.users(id) on delete restrict,
   status text not null default 'pending'
     check (status in ('pending','reviewing','verified','rejected')),
