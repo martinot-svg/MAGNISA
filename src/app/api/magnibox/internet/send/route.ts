@@ -64,6 +64,27 @@ export async function POST(request: NextRequest) {
     });
     if(!allowed) return reply("Domaine ou boîte expéditrice non validés pour l'envoi Internet.",403);
 
+    // Repeated requests return the existing result, before evaluating quotas.
+    // A reused key with a different payload or author is a conflict, never
+    // permission to overwrite a previously requested message.
+    const prior=await admin.from("orbit_external_messages")
+      .select("id,status,provider_email_id,created_by,to_emails,subject,body_text")
+      .eq("organization_id",ctx.organizationId).eq("identity_id",identity.id)
+      .eq("request_key",input.requestId).maybeSingle();
+    if(prior.error)return reply("Impossible de consulter l'historique d'envoi.",503);
+    if(prior.data){
+      const same=prior.data.created_by===ctx.user.id
+        && prior.data.subject===input.subject
+        && prior.data.body_text===input.text
+        && JSON.stringify(prior.data.to_emails)===JSON.stringify(input.to);
+      if(!same)return reply("Cette référence de demande correspond déjà à un autre message.",409);
+      return NextResponse.json({
+        ok:prior.data.status!=="uncertain",
+        alreadySubmitted:true,state:prior.data.status,
+        id:prior.data.id,providerMessageId:prior.data.provider_email_id,
+      },{status:202});
+    }
+
     // Conservative free-tier guard. A later atomic quota in the database is
     // necessary before providing unlimited or high-volume delivery.
     const since=new Date(Date.now()-24*60*60*1000).toISOString();
@@ -90,14 +111,22 @@ export async function POST(request: NextRequest) {
     if(pending.error) {
       if(pending.error.code==="23505") {
         const existing=await admin.from("orbit_external_messages")
-          .select("id,status,provider_email_id")
+          .select("id,status,provider_email_id,created_by,to_emails,subject,body_text")
           .eq("organization_id",ctx.organizationId)
           .eq("identity_id",identity.id)
           .eq("request_key",input.requestId).maybeSingle();
-        if(existing.data) return NextResponse.json({
-          ok:true,alreadySubmitted:true,state:existing.data.status,
-          id:existing.data.id,providerMessageId:existing.data.provider_email_id,
-        },{status:202});
+        if(existing.data){
+          if(existing.data.created_by!==ctx.user.id
+            ||existing.data.subject!==input.subject
+            ||existing.data.body_text!==input.text
+            ||JSON.stringify(existing.data.to_emails)!==JSON.stringify(input.to))
+            return reply("La référence d'envoi existe déjà pour un autre message.",409);
+          return NextResponse.json({
+            ok:existing.data.status!=="uncertain",alreadySubmitted:true,
+            state:existing.data.status,id:existing.data.id,
+            providerMessageId:existing.data.provider_email_id,
+          },{status:202});
+        }
       }
       return reply("Impossible d'enregistrer la demande d'envoi.",503);
     }
