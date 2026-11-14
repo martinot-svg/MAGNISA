@@ -61,7 +61,6 @@ export default async function MagniMailPage({
           </div>
         </div>
         {internalPortal}
-      {agendaPortal}
         {agendaPortal}
         <div className="grid2">
           <div className="card">
@@ -119,6 +118,7 @@ export default async function MagniMailPage({
   return (
     <>
       {internalPortal}
+      {agendaPortal}
       {needsUpgrade && (
         <div
           className="card"
