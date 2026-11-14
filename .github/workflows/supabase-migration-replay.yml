@@ -140,6 +140,8 @@ jobs:
       - name: Create authenticated local test user
         id: ui_user
         run: node scripts/ci/create-payroll-ui-user.mjs
+      - name: Verify MGMail internal collaboration, access isolation and notifications
+        run: node scripts/ci/mgmail-internal-mail-integration.mjs
       - name: Verify MAGNISA identity privacy, username and opaque IDs
         run: node scripts/ci/magnisa-identity-integration.mjs
       - name: Seed isolated payroll test organization
