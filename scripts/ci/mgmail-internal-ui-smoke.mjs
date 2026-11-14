@@ -63,21 +63,7 @@ async function openDialog(page,label){
 
 try {
   const a=await login(owner);
-  // Orbit must work with the same MAGNISA login and the existing tenant.
-  await a.page.goto(base+"/orbit",{waitUntil:"domcontentloaded"});
-  await a.page.getByRole("heading",{name:"Magnisa Orbit"}).waitFor({timeout:20000});
-  for(const module of ["Magnisa Inbox","Magnisa Planner","Magnisa Time","Magnisa Action"]) {
-    await a.page.getByRole("link",{name:module,exact:true}).first().waitFor({timeout:15000});
-  }
-  for(const [path,heading] of [
-    ["/orbit/planner","Magnisa Planner"],
-    ["/orbit/time","Magnisa Time"],
-    ["/orbit/action","Magnisa Action"],
-  ]) {
-    await a.page.goto(base+path,{waitUntil:"domcontentloaded"});
-    await a.page.getByRole("heading",{name:heading}).waitFor({timeout:20000});
-  }
-  await a.page.goto(base+"/orbit/inbox",{waitUntil:"domcontentloaded"});
+  await a.page.goto(base+"/magnimail",{waitUntil:"domcontentloaded"});
   await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   await a.page.getByRole("link",{name:"Ouvrir la messagerie interne"}).waitFor({timeout:20000});
   await a.page.getByRole("link",{name:"Ouvrir la messagerie interne"}).click();
@@ -139,6 +125,35 @@ try {
   const sender=boxes.find(x=>x.local_part==="direction")?.id;
   const recipient=boxes.find(x=>x.local_part==="finance")?.id;
   if(!sender||!recipient)throw new Error("Boîtes collaborateur non enregistrées");
+
+  // An administrator may REQUEST public domains and addresses; neither is
+  // an active Internet sender/receiver before ownership and transport tests.
+  await a.page.goto(base+"/magnimail/domaines",{waitUntil:"domcontentloaded"});
+  await a.page.getByRole("heading",{name:"Domaines et adresses professionnelles"}).waitFor({timeout:20000});
+  await openDialog(a.page,"+ Demander un domaine");
+  const requestedDomain="orbit-"+fixture+".example.org";
+  await a.page.locator('input[name="domainName"]').fill(requestedDomain);
+  await a.page.getByRole("button",{name:"Enregistrer la demande"}).click();
+  await a.page.getByRole("cell",{name:requestedDomain}).waitFor({timeout:20000});
+  const {data:domainRequest,error:domainError}=await admin.from("mgmail_domain_requests")
+    .select("id,verification_token,status").eq("organization_id",organizationId)
+    .eq("domain_name",requestedDomain).single();
+  if(domainError||!domainRequest)throw domainError||Error("DNS challenge was not stored");
+  await a.page.getByRole("link",{name:"Vérifier le domaine et les DNS"}).click();
+  await a.page.getByRole("heading",{name:"Vérifier "+requestedDomain}).waitFor({timeout:30000});
+  await a.page.getByText("magnisa-orbit="+domainRequest.verification_token).waitFor({timeout:30000});
+  if(await a.page.getByRole("button",{name:"Valider le domaine"}).count())
+    throw Error("Domain should not be verifiable before publishing actual DNS proof");
+  await a.page.goto(base+"/magnimail/domaines",{waitUntil:"domcontentloaded"});
+  await openDialog(a.page,"+ Demander une adresse");
+  await a.page.locator('select[name="domainRequestId"]').selectOption({label:requestedDomain});
+  await a.page.locator('select[name="mailboxId"]').selectOption(recipient);
+  await a.page.locator('input[name="localPart"]').fill("finance");
+  await a.page.getByRole("button",{name:"Enregistrer la demande"}).click();
+  await a.page.getByRole("cell",{name:"finance@"+requestedDomain}).waitFor({timeout:20000});
+  console.log("Orbit Inbox: public address request pending, not sent or activated");
+  await a.page.goto(base+"/magnimail/interne",{waitUntil:"domcontentloaded"});
+  await a.page.getByRole("heading",{name:"Messagerie des collaborateurs"}).waitFor({timeout:20000});
   await openDialog(a.page,/Nouveau message/);
   await a.page.locator('select[name="senderId"]').selectOption(sender);
   await a.page.locator('select[name="recipientId"]').selectOption(recipient);
@@ -151,6 +166,10 @@ try {
   await a.context.close();
 
   const b=await login(employee);
+  await b.page.goto(base+"/magnimail/domaines/"+domainRequest.id,{waitUntil:"domcontentloaded"});
+  await b.page.getByRole("alert").waitFor({timeout:20000});
+  if(await b.page.getByText("magnisa-orbit="+domainRequest.verification_token).count())
+    throw Error("Unauthorized collaborator can read domain TXT proof");
   await b.page.goto(base+"/magnimail/interne",{waitUntil:"domcontentloaded"});
   await b.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   await b.page.getByRole("heading",{name:"Messagerie des collaborateurs"}).waitFor({timeout:20000});

@@ -1,4 +1,5 @@
 import { requireOrganization } from "@/lib/current-org";
+import { hasPermission } from "@/lib/permissions";
 import { MagniMailClient } from "@/components/magnimail-client";
 import { DEFAULT_EMAIL_TEMPLATES, getEmailTemplate, renderEmailTemplate, type EmailTemplateKey } from "@/lib/magnimail/templates";
 
@@ -20,7 +21,9 @@ export default async function MagniMailPage({
   }>;
 }) {
   const query = await searchParams;
-  const { supabase, organizationId, user } = await requireOrganization();
+  const ctx = await requireOrganization();
+  const { supabase, organizationId, user } = ctx;
+  const canManageEmail = await hasPermission(ctx, "users.manage");
   const { data: gmail } = await supabase
     .from("email_connections")
     .select("email,status,scopes")
@@ -38,6 +41,11 @@ export default async function MagniMailPage({
       <p className="muted">Les identifiants privés en .mgmail sont réservés à MAGNISA :
         ils ne reçoivent pas directement les courriels Internet.</p>
       <a className="button primary" href="/magnimail/interne">Ouvrir la messagerie interne</a>
+      {canManageEmail && (
+        <a className="button" href="/magnimail/domaines">
+          Demander des domaines et adresses professionnels
+        </a>
+      )}
     </div>
   );
 
