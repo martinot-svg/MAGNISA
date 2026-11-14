@@ -28,8 +28,10 @@ BEGIN
     OR has_table_privilege('anon','public.mgmail_agenda_events','UPDATE') THEN
     RAISE EXCEPTION 'MGMail agenda: anonymous table privileges not revoked';
   END IF;
+  -- INSERT is granted by column, not at table level.
   IF NOT has_table_privilege('authenticated','public.mgmail_agenda_events','SELECT')
-    OR NOT has_table_privilege('authenticated','public.mgmail_agenda_events','INSERT') THEN
+    OR NOT has_column_privilege('authenticated','public.mgmail_agenda_events','title','INSERT')
+    OR NOT has_column_privilege('authenticated','public.mgmail_agenda_events','status','UPDATE') THEN
     RAISE EXCEPTION 'MGMail agenda: authenticated API privileges absent';
   END IF;
   IF to_regprocedure('public.run_mgmail_agenda_reminders(timestamptz)') IS NULL THEN
