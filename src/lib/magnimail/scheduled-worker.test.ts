@@ -66,7 +66,7 @@ function fakeAdmin(options: { senderActive?: boolean; identityActive?: boolean }
             data = row as unknown as Record<string, unknown>;
           }
         } else if (mode === "read") {
-          const records: Record<string, unknown>[] = {
+          const allRecords: Record<string, Record<string, unknown>[]> = {
             mgmail_external_identities: [{
               id: IDENTITY, organization_id: ORG, mailbox_id: MAILBOX,
               status: options.identityActive === false ? "suspended" : "active",
@@ -81,7 +81,8 @@ function fakeAdmin(options: { senderActive?: boolean; identityActive?: boolean }
               is_active: true, can_send: true, can_external_send: true,
             }],
             mgmail_internal_mailbox_grants: [],
-          }[table] || [];
+          };
+          const records = allRecords[table] || [];
           data = records.find((row) => predicates.every((fn) => fn(row))) || null;
         }
         return { data, error: null };
