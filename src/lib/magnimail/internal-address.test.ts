@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
-  internalMGMailAddress,
+  internalMailboxLabel,
   normalizeMGMailLocalPart,
   normalizeMGMailNamespace,
 } from "./internal-address";
 
 describe("Identifiants privés de MGMail", () => {
   it("forme une adresse interne de service et une adresse nominative", () => {
-    expect(internalMGMailAddress(" Finance ", " Mitalia ")).toBe("finance@mitalia.mgmail");
-    expect(internalMGMailAddress("aina", "mitalia")).toBe("aina@mitalia.mgmail");
+    expect(internalMailboxLabel(" Finance ", " Mitalia ")).toBe("finance (mitalia)");
+    expect(internalMailboxLabel("aina", "mitalia")).toBe("aina (mitalia)");
+  });
+
+  it("n'affiche pas d'adresse Internet fictive", () => {
+    const label = internalMailboxLabel("finance", "societe-exemple");
+    expect(label).toBe("finance (societe-exemple)");
+    expect(label).not.toContain("@");
   });
 
   it("accepte des identifiants d'entreprise avec tiret et des boîtes personnalisées", () => {
