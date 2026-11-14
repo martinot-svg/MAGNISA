@@ -194,6 +194,8 @@ jobs:
         run: node scripts/ci/company-onboarding-browser-smoke.mjs
       - name: Verify MGMail internal browser exchange between authenticated collaborators
         run: node scripts/ci/mgmail-internal-ui-smoke.mjs
+      - name: Verify Orbit Action task lifecycle in authenticated browser
+        run: node scripts/ci/orbit-action-ui-smoke.mjs
       - name: Test authenticated payroll and fixed-asset UI actions
         run: node scripts/ci/payroll-ui-smoke.mjs
       - name: Test authenticated CRM UI actions
