@@ -1,6 +1,6 @@
 /**
  * Identifiants MGMail strictement internes à MAGNISA.
- * Le suffixe .mgmail n'est pas un domaine de courrier Internet public.
+ * Les boîtes internes sont repérées par leurs identifiants, pas par un domaine de courrier.
  */
 export function normalizeMGMailNamespace(input: string): string {
   const slug = input.trim().toLowerCase();
@@ -18,6 +18,6 @@ export function normalizeMGMailLocalPart(input: string): string {
   return alias;
 }
 
-export function internalMGMailAddress(localPart: string, namespace: string): string {
-  return `${normalizeMGMailLocalPart(localPart)}@${normalizeMGMailNamespace(namespace)}.mgmail`;
+export function internalMailboxLabel(localPart: string, namespace: string): string {
+  return `${normalizeMGMailLocalPart(localPart)} (${normalizeMGMailNamespace(namespace)})`;
 }
