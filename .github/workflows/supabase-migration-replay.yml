@@ -167,6 +167,8 @@ jobs:
         run: node scripts/ci/mgmail-internet-permissions-integration.mjs
       - name: Test MGMail scheduled mail, safe cancellations and billing preavis isolation
         run: node scripts/ci/mgmail-scheduled-preavis-integration.mjs
+      - name: Test MGMail public domain requests, provider approval and activation RLS
+        run: node scripts/ci/mgmail-domain-approval-integration.mjs
       - name: Verify snapshot-aware payslip RPC privileges
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/payroll-snapshot-security.sql
       - name: Test payroll payment lifecycle and idempotency
