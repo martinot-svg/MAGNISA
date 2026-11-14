@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeInternetAddress, sendResendInternetEmail } from "./internet-resend";
+import { checkMGMailIdentityReadiness } from "./domain-health";
 import { defaultPreavisRules, normalizePreavisRules } from "./preavis-config";
 import { dueBillingPreavis, madagascarCivilDate } from "./scheduled";
 
@@ -71,7 +72,7 @@ export async function queueDueBillingPreavis(admin: Admin, now: Date): Promise<n
         .select("id,organization_id,customer_id,description,next_billing_date,end_date,status")
         .in("id", ids).eq("status", "active"),
       admin.from("mgmail_external_identities")
-        .select("id,organization_id,email_address,mailbox_id,status,provider,receive_enabled")
+        .select("id,organization_id,email_address,mailbox_id,status,provider,receive_enabled,verified_domain_id")
         .in("id", identityIds).eq("status", "active").eq("provider", "resend"),
       admin.from("mgmail_preavis_policies")
         .select("organization_id,recurring_contract_id,enabled,rules")
@@ -117,6 +118,7 @@ export async function queueDueBillingPreavis(admin: Admin, now: Date): Promise<n
       if (!await isCurrentMemberAllowed(
         admin, config.organization_id, identity.mailbox_id, config.configured_by
       )) continue;
+      if (!await checkMGMailIdentityReadiness(admin, identity, true, now)) continue;
       const customer = customersById.get(contract.customer_id);
       const org = orgsById.get(config.organization_id);
       if (!customer?.is_active || customer.organization_id !== config.organization_id ||
@@ -256,12 +258,16 @@ async function deliverOne(
 ): Promise<"accepted" | "cancelled" | "uncertain"> {
   const today = madagascarCivilDate(now);
   const identity = await admin.from("mgmail_external_identities")
-    .select("id,mailbox_id,email_address,status,provider,receive_enabled")
+    .select("id,organization_id,mailbox_id,email_address,status,provider,receive_enabled,verified_domain_id")
     .eq("id", message.identity_id).eq("organization_id", message.organization_id)
     .maybeSingle();
   let authorized = !identity.error && !!identity.data &&
     identity.data.status === "active" && identity.data.provider === "resend" &&
     identity.data.email_address === message.from_email;
+  if (authorized && identity.data) {
+    authorized = await checkMGMailIdentityReadiness(
+      admin, identity.data, message.source_kind === "billing_preavis", now);
+  }
 
   // No old reminder or stale/manual send after a prolonged outage.
   if (!message.scheduled_at || now.getTime() -

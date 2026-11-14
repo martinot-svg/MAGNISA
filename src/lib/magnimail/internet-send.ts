@@ -1,5 +1,6 @@
 import { requireOrganization } from "@/lib/current-org";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkMGMailIdentityReadiness } from "./domain-health";
 import { normalizeInternetAddress, parseInternetRecipients, sendResendInternetEmail } from "./internet-resend";
 
 export type SendInternetInput = {
@@ -28,7 +29,7 @@ export async function sendMGMailInternet(input: SendInternetInput) {
   // domain. It cannot be created or activated by an ordinary browser session.
   const { data: identity, error: identityError } = await ctx.supabase
     .from("mgmail_external_identities")
-    .select("id,organization_id,mailbox_id,email_address,status,provider")
+    .select("id,organization_id,mailbox_id,email_address,status,provider,verified_domain_id")
     .eq("id", input.identityId)
     .eq("organization_id", ctx.organizationId)
     .eq("status", "active")
@@ -47,6 +48,9 @@ export async function sendMGMailInternet(input: SendInternetInput) {
   }
   const fromEmail = normalizeInternetAddress(identity.email_address);
   const admin = createAdminClient();
+  if (!await checkMGMailIdentityReadiness(admin, identity, false)) {
+    throw new Error("Envoi suspendu : vérification DNS MGMail expirée ou domaine non validé.");
+  }
 
   // UNIQUE(identity_id,request_key) + an atomic queued -> sending transition
   // prevent concurrent form submissions from sending the same message twice.
