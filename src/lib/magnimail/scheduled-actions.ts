@@ -41,6 +41,16 @@ export async function scheduleMGMailInternet(form: FormData) {
   }
 
   const admin = createAdminClient();
+  // Limite de sécurité avant activation : éviter qu'un seul collaborateur
+  // accumule un volume incontrôlé de courriers programmés.
+  const pending = await admin.from("mgmail_external_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", ctx.organizationId)
+    .eq("created_by", ctx.user.id).eq("source_kind", "scheduled")
+    .eq("status", "queued");
+  if (pending.error || (pending.count ?? 0) >= 50) {
+    throw new Error("Maximum 50 e-mails programmés en attente par collaborateur.");
+  }
   const { error: insertError } = await admin.from("mgmail_external_messages")
     .insert({
       organization_id: ctx.organizationId,
@@ -108,13 +118,15 @@ export async function configureMGMailBillingPreavis(form: FormData) {
       .select("id,customer_id,status").eq("organization_id", ctx.organizationId)
       .eq("id", contractId).maybeSingle(),
     ctx.supabase.from("mgmail_external_identities")
-      .select("id,mailbox_id,status")
+      .select("id,mailbox_id,status,receive_enabled")
       .eq("organization_id", ctx.organizationId)
-      .eq("id", identityId).eq("status", "active").maybeSingle(),
+      .eq("id", identityId).maybeSingle(),
   ]);
   if (contractResult.error || !contractResult.data ||
       identityResult.error || !identityResult.data ||
-      (enabled && contractResult.data.status !== "active")) {
+      (enabled && contractResult.data.status !== "active") ||
+      (enabled && (identityResult.data.status !== "active" ||
+        !identityResult.data.receive_enabled))) {
     throw new Error("Contrat actif ou adresse Internet vérifiée introuvable.");
   }
   const { data: authorized, error: permissionError } = await ctx.supabase
@@ -123,7 +135,7 @@ export async function configureMGMailBillingPreavis(form: FormData) {
       p_mailbox: identityResult.data.mailbox_id,
       p_action: "send",
     });
-  if (permissionError || authorized !== true) {
+  if (enabled && (permissionError || authorized !== true)) {
     throw new Error("Envoi Internet non autorisé depuis cette boîte.");
   }
   if (enabled) {
