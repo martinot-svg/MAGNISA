@@ -38,9 +38,40 @@ create table public.mgmail_public_address_requests (
   organization_id uuid not null references public.organizations(id) on delete cascade,
   mailbox_id uuid not null,
   email_address text not null check (
-    email_address=lower(email_address) and char_length(email_address)<=254
-    and email_address ~ '^[a-z0-9][a-z0-9._+-]*@[a-z0-9][a-z0-9.-]*\.[a-z]{2,}
--- This table has no browser INSERT, UPDATE or DELETE permissions.
+    email_address = lower(email_address)
+    and char_length(email_address) between 5 and 254
+    and email_address ~ '^[a-z0-9][a-z0-9._+-]*@[a-z0-9][a-z0-9.-]*[.][a-z]{2,}$'
+  ),
+  requested_by uuid not null references auth.users(id) on delete restrict,
+  status text not null default 'pending' check(status in ('pending','approved','rejected')),
+  created_at timestamptz not null default now(),
+  unique(organization_id,email_address),
+  constraint mgmail_public_address_request_mailbox_fk
+    foreign key(mailbox_id,organization_id)
+    references public.mgmail_internal_mailboxes(id,organization_id) on delete cascade
+);
+alter table public.mgmail_public_address_requests enable row level security;
+create policy mgmail_address_requests_read
+  on public.mgmail_public_address_requests for select to authenticated
+  using (public.has_org_permission(organization_id,'users.manage'));
+create policy mgmail_address_requests_create
+  on public.mgmail_public_address_requests for insert to authenticated
+  with check (
+    requested_by=(select auth.uid()) and status='pending'
+    and public.has_org_permission(organization_id,'users.manage')
+    and exists (
+      select 1 from public.mgmail_domain_requests d
+      where d.organization_id=mgmail_public_address_requests.organization_id
+        and d.domain_name=split_part(mgmail_public_address_requests.email_address,'@',2)
+        and d.status in ('pending','approved')
+    )
+  );
+revoke all on public.mgmail_public_address_requests from public,anon,authenticated;
+grant select on public.mgmail_public_address_requests to authenticated;
+grant insert(organization_id,mailbox_id,email_address,requested_by)
+  on public.mgmail_public_address_requests to authenticated;
+
+-- Operator-managed proof: no browser INSERT, UPDATE or DELETE permissions.
 create table public.mgmail_verified_domains (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
