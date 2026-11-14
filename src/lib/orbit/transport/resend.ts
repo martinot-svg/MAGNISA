@@ -44,6 +44,9 @@ export class ResendInternetTransport implements InternetTransport {
       throw new Error("Destinataires de courrier externe invalides.");
     }
     const to = message.to.map(normalizePublicEmail);
+    if (new Set(to).size !== to.length) {
+      throw new Error("Les destinataires externes ne peuvent pas être répétés.");
+    }
     const subject = message.subject.trim();
     if (!subject || subject.length > 180 || message.text.length < 1
         || message.text.length > 50000
