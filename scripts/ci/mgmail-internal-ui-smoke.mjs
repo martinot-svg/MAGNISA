@@ -35,31 +35,40 @@ async function login(user) {
   const context=await browser.newContext({viewport:{width:390,height:844}});
   const page=await context.newPage();
   await page.goto(base+"/login",{waitUntil:"domcontentloaded"});
+  console.log("MGMail UI: connexion",user.email.includes("-owner-")?"administrateur":"collaborateur");
   await page.locator('input[name="email"]').fill(user.email);
   await page.locator('input[name="password"]').fill(user.password);
   await page.getByRole("button",{name:"Se connecter"}).click();
   await page.waitForURL(u=>u.pathname!=="/login",{timeout:30000});
+  await page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   return {page,context};
 }
 try {
   const a=await login(owner);
   await a.page.goto(base+"/magnimail",{waitUntil:"domcontentloaded"});
+  await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   await a.page.getByRole("link",{name:"Ouvrir la messagerie interne"}).waitFor({timeout:20000});
   await a.page.getByRole("link",{name:"Ouvrir la messagerie interne"}).click();
   await a.page.getByRole("heading",{name:"Messagerie des collaborateurs"}).waitFor({timeout:20000});
+  await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
+  console.log("MGMail UI: messagerie interne hydratée");
   if(await a.page.getByRole("alert").count())throw new Error("MGMail interne indisponible après migrations");
 
   await a.page.getByRole("button",{name:"Configurer MGMail interne"}).click();
+  await a.page.getByRole("dialog").waitFor({timeout:12000});
   await a.page.locator('input[name="slug"]').fill("mgmail-ui-"+fixture);
   await a.page.getByRole("button",{name:"Créer cet espace"}).click();
   await a.page.getByRole("heading",{name:"Administration des boîtes"}).waitFor({timeout:20000});
+  console.log("MGMail UI: espace interne créé");
 
   async function createMailbox(label,userId){
     await a.page.getByRole("button",{name:/Créer une boîte/}).click();
+    await a.page.getByRole("dialog").waitFor({timeout:12000});
     await a.page.locator('input[name="localPart"]').fill(label);
     await a.page.locator('select[name="ownerId"]').selectOption(userId);
     await a.page.getByRole("button",{name:"Créer et attribuer la boîte"}).click();
     await a.page.getByRole("cell",{name:new RegExp(label+"@")}).first().waitFor({timeout:20000});
+    console.log("MGMail UI: boîte attribuée",label);
   }
   await createMailbox("direction",owner.id);
   await createMailbox("finance",employee.id);
@@ -70,6 +79,7 @@ try {
   const recipient=boxes.find(x=>x.local_part==="finance")?.id;
   if(!sender||!recipient)throw new Error("Boîtes collaborateur non enregistrées");
   await a.page.getByRole("button",{name:/Nouveau message/}).click();
+  await a.page.getByRole("dialog").waitFor({timeout:12000});
   await a.page.locator('select[name="senderId"]').selectOption(sender);
   await a.page.locator('select[name="recipientId"]').selectOption(recipient);
   const subject="Message interne "+fixture;
@@ -77,13 +87,17 @@ try {
   await a.page.locator('textarea[name="body"]').fill("Test sécurisé entre deux collaborateurs authentifiés.");
   await a.page.getByRole("button",{name:"Envoyer dans MAGNISA"}).click();
   await a.page.getByText(subject).first().waitFor({timeout:20000});
+  console.log("MGMail UI: message envoyé");
   await a.context.close();
 
   const b=await login(employee);
   await b.page.goto(base+"/magnimail/interne",{waitUntil:"domcontentloaded"});
+  await b.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   await b.page.getByRole("heading",{name:"Messagerie des collaborateurs"}).waitFor({timeout:20000});
   await b.page.getByText(subject).waitFor({timeout:20000});
+  console.log("MGMail UI: message réceptionné par le collaborateur");
   await b.page.getByRole("button",{name:/Marquer comme lu/}).click();
+  await b.page.getByRole("dialog").waitFor({timeout:12000});
   await b.page.getByRole("button",{name:"Confirmer"}).click();
   await b.page.getByRole("heading",{name:/Boîte de réception interne \(0 non lus affichés\)/}).waitFor({timeout:20000});
   if(await b.page.getByRole("button",{name:/Créer une boîte/}).count()>0)
