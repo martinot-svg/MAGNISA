@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ResendInternetTransport, verifyResendSignedEvent } from "@/lib/orbit/transport/resend";
 import { eligiblePublicRecipient, enabledMagniboxInternetMail } from "@/lib/orbit/transport/gates";
+import { enabledResendSandboxDomain, matchesResendSandboxDomain } from "@/lib/orbit/transport/sandbox";
 
 export const runtime="nodejs";
 type ResendEvent={
@@ -22,7 +23,8 @@ function unavailable() {
 export async function POST(request: NextRequest) {
   const secret=process.env.RESEND_WEBHOOK_SIGNING_SECRET;
   const key=process.env.RESEND_API_KEY;
-  if(!enabledMagniboxInternetMail()||!secret||!key)return unavailable();
+  const sandboxDomain=enabledResendSandboxDomain();
+  if((!enabledMagniboxInternetMail()&&!sandboxDomain)||!secret||!key)return unavailable();
   if(Number(request.headers.get("content-length")||"0")>100000)
     return NextResponse.json({error:"Webhook trop volumineux."},{status:413});
   let raw:string;
@@ -45,6 +47,22 @@ export async function POST(request: NextRequest) {
   }
   const mailId=event.data?.email_id;
   if(typeof mailId!=="string"||!/^[-A-Za-z0-9_]{5,128}$/.test(mailId))return ack();
+
+  // Explicit, domain-scoped connectivity test only. Resend retains the email.
+  // Never import it as a tenant identity, mark it delivered to Magnibox or
+  // touch organization tables without proof of the real domain's ownership.
+  if(sandboxDomain){
+    if(event.type!=="email.received")
+      return NextResponse.json({ok:true,mode:"sandbox",stored:false});
+    try{
+      const received=await new ResendInternetTransport(key).fetchReceived(mailId);
+      if(!matchesResendSandboxDomain(received.to,sandboxDomain))
+        return NextResponse.json({error:"Destinataire hors du domaine de test autorisé."},{status:422});
+      return NextResponse.json({ok:true,mode:"sandbox",stored:false});
+    }catch{
+      return unavailable(); // allow a genuine retry instead of silently dropping a message
+    }
+  }
 
   // No organization or address from the signed *notification* is trusted;
   // for incoming messages retrieve the body and recipients from the provider.
