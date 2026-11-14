@@ -51,8 +51,16 @@ const mailbox=ok(await owner.account.from("mgmail_internal_mailboxes").insert({
 
 const request=ok(await owner.account.from("mgmail_domain_requests").insert({
   organization_id:org,domain_name:domain,requested_by:owner.id,
-}).select("id,status,domain_name").single(),"domain request");
+}).select("id,status,domain_name,verification_token").single(),"domain request");
 if(request.status!=="pending"||request.domain_name!==domain)throw Error("Domain request must remain pending");
+if(!/^[0-9a-f]{64}$/.test(request.verification_token))throw Error("DNS challenge must have 244 random bits");
+denied(await employee.account.from("mgmail_domain_requests")
+  .select("verification_token").eq("id",request.id),
+  "Employee must not read another person's DNS ownership challenge");
+denied(await owner.account.from("mgmail_domain_requests").insert({
+  organization_id:org,domain_name:`forged-${token}.example.org`,
+  requested_by:owner.id,verification_token:"b".repeat(64),
+}).select("id"),"Browser may not choose its own DNS proof token");
 const address=ok(await owner.account.from("mgmail_public_address_requests").insert({
   organization_id:org,mailbox_id:mailbox.id,domain_request_id:request.id,
   domain_name:domain,local_part:"direction",requested_by:owner.id,
