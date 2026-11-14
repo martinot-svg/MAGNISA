@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { ensureMGMailCIVerifiedDomain } from "./mgmail-domain-fixture.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -53,9 +54,11 @@ const mailbox=ok(await owner.from("mgmail_internal_mailboxes").insert({
   organization_id:org,local_part:`finance-${suffix}`,owner_user_id:a.id,
 }).select("id").single(),"Boîte finance").id;
 
+const verifiedDomainId = await ensureMGMailCIVerifiedDomain(admin, org);
 const identityEmail=`finance-${suffix}@example.org`;
 const identity=ok(await admin.from("mgmail_external_identities").insert({
   organization_id:org,mailbox_id:mailbox,email_address:identityEmail,
+  verified_domain_id:verifiedDomainId,
   provider:"resend",status:"active",receive_enabled:true,
 }).select("id").single(),"Adresse de test isolée").id;
 
