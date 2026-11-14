@@ -125,6 +125,25 @@ try {
   const sender=boxes.find(x=>x.local_part==="direction")?.id;
   const recipient=boxes.find(x=>x.local_part==="finance")?.id;
   if(!sender||!recipient)throw new Error("Boîtes collaborateur non enregistrées");
+
+  // An administrator may REQUEST public domains and addresses; neither is
+  // an active Internet sender/receiver before ownership and transport tests.
+  await a.page.goto(base+"/magnimail/domaines",{waitUntil:"domcontentloaded"});
+  await a.page.getByRole("heading",{name:"Domaines et adresses professionnelles"}).waitFor({timeout:20000});
+  await openDialog(a.page,"+ Demander un domaine");
+  const requestedDomain="orbit-"+fixture+".example.org";
+  await a.page.locator('input[name="domainName"]').fill(requestedDomain);
+  await a.page.getByRole("button",{name:"Enregistrer la demande"}).click();
+  await a.page.getByRole("cell",{name:requestedDomain}).waitFor({timeout:20000});
+  await openDialog(a.page,"+ Demander une adresse");
+  await a.page.locator('select[name="domainRequestId"]').selectOption({label:requestedDomain});
+  await a.page.locator('select[name="mailboxId"]').selectOption(recipient);
+  await a.page.locator('input[name="localPart"]').fill("finance");
+  await a.page.getByRole("button",{name:"Enregistrer la demande"}).click();
+  await a.page.getByRole("cell",{name:"finance@"+requestedDomain}).waitFor({timeout:20000});
+  console.log("Orbit Inbox: public address request pending, not sent or activated");
+  await a.page.goto(base+"/magnimail/interne",{waitUntil:"domcontentloaded"});
+  await a.page.getByRole("heading",{name:"Messagerie des collaborateurs"}).waitFor({timeout:20000});
   await openDialog(a.page,/Nouveau message/);
   await a.page.locator('select[name="senderId"]').selectOption(sender);
   await a.page.locator('select[name="recipientId"]').selectOption(recipient);
