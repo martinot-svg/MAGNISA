@@ -160,7 +160,7 @@ export default async function Payments({
                           {p.customers?.email && (
                             <Link
                               className="button"
-                              href={`/magnimail?composeTo=${encodeURIComponent(
+                              href={`/orbit/magnibox?composeTo=${encodeURIComponent(
                                 p.customers.email
                               )}&customerId=${p.customer_id}&templateKey=payment_confirmation&numero=${encodeURIComponent(
                                 p.invoices?.number || p.reference || "paiement"

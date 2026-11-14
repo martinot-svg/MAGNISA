@@ -69,9 +69,9 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
           {customer.email && (
             <Link
               className="button primary"
-              href={`/magnimail?composeTo=${encodeURIComponent(customer.email)}&customerId=${customer.id}`}
+              href={`/orbit/magnibox?composeTo=${encodeURIComponent(customer.email)}&customerId=${customer.id}`}
             >
-              Écrire avec MagniMail
+              Écrire avec Magnibox
             </Link>
           )}
           <Link className="button" href={"/clients/" + customer.id + "/contributions"}>Suivi collaboratif</Link>
@@ -104,7 +104,7 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
           </form></FormDialog>
         </section>
         <section className="card">
-          <h2>Historique MagniMail</h2>
+          <h2>Historique Magnibox</h2>
           <p className="muted">
             Les e-mails envoyés depuis MAGNISA et les messages Gmail synchronisés sont rattachés automatiquement à ce client.
           </p>

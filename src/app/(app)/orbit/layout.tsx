@@ -2,7 +2,7 @@ import Link from "next/link";
 
 const modules = [
   { href: "/orbit", name: "Orbit" },
-  { href: "/orbit/inbox", name: "Magnisa Inbox" },
+  { href: "/orbit/magnibox", name: "Magnibox" },
   { href: "/orbit/planner", name: "Magnisa Planner" },
   { href: "/orbit/time", name: "Magnisa Time" },
   { href: "/orbit/action", name: "Magnisa Action" },

@@ -1,5 +1,6 @@
 import { requireOrganization } from "@/lib/current-org";
 import { MagniMailClient } from "@/components/magnimail-client";
+import { MGMailInternalContent } from "@/components/magnimail-internal-workspace";
 import { DEFAULT_EMAIL_TEMPLATES, getEmailTemplate, renderEmailTemplate, type EmailTemplateKey } from "@/lib/magnimail/templates";
 
 const MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
@@ -29,17 +30,10 @@ export default async function MagniMailPage({
     .eq("provider", "google")
     .maybeSingle();
 
-  // Le canal interne fonctionne sans connexion Gmail ni domaine Internet.
-  const internalPortal = (
-    <div className="card section">
-      <h2>Magnisa Inbox · Boîtes des collaborateurs</h2>
-      <p>Créer, attribuer et partager des boîtes internes ; échanger des messages
-        entre collaborateurs autorisés, même sans compte Gmail.</p>
-      <p className="muted">Les identifiants privés en .mgmail sont réservés à MAGNISA :
-        ils ne reçoivent pas directement les courriels Internet.</p>
-      <a className="button primary" href="/magnimail/interne">Ouvrir la messagerie interne</a>
-    </div>
-  );
+  // The same Magnibox workspace exposes all available messages.
+  // Existing .mgmail delivery and Gmail OAuth remain distinct *transport*
+  // implementations, not two user-facing messaging applications.
+  const inboxMessages = <MGMailInternalContent embedded />;
 
   if (!gmail || gmail.status !== "active") {
     return (
@@ -47,16 +41,16 @@ export default async function MagniMailPage({
         <div className="pageHead">
           <div>
             <p className="eyebrow">Magnisa Orbit · Communication</p>
-            <h1>Magnisa Inbox</h1>
+            <h1>Magnibox</h1>
             <p>Messagerie professionnelle : échanges internes sécurisés et connexions Internet facultatives.</p>
           </div>
         </div>
-        {internalPortal}
+        {inboxMessages}
         <div className="grid2">
           <div className="card">
-            <h2>Gmail — facultatif</h2>
+            <h2>Ajouter un compte e-mail Internet (facultatif)</h2>
             <p className="muted">
-              Connecte Gmail uniquement si tu souhaites utiliser une boîte externe pour la réception, les envoyés, les brouillons, les réponses,
+              Un compte Gmail est une option pour utiliser une adresse Internet pour la réception, les envoyés, les brouillons, les réponses,
               pièces jointes et l'envoi des documents MAGNISA.
             </p>
             <a className="button primary" href="/api/integrations/google/start">
@@ -66,7 +60,7 @@ export default async function MagniMailPage({
           <div className="card">
             <h2>Outlook / Microsoft 365</h2>
             <p className="muted">
-              L'architecture MagniMail est prévue pour Microsoft 365. La connexion Microsoft
+              La messagerie Magnibox prévoit aussi Microsoft 365. La connexion Microsoft
               sera activée après configuration de l'application Microsoft Entra.
             </p>
             <button className="button" disabled>
@@ -107,7 +101,14 @@ export default async function MagniMailPage({
 
   return (
     <>
-      {internalPortal}
+      <div className="pageHead">
+        <div>
+          <p className="eyebrow">Magnisa Orbit · Communication</p>
+          <h1>Magnibox</h1>
+          <p>Une seule messagerie pour vos courriers et vos collaborateurs.</p>
+        </div>
+      </div>
+      {inboxMessages}
       {needsUpgrade && (
         <div
           className="card"
@@ -119,16 +120,17 @@ export default async function MagniMailPage({
         >
           <strong>Autorisation Gmail à mettre à niveau</strong>
           <p style={{ marginBottom: 12 }}>
-            Ton compte était connecté avec l'autorisation d'envoi uniquement. MagniMail a
+            Ton compte était connecté avec l'autorisation d'envoi uniquement. Magnibox a
             maintenant besoin de l'autorisation Gmail complète de lecture/modification pour
             afficher la boîte de réception, les brouillons et la corbeille.
           </p>
           <a className="button primary" href="/api/integrations/google/start">
-            Reconnecter Gmail pour Magnisa Inbox
+            Reconnecter Gmail pour Magnibox
           </a>
         </div>
       )}
       <MagniMailClient
+        embedded
         connectedEmail={gmail.email}
         initialTo={query.composeTo || ""}
         initialCustomerId={query.customerId || ""}

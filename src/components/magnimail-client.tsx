@@ -105,6 +105,7 @@ const emptyCompose = {
 };
 
 export function MagniMailClient({
+  embedded = false,
   connectedEmail,
   initialTo = "",
   initialCustomerId = "",
@@ -116,6 +117,7 @@ export function MagniMailClient({
   initialCreditNoteId = "",
   initialPaymentId = "",
 }: {
+  embedded?: boolean;
   connectedEmail: string;
   initialTo?: string;
   initialCustomerId?: string;
@@ -161,7 +163,7 @@ export function MagniMailClient({
   const composeFieldId = useId();
 
   const title = useMemo(
-    () => folderLabels.find((entry) => entry.key === folder)?.label || "Magnisa Inbox",
+    () => folderLabels.find((entry) => entry.key === folder)?.label || "Magnibox",
     [folder],
   );
 
@@ -297,7 +299,7 @@ export function MagniMailClient({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || "Envoi impossible.");
-      setFeedback("E-mail envoyé depuis Magnisa Inbox.");
+      setFeedback("E-mail envoyé depuis Magnibox.");
       setTimeout(() => {
         setComposeOpen(false);
         setFeedback("");
@@ -405,18 +407,30 @@ export function MagniMailClient({
 
   return (
     <div>
-      <div className="pageHead">
-        <div>
-          <p className="eyebrow">Communication</p>
-          <h1>Magnisa Inbox</h1>
-          <p>
-            Messagerie professionnelle intégrée à MAGNISA · connecté avec <b>{connectedEmail}</b>
-          </p>
+      {embedded ? (
+        <div className="card section">
+          <div className="actions" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
+            <div>
+              <h2>Courriers Internet</h2>
+              <p className="muted">Compte connecté : {connectedEmail}</p>
+            </div>
+            <button className="button primary" onClick={() => startCompose()}>
+              Écrire un e-mail Internet
+            </button>
+          </div>
         </div>
-        <button className="button primary" onClick={() => startCompose()}>
-          Nouveau message
-        </button>
-      </div>
+      ) : (
+        <div className="pageHead">
+          <div>
+            <p className="eyebrow">Magnisa Orbit · Communication</p>
+            <h1>Magnibox</h1>
+            <p>Messagerie professionnelle · Compte connecté : <b>{connectedEmail}</b></p>
+          </div>
+          <button className="button primary" onClick={() => startCompose()}>
+            Nouveau message
+          </button>
+        </div>
+      )}
 
       <div
         style={{
@@ -697,7 +711,7 @@ export function MagniMailClient({
           isBusy={sending}
           width="min(760px, 100%)"
         >
-            <p className="eyebrow">Magnisa Inbox</p>
+            <p className="eyebrow">Magnibox</p>
 
             <div className="form">
               <div className="field">

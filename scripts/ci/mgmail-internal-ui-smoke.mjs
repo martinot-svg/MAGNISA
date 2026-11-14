@@ -66,7 +66,7 @@ try {
   // Orbit must work with the same MAGNISA login and the existing tenant.
   await a.page.goto(base+"/orbit",{waitUntil:"domcontentloaded"});
   await a.page.getByRole("heading",{name:"Magnisa Orbit"}).waitFor({timeout:20000});
-  for(const module of ["Magnisa Inbox","Magnisa Planner","Magnisa Time","Magnisa Action"]) {
+  for(const module of ["Magnibox","Magnisa Planner","Magnisa Time","Magnisa Action"]) {
     await a.page.getByRole("link",{name:module,exact:true}).first().waitFor({timeout:15000});
   }
   for(const [path,heading] of [
@@ -77,12 +77,19 @@ try {
     await a.page.goto(base+path,{waitUntil:"domcontentloaded"});
     await a.page.getByRole("heading",{name:heading}).waitFor({timeout:20000});
   }
+  // Historical app route must keep functioning and display the new product name.
   await a.page.goto(base+"/orbit/inbox",{waitUntil:"domcontentloaded"});
+  await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
+  await a.page.goto(base+"/magnimail",{waitUntil:"domcontentloaded"});
+  await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
+  await a.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
   await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
-  await a.page.getByRole("link",{name:"Ouvrir la messagerie interne"}).waitFor({timeout:20000});
-  await a.page.getByRole("link",{name:"Ouvrir la messagerie interne"}).click();
-  await a.page.getByRole("heading",{name:"Messagerie des collaborateurs"}).waitFor({timeout:20000});
-  await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
+  // MAGNIMAIL and MGMail are a single messaging workspace. An internal
+  // message must be accessible here without entering a second application.
+  await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
+  await a.page.getByRole("button",{name:"Configurer la messagerie interne"}).waitFor({timeout:20000});
+  if(await a.page.getByRole("link",{name:"Ouvrir la messagerie interne"}).count())
+    throw new Error("Orbit Inbox still separates MGMail into another messaging product");
   console.log("MGMail UI: messagerie interne hydratée");
   // Ignore empty aria-live/alert placeholders; only a substantive MGMail error is a failure.
   const mgmailAlerts=(await a.page.locator('main [role="alert"]').allTextContents())
@@ -151,9 +158,9 @@ try {
   await a.context.close();
 
   const b=await login(employee);
-  await b.page.goto(base+"/magnimail/interne",{waitUntil:"domcontentloaded"});
+  await b.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
   await b.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
-  await b.page.getByRole("heading",{name:"Messagerie des collaborateurs"}).waitFor({timeout:20000});
+  await b.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
   await b.page.getByText(subject).waitFor({timeout:20000});
   console.log("MGMail UI: message réceptionné par le collaborateur");
   await openDialog(b.page,/Marquer comme lu/);

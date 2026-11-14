@@ -4,6 +4,23 @@
 **Conteneur applicatif :** MAGNISA / Magnisa Box  
 **Approche :** migration incrémentale sans suppression des structures historiques.
 
+## Identité de la messagerie
+
+**Magnibox est le nom définitif du produit de messagerie de Magnisa Orbit.**
+Il remplace les anciennes appellations MAGNIMAIL, GMMAIL/MGMail et Magnisa Inbox.
+Aucun de ces anciens noms ne désigne une autre application à présenter aux utilisateurs.
+
+Le point d'entrée canonique est `/orbit/magnibox`. Les anciennes routes
+`/orbit/inbox`, `/magnimail`, `/magnimail/interne` et les API
+`/api/magnimail/*` restent compatibles avec les intégrations et les messages
+déjà enregistrés. Leurs noms techniques et les tables `mgmail_*` ne sont pas
+renommés par ce rebranding.
+
+La messagerie interne et les comptes Internet facultatifs apparaissent dans
+le **même espace Magnibox**. Les transports et modèles historiques restent
+distincts en interne jusqu'à leur agrégation complète, sans créer un second
+produit, sans exiger Gmail et sans prétendre qu'un domaine public est déjà actif.
+
 ## 1. Sources et inventaire vérifiés le 14/11/2026
 
 - Le compte GitHub connecté expose `martinot-svg/MAGNISA` et `martinot-svg/ZARAY`. Aucun dépôt indépendant MAGNIMAIL, GMMAIL ou MAGNISA BOX n'a été identifié parmi ses dépôts accessibles. Ne pas inventer de transfert inter-dépôts.
@@ -20,7 +37,8 @@
 | Orbit | Source existante réutilisée | Statut |
 | --- | --- | --- |
 | `/orbit` | AppShell, session et organisation MAGNISA | Intégration dans la navigation, aucun login en doublon |
-| `/orbit/inbox` | `/magnimail` (réexport de la page historique) | Gmail facultatif + MGMail interne préservés |
+| `/orbit/magnibox` (**Magnibox**) | `/magnimail` (réutilise le moteur et les données historiques) | Messagerie interne et comptes Internet connectés dans un même espace |
+| `/orbit/inbox` | Alias historique vers le même composant | Compatibilité des signets existants, sans nouveau produit |
 | `/magnimail/interne` | Boîtes, messages, RLS et permissions existantes | Route et tables conservées |
 | `/orbit/planner` | Échéances `projects.end_date` | Première vue en lecture ; agenda personnel en cours |
 | `/orbit/time` | Dates `projects.start_date/end_date` | Première grille mensuelle en lecture |
@@ -30,7 +48,7 @@ Le `key='magnimail'` du catalogue fonctionnel est **conservé** : seules sa pré
 
 ## 3. Livraison des fonctionnalités non encore opérationnelles
 
-### Inbox : identité professionnelle multidomaine
+### Magnibox : identité professionnelle multidomaine
 1. Inventorier les services externes disponibles sans partager les secrets ; séparer Gmail OAuth, Microsoft Graph, IMAP/SMTP et transport SMTP/inbound.
 2. Reprendre **de façon ciblée** les branches de demandes de domaines et les tests, sans intégrer leurs anciennes migrations et dépendances divergentes.
 3. Définir une demande de domaine par organisation, avec preuve DNS **externe au navigateur**, registre des vérifications, expiration et retrait. Ne jamais permettre l'usurpation d'un domaine d'une autre entreprise.
@@ -67,4 +85,4 @@ Le `key='magnimail'` du catalogue fonctionnel est **conservé** : seules sa pré
 
 ## 6. État du premier lot
 
-L'introduction de la navigation Orbit, l'adaptateur Inbox et les vues de projets existants ne requièrent **aucune migration Supabase** et sont réversibles par code. Le calendrier collaboratif complet, les boîtes publiques multidomaines et le vrai Kanban de tâches seront suivis comme **lots distincts**, pas présentés comme livrés prématurément.
+L'introduction de la navigation Orbit, la messagerie Magnibox et les vues de projets existants ne requièrent **aucune migration Supabase** et sont réversibles par code. Le calendrier collaboratif complet, les boîtes publiques multidomaines et le vrai Kanban de tâches seront suivis comme **lots distincts**, pas présentés comme livrés prématurément.
