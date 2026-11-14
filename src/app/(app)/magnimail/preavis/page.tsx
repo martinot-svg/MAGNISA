@@ -105,7 +105,7 @@ export default async function BillingPreavisPreview() {
       .select("recurring_contract_id,identity_id,enabled,recipient_confirmed")
       .eq("organization_id", ctx.organizationId).limit(200),
     ctx.supabase.from("mgmail_external_identities")
-      .select("id,mailbox_id,email_address,status")
+      .select("id,mailbox_id,email_address,status,receive_enabled")
       .eq("organization_id", ctx.organizationId).eq("status", "active").limit(100),
   ]);
 
@@ -116,7 +116,9 @@ export default async function BillingPreavisPreview() {
     .in("id", customerIds);
   const customers = new Map((customerResult.data || []).map((customer) => [customer.id, customer]));
   const deliveryConfigs = new Map((deliveryResult.data || []).map((config) => [config.recurring_contract_id, config]));
-  const usableIdentities = canConfigureDelivery ? (await Promise.all((identityResult.data || []).map(async (identity) => {
+  const usableIdentities = canConfigureDelivery ? (await Promise.all((identityResult.data || [])
+    .filter((identity) => identity.receive_enabled)
+    .map(async (identity) => {
     const result = await ctx.supabase.rpc("mgmail_can_external_access", {
       p_org: ctx.organizationId, p_mailbox: identity.mailbox_id, p_action: "send",
     });
