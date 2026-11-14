@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCronAuthorizationError } from "@/lib/cron-auth";\nimport { synchronizeMagniboxTlds } from "@/lib/orbit/tld-sync";
+import { getCronAuthorizationError } from "@/lib/cron-auth";
+import { synchronizeMagniboxTlds } from "@/lib/orbit/tld-sync";
 
 export const dynamic = "force-dynamic";
 
