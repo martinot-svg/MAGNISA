@@ -59,8 +59,6 @@ async function setMailboxPermissions(form: FormData) {
     .update({
       can_read: form.get("canRead") === "on",
       can_send: form.get("canSend") === "on",
-      can_external_read: form.get("canExternalRead") === "on",
-      can_external_send: form.get("canExternalSend") === "on",
       is_active: form.get("isActive") === "on",
     })
     .eq("id", id)
@@ -91,20 +89,13 @@ async function shareMailbox(form: FormData) {
   }
   const canRead = form.get("canRead") === "on";
   const canSend = form.get("canSend") === "on";
-  const canExternalRead = form.get("canExternalRead") === "on";
-  const canExternalSend = form.get("canExternalSend") === "on";
-  const active = canRead || canSend || canExternalRead || canExternalSend;
+  const active = canRead || canSend;
   const query = ctx.supabase.from("mgmail_internal_mailbox_grants");
   const { data: existing, error: lookupError } = await query.select("mailbox_id")
     .eq("organization_id", ctx.organizationId)
     .eq("mailbox_id", mailboxId).eq("user_id", userId).maybeSingle();
   if (lookupError) throw new Error("Impossible de vérifier la délégation de boîte.");
-  const values = {
-    can_read: canRead, can_send: canSend,
-    can_external_read: canExternalRead && canRead,
-    can_external_send: canExternalSend && canSend,
-    is_active: active,
-  };
+  const values = { can_read: canRead, can_send: canSend, is_active: active };
   const result = existing
     ? await ctx.supabase.from("mgmail_internal_mailbox_grants")
         .update(values).eq("organization_id", ctx.organizationId)
@@ -189,7 +180,7 @@ export default async function MGMailInternalPage() {
     ctx.supabase.from("mgmail_internal_namespaces")
       .select("slug").eq("organization_id", ctx.organizationId).maybeSingle(),
     ctx.supabase.from("mgmail_internal_mailboxes")
-      .select("id,local_part,owner_user_id,display_name,is_active,can_read,can_send,can_external_read,can_external_send")
+      .select("id,local_part,owner_user_id,display_name,is_active,can_read,can_send")
       .eq("organization_id", ctx.organizationId).order("local_part"),
     ctx.supabase.from("mgmail_internal_messages")
       .select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,created_at")
@@ -357,8 +348,6 @@ export default async function MGMailInternalPage() {
                               </p>
                               <label><input type="checkbox" name="canRead" defaultChecked /> Autoriser la lecture</label>
                               <label><input type="checkbox" name="canSend" /> Autoriser les envois</label>
-                              <label><input type="checkbox" name="canExternalRead" /> Autoriser la lecture des e-mails externes</label>
-                              <label><input type="checkbox" name="canExternalSend" /> Autoriser les envois externes</label>
                               <button className="button primary" type="submit">Enregistrer le partage</button>
                             </form>
                           </FormDialog>
@@ -367,8 +356,6 @@ export default async function MGMailInternalPage() {
                               <input type="hidden" name="mailboxId" value={mailbox.id} />
                               <label><input type="checkbox" name="canRead" defaultChecked={mailbox.can_read} /> Autoriser la lecture</label>
                               <label><input type="checkbox" name="canSend" defaultChecked={mailbox.can_send} /> Autoriser les envois internes</label>
-                              <label><input type="checkbox" name="canExternalRead" defaultChecked={mailbox.can_external_read} /> Lire les e-mails externes</label>
-                              <label><input type="checkbox" name="canExternalSend" defaultChecked={mailbox.can_external_send} /> Envoyer vers Gmail, Outlook et autres</label>
                               <label><input type="checkbox" name="isActive" defaultChecked={mailbox.is_active} /> Boîte active</label>
                               <button className="button primary">Enregistrer les droits</button>
                             </form>
