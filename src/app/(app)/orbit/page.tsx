@@ -7,7 +7,7 @@ export default async function OrbitHome() {
   const canProjects = await hasPermission(ctx, "sales.view");
   const modules = [
     {
-      href: "/orbit/inbox", title: "Magnisa Inbox",
+      href: "/orbit/magnibox", title: "Magnibox",
       subtitle: "Messagerie professionnelle",
       detail: "Boîtes internes et courrier externe connecté, sans obligation de Gmail.",
       action: "Ouvrir la messagerie",
@@ -56,10 +56,10 @@ export default async function OrbitHome() {
       </div>
       <div className="card section">
         <h2>Continuité de service</h2>
-        <p>Magnisa Inbox réutilise les boîtes et les messages de MGMail. Les adresses internes
+        <p>Magnibox conserve les boîtes et les messages existants. Les adresses internes
           restent privées à MAGNISA. Un domaine Internet personnalisé ne sera déclaré utilisable
           qu'après vérification de sa propriété, de son transport et de la réception réelle.</p>
-        <Link className="button" href="/magnimail/interne">Accéder aux boîtes internes existantes</Link>
+        <Link className="button" href="/orbit/magnibox">Ouvrir Magnibox</Link>
       </div>
     </>
   );
