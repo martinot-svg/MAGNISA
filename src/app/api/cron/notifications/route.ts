@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCronAuthorizationError } from "@/lib/cron-auth";
+import { runMGMailScheduledDispatch } from "@/lib/magnimail/scheduled-worker";
 
 export const dynamic = "force-dynamic";
 
@@ -25,26 +26,38 @@ export async function GET(request: Request) {
     // Exécuter les deux routines indépendamment : la défaillance d'une famille
     // de notifications ne doit pas empêcher la tentative de l'autre.
     // Chaque routine déduplique ses alertes : un nouvel appel reste idempotent.
-    const [loans, agenda] = await Promise.all([
+    const [loans, agenda, scheduled] = await Promise.allSettled([
       supabase.rpc("run_loan_deadline_notifications", {
         p_run_date: now.toISOString().slice(0, 10),
       }),
       supabase.rpc("run_mgmail_agenda_reminders", {
         p_run_at: now.toISOString(),
       }),
+      runMGMailScheduledDispatch({ admin: supabase, now }),
     ]);
-    if (loans.error || agenda.error) {
+    const loanError = loans.status === "rejected"
+      ? "Traitement impossible" : loans.value.error?.message;
+    const agendaError = agenda.status === "rejected"
+      ? "Traitement impossible" : agenda.value.error?.message;
+    const scheduledError = scheduled.status === "rejected"
+      ? "Traitement impossible" : null;
+    if (loanError || agendaError || scheduledError) {
       console.error("notification cron failed", {
-        loans: loans.error?.message,
-        agenda: agenda.error?.message,
+        loans: loanError,
+        agenda: agendaError,
+        mgmail_scheduled: scheduledError,
       });
-      return NextResponse.json({ error: "Notification engine failed" }, { status: 500 });
+      return NextResponse.json({
+        error: "Notification engine failed",
+        // Avoid echoing actual recipients or message bodies in cron logs.
+      }, { status: 500 });
     }
     return NextResponse.json({
       ok: true,
       result: {
-        loan_notifications: loans.data,
-        mgmail_agenda_reminders: agenda.data,
+        loan_notifications: loans.status === "fulfilled" ? loans.value.data : null,
+        mgmail_agenda_reminders: agenda.status === "fulfilled" ? agenda.value.data : null,
+        mgmail_scheduled: scheduled.status === "fulfilled" ? scheduled.value : null,
       },
     });
   } catch (error) {

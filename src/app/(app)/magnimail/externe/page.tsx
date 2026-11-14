@@ -5,6 +5,7 @@ import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
 import { FormDialog } from "@/components/form-dialog";
 import { sendMGMailInternet } from "@/lib/magnimail/internet-send";
+import { scheduleMGMailInternet, cancelScheduledMGMail } from "@/lib/magnimail/scheduled-actions";
 
 const PATH = "/magnimail/externe";
 
@@ -29,7 +30,7 @@ async function sendExternal(form: FormData) {
 const statusLabels: Record<string, string> = {
   queued: "En attente", sending: "En cours", accepted: "Accepté par le fournisseur",
   delivered: "Livré au serveur destinataire", bounced: "Rejeté",
-  failed: "Échec", uncertain: "À vérifier", received: "Reçu",
+  failed: "Échec", uncertain: "À vérifier", received: "Reçu", cancelled: "Annulé",
 };
 
 export default async function MGMailInternetPage() {
@@ -40,7 +41,7 @@ export default async function MGMailInternetPage() {
       .select("id,email_address,mailbox_id,status,receive_enabled")
       .eq("organization_id", ctx.organizationId).order("email_address").limit(50),
     ctx.supabase.from("mgmail_external_messages")
-      .select("id,identity_id,direction,status,from_email,to_emails,subject,body_text,last_error,created_at")
+      .select("id,identity_id,direction,status,source_kind,created_by,scheduled_at,from_email,to_emails,subject,body_text,last_error,created_at")
       .eq("organization_id", ctx.organizationId)
       .order("created_at", { ascending: false }).limit(100),
   ]);
@@ -56,6 +57,10 @@ export default async function MGMailInternetPage() {
   const inbox = messages.filter((message) => message.direction === "incoming");
   const sent = messages.filter((message) => message.direction === "outgoing"
     && ["accepted", "delivered"].includes(message.status));
+  const programmed = messages.filter((message) => message.direction === "outgoing" &&
+    message.source_kind !== "manual" && message.status === "queued");
+  const cancelled = messages.filter((message) => message.direction === "outgoing"
+    && message.status === "cancelled");
   const failed = messages.filter((message) => message.direction === "outgoing"
     && ["bounced", "failed", "uncertain"].includes(message.status));
 
@@ -88,6 +93,25 @@ export default async function MGMailInternetPage() {
               </td>
               <td>
                 {statusLabels[message.status] || message.status}
+                {message.scheduled_at && message.status === "queued" && (
+                  <p className="muted">
+                    Prévu : {new Intl.DateTimeFormat("fr-FR", {
+                      dateStyle: "short", timeStyle: "short",
+                      timeZone: "Indian/Antananarivo",
+                    }).format(new Date(message.scheduled_at))}
+                  </p>
+                )}
+                {message.status === "queued" &&
+                  message.source_kind === "scheduled" &&
+                  message.created_by === ctx.user.id && (
+                  <FormDialog title="Annuler l'envoi programmé" buttonLabel="Annuler l'envoi" buttonClassName="button">
+                    <form action={cancelScheduledMGMail} className="form">
+                      <input type="hidden" name="messageId" value={message.id} />
+                      <p>Confirmer l'annulation du message « {message.subject} » avant sa transmission ?</p>
+                      <button className="button primary" type="submit">Confirmer l'annulation</button>
+                    </form>
+                  </FormDialog>
+                )}
                 {message.direction === "incoming" && accessible.some((item) =>
                   item.id === message.identity_id && item.status === "active" && item.canSend
                 ) && (
@@ -164,6 +188,35 @@ export default async function MGMailInternetPage() {
                       {" · Envoi "}{identity.canSend && identity.status === "active" ? "autorisé" : "non autorisé"}
                     </p>
                     {identity.canSend && identity.status === "active" && (
+                      <FormDialog buttonLabel="Programmer un envoi" title={`Programmer depuis ${identity.email_address}`}>
+                        <form action={scheduleMGMailInternet} className="form">
+                          <input type="hidden" name="identityId" value={identity.id} />
+                          <input type="hidden" name="requestKey" value={randomUUID()} />
+                          <div className="field">
+                            <label>Destinataires Internet</label>
+                            <input name="to" required placeholder="client@gmail.com" maxLength={2000} />
+                          </div>
+                          <div className="field">
+                            <label>Objet</label>
+                            <input name="subject" required maxLength={180} />
+                          </div>
+                          <div className="field">
+                            <label>Message</label>
+                            <textarea name="body" required rows={6} maxLength={50000} />
+                          </div>
+                          <div className="field">
+                            <label>Date et heure d'envoi (heure de Madagascar, UTC+03)</label>
+                            <input name="when" type="datetime-local" required />
+                            <small>Entre 5 minutes et 365 jours à l'avance. Sur cet environnement,
+                              le moteur utilise un traitement quotidien : l'heure indiquée
+                              est souhaitée, pas une garantie d'expédition à la minute.
+                              L'envoi nécessite l'activation du service MGMail.</small>
+                          </div>
+                          <button className="button primary" type="submit">Enregistrer la programmation</button>
+                        </form>
+                      </FormDialog>
+                    )}
+                    {identity.canSend && identity.status === "active" && (
                       <FormDialog buttonLabel="+ Nouveau message" title={`Envoyer depuis ${identity.email_address}`}>
                         <form action={sendExternal} className="form">
                           <input type="hidden" name="identityId" value={identity.id} />
@@ -190,9 +243,20 @@ export default async function MGMailInternetPage() {
               </div>
             )}
           </div>
+          <div className="card section">
+            <h2>Envois programmés ({programmed.length})</h2>
+            {(process.env.MGMAIL_AUTO_SEND_ENABLED !== "true" || !process.env.MGMAIL_RESEND_API_KEY) && (
+              <p className="muted">
+                L'envoi automatique n'est pas activé sur cet environnement. Les
+                programmations restent enregistrées, mais ne seront pas expédiées.
+              </p>
+            )}
+            {renderItems(programmed)}
+          </div>
           <div className="card section"><h2>Boîte de réception Internet ({inbox.length})</h2>{renderItems(inbox)}</div>
           <div className="card section"><h2>Envois acceptés et livrés ({sent.length})</h2>{renderItems(sent)}</div>
           <div className="card section"><h2>Échecs et envois à vérifier ({failed.length})</h2>{renderItems(failed)}</div>
+          <div className="card section"><h2>Programmations annulées ({cancelled.length})</h2>{renderItems(cancelled)}</div>
         </>
       )}
     </>
