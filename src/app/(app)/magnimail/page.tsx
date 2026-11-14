@@ -1,6 +1,6 @@
 import { requireOrganization } from "@/lib/current-org";
 import { MagniMailClient } from "@/components/magnimail-client";
-import { MGMailInternalContent } from "./interne/page";
+import { MGMailInternalContent } from "@/components/magnimail-internal-workspace";
 import { DEFAULT_EMAIL_TEMPLATES, getEmailTemplate, renderEmailTemplate, type EmailTemplateKey } from "@/lib/magnimail/templates";
 
 const MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
