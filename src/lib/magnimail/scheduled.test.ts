@@ -82,6 +82,8 @@ describe("MGMail — préavis de facturation sans doublon", () => {
     expect(important[0].body).toContain("attirons votre attention");
     expect(dernier[0].daysBefore).toBe(1);
     expect(dernier[0].tone).toBe("dernier");
+    expect(dernier[0].subject).toContain("Dernier rappel");
+    expect(dernier[0].body).toContain("Dernier rappel avant facturation");
   });
 
   it("respecte le délai arbitraire demandé par l'administrateur", () => {
