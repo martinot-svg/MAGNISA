@@ -53,9 +53,13 @@ export default async function MGMailPage({
           </p>
           <p className="muted">
             Aucune boîte Internet opérationnelle n'est connectée à votre espace.
-            Les adresses internes, domaines personnalisés et autres fournisseurs
-            seront proposés après leur mise en service et leurs vérifications.
+            Les boîtes internes des collaborateurs sont accessibles dans l'espace
+            de communication MAGNISA. L'envoi Internet par domaine personnalisé
+            reste à configurer et à vérifier.
           </p>
+          <a className="button primary" href="/magnimail/interne">Ouvrir la messagerie interne</a>
+          <a className="button" href="/magnimail/agenda">Calendrier et agenda</a>
+          <a className="button" href="/magnimail/externe">E-mails externes</a>
           {canConfigureMail && <a className="button" href="/parametres">Consulter la configuration e-mail</a>}
           {canViewBillingPreavis && <a className="button" href="/magnimail/preavis">Préavis de facturation</a>}
         </div>
@@ -135,6 +139,11 @@ export default async function MGMailPage({
           </a>
         </div>
       )}
+      <div className="actions" style={{ marginBottom: 12 }}>
+        <a className="button" href="/magnimail/interne">Boîtes internes des collaborateurs</a>
+        <a className="button" href="/magnimail/agenda">Calendrier et agenda</a>
+          <a className="button" href="/magnimail/externe">E-mails externes</a>
+      </div>
       <MGMailClient
         canViewBillingPreavis={canViewBillingPreavis}
         connectedEmail={gmail.email}
