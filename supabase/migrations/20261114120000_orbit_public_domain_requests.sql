@@ -53,7 +53,7 @@ create table public.mgmail_public_address_requests (
   local_part text not null
     check (char_length(local_part) between 1 and 64
       and local_part=lower(local_part)
-      and local_part ~ '^[a-z0-9]([a-z0-9._+-]*[a-z0-9])?
+      and local_part ~ '^[a-z0-9]([a-z0-9._+-]*[a-z0-9])?$'
       and local_part !~ '[.][.]'),
   email_address text generated always as (local_part || '@' || domain_name) stored,
   requested_by uuid not null references auth.users(id) on delete restrict,
