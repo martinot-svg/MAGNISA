@@ -26,6 +26,18 @@ alter table public.mgmail_external_messages
       and preavis_days_before is null)
   );
 
+-- Un courrier annulé ne doit pas apparaître comme un échec technique.
+alter table public.mgmail_external_messages
+  drop constraint if exists mgmail_external_messages_status_check;
+alter table public.mgmail_external_messages
+  add constraint mgmail_external_messages_status_check
+  check (status in ('queued','sending','accepted','delivered','failed',
+                   'bounced','uncertain','received','cancelled'));
+
+alter table public.mgmail_external_messages
+  add constraint mgmail_scheduled_date_required
+  check (source_kind='manual' or scheduled_at is not null);
+
 -- L'échéance est dédupliquée pour toute sa durée de vie, y compris en cas
 -- d'échec ou d'arrêt du cron, afin d'éviter toute relance involontaire.
 create unique index if not exists mgmail_billing_preavis_once_per_due_date
