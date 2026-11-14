@@ -61,7 +61,7 @@ export function MagniboxTldCatalog({entries,syncedAt}:Props){
      <p><strong>Compatibilité e-mail :</strong> non vérifiée. Un domaine réellement possédé, des DNS corrects,
        un fournisseur de transport et un test d'envoi/réception sont indispensables.</p>
      <p><a href={selectedEntry.source} target="_blank" rel="noopener noreferrer">Voir la source officielle</a></p>
-     <Link className="button" href="/orbit/magnibox/domaines">Gérer les domaines déjà enregistrés</Link>
+     <p className="muted">La gestion des domaines déjà enregistrés sera accessible après activation sécurisée du module Domaines Magnibox.</p>
    </div>}
  </div>;
 }
