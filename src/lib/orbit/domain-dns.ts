@@ -39,9 +39,22 @@ export function validateOrbitDkimSelector(input: string): string {
   }
   return selector;
 }
+/** Fail closed if the DNS provider is slow; never change ownership state on timeout. */
+async function dnsTimeout<T>(request: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<T>((_,reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error("DNS timeout"),{code:"ETIMEOUT"})), 4500);
+  });
+  try {
+    return await Promise.race([request,deadline]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function txtAt(host: string, resolver: OrbitResolveTxt): Promise<{ records: string[][]; unavailable: boolean }> {
   try {
-    return { records: await resolver(host), unavailable: false };
+    return { records: await dnsTimeout(resolver(host)), unavailable: false };
   } catch (error) {
     const code = (error as NodeJS.ErrnoException)?.code;
     if (code === "ENODATA" || code === "ENOTFOUND" || code === "NXDOMAIN") {
@@ -72,7 +85,7 @@ export async function diagnoseOrbitDomainDNS(
   ]);
   let mxState: OrbitDnsStatus["mx"] = "unavailable";
   try {
-    const entries = await mx(domain);
+    const entries = await dnsTimeout(mx(domain));
     // Null MX intentionally signals this domain does not accept any inbound mail.
     mxState = entries.some(entry => entry.exchange && entry.exchange !== ".") ? "present" : "absent";
   } catch (error) {
