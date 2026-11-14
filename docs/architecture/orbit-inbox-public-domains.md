@@ -11,6 +11,32 @@ Cette évolution concerne les **demandes de domaines et d'adresses** et ne simul
 - Les clés étrangères composites, RLS et permissions SQL empêchent les références interentreprises. Un index unique empêche qu'un même domaine soit marqué `verified` pour deux entreprises, sans permettre à des demandes non vérifiées de bloquer le domaine d'autrui.
 - Les anciennes tables `mgmail_internal_*`, `email_connections`, les messages et l'authentification restent intacts.
 
+## Vérification de propriété DNS (développée)
+
+Après l'enregistrement d'un domaine, l'administrateur autorisé ouvre
+`/magnimail/domaines/<id>` puis crée dans les DNS publics :
+
+- **Type** : `TXT`
+- **Hôte** : `_magnisa-verify.<domaine>` (certains DNS demandent seulement `_magnisa-verify`)
+- **Valeur** : `magnisa-orbit=<jeton-hexadecimal-unique>`
+
+Le jeton est généré par PostgreSQL (deux UUID aléatoires, 244 bits d'entropie).
+Il ne peut pas être choisi, inséré ou modifié par un client authentifié.
+La route vérifie la preuve TXT exacte côté serveur avec résolution DNS ;
+elle refuse les absences et délais DNS, recontrôle l'autorisation d'administrateur,
+puis consigne la preuve hashée avec un statut de **propriété** `verified`.
+L'index unique empêche deux entreprises de devenir propriétaires du même
+domaine. Les autres demandes non vérifiées ne réservent pas un domaine global.
+
+Le même écran examine la présence des enregistrements MX, SPF, DMARC et,
+sur saisie du sélecteur fournisseur, DKIM. Cette lecture **n'écrit jamais
+les DNS** et ne suppose pas que la délivrabilité ou la signature fonctionnent.
+
+Même avec `status=verified`, aucune boîte ou identité expéditrice publique
+n'est créée automatiquement : l'activation d'un transport d'e-mail réel
+requiert encore des paramètres fournisseurs sécurisés, un test de réception
+et d'envoi, et l'attribution côté serveur.
+
 ## Ne pas confondre
 
 | Élément | Effet |
