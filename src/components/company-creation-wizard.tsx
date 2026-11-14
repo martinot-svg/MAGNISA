@@ -115,8 +115,10 @@ export function CompanyCreationWizard({year}:{year:number}) {
       };
       const colorPath=await upload(colorLogo,"color");
       const inversePath=await upload(inverseLogo,"inverse");
-      let palette;
-      if(colorLogo){try{palette=await extractLogoPalette(colorLogo);}catch{palette=undefined;}}
+      // A logo may contain only grayscale/transparent pixels or use a decoder
+      // unavailable in some browsers. Retain a usable initial document theme.
+      let palette = colorLogo ? {primaryColor:"#1663FF",secondaryColor:"#7B4DFF",accentColor:"#D93CFF"} : undefined;
+      if(colorLogo){try{palette=await extractLogoPalette(colorLogo);}catch{/* retain defaults */}}
       const linked=await saveCompanyOnboardingBranding({
         organizationId,colorPath,inversePath,
         primaryColor:palette?.primaryColor,
