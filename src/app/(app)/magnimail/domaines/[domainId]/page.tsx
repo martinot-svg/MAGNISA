@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, hasPermission } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { FormDialog } from "@/components/form-dialog";
 import { diagnoseOrbitDomainDNS, orbitDnsHost, orbitDnsValue, validateOrbitDkimSelector } from "@/lib/orbit/domain-dns";
 
 export const runtime = "nodejs";
@@ -122,10 +123,14 @@ export default async function OrbitDomainDNSPage({
           : "Demande en attente de preuve DNS"}</p>
         <p><strong>Lecture actuelle :</strong> {diagnostics[diagnostic.ownership]}</p>
         {diagnostic.ownership==="confirmed" && domain.status!=="verified" && (
-          <form action={verifyDomainOwnership}>
-            <input type="hidden" name="id" value={domain.id}/>
-            <button type="submit" className="button primary">Confirmer la propriété du domaine</button>
-          </form>
+          <FormDialog title="Confirmer la propriété DNS" buttonLabel="Valider le domaine">
+            <form action={verifyDomainOwnership} className="form">
+              <input type="hidden" name="id" value={domain.id}/>
+              <p>La preuve TXT a été trouvée. Cela confirme uniquement la propriété du domaine,
+                pas l'activation d'une boîte de courrier Internet.</p>
+              <button type="submit" className="button primary">Confirmer la propriété du domaine</button>
+            </form>
+          </FormDialog>
         )}
         {domain.status==="verified" && <p>La propriété DNS est enregistrée.
           L'envoi et la réception resteront inactifs jusqu'au raccordement d'un véritable transport.</p>}
