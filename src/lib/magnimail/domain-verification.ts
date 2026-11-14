@@ -23,7 +23,7 @@ type ResendDomain = {
   name?: unknown;
   status?: unknown;
   capabilities?: { sending?: unknown; receiving?: unknown };
-  records?: Array<{ record?: unknown; status?: unknown }>;
+  records?: Array<{ record?: unknown; type?: unknown; status?: unknown }>;
 };
 
 export type ProviderDomainProof = {
@@ -61,19 +61,31 @@ export async function inspectResendDomain(
       !Array.isArray(body.records)) {
     throw new Error("Le fournisseur n'a pas confirmé l'identité exacte du domaine.");
   }
-  const verifiedRecords = new Set(
-    body.records.filter((record) => record.status === "verified")
-      .map((record) => String(record.record).toLowerCase()),
-  );
-  // Fail closed. A provider domain merely created or 'partially_verified'
-  // is NOT proof that sending and receiving are both fully operational.
+  // Resend returns TWO records labelled "SPF" (TXT and MX): the
+  // SPF-labelled MX is for the sending/return-path service, NOT evidence
+  // of an inbound MX. Verify by name AND DNS type, not by label alone.
+  const records = body.records.map((record) => ({
+    label: String(record.record || "").toLowerCase(),
+    type: String(record.type || "").toUpperCase(),
+    verified: record.status === "verified",
+  }));
+  const hasVerified = (label: string, type: string) =>
+    records.some((record) => record.label === label &&
+      record.type === type && record.verified);
+  const sendingSpfRecords = records.filter((record) => record.label === "spf");
+  const spfOK = hasVerified("spf", "TXT") &&
+    sendingSpfRecords.every((record) => record.verified);
+  const dkimOK = hasVerified("dkim", "TXT");
+  const inboundMX = records.some((record) =>
+    record.type === "MX" &&
+    ["receiving", "mx"].includes(record.label) &&
+    record.verified);
+  // Never confuse partially_verified with a fully verified domain.
   const fullyVerified = body.status === "verified";
   const sendingVerified = fullyVerified &&
-    body.capabilities?.sending === "enabled" &&
-    verifiedRecords.has("dkim") && verifiedRecords.has("spf");
+    body.capabilities?.sending === "enabled" && dkimOK && spfOK;
   const receivingVerified = fullyVerified &&
-    body.capabilities?.receiving === "enabled" &&
-    verifiedRecords.has("receiving");
+    body.capabilities?.receiving === "enabled" && inboundMX;
   return {
     domain,
     providerDomainId,
