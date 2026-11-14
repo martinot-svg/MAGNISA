@@ -70,7 +70,28 @@ try {
   await a.page.getByRole("heading",{name:"Messagerie des collaborateurs"}).waitFor({timeout:20000});
   await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   console.log("MGMail UI: messagerie interne hydratée");
-  if(await a.page.getByRole("alert").count())throw new Error("MGMail interne indisponible après migrations");
+  const mgmailAlerts=await a.page.getByRole("alert").allTextContents();
+  if(mgmailAlerts.length){
+    // Capture which query is failing, not simply the existence of a global alert.
+    const ownerProbe=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
+    const ownerLogin=await ownerProbe.auth.signInWithPassword({
+      email:owner.email,password:owner.password
+    });
+    if(ownerLogin.error)throw ownerLogin.error;
+    const checks=[
+      ["namespace",()=>ownerProbe.from("mgmail_internal_namespaces").select("slug").eq("organization_id",organizationId).maybeSingle()],
+      ["mailboxes",()=>ownerProbe.from("mgmail_internal_mailboxes").select("id,local_part,owner_user_id,display_name,is_active,can_read,can_send").eq("organization_id",organizationId).order("local_part")],
+      ["messages",()=>ownerProbe.from("mgmail_internal_messages").select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,created_at").eq("organization_id",organizationId).order("created_at",{ascending:false}).limit(80)],
+      ["grants",()=>ownerProbe.from("mgmail_internal_mailbox_grants").select("mailbox_id,user_id,can_read,can_send,is_active").eq("organization_id",organizationId)],
+      ["reads",()=>ownerProbe.from("mgmail_internal_message_reads").select("message_id").eq("organization_id",organizationId).eq("user_id",owner.id)],
+    ];
+    const probe=await Promise.all(checks.map(async ([table,run])=>{
+      const response=await run();
+      return {table,status:response.status,error:response.error?.message,code:response.error?.code};
+    }));
+    throw new Error("MGMail a signalé : "+JSON.stringify({alerts:mgmailAlerts,probe,
+      route:a.page.url(),view:(await a.page.locator("main").innerText()).slice(0,900)}));
+  }
 
   await openDialog(a.page,"Configurer MGMail interne");
   await a.page.locator('input[name="slug"]').fill("mgmail-ui-"+fixture);
