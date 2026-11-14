@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, hasPermission } from "@/lib/permissions";
 import { FormDialog } from "@/components/form-dialog";
-import { internalMGMailAddress, normalizeMGMailLocalPart, normalizeMGMailNamespace } from "@/lib/magnimail/internal-address";
+import { internalMailboxLabel, normalizeMGMailLocalPart, normalizeMGMailNamespace } from "@/lib/magnimail/internal-address";
 
 const PATH = "/magnimail/interne";
 
@@ -235,7 +235,7 @@ export async function MGMailInternalContent({ embedded = false }: { embedded?: b
   const mailboxById = new Map(mailboxes.map((mailbox) => [mailbox.id, mailbox]));
   const address = (id: string) => {
     const mailbox = mailboxById.get(id);
-    return mailbox ? internalMGMailAddress(mailbox.local_part, namespace) : "Boîte inconnue";
+    return mailbox ? internalMailboxLabel(mailbox.local_part, namespace) : "Boîte inconnue";
   };
   const readableMailboxIds = new Set(
     mailboxes.filter((mailbox) => canUseMailbox(mailbox, "read")).map((mailbox) => mailbox.id),
@@ -286,7 +286,7 @@ export async function MGMailInternalContent({ embedded = false }: { embedded?: b
           </div>
           <div className="card section">
             <p className="muted">
-              Les adresses privées .mgmail conservent leur acheminement dans MAGNISA.
+              Les collaborateurs échangent directement dans MAGNISA, sans adresse Internet.
               Les adresses Internet personnalisées deviennent disponibles après vérification
               du domaine et activation d'un véritable transport.
             </p>
@@ -305,10 +305,10 @@ export async function MGMailInternalContent({ embedded = false }: { embedded?: b
             <FormDialog title="Créer l'identifiant interne de l'entreprise" buttonLabel="Configurer la messagerie interne">
               <form action={createNamespace} className="form">
                 <div className="field">
-                  <label htmlFor="mgmail-namespace">Nom d'entreprise pour les adresses internes</label>
+                  <label htmlFor="mgmail-namespace">Identifiant de l'entreprise pour les boîtes internes</label>
                   <input id="mgmail-namespace" name="slug" minLength={2} maxLength={45}
                     placeholder="mitalia" pattern="[a-z0-9]+(-[a-z0-9]+)*" required />
-                  <small>Exemple : finance@mitalia.mgmail (interne seulement).</small>
+                  <small>Exemple de boîte interne : finance (mitalia). Ce libellé n'est pas une adresse Internet.</small>
                 </div>
                 <button className="button primary">Créer cet espace</button>
               </form>
@@ -322,7 +322,7 @@ export async function MGMailInternalContent({ embedded = false }: { embedded?: b
               <FormDialog title="Créer une boîte interne pour un collaborateur" buttonLabel="+ Créer une boîte">
                 <form action={createMailbox} className="form">
                   <div className="field">
-                    <label>Nom de l'adresse</label>
+                    <label>Nom de la boîte</label>
                     <input name="localPart" placeholder="finance" minLength={2} maxLength={64} required />
                   </div>
                   <div className="field">
@@ -343,7 +343,7 @@ export async function MGMailInternalContent({ embedded = false }: { embedded?: b
               </FormDialog>
               <div className="tableWrap">
                 <table>
-                  <thead><tr><th>Adresse</th><th>Lecture</th><th>Envoi</th><th>État</th><th>Gestion</th></tr></thead>
+                  <thead><tr><th>Boîte interne</th><th>Lecture</th><th>Envoi</th><th>État</th><th>Gestion</th></tr></thead>
                   <tbody>
                     {mailboxes.map((mailbox) => (
                       <tr key={mailbox.id}>
