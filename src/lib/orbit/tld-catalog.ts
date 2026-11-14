@@ -61,13 +61,13 @@ export function buildTldCatalog(tlds: string[]): TldEntry[] {
     registry:tld==="mg"?"NIC.MG":null,
     eligibility:tld==="mg"?mgRules.mg:"Conditions du registre à vérifier avant toute inscription.",
     status:"non_verifie" as const, registrationAvailability:"non_verifiee" as const,
-    source:tld==="mg"?NIC_MG_POLICY:IANA_TLD_URL,lastVerifiedAt:null
+    source:tld==="mg"?NIC_MG_POLICY:IANA_TLD_URL,lastVerifiedAt:null as string | null
   }));
   if (delegated.has("mg")) for (const suffix of MG_SUFFIXES.filter(x=>x!=="mg")) {
     result.push({
       suffix:"."+suffix,type:"suffixe_compose",category:"madagascar",country:"MG",registry:"NIC.MG",
       eligibility:mgRules[suffix],status: suffix==="net.mg"?"non_verifie":"restreint",
-      registrationAvailability:"non_verifiee",source:NIC_MG_POLICY,lastVerifiedAt:null
+      registrationAvailability:"non_verifiee",source:NIC_MG_POLICY,lastVerifiedAt:null as string | null
     });
   }
   return result.sort((a,b)=>a.suffix.localeCompare(b.suffix));
