@@ -52,14 +52,21 @@ export async function POST(request: NextRequest) {
   // Never import it as a tenant identity, mark it delivered to Magnibox or
   // touch organization tables without proof of the real domain's ownership.
   if(sandboxDomain){
-    if(event.type!=="email.received")
+    if(event.type!=="email.received"){
+      console.info("magnibox.resend.sandbox", {outcome:"ignored_non_inbound"});
       return NextResponse.json({ok:true,mode:"sandbox",stored:false});
+    }
     try{
       const received=await new ResendInternetTransport(key).fetchReceived(mailId);
-      if(!matchesResendSandboxDomain(received.to,sandboxDomain))
+      if(!matchesResendSandboxDomain(received.to,sandboxDomain)){
+        console.warn("magnibox.resend.sandbox", {outcome:"recipient_domain_mismatch"});
         return NextResponse.json({error:"Destinataire hors du domaine de test autorisé."},{status:422});
+      }
+      // No email address, subject, content, webhook secret or provider message ID in logs.
+      console.info("magnibox.resend.sandbox", {outcome:"received_signed",stored:false});
       return NextResponse.json({ok:true,mode:"sandbox",stored:false});
     }catch{
+      console.warn("magnibox.resend.sandbox", {outcome:"provider_fetch_failed"});
       return unavailable(); // allow a genuine retry instead of silently dropping a message
     }
   }
