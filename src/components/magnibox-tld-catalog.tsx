@@ -23,7 +23,7 @@ export function MagniboxTldCatalog({entries,syncedAt}:Props){
  const [selected,setSelected]=useState("");
  const filtered=useMemo(()=>entries.filter(e=>
    (!category||e.category===category as TldCategory)&&
-   (!country||(country==="MG"?e.country==="MG":e.country!=="MG"))&&
+   (!country||(country==="other"?e.country===null:e.country===country))&&
    (!search||e.suffix.includes(search.trim().toLowerCase().replace(/^\./,""))||e.eligibility.toLowerCase().includes(search.toLowerCase()))
  ).sort((a,b)=>Number(b.country==="MG")-Number(a.country==="MG")||a.suffix.localeCompare(b.suffix)),[entries,search,category,country]);
  const selectedEntry=entries.find(e=>e.suffix===selected);
