@@ -110,7 +110,13 @@ export async function queueDueBillingPreavis(admin: Admin, now: Date): Promise<n
           contract.organization_id !== config.organization_id ||
           identity.organization_id !== config.organization_id ||
           !identity.receive_enabled ||
+          !config.configured_by ||
           (contract.end_date && contract.next_billing_date > contract.end_date)) continue;
+      // La configuration d'un préavis n'est pas une délégation permanente :
+      // une suspension ou le retrait du droit MGMail bloque tout nouvel envoi.
+      if (!await isCurrentMemberAllowed(
+        admin, config.organization_id, identity.mailbox_id, config.configured_by
+      )) continue;
       const customer = customersById.get(contract.customer_id);
       const org = orgsById.get(config.organization_id);
       if (!customer?.is_active || customer.organization_id !== config.organization_id ||
@@ -262,7 +268,10 @@ async function deliverOne(
       new Date(message.scheduled_at).getTime() > 24 * 3600000) authorized = false;
 
   if (authorized && message.source_kind === "billing_preavis") {
-    authorized = !!identity.data?.receive_enabled && await billingNoticeStillValid(admin, message, today);
+    authorized = !!identity.data?.receive_enabled && !!message.created_by &&
+      await isCurrentMemberAllowed(
+        admin, message.organization_id, identity.data.mailbox_id, message.created_by) &&
+      await billingNoticeStillValid(admin, message, today);
   } else if (authorized && message.source_kind === "scheduled") {
     authorized = !!message.created_by && !!identity.data &&
       await isCurrentMemberAllowed(
