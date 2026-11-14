@@ -30,7 +30,7 @@ export default async function MagniMailPage({
     .eq("provider", "google")
     .maybeSingle();
 
-  // The same Magnisa Inbox workspace exposes all available messages.
+  // The same Magnibox workspace exposes all available messages.
   // Existing .mgmail delivery and Gmail OAuth remain distinct *transport*
   // implementations, not two user-facing messaging applications.
   const inboxMessages = <MGMailInternalContent embedded />;
@@ -41,7 +41,7 @@ export default async function MagniMailPage({
         <div className="pageHead">
           <div>
             <p className="eyebrow">Magnisa Orbit · Communication</p>
-            <h1>Magnisa Inbox</h1>
+            <h1>Magnibox</h1>
             <p>Messagerie professionnelle : échanges internes sécurisés et connexions Internet facultatives.</p>
           </div>
         </div>
@@ -60,7 +60,7 @@ export default async function MagniMailPage({
           <div className="card">
             <h2>Outlook / Microsoft 365</h2>
             <p className="muted">
-              La messagerie Magnisa Inbox prévoit aussi Microsoft 365. La connexion Microsoft
+              La messagerie Magnibox prévoit aussi Microsoft 365. La connexion Microsoft
               sera activée après configuration de l'application Microsoft Entra.
             </p>
             <button className="button" disabled>
@@ -104,7 +104,7 @@ export default async function MagniMailPage({
       <div className="pageHead">
         <div>
           <p className="eyebrow">Magnisa Orbit · Communication</p>
-          <h1>Magnisa Inbox</h1>
+          <h1>Magnibox</h1>
           <p>Une seule messagerie pour vos courriers et vos collaborateurs.</p>
         </div>
       </div>
@@ -120,12 +120,12 @@ export default async function MagniMailPage({
         >
           <strong>Autorisation Gmail à mettre à niveau</strong>
           <p style={{ marginBottom: 12 }}>
-            Ton compte était connecté avec l'autorisation d'envoi uniquement. Magnisa Inbox a
+            Ton compte était connecté avec l'autorisation d'envoi uniquement. Magnibox a
             maintenant besoin de l'autorisation Gmail complète de lecture/modification pour
             afficher la boîte de réception, les brouillons et la corbeille.
           </p>
           <a className="button primary" href="/api/integrations/google/start">
-            Reconnecter Gmail pour Magnisa Inbox
+            Reconnecter Gmail pour Magnibox
           </a>
         </div>
       )}
