@@ -4,15 +4,15 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { signupEmailPolicy } from "@/lib/auth/domain";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isValidRegistrationLocality, normalizeUsername, USERNAME_PATTERN } from "@/lib/auth/magnisa-identity";
+import { isValidRegistrationLocality, USERNAME_PATTERN, GENERATED_USERNAME_PATTERN, usernameStemFromNames } from "@/lib/auth/magnisa-identity";
 import { createHmac } from "node:crypto";
 import { headers } from "next/headers";
 
 const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(10),
-  full_name: z.string().trim().min(2).max(120),
-  username: z.string().trim().min(3).max(30),
+  first_name: z.string().trim().min(1).max(59),
+  last_name: z.string().trim().min(1).max(59),
   country_code: z.string().regex(/^[0-9]{3}$/),
   locality_code: z.string().regex(/^[0-9]{3}$/),
 });
@@ -23,9 +23,9 @@ export async function signUp(formData: FormData) {
     return { error: "Adresse e-mail ou mot de passe invalide. Le mot de passe doit comporter au moins 10 caractères." };
   }
 
-  const username = normalizeUsername(parsed.data.username);
-  if (!USERNAME_PATTERN.test(username)) {
-    return { error: "Le nom d’utilisateur doit avoir 3 à 30 caractères (lettres minuscules, chiffres, points ou _)." };
+  const generatedStem = usernameStemFromNames(parsed.data.first_name, parsed.data.last_name);
+  if (generatedStem.length < 2) {
+    return { error: "Les prénoms et le nom doivent contenir au moins deux lettres reconnues." };
   }
   if (!isValidRegistrationLocality(parsed.data.country_code, parsed.data.locality_code)) {
     return { error: "Sélectionne une localité d’inscription proposée par MAGNISA." };
@@ -36,19 +36,17 @@ export async function signUp(formData: FormData) {
 
   const email = policy.normalized!;
   const supabase = await createClient();
-  // Validation serveur uniquement : pas d'accès direct des visiteurs à l'annuaire des comptes.
+  // The database trigger allocates a unique username atomically; there is no
+  // preflight lookup that could race between simultaneous registrations.
   const admin = createAdminClient();
-  const { data: taken, error: checkError } = await admin.from("profiles")
-    .select("id").eq("username", username).maybeSingle();
-  if (checkError) return { error: "Vérification du nom d’utilisateur indisponible." };
-  if (taken) return { error: "Ce nom d’utilisateur est déjà utilisé. Choisis-en un autre." };
 
   const { data, error } = await supabase.auth.signUp({
     email,
     password: parsed.data.password,
     options: { data: {
-      full_name: parsed.data.full_name.trim(),
-      username,
+      full_name: `${parsed.data.first_name.trim()} ${parsed.data.last_name.trim()}`,
+      given_names: parsed.data.first_name.trim(),
+      family_name: parsed.data.last_name.trim(),
     } },
   });
 
@@ -126,7 +124,7 @@ export async function resendEmailCode(formData: FormData) {
 
 export async function signIn(formData: FormData) {
   const parsed = z.object({
-    identifier: z.string().trim().min(3).max(254),
+    identifier: z.string().trim().min(2).max(254),
     password: z.string().min(1),
   }).safeParse({ identifier: formData.get("identifier") ?? formData.get("email"), password: formData.get("password") });
   if (!parsed.success) return { error: "Identifiants invalides." };
@@ -134,7 +132,7 @@ export async function signIn(formData: FormData) {
   const identifier = parsed.data.identifier.trim().toLowerCase();
   let email = identifier;
   if (!identifier.includes("@")) {
-    if (!USERNAME_PATTERN.test(identifier)) {
+    if (!USERNAME_PATTERN.test(identifier) && !GENERATED_USERNAME_PATTERN.test(identifier)) {
       return { error: "Connexion impossible. Vérifie tes identifiants." };
     }
     try {
