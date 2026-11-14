@@ -1,4 +1,5 @@
 import { requireOrganization } from "@/lib/current-org";
+import { hasPermission } from "@/lib/permissions";
 import { MagniMailClient } from "@/components/magnimail-client";
 import { MGMailInternalContent } from "@/components/magnimail-internal-workspace";
 import { DEFAULT_EMAIL_TEMPLATES, getEmailTemplate, renderEmailTemplate, type EmailTemplateKey } from "@/lib/magnimail/templates";
@@ -21,7 +22,16 @@ export default async function MagniMailPage({
   }>;
 }) {
   const query = await searchParams;
-  const { supabase, organizationId, user } = await requireOrganization();
+  const ctx = await requireOrganization();
+  const { supabase, organizationId, user } = ctx;
+  const canManageDomains = await hasPermission(ctx,"users.manage");
+  const extensionCatalogLink = canManageDomains ? (
+    <div className="card section">
+      <h2>Extensions et domaines professionnels</h2>
+      <p className="muted">Explorer les extensions officielles IANA et les règles NIC.MG avant toute demande de domaine.</p>
+      <a href="/orbit/magnibox/extensions" className="button">Consulter le catalogue</a>
+    </div>
+  ) : null;
   const { data: gmail } = await supabase
     .from("email_connections")
     .select("email,status,scopes")
@@ -46,6 +56,7 @@ export default async function MagniMailPage({
           </div>
         </div>
         {inboxMessages}
+        {extensionCatalogLink}
         <div className="grid2">
           <div className="card">
             <h2>Ajouter un compte e-mail Internet (facultatif)</h2>
@@ -109,6 +120,7 @@ export default async function MagniMailPage({
         </div>
       </div>
       {inboxMessages}
+      {extensionCatalogLink}
       {needsUpgrade && (
         <div
           className="card"
