@@ -32,10 +32,10 @@ export default async function MagniMailPage({
   // Le canal interne fonctionne sans connexion Gmail ni domaine Internet.
   const internalPortal = (
     <div className="card section">
-      <h2>Boîtes MGMail des collaborateurs</h2>
+      <h2>Magnisa Inbox · Boîtes des collaborateurs</h2>
       <p>Créer, attribuer et partager des boîtes internes ; échanger des messages
         entre collaborateurs autorisés, même sans compte Gmail.</p>
-      <p className="muted">Les identifiants en .mgmail sont réservés à MAGNISA :
+      <p className="muted">Les identifiants privés en .mgmail sont réservés à MAGNISA :
         ils ne reçoivent pas directement les courriels Internet.</p>
       <a className="button primary" href="/magnimail/interne">Ouvrir la messagerie interne</a>
     </div>
@@ -46,9 +46,9 @@ export default async function MagniMailPage({
       <>
         <div className="pageHead">
           <div>
-            <p className="eyebrow">Communication</p>
-            <h1>MGMail</h1>
-            <p>Messagerie interne sécurisée et connexions e-mail externes facultatives.</p>
+            <p className="eyebrow">Magnisa Orbit · Communication</p>
+            <h1>Magnisa Inbox</h1>
+            <p>Messagerie professionnelle : échanges internes sécurisés et connexions Internet facultatives.</p>
           </div>
         </div>
         {internalPortal}
@@ -124,7 +124,7 @@ export default async function MagniMailPage({
             afficher la boîte de réception, les brouillons et la corbeille.
           </p>
           <a className="button primary" href="/api/integrations/google/start">
-            Reconnecter Gmail pour MagniMail
+            Reconnecter Gmail pour Magnisa Inbox
           </a>
         </div>
       )}
