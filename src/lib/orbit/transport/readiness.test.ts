@@ -62,6 +62,12 @@ describe("Magnisa Inbox: public e-mail transport (not yet activated)", () => {
       subject:"Bonjour",text:"Message",requestId:"f2fc69a9-e2ad-4079-8b4b-6c652a16fbab",
     };
     await expect(new ResendInternetTransport("").send(payload)).rejects.toThrow("non configuré");
+    const configured = new ResendInternetTransport("key",async()=>{
+      throw Error("Transport must never be called with repeated recipients");
+    });
+    await expect(configured.send({...payload,to:["CLIENT@EXTERNE.COM","client@externe.com"]}))
+      .rejects.toThrow("répétés");
+
     const rejected=new ResendInternetTransport("key",async()=>new Response("",{status:403}));
     await expect(rejected.send(payload)).rejects.toThrow("HTTP 403");
   });
