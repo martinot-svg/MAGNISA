@@ -37,7 +37,18 @@ export async function GET(request: Request) {
       try{await synchronizeMagniboxTlds();}
       catch(syncError){console.error("Weekly TLD catalogue refresh unavailable",syncError);}
     }
-    return NextResponse.json({ ok: true, result: data });
+    // This feature is enabled only after the agenda migrations and RLS
+    // are verified in production; earlier deployments preserve loan alerts.
+    let agendaReminders: unknown = null;
+    if(process.env.MAGNIBOX_AGENDA_REMINDERS_ENABLED==="true"){
+      const agenda=await supabase.rpc("run_mgmail_agenda_reminders",{p_run_at:new Date().toISOString()});
+      if(agenda.error){
+        console.error("Magnibox agenda reminder engine failed",agenda.error);
+        return NextResponse.json({error:"Agenda reminder engine failed"},{status:500});
+      }
+      agendaReminders=agenda.data;
+    }
+    return NextResponse.json({ok:true,result:data,agendaReminders});
   } catch (error) {
     console.error("notification cron error", error);
     return NextResponse.json({ error: "Notification engine failed" }, { status: 500 });
