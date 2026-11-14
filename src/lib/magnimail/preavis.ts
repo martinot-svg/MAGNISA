@@ -88,7 +88,7 @@ const openings: Record<PreavisTone, string> = {
   information: "Nous vous informons que",
   courtois: "Nous vous rappelons que",
   important: "Nous attirons votre attention sur le fait que",
-  dernier: "Nous vous rappelons que",
+  dernier: "Dernier rappel avant facturation :",
 };
 
 export function renderBillingPreavis(input: {
@@ -112,7 +112,9 @@ export function renderBillingPreavis(input: {
   if (!company || !customer || !service) throw new Error("Informations de préavis incomplètes.");
   const amount = input.estimatedAmount?.trim();
   return {
-    subject: `Préavis de facturation — ${service} — ${readableDate}`,
+    subject: `${input.tone === "dernier" ? "Dernier rappel de facturation" :
+      input.tone === "important" ? "Rappel important de facturation" :
+      "Préavis de facturation"} — ${service} — ${readableDate}`,
     body: [
       `Bonjour ${customer},`,
       "",
