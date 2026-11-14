@@ -49,7 +49,7 @@ export function DashboardView({organizationId,items,months,age,cashByType,debtBr
     <button className="btn" type="button" onClick={()=>{setPeriod(6);setChartTypes({activity:"bar",aging:"horizontal",cash:"donut",debts:"stacked",commercial:"bar"});setMode("mixed");setArrangement("standard");setSelected(initial);setOrder(initial);setSizes({});setGraphOrder(["activity","aging","cash","commercial","debts"])}}>Réinitialiser la vue</button>
    </div>
    <details className="magnisa-dashboard-customize" style={{marginTop:14}}><summary style={{cursor:"pointer",fontWeight:600}}>Personnaliser les indicateurs ({selected.length}/{items.length})</summary>
-    <p className="muted" style={{margin:"8px 0"}}>Choisis plusieurs indicateurs. Déplace les cartes par glisser-déposer ou utilise les flèches. Agrandis-les selon tes besoins.</p>
+    
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8}}>
      {order.map(id=>{const item=items.find(x=>x.id===id);if(!item)return null;return <div key={id} style={{display:"flex",gap:8,alignItems:"center",padding:"8px",border:"1px solid var(--border, #ddd)",borderRadius:8}}>
       <label style={{display:"flex",gap:8,alignItems:"center",flex:1}}><input type="checkbox" checked={selected.includes(id)} onChange={e=>setSelected(old=>e.target.checked?[...old,id]:old.filter(x=>x!==id))}/>{item.label}</label>
@@ -59,7 +59,7 @@ export function DashboardView({organizationId,items,months,age,cashByType,debtBr
     </div>
    </details>
   </div>
-  <p className="muted magnisa-dashboard-note" style={{marginBottom:12}}>Le filtre de période concerne les flux mensuels. Les KPI, soldes de trésorerie, créances et dettes sont des positions actuelles, sans reconstitution historique.</p>
+  
   <style>{`@media(max-width:750px){.magnisa-tile{grid-column:span 12!important}} .magnisa-tile[draggable="true"]{cursor:grab}.magnisa-tile:focus-within{outline-offset:2px}`}</style>
   {showKpi&&(ordered.length?<div className="magnisa-dashboard-kpis" style={{display:"grid",gridTemplateColumns:"repeat(12,minmax(0,1fr))",gap:12,marginBottom:16}}>{ordered.map(item=><div className={`card magnisa-tile magnisa-kpi-card magnisa-kpi-${item.id}`} key={item.id} style={{gridColumn:`span ${widthOf(item.id)}`,minWidth:0}} draggable onDragStart={()=>setDragging("kpi:"+item.id)} onDragEnd={()=>setDragging(null)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();dropCard(item.id,"kpi")}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}><div className="muted magnisa-kpi-label">{item.label}</div>{resizeControl(item.id)}</div><div className="metric magnisa-kpi-value" style={{overflowWrap:"anywhere"}}><AnimatedValue value={item.value}/></div><div className="magnisa-kpi-foot">{item.id==="receivables"||item.id==="overdue"?<Link className="magnisa-kpi-link" href={item.id==="overdue"?"/factures?filtre=overdue":"/factures?filtre=unpaid"}>Voir les factures <span aria-hidden="true">↗</span></Link>:<span>Position enregistrée</span>}<span className="magnisa-kpi-spark" aria-hidden="true"/></div></div>)}</div>:<div className="card muted">Aucun indicateur KPI sélectionné.</div>)}
   {showCharts&&<div className="section magnisa-dashboard-charts" style={{display:"grid",gridTemplateColumns:"repeat(12,minmax(0,1fr))",gap:12}}>

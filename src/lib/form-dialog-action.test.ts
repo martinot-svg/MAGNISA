@@ -55,8 +55,8 @@ describe("FormDialog server action lifecycle", () => {
     const pending = { current: false };
     await expect(executeFormDialogAction(async () => { throw new Error("Commande refusée"); }, new FormData(), pending, events, true))
       .rejects.toThrow("Commande refusée");
-    expect(events.setError).toHaveBeenCalledOnce();
-    expect(events.setError).toHaveBeenCalledWith(null);
+    expect(events.setError).toHaveBeenNthCalledWith(1, null);
+    expect(events.setError).toHaveBeenLastCalledWith("Commande refusée");
     expect(events.onSuccess).not.toHaveBeenCalled();
     expect(events.setPending).toHaveBeenLastCalledWith(false);
     expect(pending.current).toBe(false);
