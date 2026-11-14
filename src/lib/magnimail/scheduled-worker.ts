@@ -71,7 +71,7 @@ export async function queueDueBillingPreavis(admin: Admin, now: Date): Promise<n
         .select("id,organization_id,customer_id,description,next_billing_date,end_date,status")
         .in("id", ids).eq("status", "active"),
       admin.from("mgmail_external_identities")
-        .select("id,organization_id,email_address,mailbox_id,status,provider")
+        .select("id,organization_id,email_address,mailbox_id,status,provider,receive_enabled")
         .in("id", identityIds).eq("status", "active").eq("provider", "resend"),
       admin.from("mgmail_preavis_policies")
         .select("organization_id,recurring_contract_id,enabled,rules")
@@ -109,6 +109,7 @@ export async function queueDueBillingPreavis(admin: Admin, now: Date): Promise<n
       if (!contract || !identity ||
           contract.organization_id !== config.organization_id ||
           identity.organization_id !== config.organization_id ||
+          !identity.receive_enabled ||
           (contract.end_date && contract.next_billing_date > contract.end_date)) continue;
       const customer = customersById.get(contract.customer_id);
       const org = orgsById.get(config.organization_id);
@@ -249,7 +250,7 @@ async function deliverOne(
 ): Promise<"accepted" | "cancelled" | "uncertain"> {
   const today = madagascarCivilDate(now);
   const identity = await admin.from("mgmail_external_identities")
-    .select("id,mailbox_id,email_address,status,provider")
+    .select("id,mailbox_id,email_address,status,provider,receive_enabled")
     .eq("id", message.identity_id).eq("organization_id", message.organization_id)
     .maybeSingle();
   let authorized = !identity.error && !!identity.data &&
@@ -261,7 +262,7 @@ async function deliverOne(
       new Date(message.scheduled_at).getTime() > 24 * 3600000) authorized = false;
 
   if (authorized && message.source_kind === "billing_preavis") {
-    authorized = await billingNoticeStillValid(admin, message, today);
+    authorized = !!identity.data?.receive_enabled && await billingNoticeStillValid(admin, message, today);
   } else if (authorized && message.source_kind === "scheduled") {
     authorized = !!message.created_by && !!identity.data &&
       await isCurrentMemberAllowed(
