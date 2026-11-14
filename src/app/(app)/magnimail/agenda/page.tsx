@@ -61,6 +61,44 @@ async function createEvent(form: FormData) {
   revalidatePath(PATH);
 }
 
+
+async function updateEvent(form: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  const id = String(form.get("eventId") || "");
+  if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id))
+    throw new Error("Événement invalide.");
+  const {data: original, error: findError} = await ctx.supabase.from("mgmail_agenda_events")
+    .select("id,scope,department,status,created_by")
+    .eq("organization_id",ctx.organizationId).eq("id",id).maybeSingle();
+  if (findError || !original || original.status!=="scheduled")
+    throw new Error("Événement indisponible ou déjà annulé.");
+  const isManager=["owner","admin","director"].includes(ctx.role);
+  if (original.created_by!==ctx.user.id && (original.scope==="personal" || !isManager))
+    throw new Error("Vous n'êtes pas autorisé à modifier cet événement.");
+  const value = parseMGMailAgendaInput({
+    scope:original.scope,department:original.department||"",
+    title:String(form.get("title")||""),
+    description:String(form.get("description")||""),
+    startDay:String(form.get("startDay")||""),
+    startTime:String(form.get("startTime")||""),
+    endDay:String(form.get("endDay")||""),
+    endTime:String(form.get("endTime")||""),
+    timeZone:String(form.get("timeZone")||""),
+    reminders:String(form.get("reminders")||""),
+  });
+  const {data,error}=await ctx.supabase.from("mgmail_agenda_events").update({
+    title:value.title,description:value.description,
+    start_day:value.startDay,start_time:value.startTime,
+    end_day:value.endDay,end_time:value.endTime,time_zone:value.timeZone,
+    reminder_days:value.reminderDays,updated_at:new Date().toISOString(),
+  }).eq("id",id).eq("organization_id",ctx.organizationId).eq("status","scheduled")
+    .select("id").maybeSingle();
+  if(error||!data)throw new Error("Modification refusée par les autorisations de l'agenda.");
+  revalidatePath(PATH);
+  revalidatePath("/orbit/magnibox/agenda");
+}
+
 async function cancelEvent(form: FormData) {
   "use server";
   const ctx = await requireOrganization();
@@ -185,11 +223,11 @@ export default async function MGMailAgenda({
     <>
       <div className="pageHead">
         <div>
-          <p className="eyebrow">MGMail · Organisation</p>
+          <p className="eyebrow">Magnisa Orbit · Magnibox</p>
           <h1>Calendrier et agenda</h1>
           <p>Vos rendez-vous personnels, réunions de service et événements d'entreprise.</p>
         </div>
-        <Link className="button" href="/magnimail">Retour à MGMail</Link>
+        <Link className="button" href="/orbit/magnibox">Retour à Magnibox</Link>
       </div>
       <div className="card section">
         <div className="actions">
@@ -268,6 +306,28 @@ export default async function MGMailAgenda({
                         </td>
                         <td>{scopeLabels[event.scope as MGMailAgendaScope]}{event.department ? ` — ${event.department}` : ""}</td>
                         <td>
+
+                          {canCancel(event) && (
+                            <FormDialog buttonLabel="Modifier" title={"Modifier : "+event.title} buttonClassName="button">
+                              <form action={updateEvent} className="form">
+                                <input type="hidden" name="eventId" value={event.id}/>
+                                <div className="field"><label>Titre</label><input name="title" defaultValue={event.title} minLength={2} maxLength={180} required /></div>
+                                <div className="field"><label>Description</label><textarea name="description" defaultValue={event.description||""} maxLength={5000} rows={3}/></div>
+                                <div className="grid2">
+                                  <div className="field"><label>Date de début</label><input name="startDay" type="date" defaultValue={event.start_day} required/></div>
+                                  <div className="field"><label>Heure de début</label><input name="startTime" type="time" defaultValue={event.start_time.slice(0,5)} required/></div>
+                                  <div className="field"><label>Date de fin</label><input name="endDay" type="date" defaultValue={event.end_day} required/></div>
+                                  <div className="field"><label>Heure de fin</label><input name="endTime" type="time" defaultValue={event.end_time.slice(0,5)} required/></div>
+                                </div>
+                                <div className="field"><label>Fuseau horaire</label><select name="timeZone" defaultValue={event.time_zone}>
+                                  {ZONES.map(zone=><option key={zone.value} value={zone.value}>{zone.label}</option>)}
+                                  {!ZONES.some(zone=>zone.value===event.time_zone)&&<option value={event.time_zone}>{event.time_zone}</option>}
+                                </select></div>
+                                <div className="field"><label>Rappels en jours</label><input name="reminders" defaultValue={event.reminder_days.join(", ")} maxLength={200}/></div>
+                                <button type="submit" className="button primary">Enregistrer les modifications</button>
+                              </form>
+                            </FormDialog>
+                          )}
                           {canCancel(event) && (
                             <FormDialog buttonLabel="Annuler" title="Annuler cet événement" buttonClassName="button">
                               <form action={cancelEvent} className="form">
