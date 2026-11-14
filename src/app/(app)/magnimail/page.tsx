@@ -41,6 +41,15 @@ export default async function MagniMailPage({
     </div>
   );
 
+  const agendaPortal = (
+    <div className="card section">
+      <h2>Agenda et calendrier MGMail</h2>
+      <p>Organiser les rendez-vous personnels, réunions de service et événements d'entreprise.
+        Les rappels sont prévus dans le centre de notifications MAGNISA.</p>
+      <a className="button" href="/magnimail/agenda">Ouvrir le calendrier</a>
+    </div>
+  );
+
   if (!gmail || gmail.status !== "active") {
     return (
       <>
@@ -52,6 +61,8 @@ export default async function MagniMailPage({
           </div>
         </div>
         {internalPortal}
+      {agendaPortal}
+        {agendaPortal}
         <div className="grid2">
           <div className="card">
             <h2>Gmail — facultatif</h2>
