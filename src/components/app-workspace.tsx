@@ -3,13 +3,14 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "motion/react";
-import { Bell, BarChart3, CircleDollarSign, ChevronRight, FileText, LayoutDashboard, Menu, Package, PanelLeftClose, PanelLeftOpen, Settings2, ShoppingCart, Users, Wallet, X } from "lucide-react";
+import { Bell, BarChart3, CircleDollarSign, ChevronRight, FileText, LayoutDashboard, Menu, Package, PanelLeftClose, PanelLeftOpen, Orbit, Settings2, ShoppingCart, Users, Wallet, X } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { motionTiming, motionVariants } from "@/lib/motion-config";
 
 export type WorkspaceLink = { key: string; label: string; href: string; group: string };
 function iconFor(key: string) {
   if (key === "dashboard") return LayoutDashboard;
+  if (key === "magnimail") return Orbit;
   if (["clients","prospects","users","payroll","commissions","profile"].includes(key)) return Users;
   if (["invoices","quotes","reports","financial_statements","document_templates"].includes(key)) return FileText;
   if (["suppliers","orders","procurement","customer_mandates"].includes(key)) return ShoppingCart;
