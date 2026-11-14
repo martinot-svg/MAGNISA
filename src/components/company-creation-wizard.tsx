@@ -50,6 +50,8 @@ function TextField({id,label,value,onChange,required=false,max=160,type="text",p
 }
 export function CompanyCreationWizard({year}:{year:number}) {
   const [step,setStep] = useState<Step>(0);
+  const [hydrated,setHydrated] = useState(false);
+  useEffect(()=>setHydrated(true),[]);
   const [details,setDetails] = useState<CompanyOnboarding>({
     ...DEFAULT, fiscalStart:`${year}-01-01`,fiscalEnd:`${year}-12-31`
   });
@@ -159,7 +161,7 @@ export function CompanyCreationWizard({year}:{year:number}) {
     </div></main>;
   }
 
-  return <main className="auth authPremium" style={{maxWidth:900,margin:"0 auto"}}>
+  return <main className="auth authPremium" data-onboarding-hydrated={hydrated?"true":"false"} style={{maxWidth:900,margin:"0 auto"}}>
     <p className="eyebrow">Configuration d'un espace professionnel</p>
     <h1>Créer une entreprise</h1>
     <p className="muted">Ton compte personnel reste indépendant. La création d'un espace MAGNISA ne remplace pas une immatriculation légale.</p>
