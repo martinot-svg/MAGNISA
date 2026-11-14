@@ -43,6 +43,24 @@ async function login(user) {
   await page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   return {page,context};
 }
+// A streamed Next.js page can expose its trigger before the nested client dialog
+// is interactive. Verify that the dialog really opened, retrying only lost clicks.
+async function openDialog(page,label){
+  const trigger=page.getByRole("button",{name:label});
+  await trigger.waitFor({state:"visible",timeout:20000});
+  for(let attempt=0;attempt<5;attempt++){
+    await trigger.click();
+    try{
+      await page.getByRole("dialog").waitFor({state:"visible",timeout:1200});
+      return;
+    }catch{
+      await page.waitForTimeout(250);
+    }
+  }
+  throw new Error("MGMail : fenêtre inaccessible ("+String(label)+") à "+page.url()+
+    ". Contenu : "+(await page.locator("body").innerText()).slice(0,1000));
+}
+
 try {
   const a=await login(owner);
   await a.page.goto(base+"/magnimail",{waitUntil:"domcontentloaded"});
@@ -54,16 +72,14 @@ try {
   console.log("MGMail UI: messagerie interne hydratée");
   if(await a.page.getByRole("alert").count())throw new Error("MGMail interne indisponible après migrations");
 
-  await a.page.getByRole("button",{name:"Configurer MGMail interne"}).click();
-  await a.page.getByRole("dialog").waitFor({timeout:12000});
+  await openDialog(a.page,"Configurer MGMail interne");
   await a.page.locator('input[name="slug"]').fill("mgmail-ui-"+fixture);
   await a.page.getByRole("button",{name:"Créer cet espace"}).click();
   await a.page.getByRole("heading",{name:"Administration des boîtes"}).waitFor({timeout:20000});
   console.log("MGMail UI: espace interne créé");
 
   async function createMailbox(label,userId){
-    await a.page.getByRole("button",{name:/Créer une boîte/}).click();
-    await a.page.getByRole("dialog").waitFor({timeout:12000});
+    await openDialog(a.page,/Créer une boîte/);
     await a.page.locator('input[name="localPart"]').fill(label);
     await a.page.locator('select[name="ownerId"]').selectOption(userId);
     await a.page.getByRole("button",{name:"Créer et attribuer la boîte"}).click();
@@ -78,8 +94,7 @@ try {
   const sender=boxes.find(x=>x.local_part==="direction")?.id;
   const recipient=boxes.find(x=>x.local_part==="finance")?.id;
   if(!sender||!recipient)throw new Error("Boîtes collaborateur non enregistrées");
-  await a.page.getByRole("button",{name:/Nouveau message/}).click();
-  await a.page.getByRole("dialog").waitFor({timeout:12000});
+  await openDialog(a.page,/Nouveau message/);
   await a.page.locator('select[name="senderId"]').selectOption(sender);
   await a.page.locator('select[name="recipientId"]').selectOption(recipient);
   const subject="Message interne "+fixture;
@@ -96,8 +111,7 @@ try {
   await b.page.getByRole("heading",{name:"Messagerie des collaborateurs"}).waitFor({timeout:20000});
   await b.page.getByText(subject).waitFor({timeout:20000});
   console.log("MGMail UI: message réceptionné par le collaborateur");
-  await b.page.getByRole("button",{name:/Marquer comme lu/}).click();
-  await b.page.getByRole("dialog").waitFor({timeout:12000});
+  await openDialog(b.page,/Marquer comme lu/);
   await b.page.getByRole("button",{name:"Confirmer"}).click();
   await b.page.getByRole("heading",{name:/Boîte de réception interne \(0 non lus affichés\)/}).waitFor({timeout:20000});
   if(await b.page.getByRole("button",{name:/Créer une boîte/}).count()>0)
