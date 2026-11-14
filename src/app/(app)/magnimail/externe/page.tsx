@@ -207,8 +207,10 @@ export default async function MGMailInternetPage() {
                           <div className="field">
                             <label>Date et heure d'envoi (heure de Madagascar, UTC+03)</label>
                             <input name="when" type="datetime-local" required />
-                            <small>Programmation entre 5 minutes et 365 jours à l'avance.
-                              L'expédition nécessite l'activation du moteur MGMail.</small>
+                            <small>Entre 5 minutes et 365 jours à l'avance. Sur cet environnement,
+                              le moteur utilise un traitement quotidien : l'heure indiquée
+                              est souhaitée, pas une garantie d'expédition à la minute.
+                              L'envoi nécessite l'activation du service MGMail.</small>
                           </div>
                           <button className="button primary" type="submit">Enregistrer la programmation</button>
                         </form>
@@ -243,7 +245,7 @@ export default async function MGMailInternetPage() {
           </div>
           <div className="card section">
             <h2>Envois programmés ({programmed.length})</h2>
-            {process.env.MGMAIL_AUTO_SEND_ENABLED !== "true" && (
+            {(process.env.MGMAIL_AUTO_SEND_ENABLED !== "true" || !process.env.MGMAIL_RESEND_API_KEY) && (
               <p className="muted">
                 L'envoi automatique n'est pas activé sur cet environnement. Les
                 programmations restent enregistrées, mais ne seront pas expédiées.
