@@ -30,6 +30,7 @@ export default async function MagniMailPage({
       <h2>Extensions et domaines professionnels</h2>
       <p className="muted">Explorer les extensions officielles IANA et les règles NIC.MG avant toute demande de domaine.</p>
       <a href="/orbit/magnibox/extensions" className="button">Consulter le catalogue</a>
+      <a href="/orbit/magnibox/agenda" className="button">Agenda et rendez-vous</a>
     </div>
   ) : null;
   const { data: gmail } = await supabase
