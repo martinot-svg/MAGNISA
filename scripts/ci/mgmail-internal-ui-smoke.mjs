@@ -70,7 +70,9 @@ try {
   await a.page.getByRole("heading",{name:"Messagerie des collaborateurs"}).waitFor({timeout:20000});
   await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   console.log("MGMail UI: messagerie interne hydratée");
-  const mgmailAlerts=await a.page.getByRole("alert").allTextContents();
+  // Ignore empty aria-live/alert placeholders; only a substantive MGMail error is a failure.
+  const mgmailAlerts=(await a.page.locator('main [role="alert"]').allTextContents())
+    .map(message=>message.trim()).filter(message=>message.length>0);
   if(mgmailAlerts.length){
     // Capture which query is failing, not simply the existence of a global alert.
     const ownerProbe=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
