@@ -129,9 +129,12 @@ export default async function MagnisaInboxProfessionalDomains() {
               </form>
             </FormDialog>
             {domains.length ? <div className="tableWrap"><table>
-              <thead><tr><th>Domaine</th><th>Vérification</th></tr></thead>
+              <thead><tr><th>Domaine</th><th>Vérification</th><th>DNS</th></tr></thead>
               <tbody>{domains.map(domain => <tr key={domain.id}>
                 <td>{domain.domain_name}</td><td>{labels[domain.status] || domain.status}</td>
+                <td><Link href={`/magnimail/domaines/${domain.id}`} className="button">
+                  Vérifier le domaine et les DNS
+                </Link></td>
               </tr>)}</tbody>
             </table></div> : <p className="muted">Aucun domaine déclaré pour cette entreprise.</p>}
           </div>
