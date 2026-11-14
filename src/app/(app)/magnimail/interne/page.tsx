@@ -243,7 +243,7 @@ export default async function MGMailInternalPage() {
             <FormDialog title="Confirmer la lecture du message" buttonLabel="Marquer comme lu" buttonClassName="button">
               <form action={markInternalRead} className="form">
                 <input type="hidden" name="messageId" value={message.id} />
-                <p>Confirmer la lecture de ce message dans MGMail.</p>
+                <p>Confirmer la lecture de ce message dans Magnisa Inbox.</p>
                 <button className="button primary" type="submit">Confirmer</button>
               </form>
             </FormDialog>
@@ -257,11 +257,11 @@ export default async function MGMailInternalPage() {
     <>
       <div className="pageHead">
         <div>
-          <p className="eyebrow">MGMail · Communication interne</p>
+          <p className="eyebrow">Magnisa Inbox · Communication interne</p>
           <h1>Messagerie des collaborateurs</h1>
           <p>Échanges privés entre collaborateurs de cette entreprise, exclusivement dans MAGNISA.</p>
         </div>
-        <Link className="button" href="/magnimail">Retour à MGMail</Link>
+        <Link className="button" href="/magnimail">Retour à Magnisa Inbox</Link>
       </div>
       <div className="card section">
         <strong>Canal interne MAGNISA uniquement.</strong>
@@ -273,14 +273,14 @@ export default async function MGMailInternalPage() {
       </div>
       {namespaceResult.error || mailboxesResult.error || messagesResult.error || grantsResult.error || readsResult.error ? (
         <div className="card section" role="alert">
-          Impossible de charger les boîtes MGMail. La migration interne et les permissions
+          Impossible de charger les boîtes Magnisa Inbox. La migration interne et les permissions
           doivent être validées avant utilisation.
         </div>
       ) : !namespace ? (
         <div className="card section">
           <h2>Configurer l'espace de messagerie de l'entreprise</h2>
           {canManage ? (
-            <FormDialog title="Créer l'identifiant interne de l'entreprise" buttonLabel="Configurer MGMail interne">
+            <FormDialog title="Créer l'identifiant interne de l'entreprise" buttonLabel="Configurer la messagerie interne">
               <form action={createNamespace} className="form">
                 <div className="field">
                   <label htmlFor="mgmail-namespace">Nom d'entreprise pour les adresses internes</label>
@@ -291,13 +291,13 @@ export default async function MGMailInternalPage() {
                 <button className="button primary">Créer cet espace</button>
               </form>
             </FormDialog>
-          ) : <p className="muted">Un administrateur doit créer l'espace MGMail interne.</p>}
+          ) : <p className="muted">Un administrateur doit configurer l’espace de messagerie interne.</p>}
         </div>
       ) : (
         <>
           {canManage && (
             <div className="card section">
-              <FormDialog title="Créer une boîte MGMail pour un collaborateur" buttonLabel="+ Créer une boîte">
+              <FormDialog title="Créer une boîte interne pour un collaborateur" buttonLabel="+ Créer une boîte">
                 <form action={createMailbox} className="form">
                   <div className="field">
                     <label>Nom de l'adresse</label>
