@@ -72,7 +72,7 @@ export async function cancelScheduledMGMail(form: FormData) {
   // be cancelled, nor can one employee cancel another employee's mailing.
   const admin = createAdminClient();
   const { data: cancelled, error } = await admin.from("mgmail_external_messages")
-    .update({ status: "failed", last_error: "Envoi programmé annulé par son auteur.",
+    .update({ status: "cancelled", last_error: "Envoi programmé annulé par son auteur.",
       updated_at: new Date().toISOString() })
     .eq("organization_id", ctx.organizationId)
     .eq("id", messageId)
