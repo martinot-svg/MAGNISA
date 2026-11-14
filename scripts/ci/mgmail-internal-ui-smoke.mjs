@@ -135,6 +135,16 @@ try {
   await a.page.locator('input[name="domainName"]').fill(requestedDomain);
   await a.page.getByRole("button",{name:"Enregistrer la demande"}).click();
   await a.page.getByRole("cell",{name:requestedDomain}).waitFor({timeout:20000});
+  const {data:domainRequest,error:domainError}=await admin.from("mgmail_domain_requests")
+    .select("id,verification_token,status").eq("organization_id",organizationId)
+    .eq("domain_name",requestedDomain).single();
+  if(domainError||!domainRequest)throw domainError||Error("DNS challenge was not stored");
+  await a.page.getByRole("link",{name:"Vérifier le domaine et les DNS"}).click();
+  await a.page.getByRole("heading",{name:"Vérifier "+requestedDomain}).waitFor({timeout:30000});
+  await a.page.getByText("magnisa-orbit="+domainRequest.verification_token).waitFor({timeout:30000});
+  if(await a.page.getByRole("button",{name:"Valider le domaine"}).count())
+    throw Error("Domain should not be verifiable before publishing actual DNS proof");
+  await a.page.goto(base+"/magnimail/domaines",{waitUntil:"domcontentloaded"});
   await openDialog(a.page,"+ Demander une adresse");
   await a.page.locator('select[name="domainRequestId"]').selectOption({label:requestedDomain});
   await a.page.locator('select[name="mailboxId"]').selectOption(recipient);
@@ -156,6 +166,10 @@ try {
   await a.context.close();
 
   const b=await login(employee);
+  await b.page.goto(base+"/magnimail/domaines/"+domainRequest.id,{waitUntil:"domcontentloaded"});
+  await b.page.getByRole("alert").waitFor({timeout:20000});
+  if(await b.page.getByText("magnisa-orbit="+domainRequest.verification_token).count())
+    throw Error("Unauthorized collaborator can read domain TXT proof");
   await b.page.goto(base+"/magnimail/interne",{waitUntil:"domcontentloaded"});
   await b.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   await b.page.getByRole("heading",{name:"Messagerie des collaborateurs"}).waitFor({timeout:20000});
