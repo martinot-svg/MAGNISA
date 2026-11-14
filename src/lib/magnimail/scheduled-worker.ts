@@ -335,10 +335,14 @@ export async function runMGMailScheduledDispatch(
   if (result.error) throw new Error("Impossible de consulter les e-mails programmés.");
   const tally = { enabled: true, queuedPreavis, accepted: 0, cancelled: 0, uncertain: 0 };
   const messages = result.data || [];
-  for (let start = 0; start < messages.length; start += 5) {
-    const statuses = await Promise.all(messages.slice(start, start + 5).map((message) =>
+  // Throttle conservatively: avoid bursts against a free-tier mail provider.
+  for (let start = 0; start < messages.length; start += 2) {
+    const statuses = await Promise.all(messages.slice(start, start + 2).map((message) =>
       deliverOne(admin, message, now, env.MGMAIL_RESEND_API_KEY!, options.transport || fetch)));
     for (const state of statuses) tally[state]++;
+    if (start + 2 < messages.length) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 1100));
+    }
   }
   return tally;
 }
