@@ -4,22 +4,28 @@ import { createClient } from "@supabase/supabase-js";
 const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anon=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const service=process.env.SUPABASE_SERVICE_ROLE_KEY;
-const email=process.env.TEST_EMAIL;
-const password=process.env.TEST_PASSWORD;
-if(!url||!anon||!service||!email||!password) throw Error("Test MGMail agenda : configuration Supabase isolée manquante.");
+if(!url||!anon||!service) throw Error("Test MGMail agenda : configuration Supabase isolée manquante.");
 const client=(key)=>createClient(url,key,{auth:{autoRefreshToken:false,persistSession:false}});
 const admin=client(service), owner=client(anon);
+const suffix=randomUUID().slice(0,8);
+
+// The replay seeds this fixture itself. Do not rely on payroll/CRM fixtures
+// or on a later step in the shared migration workflow.
+const email=`mgmail-agenda-owner-${suffix}@magnisa.test`;
+const password=`MG-${randomBytes(18).toString("hex")}!a9`;
+const createdOwner=await admin.auth.admin.createUser({email,password,email_confirm:true});
+if(createdOwner.error||!createdOwner.data.user)throw createdOwner.error??Error("Compte de recette agenda indisponible.");
 const session=await owner.auth.signInWithPassword({email,password});
-if(session.error||!session.data.user)throw session.error??Error("Session propriétaire indisponible.");
-const ownerId=session.data.user.id;
-const orgResult=await admin.from("organization_members").select("organization_id")
-  .eq("user_id",ownerId).eq("status","active").limit(1).single();
-if(orgResult.error)throw orgResult.error;
-const org=orgResult.data.organization_id;
+if(session.error||session.data.user?.id!==createdOwner.data.user.id)throw session.error??Error("Connexion propriétaire indisponible.");
+const ownerId=createdOwner.data.user.id;
+const orgResult=await owner.rpc("create_organization",{
+  p_name:`MGMail Agenda CI ${suffix}`, p_currency:"MGA",
+});
+if(orgResult.error||typeof orgResult.data!=="string")throw orgResult.error??Error("Entreprise de recette agenda indisponible.");
+const org=orgResult.data;
 const check=(v,msg)=>{if(!v)throw Error(msg);};
 const ok=(result,label)=>{if(result.error)throw Error(label+": "+result.error.message);return result.data;};
 const noRows=(result,label)=>{if(result.error)return;check(Array.isArray(result.data)&&result.data.length===0,label+": données non autorisées visibles");};
-const suffix=randomUUID().slice(0,8);
 
 async function employee(department) {
   const mail=`mgmail-agenda-${suffix}-${department.toLowerCase()}@magnisa.test`;
