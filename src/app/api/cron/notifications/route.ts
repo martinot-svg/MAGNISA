@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCronAuthorizationError } from "@/lib/cron-auth";
+import { synchronizeMagniboxTlds } from "@/lib/orbit/tld-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Notification engine failed" }, { status: 500 });
     }
 
+    // Reuse the existing daily free-tier cron (weekly TLD refresh).
+    // Catalogue failure never interrupts accounting/notification processing.
+    if(new Date().getUTCDay()===0){
+      try{await synchronizeMagniboxTlds();}
+      catch(syncError){console.error("Weekly TLD catalogue refresh unavailable",syncError);}
+    }
     return NextResponse.json({ ok: true, result: data });
   } catch (error) {
     console.error("notification cron error", error);
