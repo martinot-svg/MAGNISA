@@ -10,9 +10,10 @@ const VERIFIED = {
   id:"domain_verified_test",name:"monentreprise.mg",status:"verified",
   capabilities:{sending:"enabled",receiving:"enabled"},
   records:[
-    {record:"DKIM",status:"verified"},
-    {record:"SPF",status:"verified"},
-    {record:"Receiving",status:"verified"},
+    {record:"DKIM",type:"TXT",status:"verified"},
+    {record:"SPF",type:"MX",status:"verified"},
+    {record:"SPF",type:"TXT",status:"verified"},
+    {record:"Receiving",type:"MX",status:"verified"},
   ],
 };
 
@@ -37,6 +38,22 @@ describe("MGMail — preuve d'un domaine Internet réel",()=>{
     });
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(()=>assertMGMailActivation("finance@monentreprise.mg",result,true)).not.toThrow();
+  });
+  it("ne confond pas le MX SPF sortant et le MX de réception",async()=>{
+    const result=await inspectResendDomain("re_test","domain_verified_test","monentreprise.mg",
+      async()=>Response.json({...VERIFIED,records:VERIFIED.records.filter(r=>r.record!=="Receiving")}));
+    expect(result.sendingVerified).toBe(true);
+    expect(result.receivingVerified).toBe(false);
+  });
+  it("bloque l'envoi si le SPF TXT est absent ou si un MX SPF ne passe pas",async()=>{
+    const status=await inspectResendDomain("re_test","domain_verified_test","monentreprise.mg",
+      async()=>Response.json({...VERIFIED,records:VERIFIED.records.map(r=>
+        r.record==="SPF" && r.type==="MX"?{...r,status:"pending"}:r)}));
+    expect(status.sendingVerified).toBe(false);
+    const noTxt=await inspectResendDomain("re_test","domain_verified_test","monentreprise.mg",
+      async()=>Response.json({...VERIFIED,records:VERIFIED.records.filter(r=>
+        !(r.record==="SPF" && r.type==="TXT"))}));
+    expect(noTxt.sendingVerified).toBe(false);
   });
   it("refuse un autre domaine même lorsque Resend le considère vérifié",async()=>{
     await expect(inspectResendDomain("re_test","domain_verified_test","mitalia.digital",
