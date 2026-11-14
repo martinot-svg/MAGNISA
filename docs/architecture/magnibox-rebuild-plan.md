@@ -112,3 +112,23 @@ La reconstruction est additive et progressive : aucune table historique, migrati
 ## État
 
 Ce document décrit la cible et l'ordre d'exécution. Il ne signifie pas que le moteur SMTP/IMAP autonome, l'enregistrement de domaines ou la réception Internet sont déjà implémentés ou opérationnels.
+
+
+## Journal de reconstruction — 14 novembre 2026
+
+### Socle Core ajouté sur la branche de travail
+
+- `src/lib/orbit/core.ts` introduit un vocabulaire commun et indépendant du fournisseur pour les boîtes, les actions et les états de distribution.
+- `src/lib/orbit/core.test.ts` couvre les droits explicites, l'appartenance active, l'isolation entre organisations et la distinction entre acceptation par un fournisseur et livraison confirmée.
+- Ces fonctions sont des contrats de domaine : elles ne remplacent ni l'authentification serveur, ni les contrôles RLS, ni la vérification des droits en base.
+
+### Dépendances de schéma vérifiées
+
+La migration de demandes de domaines existe bien sous le nom exact `20261114120000_orbit_public_domain_requests.sql`. Elle précède `20261114122000_orbit_internet_identities.sql` et crée les deux tables de demandes attendues. Le nom de fichier précédemment recherché était incorrect ; aucune migration de remplacement n'est nécessaire à ce stade.
+
+### Limites restantes
+
+- Les contrats Core sont ajoutés mais ne sont pas encore branchés aux routes et composants historiques.
+- Le transport Internet existant reste lié à Resend dans sa route d'envoi ; il ne constitue pas encore une architecture multi-fournisseur opérationnelle.
+- Aucun moteur SMTP autonome, aucune réception SMTP directe et aucune migration de données historiques n'ont été réalisés dans cette étape.
+- Les tests Vitest et le replay Supabase doivent être exécutés par la CI de la branche avant toute fusion. Aucun déploiement ni activation du transport n'est autorisé par ces commits.
