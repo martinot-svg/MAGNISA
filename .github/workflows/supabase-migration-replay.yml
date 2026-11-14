@@ -182,6 +182,8 @@ jobs:
         run: node scripts/ci/username-login-ui-smoke.mjs
       - name: Verify five-step company onboarding in an isolated browser
         run: node scripts/ci/company-onboarding-browser-smoke.mjs
+      - name: Verify MGMail internal browser exchange between authenticated collaborators
+        run: node scripts/ci/mgmail-internal-ui-smoke.mjs
       - name: Test authenticated payroll and fixed-asset UI actions
         run: node scripts/ci/payroll-ui-smoke.mjs
       - name: Test authenticated CRM UI actions
