@@ -6,6 +6,7 @@ import { hasPermission } from "@/lib/permissions";
 import { FormDialog } from "@/components/form-dialog";
 import { sendMGMailInternet } from "@/lib/magnimail/internet-send";
 import { scheduleMGMailInternet, cancelScheduledMGMail } from "@/lib/magnimail/scheduled-actions";
+import { requestMGMailPublicDomain, requestMGMailPublicAddress } from "@/lib/magnimail/domain-requests";
 
 const PATH = "/magnimail/externe";
 
@@ -36,7 +37,8 @@ const statusLabels: Record<string, string> = {
 export default async function MGMailInternetPage() {
   const ctx = await requireOrganization();
   const canManage = await hasPermission(ctx, "users.manage");
-  const [identitiesResult, messagesResult] = await Promise.all([
+  const [identitiesResult, messagesResult, domainRequestsResult,
+    addressRequestsResult, internalMailboxesResult, approvedDomainsResult] = await Promise.all([
     ctx.supabase.from("mgmail_external_identities")
       .select("id,email_address,mailbox_id,status,receive_enabled")
       .eq("organization_id", ctx.organizationId).order("email_address").limit(50),
@@ -44,6 +46,18 @@ export default async function MGMailInternetPage() {
       .select("id,identity_id,direction,status,source_kind,created_by,scheduled_at,from_email,to_emails,subject,body_text,last_error,created_at")
       .eq("organization_id", ctx.organizationId)
       .order("created_at", { ascending: false }).limit(100),
+    ctx.supabase.from("mgmail_domain_requests")
+      .select("id,domain_name,status").eq("organization_id", ctx.organizationId)
+      .order("created_at", { ascending: false }).limit(100),
+    ctx.supabase.from("mgmail_public_address_requests")
+      .select("id,email_address,status").eq("organization_id", ctx.organizationId)
+      .order("created_at", { ascending: false }).limit(100),
+    ctx.supabase.from("mgmail_internal_mailboxes")
+      .select("id,local_part,is_active").eq("organization_id", ctx.organizationId)
+      .eq("is_active", true).order("local_part").limit(100),
+    ctx.supabase.from("mgmail_verified_domains")
+      .select("id,domain_name,sending_verified,receiving_verified,ownership_approved")
+      .eq("organization_id", ctx.organizationId).limit(100),
   ]);
   const identities = identitiesResult.data || [];
   const messages = messagesResult.data || [];
@@ -164,6 +178,97 @@ export default async function MGMailInternetPage() {
           Aucun compte Google n'est obligatoire.
         </p>
       </div>
+      {canManage && (
+        <div className="card section">
+          <h2>Domaines et adresses professionnelles</h2>
+          <p className="muted">
+            Demandez une adresse comme finance@monentreprise.mg sans compte Gmail.
+            Le nom de domaine doit appartenir légitimement à votre entreprise
+            ou être mis à sa disposition par MAGNISA. Les demandes restent
+            inactives tant que les vérifications du fournisseur ne sont pas réussies.
+          </p>
+          {domainRequestsResult.error || addressRequestsResult.error ||
+            internalMailboxesResult.error || approvedDomainsResult.error ? (
+              <p role="alert">Impossible de consulter les demandes de domaine.</p>
+          ) : (
+            <>
+              <div className="actions">
+                <FormDialog buttonLabel="Demander un domaine" title="Demande de domaine professionnel">
+                  <form action={requestMGMailPublicDomain} className="form">
+                    <div className="field">
+                      <label>Nom du domaine public</label>
+                      <input name="domain" placeholder="monentreprise.mg" required maxLength={253} />
+                    </div>
+                    <p className="muted">
+                      Le domaine n'est pas acheté ni enregistré automatiquement. MAGNISA
+                      doit vérifier la propriété et les DNS avant l'activation.
+                    </p>
+                    <button className="button primary" type="submit">Enregistrer la demande</button>
+                  </form>
+                </FormDialog>
+                {(domainRequestsResult.data || []).length > 0 &&
+                  (internalMailboxesResult.data || []).length > 0 && (
+                  <FormDialog buttonLabel="Demander une adresse" title="Nouvelle adresse MGMail professionnelle">
+                    <form action={requestMGMailPublicAddress} className="form">
+                      <div className="field">
+                        <label>Boîte interne du collaborateur ou du service</label>
+                        <select name="mailboxId" required>
+                          <option value="">Choisir une boîte interne</option>
+                          {(internalMailboxesResult.data || []).map((mailbox) => (
+                            <option key={mailbox.id} value={mailbox.id}>{mailbox.local_part}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label>Adresse Internet souhaitée</label>
+                        <input name="address" placeholder="finance@monentreprise.mg" required maxLength={254} />
+                      </div>
+                      <p className="muted">
+                        Utilisez un domaine déjà demandé pour votre entreprise.
+                        La création n'autorise aucun envoi ou réception Internet.
+                      </p>
+                      <button className="button primary" type="submit">Demander l'adresse</button>
+                    </form>
+                  </FormDialog>
+                )}
+              </div>
+              <h3>Domaines demandés</h3>
+              {(domainRequestsResult.data || []).length === 0 ? (
+                <p className="muted">Aucune demande de domaine.</p>
+              ) : (
+                <div>
+                  {(domainRequestsResult.data || []).map((request) => {
+                    const proof = (approvedDomainsResult.data || []).find((d) =>
+                      d.domain_name === request.domain_name && d.ownership_approved);
+                    return (
+                      <p key={request.id}>
+                        <strong>{request.domain_name}</strong> — {request.status === "approved"
+                          ? "Propriété approuvée" : request.status === "rejected"
+                            ? "Demande refusée" : "Vérification en attente"}
+                        {proof ? ` · Envoi ${proof.sending_verified ? "vérifié" : "non vérifié"} · Réception ${proof.receiving_verified ? "vérifiée" : "non vérifiée"}` : ""}
+                      </p>
+                    );
+                  })}
+                </div>
+              )}
+              <h3>Adresses demandées</h3>
+              {(addressRequestsResult.data || []).length === 0 ? (
+                <p className="muted">Aucune adresse publique demandée.</p>
+              ) : (
+                <div>
+                  {(addressRequestsResult.data || []).map((request) => (
+                    <p key={request.id}>
+                      <strong>{request.email_address}</strong> — {request.status === "approved"
+                        ? "Adresse approuvée" : request.status === "rejected"
+                          ? "Demande refusée" : "En attente de vérification"}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
       {identitiesResult.error || messagesResult.error ? (
         <div className="card section" role="alert">
           Les boîtes Internet ne sont pas disponibles. Vérifiez les migrations et les autorisations.
