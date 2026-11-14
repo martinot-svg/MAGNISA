@@ -185,6 +185,75 @@ const blockedInbox = required(await b.userClient.from("mgmail_internal_messages"
   .select("id").eq("id", outgoing.id), "Lecture après révocation");
 assert(blockedInbox.length === 0, "La lecture après révocation doit être interdite.");
 
+// Autoriser deux collaborateurs différents sur une même boîte de service.
+required(await owner.from("mgmail_internal_mailboxes").update({can_send: true})
+  .eq("id",finance).eq("organization_id",organizationId),"Réactivation envoi service");
+required(await owner.from("mgmail_internal_mailboxes").update({can_read: true})
+  .eq("id",direction).eq("organization_id",organizationId),"Réactivation lecture");
+required(await owner.from("mgmail_internal_mailbox_grants").insert({
+  organization_id:organizationId,mailbox_id:ownerBox,user_id:a.userId,
+  can_read:true,can_send:true,is_active:true,
+}),"Partage lecture et envoi");
+required(await owner.from("mgmail_internal_mailbox_grants").insert({
+  organization_id:organizationId,mailbox_id:ownerBox,user_id:b.userId,
+  can_read:true,can_send:false,is_active:true,
+}),"Partage en lecture seule");
+const permissionA=required(await a.userClient.rpc("mgmail_has_internal_access",{
+  p_org:organizationId,p_mailbox:ownerBox,p_action:"send",
+}),"Permission envoi déléguée");
+const permissionB=required(await b.userClient.rpc("mgmail_has_internal_access",{
+  p_org:organizationId,p_mailbox:ownerBox,p_action:"send",
+}),"Permission lecteur seul");
+assert(permissionA===true && permissionB===false,
+  "Les droits de lecture et d'envoi doivent être indépendants.");
+required(await a.userClient.from("mgmail_internal_messages").insert({
+  organization_id:organizationId,sender_mailbox_id:ownerBox,recipient_mailbox_id:direction,
+  subject:"Envoi délégué MGMail",body_text:"Message envoyé avec droit explicite.",
+}),"Envoi partagé autorisé");
+denied(await b.userClient.from("mgmail_internal_messages").insert({
+  organization_id:organizationId,sender_mailbox_id:ownerBox,recipient_mailbox_id:finance,
+  subject:"Envoi interdit",body_text:"L'accès lecture ne donne pas le droit d'envoyer.",
+}).select("id"),"Envoi refusé à un lecteur seul");
+required(await b.userClient.from("mgmail_internal_messages").insert({
+  organization_id:organizationId,sender_mailbox_id:direction,recipient_mailbox_id:ownerBox,
+  subject:"Réponse à la boîte commune",body_text:"Notification et état de lecture individuel.",
+}),"Message reçu dans la boîte commune");
+const shared=required(await owner.from("mgmail_internal_messages").select("id")
+  .eq("organization_id",organizationId).eq("subject","Réponse à la boîte commune"),
+  "Accès propriétaire aux messages partagés");
+assert(shared.length===1,"La boîte de service doit recevoir le message.");
+const sharedId=shared[0].id;
+for(const [recipient,session] of [[ownerId,owner],[a.userId,a.userClient]]) {
+  const notice=required(await session.from("notifications").select("id")
+    .eq("organization_id",organizationId).eq("recipient_user_id",recipient)
+    .eq("entity_id",sharedId),"Notification de boîte partagée");
+  assert(notice.length===1,"Chaque lecteur autorisé doit recevoir une notification.");
+}
+required(await a.userClient.from("mgmail_internal_message_reads").insert({
+  organization_id:organizationId,message_id:sharedId,user_id:a.userId,
+}),"Lecture personnelle du message partagé");
+const mineRead=required(await a.userClient.from("mgmail_internal_message_reads")
+  .select("message_id").eq("message_id",sharedId),"Lecture collaborateur");
+const ownerRead=required(await owner.from("mgmail_internal_message_reads")
+  .select("message_id").eq("message_id",sharedId),"Lecture administrateur");
+assert(mineRead.length===1 && ownerRead.length===0,
+  "La lecture d'un collaborateur ne doit pas effacer les non-lus d'un autre.");
+denied(await b.userClient.from("mgmail_internal_mailbox_grants")
+  .update({can_send:true}).eq("organization_id",organizationId)
+  .eq("mailbox_id",ownerBox).eq("user_id",b.userId).select("mailbox_id"),
+  "Interdiction de modifier ses propres droits");
+required(await owner.from("mgmail_internal_mailbox_grants")
+  .update({can_read:false,can_send:false,is_active:false})
+  .eq("organization_id",organizationId).eq("mailbox_id",ownerBox)
+  .eq("user_id",a.userId),"Révocation du partage");
+const afterRevoke=required(await a.userClient.rpc("mgmail_has_internal_access",{
+  p_org:organizationId,p_mailbox:ownerBox,p_action:"read",
+}),"Vérification de la révocation");
+assert(afterRevoke===false,"Un accès retiré doit être refusé immédiatement.");
+const hiddenShared=required(await a.userClient.from("mgmail_internal_messages")
+  .select("id").eq("id",sharedId),"Protection des messages après révocation");
+assert(hiddenShared.length===0,"Les messages doivent disparaître après révocation.");
+
 // Une personne hors de l'organisation n'a pas accès au répertoire.
 const outsiderEmail = `mgmail-outsider-${suffix}@magnisa.test`;
 const outsiderPassword = `MG-${randomBytes(18).toString("hex")}!a9`;
@@ -219,6 +288,12 @@ const ownerToDeparted = required(await owner.rpc("mgmail_can_send_internal", {
 }), "Prévention des envois vers un ancien membre");
 assert(ownerToDeparted === false,
   "Un collaborateur suspendu ne peut plus recevoir de messages.");
+const grantAfterDeparture=required(await owner.from("mgmail_internal_mailbox_grants")
+  .select("is_active").eq("organization_id",organizationId)
+  .eq("mailbox_id",ownerBox).eq("user_id",b.userId).single(),
+  "Délégation du collaborateur suspendu");
+assert(grantAfterDeparture.is_active===false,
+  "Les délégations doivent être désactivées au départ d'un collaborateur.");
 
 process.stdout.write(
   "PASS MGMail: envoi/réception interne, confidentialité, permissions et isolation des entreprises.\n",

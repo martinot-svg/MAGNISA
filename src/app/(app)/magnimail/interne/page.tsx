@@ -59,11 +59,59 @@ async function setMailboxPermissions(form: FormData) {
     .update({
       can_read: form.get("canRead") === "on",
       can_send: form.get("canSend") === "on",
+      can_external_read: form.get("canExternalRead") === "on",
+      can_external_send: form.get("canExternalSend") === "on",
       is_active: form.get("isActive") === "on",
     })
     .eq("id", id)
     .eq("organization_id", ctx.organizationId);
   if (error) throw new Error("Impossible de modifier les droits de cette boîte.");
+  revalidatePath(PATH);
+}
+
+async function shareMailbox(form: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "users.manage");
+  const mailboxId = String(form.get("mailboxId") || "");
+  const userId = String(form.get("userId") || "");
+  const uuid = /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i;
+  if (!uuid.test(mailboxId) || !uuid.test(userId)) {
+    throw new Error("Boîte ou collaborateur invalide.");
+  }
+  const [mailboxResult, memberResult] = await Promise.all([
+    ctx.supabase.from("mgmail_internal_mailboxes").select("id")
+      .eq("id", mailboxId).eq("organization_id", ctx.organizationId).maybeSingle(),
+    ctx.supabase.from("organization_members").select("user_id")
+      .eq("organization_id", ctx.organizationId).eq("user_id", userId)
+      .eq("status", "active").maybeSingle(),
+  ]);
+  if (!mailboxResult.data || !memberResult.data || mailboxResult.error || memberResult.error) {
+    throw new Error("Boîte ou collaborateur indisponible pour cette entreprise.");
+  }
+  const canRead = form.get("canRead") === "on";
+  const canSend = form.get("canSend") === "on";
+  const canExternalRead = form.get("canExternalRead") === "on";
+  const canExternalSend = form.get("canExternalSend") === "on";
+  const active = canRead || canSend || canExternalRead || canExternalSend;
+  const query = ctx.supabase.from("mgmail_internal_mailbox_grants");
+  const { data: existing, error: lookupError } = await query.select("mailbox_id")
+    .eq("organization_id", ctx.organizationId)
+    .eq("mailbox_id", mailboxId).eq("user_id", userId).maybeSingle();
+  if (lookupError) throw new Error("Impossible de vérifier la délégation de boîte.");
+  const values = {
+    can_read: canRead, can_send: canSend,
+    can_external_read: canExternalRead && canRead,
+    can_external_send: canExternalSend && canSend,
+    is_active: active,
+  };
+  const result = existing
+    ? await ctx.supabase.from("mgmail_internal_mailbox_grants")
+        .update(values).eq("organization_id", ctx.organizationId)
+        .eq("mailbox_id", mailboxId).eq("user_id", userId)
+    : await ctx.supabase.from("mgmail_internal_mailbox_grants")
+        .insert({ organization_id: ctx.organizationId, mailbox_id: mailboxId, user_id: userId, ...values });
+  if (result.error) throw new Error("Impossible d'enregistrer les autorisations partagées.");
   revalidatePath(PATH);
 }
 
@@ -78,28 +126,20 @@ async function sendInternal(form: FormData) {
     throw new Error("Objet ou contenu du message invalide.");
   }
 
-  const { data: sender } = await ctx.supabase
-    .from("mgmail_internal_mailboxes")
-    .select("id")
-    .eq("organization_id", ctx.organizationId)
-    .eq("id", senderId)
-    .eq("owner_user_id", ctx.user.id)
-    .eq("is_active", true)
-    .eq("can_send", true)
-    .maybeSingle();
-  const { data: recipient } = await ctx.supabase
-    .from("mgmail_internal_mailboxes")
-    .select("id")
-    .eq("organization_id", ctx.organizationId)
-    .eq("id", recipientId)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (!sender || !recipient) throw new Error("Vous n'êtes pas autorisé à envoyer depuis cette boîte.");
+  const { data: allowed, error: permissionError } = await ctx.supabase
+    .rpc("mgmail_can_send_internal", {
+      p_organization_id: ctx.organizationId,
+      p_sender_mailbox_id: senderId,
+      p_recipient_mailbox_id: recipientId,
+    });
+  if (permissionError || allowed !== true) {
+    throw new Error("Vous n'êtes pas autorisé à envoyer depuis cette boîte ou vers ce destinataire.");
+  }
 
   const { error } = await ctx.supabase.from("mgmail_internal_messages").insert({
     organization_id: ctx.organizationId,
-    sender_mailbox_id: sender.id,
-    recipient_mailbox_id: recipient.id,
+    sender_mailbox_id: senderId,
+    recipient_mailbox_id: recipientId,
     subject,
     body_text: body,
   });
@@ -117,52 +157,64 @@ async function markInternalRead(form: FormData) {
   const { data: message, error: messageError } = await ctx.supabase
     .from("mgmail_internal_messages")
     .select("id,recipient_mailbox_id")
-    .eq("id", messageId)
-    .eq("organization_id", ctx.organizationId)
+    .eq("id", messageId).eq("organization_id", ctx.organizationId)
     .maybeSingle();
   if (messageError || !message) throw new Error("Message indisponible.");
-
-  const { data: mailbox } = await ctx.supabase
-    .from("mgmail_internal_mailboxes")
-    .select("id")
-    .eq("id", message.recipient_mailbox_id)
-    .eq("organization_id", ctx.organizationId)
-    .eq("owner_user_id", ctx.user.id)
-    .eq("is_active", true)
-    .eq("can_read", true)
-    .maybeSingle();
-  if (!mailbox) throw new Error("Vous ne pouvez pas modifier la lecture de ce message.");
-  const { error } = await ctx.supabase
-    .from("mgmail_internal_messages")
-    .update({ read_at: new Date().toISOString() })
-    .eq("id", messageId)
-    .eq("recipient_mailbox_id", mailbox.id)
-    .eq("organization_id", ctx.organizationId)
-    .is("read_at", null);
-  if (error) throw new Error("Impossible de marquer le message comme lu.");
+  const { data: allowed, error: accessError } = await ctx.supabase
+    .rpc("mgmail_has_internal_access", {
+      p_org: ctx.organizationId,
+      p_mailbox: message.recipient_mailbox_id,
+      p_action: "read",
+    });
+  if (accessError || allowed !== true) throw new Error("Lecture non autorisée.");
+  const { data: alreadyRead, error: checkError } = await ctx.supabase
+    .from("mgmail_internal_message_reads").select("message_id")
+    .eq("message_id", messageId).eq("user_id", ctx.user.id).maybeSingle();
+  if (checkError) throw new Error("Impossible de vérifier la lecture.");
+  if (!alreadyRead) {
+    const { error } = await ctx.supabase.from("mgmail_internal_message_reads").insert({
+      organization_id: ctx.organizationId,
+      message_id: messageId,
+      user_id: ctx.user.id,
+    });
+    if (error && error.code !== "23505") throw new Error("Impossible de marquer le message comme lu.");
+  }
   revalidatePath(PATH);
 }
 
 export default async function MGMailInternalPage() {
   const ctx = await requireOrganization();
   const canManage = await hasPermission(ctx, "users.manage");
-  const [namespaceResult, mailboxesResult, messagesResult] = await Promise.all([
+  const [namespaceResult, mailboxesResult, messagesResult, grantsResult, readsResult] = await Promise.all([
     ctx.supabase.from("mgmail_internal_namespaces")
       .select("slug").eq("organization_id", ctx.organizationId).maybeSingle(),
     ctx.supabase.from("mgmail_internal_mailboxes")
-      .select("id,local_part,owner_user_id,display_name,is_active,can_read,can_send")
+      .select("id,local_part,owner_user_id,display_name,is_active,can_read,can_send,can_external_read,can_external_send")
       .eq("organization_id", ctx.organizationId).order("local_part"),
     ctx.supabase.from("mgmail_internal_messages")
-      .select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,read_at,created_at")
+      .select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,created_at")
       .eq("organization_id", ctx.organizationId)
       .order("created_at", { ascending: false }).limit(80),
+    ctx.supabase.from("mgmail_internal_mailbox_grants")
+      .select("mailbox_id,user_id,can_read,can_send,is_active")
+      .eq("organization_id", ctx.organizationId),
+    ctx.supabase.from("mgmail_internal_message_reads")
+      .select("message_id").eq("organization_id", ctx.organizationId).eq("user_id", ctx.user.id),
   ]);
   const namespace = namespaceResult.data?.slug || "";
   const mailboxes = mailboxesResult.data || [];
   const messages = messagesResult.data || [];
-  const mine = mailboxes.filter((mailbox) =>
-    mailbox.owner_user_id === ctx.user.id && mailbox.is_active && mailbox.can_send
-  );
+  const grants = grantsResult.data || [];
+  const myGrants = grants.filter((grant) => grant.user_id === ctx.user.id && grant.is_active);
+  const canUseMailbox = (mailbox: (typeof mailboxes)[number], action: "read" | "send") =>
+    mailbox.is_active && (
+      (mailbox.owner_user_id === ctx.user.id &&
+        (action === "read" ? mailbox.can_read : mailbox.can_send))
+      || myGrants.some((grant) => grant.mailbox_id === mailbox.id &&
+        (action === "read" ? grant.can_read : grant.can_send))
+    );
+  const mine = mailboxes.filter((mailbox) => canUseMailbox(mailbox, "send"));
+  const readIds = new Set((readsResult.data || []).map((read) => read.message_id));
   const directory = canManage
     ? await ctx.supabase.rpc("organization_member_directory", { p_org: ctx.organizationId })
     : null;
@@ -173,13 +225,11 @@ export default async function MGMailInternalPage() {
     return mailbox ? internalMGMailAddress(mailbox.local_part, namespace) : "Boîte inconnue";
   };
   const readableMailboxIds = new Set(
-    mailboxes.filter((mailbox) =>
-      mailbox.owner_user_id === ctx.user.id && mailbox.is_active && mailbox.can_read
-    ).map((mailbox) => mailbox.id),
+    mailboxes.filter((mailbox) => canUseMailbox(mailbox, "read")).map((mailbox) => mailbox.id),
   );
   const inbox = messages.filter((message) => readableMailboxIds.has(message.recipient_mailbox_id));
   const sent = messages.filter((message) => readableMailboxIds.has(message.sender_mailbox_id));
-  const unreadCount = inbox.filter((message) => !message.read_at).length;
+  const unreadCount = inbox.filter((message) => !readIds.has(message.id)).length;
   const renderMessages = (items: typeof messages, kind: "inbox" | "sent") => items.length === 0 ? (
     <p className="muted">Aucun message dans cette boîte.</p>
   ) : (
@@ -187,7 +237,7 @@ export default async function MGMailInternalPage() {
       {items.map((message) => (
         <div key={message.id} style={{ borderBottom: "1px solid #e5e7eb", padding: "14px 0" }}>
           <strong>{message.subject}</strong>
-          {kind === "inbox" && !message.read_at && (
+          {kind === "inbox" && !readIds.has(message.id) && (
             <span className="badge" style={{ marginLeft: 10 }}>Non lu</span>
           )}
           <p className="muted">
@@ -195,7 +245,7 @@ export default async function MGMailInternalPage() {
             {" · "}{new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(message.created_at))}
           </p>
           <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.body_text}</p>
-          {kind === "inbox" && !message.read_at && (
+          {kind === "inbox" && !readIds.has(message.id) && (
             <FormDialog title="Confirmer la lecture du message" buttonLabel="Marquer comme lu" buttonClassName="button">
               <form action={markInternalRead} className="form">
                 <input type="hidden" name="messageId" value={message.id} />
@@ -227,7 +277,7 @@ export default async function MGMailInternalPage() {
           L'envoi Internet nécessitera une boîte externe légitime configurée.
         </p>
       </div>
-      {namespaceResult.error || mailboxesResult.error || messagesResult.error ? (
+      {namespaceResult.error || mailboxesResult.error || messagesResult.error || grantsResult.error || readsResult.error ? (
         <div className="card section" role="alert">
           Impossible de charger les boîtes MGMail. La migration interne et les permissions
           doivent être validées avant utilisation.
@@ -288,11 +338,37 @@ export default async function MGMailInternalPage() {
                         <td>{mailbox.can_send ? "Autorisé" : "Interdit"}</td>
                         <td>{mailbox.is_active ? "Active" : "Suspendue"}</td>
                         <td>
+                          <FormDialog title={`Partager : ${address(mailbox.id)}`} buttonLabel="Partager la boîte" buttonClassName="button">
+                            <form action={shareMailbox} className="form">
+                              <input type="hidden" name="mailboxId" value={mailbox.id} />
+                              <div className="field">
+                                <label>Collaborateur autorisé</label>
+                                <select name="userId" required>
+                                  <option value="">Choisir un collaborateur</option>
+                                  {members.map((member: { user_id: string; email: string }) => (
+                                    <option key={member.user_id} value={member.user_id}>{member.email}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <p className="muted">
+                                {grants.filter((grant) => grant.mailbox_id === mailbox.id && grant.is_active).length}
+                                {" "}collaborateur(s) délégué(s) actif(s).
+                                Pour retirer l'accès d'une personne, décochez lecture et envoi.
+                              </p>
+                              <label><input type="checkbox" name="canRead" defaultChecked /> Autoriser la lecture</label>
+                              <label><input type="checkbox" name="canSend" /> Autoriser les envois</label>
+                              <label><input type="checkbox" name="canExternalRead" /> Autoriser la lecture des e-mails externes</label>
+                              <label><input type="checkbox" name="canExternalSend" /> Autoriser les envois externes</label>
+                              <button className="button primary" type="submit">Enregistrer le partage</button>
+                            </form>
+                          </FormDialog>
                           <FormDialog title={`Autorisations : ${address(mailbox.id)}`} buttonLabel="Modifier les droits" buttonClassName="button">
                             <form action={setMailboxPermissions} className="form">
                               <input type="hidden" name="mailboxId" value={mailbox.id} />
                               <label><input type="checkbox" name="canRead" defaultChecked={mailbox.can_read} /> Autoriser la lecture</label>
                               <label><input type="checkbox" name="canSend" defaultChecked={mailbox.can_send} /> Autoriser les envois internes</label>
+                              <label><input type="checkbox" name="canExternalRead" defaultChecked={mailbox.can_external_read} /> Lire les e-mails externes</label>
+                              <label><input type="checkbox" name="canExternalSend" defaultChecked={mailbox.can_external_send} /> Envoyer vers Gmail, Outlook et autres</label>
                               <label><input type="checkbox" name="isActive" defaultChecked={mailbox.is_active} /> Boîte active</label>
                               <button className="button primary">Enregistrer les droits</button>
                             </form>
