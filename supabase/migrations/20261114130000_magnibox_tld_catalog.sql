@@ -1,7 +1,7 @@
 -- Central, additive Magnibox catalogue. Never grants registration or public-mail activation.
 create table if not exists public.magnibox_tld_catalog (
  id uuid primary key default gen_random_uuid(),
- suffix text not null unique check(suffix ~ '^\\.[a-z0-9-]+(\\.[a-z0-9-]+)*$'),
+ suffix text not null unique check(suffix ~ '^\.[a-z0-9-]+(\.[a-z0-9-]+)*$'),
  suffix_type text not null check(suffix_type in ('tld','suffixe_compose')),
  category text not null,
  country_code text,
@@ -20,8 +20,8 @@ create table if not exists public.magnibox_tld_catalog (
  last_checked_at timestamptz,
  synced_at timestamptz not null default now(),
  constraint magnibox_tld_suffix_kind check (
-   (suffix_type='tld' and suffix !~ '^\\.[^.]+\\.')
-   or (suffix_type='suffixe_compose' and suffix ~ '^\\.[^.]+\\.')
+   (suffix_type='tld' and suffix !~ '^\.[^.]+\.')
+   or (suffix_type='suffixe_compose' and suffix ~ '^\.[^.]+\.')
  )
 );
 create index if not exists magnibox_tld_catalog_filters_idx
