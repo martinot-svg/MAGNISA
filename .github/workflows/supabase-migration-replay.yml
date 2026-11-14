@@ -54,6 +54,10 @@ jobs:
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/mgmail-internal-schema-contract.sql
+      - name: Verify Orbit Action task/comment RLS contract
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/orbit-action-schema-contract.sql
       - name: Verify supplier invoice matching, VAT, multi-order and customer mandate accounting
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\"')
@@ -146,6 +150,8 @@ jobs:
         run: node scripts/ci/create-payroll-ui-user.mjs
       - name: Verify MGMail internal collaboration, access isolation and notifications
         run: node scripts/ci/mgmail-internal-mail-integration.mjs
+      - name: Verify Orbit Action tasks, subtasks, assignments and tenant isolation
+        run: node scripts/ci/orbit-action-tasks-integration.mjs
       - name: Verify MAGNISA identity privacy, username and opaque IDs
         run: node scripts/ci/magnisa-identity-integration.mjs
       - name: Seed isolated payroll test organization
@@ -188,6 +194,8 @@ jobs:
         run: node scripts/ci/company-onboarding-browser-smoke.mjs
       - name: Verify MGMail internal browser exchange between authenticated collaborators
         run: node scripts/ci/mgmail-internal-ui-smoke.mjs
+      - name: Verify Orbit Action task lifecycle in authenticated browser
+        run: node scripts/ci/orbit-action-ui-smoke.mjs
       - name: Test authenticated payroll and fixed-asset UI actions
         run: node scripts/ci/payroll-ui-smoke.mjs
       - name: Test authenticated CRM UI actions
