@@ -56,7 +56,7 @@ export default async function MagniMailPage({
           </div>
         </div>
         {inboxMessages}
-      {extensionCatalogLink}
+        {extensionCatalogLink}
         <div className="grid2">
           <div className="card">
             <h2>Ajouter un compte e-mail Internet (facultatif)</h2>
@@ -120,6 +120,7 @@ export default async function MagniMailPage({
         </div>
       </div>
       {inboxMessages}
+      {extensionCatalogLink}
       {needsUpgrade && (
         <div
           className="card"
