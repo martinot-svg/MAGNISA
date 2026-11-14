@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { checkMGMailIdentityReadiness } from "@/lib/magnimail/domain-health";
 import { FormDialog } from "@/components/form-dialog";
 import { sendMGMailInternet } from "@/lib/magnimail/internet-send";
 import { scheduleMGMailInternet, cancelScheduledMGMail } from "@/lib/magnimail/scheduled-actions";
@@ -40,7 +42,7 @@ export default async function MGMailInternetPage() {
   const [identitiesResult, messagesResult, domainRequestsResult,
     addressRequestsResult, internalMailboxesResult, approvedDomainsResult] = await Promise.all([
     ctx.supabase.from("mgmail_external_identities")
-      .select("id,email_address,mailbox_id,status,receive_enabled")
+      .select("id,organization_id,email_address,mailbox_id,status,provider,verified_domain_id,receive_enabled")
       .eq("organization_id", ctx.organizationId).order("email_address").limit(50),
     ctx.supabase.from("mgmail_external_messages")
       .select("id,identity_id,direction,status,source_kind,created_by,scheduled_at,from_email,to_emails,subject,body_text,last_error,created_at")
@@ -61,11 +63,16 @@ export default async function MGMailInternetPage() {
   ]);
   const identities = identitiesResult.data || [];
   const messages = messagesResult.data || [];
+  const domainAdmin = createAdminClient();
   const accessible = await Promise.all(identities.map(async (identity) => {
     const result = await ctx.supabase.rpc("mgmail_can_external_access", {
       p_org: ctx.organizationId, p_mailbox: identity.mailbox_id, p_action: "send",
     });
-    return { ...identity, canSend: result.error === null && result.data === true };
+    const authorized = result.error === null && result.data === true;
+    const domainReady = authorized &&
+      await checkMGMailIdentityReadiness(domainAdmin, identity, false);
+    return { ...identity, canSend: authorized && domainReady,
+      domainRequiresCheck: authorized && !domainReady };
   }));
   const addressById = new Map(identities.map((item) => [item.id, item.email_address]));
   const inbox = messages.filter((message) => message.direction === "incoming");
@@ -290,7 +297,9 @@ export default async function MGMailInternetPage() {
                     <p className="muted">
                       {identity.status === "active" ? "Adresse activée" : "Adresse non activée"}
                       {" · Réception "}{identity.receive_enabled ? "configurée" : "non activée"}
-                      {" · Envoi "}{identity.canSend && identity.status === "active" ? "autorisé" : "non autorisé"}
+                      {" · Envoi "}{identity.canSend && identity.status === "active"
+                        ? "autorisé" : identity.domainRequiresCheck
+                          ? "suspendu (domaine à recontrôler)" : "non autorisé"}
                     </p>
                     {identity.canSend && identity.status === "active" && (
                       <FormDialog buttonLabel="Programmer un envoi" title={`Programmer depuis ${identity.email_address}`}>
