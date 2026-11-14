@@ -20,10 +20,10 @@ function fakeAdmin(options: { senderActive?: boolean; identityActive?: boolean }
     to_emails: ["client@gmail.com"],
     subject: "Rendez-vous facturation",
     body_text: "Bonjour, votre rendez-vous est confirmé.",
-    created_by: USER,
-    recurring_contract_id: null,
-    preavis_billing_date: null,
-    preavis_days_before: null,
+    created_by: USER as string | null,
+    recurring_contract_id: null as string | null,
+    preavis_billing_date: null as string | null,
+    preavis_days_before: null as number | null,
     provider_email_id: null as string | null,
   }];
   const from = (table: string) => {
@@ -142,6 +142,21 @@ describe("MGMail worker — pas de faux envois ni de doublons", () => {
 
   it("annule avant expédition si le collaborateur est suspendu", async () => {
     const fake = fakeAdmin({ senderActive: false });
+    const transport = vi.fn<typeof fetch>();
+    const result = await runMGMailScheduledDispatch({
+      admin: fake.admin, now: NOW, env, transport,
+    });
+    expect(result.cancelled).toBe(1);
+    expect(fake.rows[0].status).toBe("cancelled");
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it("bloque un préavis si le responsable a perdu l'accès à sa boîte", async () => {
+    const fake = fakeAdmin({ senderActive: false });
+    fake.rows[0].source_kind = "billing_preavis";
+    fake.rows[0].recurring_contract_id = "66666666-6666-4666-8666-666666666666";
+    fake.rows[0].preavis_billing_date = "2026-11-29";
+    fake.rows[0].preavis_days_before = 15;
     const transport = vi.fn<typeof fetch>();
     const result = await runMGMailScheduledDispatch({
       admin: fake.admin, now: NOW, env, transport,
