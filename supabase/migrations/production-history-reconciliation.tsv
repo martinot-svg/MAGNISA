@@ -1,6 +1,7 @@
 # remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256
-# Read-only reconciliation snapshot: all 197 production version/name pairs have exact local counterparts.
+# Reconciliation snapshot updated 2026-11-14: remote history contains 212 migrations; an exact SQL recovery for version 20261113125253 is documented below.
 # The CI preflight verifies version/name coverage and blocks any unreviewed pending or out-of-order migration.
 # No renamed, recovered, or absorbed production migration currently requires a mapping entry.
 20261009091913|0008_email_verification|archive_20261009091913_0008_email_verification.sql|recovered|Exact production SQL archived; local replay guards absent historical prerequisite|e20b38505d79cb14217e2dc623d4ae01967bddd8a32e93d5c698053a14adfd85
 20261103153930|secure_active_schedule_repayment_and_loan_amendments|archive_20261103153930_secure_active_schedule_repayment_and_loan_amendments.sql|recovered|Exact production SQL archived; local replay restores pre-ledger loan schedule baseline before rowtype compilation|e837d255c328bdb269cac2ff101e55b7b045281c84b3277d0be5f9d04eeb3920
+20261113125253|automatic_short_usernames|archive_20261113125253_automatic_short_usernames.sql|recovered|Read-only production ledger extraction 2026-11-14 version-name-SHA256 verified|6b4b36744793d0d5ea5fa6e3a9f7663bb82caa7a297affdee2e92f8b99559643

@@ -1,404 +1,107 @@
-/* MAGNISA — couche design system (additive).
-   Chargée après globals.css. Ne modifie ni structure, ni données, ni logique métier.
-   Les couleurs de marque proviennent du logo officiel. */
-
-:root{
-  --mg-ease:cubic-bezier(.22,1,.36,1);
-  --mg-t-fast:.15s;--mg-t-base:.25s;--mg-t-reveal:.4s;
-  --mg-focus:#0a4fe0;
-  --mg-control-h:44px;
-  --mg-gutter:clamp(16px,2.4vw,32px);
-  --mg-text-secondary:#5b6b84; /* contraste AA sur fond blanc */
-}
-
-/* ---------- Typographie ---------- */
-html body{
-  font-family:var(--font-inter),Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
-  line-height:1.5;
-  -webkit-font-smoothing:antialiased;
-  text-rendering:optimizeLegibility;
-  -webkit-text-size-adjust:100%;
-}
-.pageHead h1{font-size:clamp(1.75rem,1.4rem + 1.2vw,2rem);font-weight:700;line-height:1.2}
-.pageHead p{line-height:1.5}
-.appShell .section h2{font-size:clamp(1.25rem,1.1rem + .6vw,1.5rem);font-weight:600;line-height:1.3}
-.card h2{font-size:1.125rem;font-weight:600;line-height:1.3}
-.card h3{font-size:1rem;font-weight:600;line-height:1.35}
-.field label{font-size:.8125rem;font-weight:600;line-height:1.4}
-.muted{color:var(--mg-text-secondary)}
-.metric{font-size:clamp(1.5rem,1.2rem + 1.5vw,2.25rem);font-weight:700;line-height:1.2;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.compact{font-size:.8125rem}
-
-/* ---------- Chiffres : alignés, stables, jamais coupés avant l'unité ---------- */
-.right,th.right,td.right{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-td,th,.metric,.magnisa-kpi-value{font-variant-numeric:tabular-nums}
-
-/* ---------- Tableaux ---------- */
-td{font-size:.9375rem;vertical-align:middle;line-height:1.4}
-th{font-size:.75rem;letter-spacing:.04em;font-weight:600;line-height:1.3;color:var(--mg-text-secondary)}
-tbody tr{transition:background-color var(--mg-t-fast) var(--mg-ease)}
-tbody tr:hover{background:#f7faff}
-.tableWrap{overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
-
-/* ---------- Contrôles : 44 px mini hors tableaux, focus visible ---------- */
-.button:not(table .button),
-input:not([type=checkbox]):not([type=radio]):not([type=range]):not(table input),
-select:not(table select){min-height:var(--mg-control-h)}
-.button{line-height:1.2;transition:transform var(--mg-t-fast) var(--mg-ease),box-shadow var(--mg-t-fast) var(--mg-ease),background-color var(--mg-t-fast) var(--mg-ease),border-color var(--mg-t-fast) var(--mg-ease),opacity var(--mg-t-fast) var(--mg-ease)}
-.button:active:not(:disabled){transform:scale(.98);box-shadow:none}
-a:focus-visible,button:focus-visible,summary:focus-visible,[tabindex]:focus-visible,
-input:focus-visible,select:focus-visible,textarea:focus-visible{
-  outline:3px solid var(--mg-focus);outline-offset:2px}
-input:focus-visible,select:focus-visible,textarea:focus-visible{outline-offset:0;border-color:var(--mg-focus)}
-.appShell aside a:focus-visible,.appShell aside button:focus-visible{outline-color:#7fb4ff}
-.field input[aria-invalid="true"],.field select[aria-invalid="true"],input:user-invalid,select:user-invalid,textarea:user-invalid{border-color:#b42318}
-
-/* ---------- Cartes : survol discret et homogène ---------- */
-.card,.featurePanel{transition:box-shadow var(--mg-t-base) var(--mg-ease),border-color var(--mg-t-base) var(--mg-ease)}
-.appShell .grid4>.card:hover,.appShell .grid3>.card:hover{border-color:#cdd9ee;box-shadow:0 12px 32px rgba(27,42,79,.07)}
-
-/* ---------- Navigation latérale ---------- */
-.appShell nav a{transition:background-color var(--mg-t-fast) var(--mg-ease),color var(--mg-t-fast) var(--mg-ease);min-height:40px;display:flex;align-items:center}
-.appShell nav a[aria-current="page"]{background:rgba(255,255,255,.1);color:#fff}
-
-/* ---------- Marges et zones de sécurité ---------- */
-html body .appShell>main{
-  padding-left:max(var(--mg-gutter),env(safe-area-inset-left));
-  padding-right:max(var(--mg-gutter),env(safe-area-inset-right));
-  padding-bottom:calc(var(--magnisa-page-gutter-y,24px) + env(safe-area-inset-bottom));
-}
-.publicHeader{padding-top:max(20px,env(safe-area-inset-top))}
-
-/* ---------- Tablette & smartphone : navigation compacte (aucune entrée retirée) ---------- */
-@media(max-width:980px){
-  html body .appShell aside{
-    position:sticky;top:0;z-index:30;height:auto;
-    display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px 12px;
-    padding:10px max(14px,env(safe-area-inset-right)) 8px max(14px,env(safe-area-inset-left));
-    padding-top:max(10px,env(safe-area-inset-top));
-  }
-  .appShell aside>:first-child{grid-column:1;grid-row:1}
-  .appShell aside form{grid-column:2;grid-row:1;margin:0}
-  .appShell aside form .button{min-height:40px;padding:8px 12px;font-size:.8125rem}
-  html body .appShell nav{
-    grid-column:1/-1;grid-row:2;display:flex;gap:6px;margin:0;
-    overflow-x:auto;overflow-y:hidden;padding:2px 0 6px;
-    scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
-  }
-  .appShell nav::-webkit-scrollbar{display:none}
-  .appShell nav>div>div{display:none}            /* intitulés de groupe masqués, liens conservés */
-  .appShell nav>div{flex:0 0 auto}
-  .appShell nav a{white-space:nowrap;padding:8px 14px;border-radius:999px;background:rgba(255,255,255,.05)}
-}
-
-/* ---------- Smartphone ---------- */
-@media(max-width:620px){
-  input,select,textarea{font-size:16px}          /* évite le zoom automatique iOS */
-  .pageHead .actions,.pageHead .actions .button{width:100%}
-  .pageHead .actions .button{justify-content:center}
-  .tableWrap{margin-inline:calc(var(--mg-gutter) * -1);border-radius:0;border-inline:0}
-  .card{padding:16px}
-}
-
-/* ---------- Motion : révélation au premier passage (transform + opacity) ---------- */
-[data-mg-reveal]{
-  opacity:0;transform:translateY(12px);
-  transition:opacity var(--mg-t-reveal) var(--mg-ease),transform var(--mg-t-reveal) var(--mg-ease);
-  transition-delay:var(--mg-delay,0ms);
-  will-change:opacity,transform;
-}
-[data-mg-reveal].is-in{opacity:1;transform:none}
-
-/* Squelette de chargement réutilisable (réduit le CLS) */
-.mg-skeleton{border-radius:10px;background:linear-gradient(90deg,#e9eef6 25%,#f6f8fc 50%,#e9eef6 75%);background-size:200% 100%;animation:mg-shimmer 1.4s linear infinite}
-@keyframes mg-shimmer{to{background-position:-200% 0}}
-
-/* ---------- Accessibilité : mouvement réduit ---------- */
-@media(prefers-reduced-motion:reduce){
-  [data-mg-reveal]{opacity:1!important;transform:none!important;transition:none!important}
-  .mg-skeleton{animation:none}
-  .button:active:not(:disabled){transform:none}
-}
-
-
-/* ---------- Application shell : grille stable et contenu lisible ---------- */
-html body .appShell{
-  grid-template-columns:264px minmax(0,1fr);
-  align-items:start;
-}
-html body .appShell>aside{
-  min-width:0;
-  box-shadow:8px 0 28px rgba(12,22,48,.06);
-}
-html body .appShell>main{
-  min-width:0;
+/* ---------- Tableaux fluides : aucune barre de défilement horizontale ---------- */
+/* Les colonnes partagent la largeur disponible ; les libellés longs reviennent
+   à la ligne au lieu d'être tronqués ou de forcer la largeur du tableau.
+   Les valeurs courtes (dates, montants, badges) restent sur une seule ligne. */
+html body .appShell .tableWrap{
   width:100%;
-  max-width:none;
-}
-.appShell main>.pageHead{
-  padding-top:8px;
-}
-.appShell .pageHead>div:first-child{
-  min-width:0;
-}
-.appShell .pageHead h1{
-  overflow-wrap:anywhere;
-}
-.appShell .card{
-  border-color:#e4eaf3;
-  box-shadow:0 8px 26px rgba(27,42,79,.045);
-}
-.appShell .card:focus-within{
-  border-color:#c8d7f1;
-}
-.appShell .section{
-  min-width:0;
-}
-.appShell .tableWrap{
   max-width:100%;
+  min-width:0;
+  overflow-x:hidden;
+  overflow-y:visible;
+  overscroll-behavior-x:auto;
 }
-.appShell table{
+html body .appShell .tableWrap>table,
+html body .appShell table{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  table-layout:fixed;
   border-spacing:0;
 }
-.appShell th{
-  white-space:nowrap;
-}
-.appShell td{
-  overflow-wrap:anywhere;
-}
-.appShell .actions{
-  align-items:center;
-}
-.appShell .actions .button,
-.appShell .actions button{
-  white-space:nowrap;
-}
-
-/* ---------- Formulaires : hiérarchie et alignement cohérents ---------- */
-.appShell .form,
-.appShell form.form{
-  gap:16px;
-}
-.appShell .field{
+html body .appShell table th,
+html body .appShell table td{
   min-width:0;
-}
-.appShell .field label{
-  color:#344054;
-}
-.appShell input:not([type=checkbox]):not([type=radio]):not([type=range]),
-.appShell select,
-.appShell textarea{
-  border-color:#d7e0ed;
-  border-radius:10px;
-  background-color:#fff;
-}
-.appShell textarea{
-  min-height:112px;
-}
-.appShell input:disabled,
-.appShell select:disabled,
-.appShell textarea:disabled{
-  background:#f2f4f7;
-  color:#667085;
-  cursor:not-allowed;
-}
-.appShell .button.primary{
-  box-shadow:0 7px 18px rgba(22,99,255,.16);
-}
-.appShell .button.primary:hover:not(:disabled){
-  box-shadow:0 10px 24px rgba(22,99,255,.23);
-}
-
-/* ---------- Facturation : synthèse et filtres adaptatifs ---------- */
-.invoice-tracker{
-  display:grid;
-  gap:16px;
-  min-width:0;
-}
-.invoice-tracker-metrics{
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:14px;
-}
-.invoice-tracker-metrics>.card{
-  min-width:0;
-}
-.invoice-tracker-metrics small{
-  display:block;
-  margin-top:8px;
-  color:var(--mg-text-secondary);
-}
-.invoice-tracker-controls{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:14px;
-  flex-wrap:wrap;
-}
-.invoice-tracker-tabs{
-  display:flex;
-  gap:6px;
-  flex-wrap:wrap;
-}
-.invoice-tracker-tabs button{
-  min-height:38px;
-  padding:8px 12px;
-  border:1px solid transparent;
-  border-radius:10px;
-  background:#f3f6fb;
-  color:#475467;
-  cursor:pointer;
-  font-weight:600;
-}
-.invoice-tracker-tabs button.active{
-  color:#1249bd;
-  border-color:#cbdaf7;
-  background:#edf4ff;
-}
-.invoice-tracker-search{
-  flex:1 1 240px;
-  max-width:360px;
-}
-.invoice-tracker-helper{
-  font-size:.8125rem;
-  line-height:1.55;
-}
-.invoice-tracker-foot{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:12px;
-  flex-wrap:wrap;
-  padding-top:12px;
-  color:var(--mg-text-secondary);
-  font-size:.8125rem;
-}
-.invoice-status-late{
-  background:#fff1f0;
-  color:#b42318;
-}
-
-/* ---------- Dialogues : lisibilité sur petit écran ---------- */
-[role=dialog]{
-  overscroll-behavior:contain;
-}
-[role=dialog] .field{
-  margin-bottom:2px;
-}
-
-/* ---------- Tablette ---------- */
-@media(max-width:980px){
-  html body .appShell{
-    grid-template-columns:minmax(0,1fr);
-  }
-  html body .appShell>aside{
-    width:100%;
-    min-height:0;
-    box-shadow:0 8px 24px rgba(12,22,48,.10);
-  }
-  html body .appShell>main{
-    padding-top:18px;
-  }
-  .appShell .grid4{
-    grid-template-columns:repeat(2,minmax(0,1fr));
-  }
-  .appShell .twoCols{
-    grid-template-columns:minmax(0,1fr);
-  }
-}
-
-/* ---------- Smartphone ---------- */
-@media(max-width:620px){
-  html body .appShell>main{
-    padding-top:12px;
-  }
-  .appShell .pageHead{
-    display:grid;
-    grid-template-columns:minmax(0,1fr);
-    gap:12px;
-  }
-  .appShell .pageHead>.button,
-  .appShell .pageHead>.actions{
-    width:100%;
-  }
-  .appShell .grid4,
-  .appShell .grid3,
-  .appShell .grid2,
-  .invoice-tracker-metrics{
-    grid-template-columns:minmax(0,1fr);
-  }
-  .invoice-tracker-controls{
-    align-items:stretch;
-  }
-  .invoice-tracker-tabs{
-    display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
-  }
-  .invoice-tracker-tabs button{
-    width:100%;
-  }
-  .invoice-tracker-search{
-    max-width:none;
-    flex-basis:100%;
-  }
-  .invoice-tracker-foot{
-    align-items:flex-start;
-    flex-direction:column;
-  }
-  .appShell .actions{
-    flex-wrap:wrap;
-  }
-  .appShell .actions .button,
-  .appShell .actions form,
-  .appShell .actions form .button{
-    max-width:100%;
-  }
-  .appShell .card{
-    border-radius:14px;
-  }
-}
-
-/* ---------- Mouvement réduit ---------- */
-@media(prefers-reduced-motion:reduce){
-  *,
-  *::before,
-  *::after{
-    scroll-behavior:auto!important;
-    animation-duration:.01ms!important;
-    animation-iteration-count:1!important;
-    transition-duration:.01ms!important;
-  }
-}
-
-
-/* ---------- Lisibilité des tableaux : valeurs courtes sur une ligne ---------- */
-.appShell .tableWrap{
-  overflow-x:auto;
   max-width:100%;
-}
-.appShell table{
-  width:100%;
-}
-.appShell table td{
-  white-space:nowrap;
-  overflow-wrap:normal;
+  white-space:normal;
+  overflow-wrap:anywhere;
   word-break:normal;
+  hyphens:auto;
+  vertical-align:middle;
+  padding:10px 8px;
 }
-.appShell table td :is(time,.date,.date-value,[data-date]){
+html body .appShell table th{
+  line-height:1.35;
+  font-size:clamp(.68rem,.72vw,.75rem);
+}
+html body .appShell table td{
+  line-height:1.4;
+  font-size:clamp(.75rem,.85vw,.875rem);
+}
+
+/* --- Valeurs courtes : jamais coupées (dates, montants, badges, actions) --- */
+html body .appShell table th.right,
+html body .appShell table td.right,
+html body .appShell table .right{
+  text-align:right;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+html body .appShell table td :is(time,.date,.date-value,[data-date]),
+html body .appShell table td .badge{
   white-space:nowrap;
   display:inline-block;
 }
-/* Les champs explicitement descriptifs restent autorisés à occuper plusieurs lignes. */
-.appShell table td :is(.wrap,.cell-wrap,.description,.notes,.long-text,[data-wrap="true"]),
-.appShell table td[data-wrap="true"]{
+/* Champs explicitement descriptifs : autorisés à occuper plusieurs lignes. */
+html body .appShell table td :is(.wrap,.cell-wrap,.description,.notes,.long-text,[data-wrap="true"]),
+html body .appShell table td[data-wrap="true"]{
   white-space:normal;
   overflow-wrap:anywhere;
   word-break:normal;
 }
-.appShell table td :is(p,.muted) {
+html body .appShell table td :is(p,.muted){
   white-space:inherit;
 }
-.appShell table td .actions{
-  white-space:nowrap;
-  flex-wrap:nowrap;
+html body .appShell .tableWrap :is(a,button,code,strong,span){
+  max-width:100%;
+  overflow-wrap:anywhere;
+  word-break:normal;
+}
+html body .appShell .tableWrap .actions{
+  min-width:0;
+  flex-wrap:wrap;
+  gap:6px;
+}
+html body .appShell .tableWrap .actions :is(a,button,.button){
+  min-width:0;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+@media(max-width:980px){
+  html body .appShell table th,
+  html body .appShell table td{
+    padding:8px 6px;
+  }
+}
+@media(max-width:620px){
+  html body .appShell .tableWrap{
+    margin-inline:0;
+    border-radius:0;
+    border-inline:0;
+  }
+  html body .appShell table th{
+    font-size:10px;
+    letter-spacing:0;
+    padding:7px 4px;
+  }
+  html body .appShell table td{
+    font-size:11px;
+    line-height:1.35;
+    padding:8px 4px;
+  }
+  html body .appShell table :is(input,select,textarea){
+    width:100%;
+    min-width:0;
+    max-width:100%;
+    font-size:12px;
+  }
 }

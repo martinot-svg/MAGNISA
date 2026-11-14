@@ -140,6 +140,8 @@ jobs:
       - name: Create authenticated local test user
         id: ui_user
         run: node scripts/ci/create-payroll-ui-user.mjs
+      - name: Verify MAGNISA identity privacy, username and opaque IDs
+        run: node scripts/ci/magnisa-identity-integration.mjs
       - name: Seed isolated payroll test organization
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/payroll-ui-seed.sql
@@ -172,6 +174,8 @@ jobs:
           done
           cat /tmp/magnisa-next.log
           exit 1
+      - name: Verify username sign-in, public ID and private origin directory in browser
+        run: node scripts/ci/username-login-ui-smoke.mjs
       - name: Test authenticated payroll and fixed-asset UI actions
         run: node scripts/ci/payroll-ui-smoke.mjs
       - name: Test authenticated CRM UI actions
@@ -180,6 +184,26 @@ jobs:
       - name: Test authenticated stock reservation and delivery UI actions
         if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
         run: node scripts/ci/stock-ui-smoke.mjs
+      - name: Test Neumorphism responsive at 13 desktop, tablet and mobile sizes
+        if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
+        run: node scripts/ci/responsive-ui-smoke.mjs
+      - name: Upload responsive screenshots from synthetic test data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: magnisa-responsive-viewports
+          path: test-results/responsive/*.png
+          if-no-files-found: ignore
+      - name: Audit responsive of all accessible ERP modules at three screen classes
+        if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
+        run: node scripts/ci/modules-responsive-ui-smoke.mjs
+      - name: Upload module-by-module responsive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: magnisa-all-modules-responsive
+          path: test-results/modules-responsive/
+          if-no-files-found: ignore
       - name: Stop MAGNISA local server
         if: always()
         run: |
