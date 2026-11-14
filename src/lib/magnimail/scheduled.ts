@@ -19,14 +19,17 @@ export function parseMadagascarScheduledTime(value: string, now = new Date()): s
   const match = MADAGASCAR_TIME.exec(value);
   if (!match) throw new Error("Date et heure de programmation invalides.");
   const date = new Date(`${match[1]}T${match[2]}:${match[3]}:00+03:00`);
-  if (!Number.isFinite(date.getTime()) ||
-      new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Indian/Antananarivo",
-        year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-      }).formatToParts(date).filter((p) => ["year","month","day","hour","minute"].includes(p.type))
-        .map((p) => p.value).join("") !==
-      `${match[1].replaceAll("-","")}${match[2]}${match[3]}`) {
+  if (!Number.isFinite(date.getTime())) {
+    throw new Error("Date et heure de programmation invalides.");
+  }
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Indian/Antananarivo",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(date);
+  const getPart = (type: string) => parts.find((part) => part.type === type)?.value || "";
+  const actual = `${getPart("year")}-${getPart("month")}-${getPart("day")}T${getPart("hour")}:${getPart("minute")}`;
+  if (actual !== value) {
     throw new Error("Date et heure de programmation invalides.");
   }
   if (date.getTime() < now.getTime() + 5 * 60000 ||
