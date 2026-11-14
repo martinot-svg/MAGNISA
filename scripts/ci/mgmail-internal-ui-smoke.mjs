@@ -98,7 +98,15 @@ try {
   await openDialog(a.page,"Configurer MGMail interne");
   await a.page.locator('input[name="slug"]').fill("mgmail-ui-"+fixture);
   await a.page.getByRole("button",{name:"Créer cet espace"}).click();
-  await a.page.getByRole("heading",{name:"Administration des boîtes"}).waitFor({timeout:20000});
+  // The obsolete administration heading and internal-domain banner are intentionally removed.
+  // Wait on a real functional control rather than on a deleted text heading.
+  await a.page.getByRole("button",{name:/Créer une boîte/}).waitFor({timeout:20000});
+  if(await a.page.getByRole("heading",{name:"Administration des boîtes"}).count()) {
+    throw new Error("L'ancien titre MGMail a réapparu.");
+  }
+  if(await a.page.getByText(/Identifiant interne\s*:/).count()) {
+    throw new Error("L'ancien identifiant .mgmail a réapparu.");
+  }
   console.log("MGMail UI: espace interne créé");
 
   async function createMailbox(label,userId){
