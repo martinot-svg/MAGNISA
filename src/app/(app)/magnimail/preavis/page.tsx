@@ -157,7 +157,7 @@ export default async function BillingPreavisPreview() {
         <Link className="button" href="/magnimail">Retour à MGMail</Link>
       </div>
       <div className="card section">
-        <strong>{process.env.MGMAIL_AUTO_SEND_ENABLED === "true"
+        <strong>{process.env.MGMAIL_AUTO_SEND_ENABLED === "true" && !!process.env.MGMAIL_RESEND_API_KEY
           ? "Programmation active uniquement pour les contrats explicitement autorisés."
           : "Configuration et simulation — les envois automatiques ne sont pas activés."}</strong>
         <p className="muted">
