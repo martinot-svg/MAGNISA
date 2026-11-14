@@ -59,6 +59,8 @@ export default async function MGMailInternetPage() {
     && ["accepted", "delivered"].includes(message.status));
   const programmed = messages.filter((message) => message.direction === "outgoing" &&
     message.source_kind !== "manual" && message.status === "queued");
+  const cancelled = messages.filter((message) => message.direction === "outgoing"
+    && message.status === "cancelled");
   const failed = messages.filter((message) => message.direction === "outgoing"
     && ["bounced", "failed", "uncertain"].includes(message.status));
 
@@ -252,6 +254,7 @@ export default async function MGMailInternetPage() {
           <div className="card section"><h2>Boîte de réception Internet ({inbox.length})</h2>{renderItems(inbox)}</div>
           <div className="card section"><h2>Envois acceptés et livrés ({sent.length})</h2>{renderItems(sent)}</div>
           <div className="card section"><h2>Échecs et envois à vérifier ({failed.length})</h2>{renderItems(failed)}</div>
+          <div className="card section"><h2>Programmations annulées ({cancelled.length})</h2>{renderItems(cancelled)}</div>
         </>
       )}
     </>
