@@ -92,7 +92,6 @@ export default async function FixedAssets() {
     {canManage === true && <>
     <section className="card section">
       <h2>Enregistrer une immobilisation</h2>
-      <p className="muted">Cette opération crée la fiche du registre. Si une facture fournisseur existe déjà, renseigne exactement le fournisseur et son numéro : tu pourras ensuite la rattacher dans la colonne Acquisition. Le système reclassera alors la charge vers le compte d’immobilisation sans recréer la dette fournisseur.</p>
       <FormDialog title="Créer une fiche d'immobilisation" buttonLabel="Nouvelle immobilisation"><form action={createFixedAsset} className="form">
         <div className="grid3">
           <div className="field"><label>Code immobilisation</label><input name="asset_code" required maxLength={40} placeholder="IMO-00001"/></div>
@@ -101,7 +100,7 @@ export default async function FixedAssets() {
           <div className="field"><label>Compte d'immobilisation PCG</label><select name="pcg_asset_account_code" required defaultValue=""><option value="" disabled>Choisir le compte d’immobilisation</option>{registrationAssetAccounts.map((account: any) => <option key={account.code} value={account.code}>{account.code} · {account.label}</option>)}</select></div>
           <div className="field"><label>Contrepartie PCG (404, 512, 10x, 45x ou 72x)</label><input name="pcg_acquisition_counterpart_account_code" required placeholder="404"/></div>
           <div className="field"><label>Date d'acquisition</label><input name="acquisition_date" type="date" required/></div>
-          <div className="field"><label>Date de mise en service</label><input name="in_service_date" type="date"/><small className="muted">Laisse vide pour une immobilisation en cours de classe 23. Sa mise en service sera enregistrée séparément.</small></div>
+          <div className="field"><label>Date de mise en service</label><input name="in_service_date" type="date"/></div>
           <div className="field"><label>Coût d'acquisition</label><input name="acquisition_cost" type="number" min="0.01" step="0.01" required/></div>
           <div className="field"><label>Coûts directement attribuables</label><input name="directly_attributable_cost" type="number" min="0" step="0.01" defaultValue="0"/></div>
           <div className="field"><label>Valeur résiduelle</label><input name="residual_value" type="number" min="0" step="0.01" defaultValue="0"/></div>

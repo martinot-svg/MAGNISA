@@ -14,15 +14,37 @@ const allowedRoles = new Set([
   "viewer",
 ]);
 
-const disposableHints = ["mailinator", "tempmail", "10minutemail", "guerrillamail", "yopmail", "trashmail", "dispostable"];
+const disposableHints = [
+  "mailinator",
+  "tempmail",
+  "10minutemail",
+  "guerrillamail",
+  "yopmail",
+  "trashmail",
+  "dispostable",
+];
 
 function allowedEmail(email: string) {
   const normalized = email.trim().toLowerCase();
   const parts = normalized.split("@");
-  if (parts.length !== 2 || !parts[0] || !parts[1]) return false;
+  if (
+    parts.length !== 2 ||
+    !parts[0] ||
+    !parts[1] ||
+    parts[0].length > 64 ||
+    normalized.length > 254 ||
+    /\s/.test(normalized)
+  ) return false;
+
   const domain = parts[1];
-  if (!domain.includes(".") || domain.startsWith(".") || domain.endsWith(".") || domain.split(".").some(part => !part)) return false;
-  return !disposableHints.some(hint => domain.includes(hint));
+  const labels = domain.split(".");
+  if (
+    domain.length > 253 ||
+    labels.length < 2 ||
+    labels.some((label) => !label || label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label))
+  ) return false;
+
+  return !disposableHints.some((hint) => domain.includes(hint));
 }
 
 Deno.serve(async (req: Request) => {

@@ -36,6 +36,7 @@ export function NotificationBell({ userId, organizationId, initialUnread = 0 }: 
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [unread, setUnread] = useState(initialUnread);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
     const supabase = supabaseBrowser();
@@ -47,16 +48,19 @@ export function NotificationBell({ userId, organizationId, initialUnread = 0 }: 
       .is("archived_at", null)
       .order("created_at", { ascending: false })
       .limit(8);
-    if (data) setItems(data as NotificationRow[]);
+    if (data === null) throw new Error("Impossible de charger les notifications.");
 
-    const { count } = await supabase
+    setItems(data as NotificationRow[]);
+    const { count, error: countError } = await supabase
       .from("notifications")
       .select("id", { count: "exact", head: true })
       .eq("organization_id", organizationId)
       .eq("recipient_user_id", userId)
       .is("archived_at", null)
       .is("read_at", null);
+    if (countError) throw countError;
     setUnread(count ?? 0);
+    setError(null);
   }
 
   useEffect(() => {
@@ -115,10 +119,15 @@ export function NotificationBell({ userId, organizationId, initialUnread = 0 }: 
   }, [organizationId, userId]);
 
   async function markRead(id: string) {
-    const supabase = supabaseBrowser();
-    await supabase.from("notifications").update({ read_at: new Date().toISOString() })
-      .eq("id", id).eq("recipient_user_id", userId);
-    await refresh();
+    try {
+      const supabase = supabaseBrowser();
+      const { error: updateError } = await supabase.from("notifications").update({ read_at: new Date().toISOString() })
+        .eq("id", id).eq("recipient_user_id", userId);
+      if (updateError) throw updateError;
+      await refresh();
+    } catch {
+      setError("Impossible de marquer cette notification comme lue. Réessaie.");
+    }
   }
 
   async function openNotification(item: NotificationRow) {
@@ -130,21 +139,27 @@ export function NotificationBell({ userId, organizationId, initialUnread = 0 }: 
 
   async function markAllRead() {
     setLoading(true);
-    const supabase = supabaseBrowser();
-    await supabase.from("notifications")
-      .update({ read_at: new Date().toISOString() })
-      .eq("organization_id", organizationId)
-      .eq("recipient_user_id", userId)
-      .is("read_at", null)
-      .is("archived_at", null);
-    await refresh();
-    setLoading(false);
+    try {
+      const supabase = supabaseBrowser();
+      const { error: updateError } = await supabase.from("notifications")
+        .update({ read_at: new Date().toISOString() })
+        .eq("organization_id", organizationId)
+        .eq("recipient_user_id", userId)
+        .is("read_at", null)
+        .is("archived_at", null);
+      if (updateError) throw updateError;
+      await refresh();
+    } catch {
+      setError("Impossible de marquer toutes les notifications comme lues. Réessaie.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <div style={{ position: "relative" }}>
       <button type="button" aria-label="Ouvrir les notifications" aria-expanded={open}
-        onClick={() => { setOpen((v) => !v); if (!open) void refresh(); }}
+        onClick={() => { setOpen((v) => !v); if (!open) void refresh().catch(() => setError("Impossible de charger les notifications. Réessaie.")); }}
         style={{ position: "relative", width: 42, height: 42, border: "1px solid var(--border, #e2e8f0)", borderRadius: 12, background: "var(--card, #fff)", color: "inherit", display: "grid", placeItems: "center", cursor: "pointer" }}>
         <Bell size={19} />
         {unread > 0 && <span style={{ position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, padding: "0 4px", borderRadius: 20, background: "#dc2626", color: "#fff", fontSize: 10, fontWeight: 700, display: "grid", placeItems: "center" }}>{unread > 99 ? "99+" : unread}</span>}
@@ -154,6 +169,7 @@ export function NotificationBell({ userId, organizationId, initialUnread = 0 }: 
           <strong style={{ fontSize: 14 }}>Notifications {unread > 0 ? `(${unread})` : ""}</strong>
           <button type="button" disabled={loading || unread === 0} onClick={() => void markAllRead()} style={{ border: 0, background: "transparent", color: "var(--primary, #2563eb)", fontSize: 12, cursor: "pointer" }}>Tout lire</button>
         </div>
+        {error && <p role="alert" className="error" style={{ margin: 0, padding: "8px 16px" }}>{error}</p>}
         <div style={{ maxHeight: 390, overflowY: "auto" }}>
           {items.length === 0 ? <div style={{ padding: 28, textAlign: "center", color: "#64748b", fontSize: 13 }}>Aucune notification pour le moment.</div> :
             items.map((item) => <button type="button" key={item.id} onClick={() => void openNotification(item)} style={{ display: "block", width: "100%", textAlign: "left", padding: "13px 16px", border: 0, borderBottom: "1px solid var(--border, #e2e8f0)", background: item.read_at ? "transparent" : "rgba(37,99,235,.045)", cursor: "pointer", color: "inherit" }}>

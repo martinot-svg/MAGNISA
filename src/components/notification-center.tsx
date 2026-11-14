@@ -27,6 +27,7 @@ export function NotificationCenter({ userId, organizationId }: { userId: string;
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [filter, setFilter] = useState<"all" | "unread" | "archived">("all");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -38,9 +39,16 @@ export function NotificationCenter({ userId, organizationId }: { userId: string;
     if (filter === "archived") query = query.not("archived_at", "is", null);
     else query = query.is("archived_at", null);
     if (filter === "unread") query = query.is("read_at", null);
-    const { data } = await query;
-    setItems((data ?? []) as NotificationRow[]);
-    setLoading(false);
+    try {
+      const { data, error: queryError } = await query;
+      if (queryError) throw queryError;
+      setItems((data ?? []) as NotificationRow[]);
+      setError(null);
+    } catch {
+      setError("Impossible de charger les notifications. Réessaie.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { void refresh(); }, [organizationId, userId, filter]);
@@ -48,17 +56,27 @@ export function NotificationCenter({ userId, organizationId }: { userId: string;
   const unreadCount = useMemo(() => items.filter((item) => !item.read_at && !item.archived_at).length, [items]);
 
   async function updateOne(id: string, values: { read_at?: string | null; archived_at?: string | null }) {
-    const supabase = supabaseBrowser();
-    await supabase.from("notifications").update(values).eq("id", id).eq("recipient_user_id", userId);
-    await refresh();
+    try {
+      const supabase = supabaseBrowser();
+      const { error: updateError } = await supabase.from("notifications").update(values).eq("id", id).eq("recipient_user_id", userId);
+      if (updateError) throw updateError;
+      await refresh();
+    } catch {
+      setError("Impossible de mettre à jour cette notification. Réessaie.");
+    }
   }
 
   async function markAllRead() {
-    const supabase = supabaseBrowser();
-    await supabase.from("notifications").update({ read_at: new Date().toISOString() })
-      .eq("organization_id", organizationId).eq("recipient_user_id", userId)
-      .is("read_at", null).is("archived_at", null);
-    await refresh();
+    try {
+      const supabase = supabaseBrowser();
+      const { error: updateError } = await supabase.from("notifications").update({ read_at: new Date().toISOString() })
+        .eq("organization_id", organizationId).eq("recipient_user_id", userId)
+        .is("read_at", null).is("archived_at", null);
+      if (updateError) throw updateError;
+      await refresh();
+    } catch {
+      setError("Impossible de marquer toutes les notifications comme lues. Réessaie.");
+    }
   }
 
   async function openItem(item: NotificationRow) {
@@ -77,6 +95,7 @@ export function NotificationCenter({ userId, organizationId }: { userId: string;
           <CheckCheck size={15} /> Tout marquer comme lu
         </button>
       </header>
+      {error && <p role="alert" className="error">{error}</p>}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 15 }}>
         <Filter size={15} color="#64748b" />
         {(["all", "unread", "archived"] as const).map((value) => <button type="button" key={value} onClick={() => setFilter(value)} style={{ borderRadius: 20, border: "1px solid var(--border, #e2e8f0)", background: filter === value ? "var(--primary, #2563eb)" : "var(--card, #fff)", color: filter === value ? "#fff" : "inherit", padding: "7px 12px", fontSize: 12, cursor: "pointer" }}>{value === "all" ? "Toutes" : value === "unread" ? "Non lues" : "Archivées"}</button>)}
