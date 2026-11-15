@@ -51,6 +51,7 @@ export function MagniboxInternetWorkspace() {
 
   useEffect(()=>{void loadIdentities();},[loadIdentities]);
   useEffect(()=>{
+    setAttachmentIds([]);
     if(!identityId){setMessages([]);return;}
     void loadMessages(identityId).catch(e=>setError(e instanceof Error?e.message:"Chargement impossible."));
   },[identityId,loadMessages]);
