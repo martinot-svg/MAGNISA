@@ -4,8 +4,8 @@ import { normalizeHeaderFrom, normalizePublicEmail } from "./address";
 // Keep this aligned with orbit_external_messages.body_text CHECK(char_length <= 50000).
 export const MAGNIBOX_INBOUND_MAX_TEXT_CHARS = 50_000;
 export const MAGNIBOX_INBOUND_MAX_ATTACHMENTS = 5;
-export const MAGNIBOX_INBOUND_MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
-export const MAGNIBOX_INBOUND_MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+export const MAGNIBOX_INBOUND_MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024;
+export const MAGNIBOX_INBOUND_MAX_TOTAL_ATTACHMENT_BYTES = 150 * 1024 * 1024;
 
 export type MagniboxInboundAttachment = { fileName: string; contentType: string; contentBase64: string };
 
