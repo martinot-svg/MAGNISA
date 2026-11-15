@@ -15,3 +15,30 @@ export function detectMagniboxAttachmentMime(bytes: Buffer): string | null {
   }
   return null;
 }
+
+
+/** Build ClamAV zINSTREAM frames, including the terminal zero-length chunk. */
+export function buildClamAvInstreamFrames(bytes: Buffer, chunkSize = 64 * 1024): Buffer[] {
+  if (!Number.isInteger(chunkSize) || chunkSize < 1 || chunkSize > 0xffffffff) {
+    throw new RangeError("Invalid ClamAV chunk size");
+  }
+  const frames: Buffer[] = [Buffer.from("zINSTREAM\0", "ascii")];
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const part = bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length));
+    const header = Buffer.alloc(4);
+    header.writeUInt32BE(part.length, 0);
+    frames.push(header, part);
+  }
+  frames.push(Buffer.alloc(4));
+  return frames;
+}
+
+/** Return null until a complete NUL-terminated ClamAV reply has arrived. */
+export function parseClamAvInstreamResponse(response: Buffer): "clean" | "infected" | "error" | null {
+  if (response.length === 0 || response[response.length - 1] !== 0) return null;
+  const message = response.toString("utf8").slice(0, -1);
+  if (message.endsWith(" OK")) return "clean";
+  if (message.endsWith(" FOUND")) return "infected";
+  if (message.endsWith(" ERROR") || message.includes("INSTREAM size limit exceeded")) return "error";
+  return "error";
+}
