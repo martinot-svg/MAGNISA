@@ -22,6 +22,15 @@ BEGIN
     RAISE EXCEPTION 'MAGNIBOX attachment bucket must be private and allow 30 MiB files';
   END IF;
   IF NOT EXISTS (
+    SELECT 1 FROM storage.buckets
+    WHERE id='magnibox-attachments'
+      AND allowed_mime_types IS NOT NULL
+      AND 'application/pdf' = ANY(allowed_mime_types)
+      AND 'image/png' = ANY(allowed_mime_types)
+  ) THEN
+    RAISE EXCEPTION 'MAGNIBOX attachment bucket must retain its MIME allowlist';
+  END IF;
+  IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conrelid=v_table AND conname='orbit_external_attachment_byte_size_limit'
       AND pg_get_constraintdef(oid) LIKE '%31457280%'

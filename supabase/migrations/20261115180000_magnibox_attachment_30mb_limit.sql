@@ -2,8 +2,7 @@
 -- Existing rows remain valid; new uploads may contain files up to 30 MiB each.
 update storage.buckets
 set public = false,
-    file_size_limit = 31457280,
-    allowed_mime_types = null
+    file_size_limit = 31457280
 where id = 'magnibox-attachments';
 
 alter table public.orbit_external_message_attachments
