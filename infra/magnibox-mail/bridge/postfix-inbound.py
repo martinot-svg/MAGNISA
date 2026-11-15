@@ -98,6 +98,8 @@ def forward(raw: bytes, recipient: str) -> int:
             "text": body,
         }
         encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        if len(encoded) > 145_000:
+            return 69
         timestamp = str(int(time.time()))
         signature = hmac.new(secret.encode(), timestamp.encode() + b"." + encoded, hashlib.sha256).hexdigest()
         request = urllib.request.Request(
@@ -114,7 +116,7 @@ def forward(raw: bytes, recipient: str) -> int:
         with opener.open(request, timeout=10) as response:
             return 0 if response.status == 202 else (75 if response.status >= 500 else 69)
     except urllib.error.HTTPError as error:
-        if error.code in (408, 425, 429) or error.code >= 500:
+        if error.code in (300, 301, 302, 303, 307, 308, 401, 403, 404, 408, 425, 429) or error.code >= 500:
             return 75
         return 69
     except (urllib.error.URLError, TimeoutError, OSError):
