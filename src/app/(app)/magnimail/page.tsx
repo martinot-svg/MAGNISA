@@ -1,130 +1,11 @@
-import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
-import { MagniMailClient } from "@/components/magnimail-client";
-import { MGMailInternalContent } from "@/components/magnimail-internal-workspace";
+import { requireOrganization } from "@/lib/current-org";
+import { MagniboxInternalContent } from "@/components/magnimail-internal-workspace";
 import { MagniboxInternetWorkspace } from "@/components/magnibox-internet-workspace";
-import { DEFAULT_EMAIL_TEMPLATES, getEmailTemplate, renderEmailTemplate, type EmailTemplateKey } from "@/lib/magnimail/templates";
 
-const MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
-
-export default async function MagniMailPage({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    composeTo?: string;
-    customerId?: string;
-    templateKey?: string;
-    numero?: string;
-    quoteId?: string;
-    invoiceId?: string;
-    projectId?: string;
-    creditNoteId?: string;
-    paymentId?: string;
-  }>;
-}) {
-  const query = await searchParams;
+export default async function MagniboxPage() {
   const ctx = await requireOrganization();
-  const { supabase, organizationId, user } = ctx;
-  const canManageDomains = await hasPermission(ctx,"users.manage");
-  const extensionCatalogLink = canManageDomains ? (
-    <div className="card section">
-      <h2>Extensions et domaines professionnels</h2>
-      <p className="muted">Explorer les extensions officielles IANA et les règles NIC.MG avant toute demande de domaine.</p>
-      <a href="/orbit/magnibox/extensions" className="button">Consulter le catalogue</a>
-    </div>
-  ) : null;
-  const professionalDomainsLink = canManageDomains ? (
-    <div className="card section">
-      <div className="actions" style={{ justifyContent: "space-between", flexWrap: "wrap", alignItems: "center" }}>
-        <div>
-          <h2>Domaines et adresses professionnelles</h2>
-          <p className="muted">
-            Gérez les domaines et les demandes d'adresses de cette entreprise.
-            La réception et l'envoi Internet nécessitent une vérification et un transport actifs.
-          </p>
-        </div>
-        <a className="button" href="/orbit/magnibox/domaines">Administrer les domaines</a>
-      </div>
-    </div>
-  ) : null;
-  const { data: gmail } = await supabase
-    .from("email_connections")
-    .select("email,status,scopes")
-    .eq("organization_id", organizationId)
-    .eq("user_id", user.id)
-    .eq("provider", "google")
-    .maybeSingle();
-
-  // The same Magnibox workspace exposes all available messages.
-  // Existing .mgmail delivery and Gmail OAuth remain distinct *transport*
-  // implementations, not two user-facing messaging applications.
-  const inboxMessages = <MGMailInternalContent embedded />;
-
-  if (!gmail || gmail.status !== "active") {
-    return (
-      <>
-        <div className="pageHead">
-          <div>
-            <p className="eyebrow">Magnisa Orbit · Communication</p>
-            <h1>Magnibox</h1>
-            <p>Messagerie professionnelle : boîtes internes et adresses Internet gérées par MAGNIBOX.</p>
-          </div>
-        </div>
-        {inboxMessages}
-        <MagniboxInternetWorkspace />
-        {extensionCatalogLink}
-        {professionalDomainsLink}
-        <div className="grid2">
-          <div className="card">
-            <h2>Connecter un compte Gmail (facultatif)</h2>
-            <p className="muted">
-              MAGNIBOX gère ses propres adresses professionnelles et son transport Internet. La connexion Gmail reste une intégration facultative pour consulter un compte Google existant.
-            </p>
-            <a className="button primary" href="/api/integrations/google/start">
-              Connecter Gmail
-            </a>
-          </div>
-          <div className="card">
-            <h2>Outlook / Microsoft 365</h2>
-            <p className="muted">
-              La messagerie Magnibox prévoit aussi Microsoft 365. La connexion Microsoft
-              sera activée après configuration de l'application Microsoft Entra.
-            </p>
-            <button className="button" disabled>
-              Connexion Microsoft à configurer
-            </button>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  let initialSubject = "";
-  let initialBody = "";
-  const templateKey = String(query.templateKey || "");
-  if (templateKey && DEFAULT_EMAIL_TEMPLATES.some((item) => item.key === templateKey)) {
-    let clientName = "Client";
-    if (query.customerId) {
-      const { data: customer } = await supabase
-        .from("customers")
-        .select("name")
-        .eq("organization_id", organizationId)
-        .eq("id", query.customerId)
-        .maybeSingle();
-      if (customer?.name) clientName = customer.name;
-    }
-    const template = await getEmailTemplate(
-      supabase,
-      organizationId,
-      templateKey as EmailTemplateKey,
-    );
-    const variables = { client: clientName, numero: query.numero || "" };
-    initialSubject = renderEmailTemplate(template.subject, variables);
-    initialBody = renderEmailTemplate(template.body, variables);
-  }
-
-  const scopes = Array.isArray(gmail.scopes) ? gmail.scopes : [];
-  const needsUpgrade = !scopes.includes(MODIFY_SCOPE);
+  const canManageDomains = await hasPermission(ctx, "users.manage");
 
   return (
     <>
@@ -132,46 +13,33 @@ export default async function MagniMailPage({
         <div>
           <p className="eyebrow">Magnisa Orbit · Communication</p>
           <h1>Magnibox</h1>
-          <p>Une seule messagerie pour vos courriers et vos collaborateurs.</p>
+          <p>Une messagerie unique pour les collaborateurs et les adresses professionnelles de l'entreprise.</p>
         </div>
       </div>
-      {inboxMessages}
+
+      <MagniboxInternalContent embedded />
       <MagniboxInternetWorkspace />
-      {extensionCatalogLink}
-        {professionalDomainsLink}
-      {needsUpgrade && (
-        <div
-          className="card"
-          style={{
-            marginBottom: 18,
-            border: "1px solid #fde68a",
-            background: "#fffbeb",
-          }}
-        >
-          <strong>Autorisation Gmail à mettre à niveau</strong>
-          <p style={{ marginBottom: 12 }}>
-            Ton compte était connecté avec l'autorisation d'envoi uniquement. Magnibox a
-            maintenant besoin de l'autorisation Gmail complète de lecture/modification pour
-            afficher la boîte de réception, les brouillons et la corbeille.
-          </p>
-          <a className="button primary" href="/api/integrations/google/start">
-            Reconnecter Gmail pour Magnibox
-          </a>
-        </div>
+
+      {canManageDomains && (
+        <>
+          <div className="card section">
+            <h2>Domaines et adresses professionnelles</h2>
+            <p className="muted">
+              Gérez les domaines, les preuves DNS et les adresses de votre entreprise.
+              L'activation Internet intervient uniquement après validation du transport MAGNIBOX.
+            </p>
+            <a className="button" href="/orbit/magnibox/domaines">Administrer les domaines</a>
+          </div>
+          <div className="card section">
+            <h2>Catalogue des extensions</h2>
+            <p className="muted">
+              Consultez les extensions officielles IANA et les règles nationales NIC.MG.
+              Le catalogue indique les règles d'éligibilité, pas la disponibilité d'un domaine.
+            </p>
+            <a href="/orbit/magnibox/extensions" className="button">Consulter le catalogue</a>
+          </div>
+        </>
       )}
-      <MagniMailClient
-        embedded
-        connectedEmail={gmail.email}
-        initialTo={query.composeTo || ""}
-        initialCustomerId={query.customerId || ""}
-        initialSubject={initialSubject}
-        initialBody={initialBody}
-        initialQuoteId={query.quoteId || ""}
-        initialInvoiceId={query.invoiceId || ""}
-        initialProjectId={query.projectId || ""}
-        initialCreditNoteId={query.creditNoteId || ""}
-        initialPaymentId={query.paymentId || ""}
-      />
     </>
   );
 }
