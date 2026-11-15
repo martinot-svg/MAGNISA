@@ -1,6 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { normalizeHeaderFrom, normalizePublicEmail } from "./address";
 
+// Keep this aligned with orbit_external_messages.body_text CHECK(char_length <= 50000).
+export const MAGNIBOX_INBOUND_MAX_TEXT_CHARS = 50_000;
+
 export type MagniboxInboundPayload = {
   messageId: string;
   from: string;
@@ -31,7 +34,8 @@ export function parseMagniboxInboundPayload(value: unknown): MagniboxInboundPayl
     || typeof d.from !== "string" || !Array.isArray(d.to)
     || d.to.length < 1 || d.to.length > 10 || !d.to.every(x => typeof x === "string")
     || typeof d.subject !== "string" || typeof d.text !== "string"
-    || d.subject.trim().length < 1 || d.subject.length > 180 || d.text.length > 100000) {
+    || d.subject.trim().length < 1 || d.subject.length > 180
+    || d.text.length > MAGNIBOX_INBOUND_MAX_TEXT_CHARS) {
     throw new Error("Payload entrant invalide.");
   }
   const to = [...new Set(d.to.map(x => normalizePublicEmail(x as string)))];
