@@ -108,7 +108,7 @@ export async function readMagniboxInboundBody(
 /** Reject a declared decimal Content-Length above the gateway ceiling. */
 export function isMagniboxInboundContentLengthTooLarge(value: string | null, maxBytes: number): boolean {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw new RangeError("Invalid body limit.");
-  if (value === null || !/^\\d+$/.test(value)) return false;
+  if (value === null || !/^\d+$/.test(value)) return false;
   const declared = Number(value);
   return Number.isSafeInteger(declared) && declared > maxBytes;
 }
