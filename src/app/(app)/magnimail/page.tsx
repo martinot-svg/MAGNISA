@@ -32,6 +32,20 @@ export default async function MagniMailPage({
       <a href="/orbit/magnibox/extensions" className="button">Consulter le catalogue</a>
     </div>
   ) : null;
+  const professionalDomainsLink = canManageDomains ? (
+    <div className="card section">
+      <div className="actions" style={{ justifyContent: "space-between", flexWrap: "wrap", alignItems: "center" }}>
+        <div>
+          <h2>Domaines et adresses professionnelles</h2>
+          <p className="muted">
+            Gérez les domaines et les demandes d'adresses de cette entreprise.
+            La réception et l'envoi Internet nécessitent une vérification et un transport actifs.
+          </p>
+        </div>
+        <a className="button" href="/orbit/magnibox/domaines">Administrer les domaines</a>
+      </div>
+    </div>
+  ) : null;
   const { data: gmail } = await supabase
     .from("email_connections")
     .select("email,status,scopes")
@@ -57,6 +71,7 @@ export default async function MagniMailPage({
         </div>
         {inboxMessages}
         {extensionCatalogLink}
+        {professionalDomainsLink}
         <div className="grid2">
           <div className="card">
             <h2>Ajouter un compte e-mail Internet (facultatif)</h2>
@@ -121,6 +136,7 @@ export default async function MagniMailPage({
       </div>
       {inboxMessages}
       {extensionCatalogLink}
+        {professionalDomainsLink}
       {needsUpgrade && (
         <div
           className="card"
