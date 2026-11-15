@@ -3,6 +3,11 @@ import { normalizeHeaderFrom, normalizePublicEmail } from "./address";
 
 // Keep this aligned with orbit_external_messages.body_text CHECK(char_length <= 50000).
 export const MAGNIBOX_INBOUND_MAX_TEXT_CHARS = 50_000;
+export const MAGNIBOX_INBOUND_MAX_ATTACHMENTS = 5;
+export const MAGNIBOX_INBOUND_MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+export const MAGNIBOX_INBOUND_MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+export type MagniboxInboundAttachment = { fileName: string; contentType: string; contentBase64: string };
 
 export type MagniboxInboundPayload = {
   messageId: string;
@@ -10,6 +15,7 @@ export type MagniboxInboundPayload = {
   to: string[];
   subject: string;
   text: string;
+  attachments: MagniboxInboundAttachment[];
 };
 
 export function verifyMagniboxInboundSignature(
@@ -35,16 +41,29 @@ export function parseMagniboxInboundPayload(value: unknown): MagniboxInboundPayl
     || d.to.length < 1 || d.to.length > 10 || !d.to.every(x => typeof x === "string")
     || typeof d.subject !== "string" || typeof d.text !== "string"
     || d.subject.trim().length < 1 || d.subject.length > 180
-    || d.text.length > MAGNIBOX_INBOUND_MAX_TEXT_CHARS) {
-    throw new Error("Payload entrant invalide.");
-  }
+    || d.text.length > MAGNIBOX_INBOUND_MAX_TEXT_CHARS) throw new Error("Payload entrant invalide.");
   const to = [...new Set(d.to.map(x => normalizePublicEmail(x as string)))];
   if (to.length !== d.to.length) throw new Error("Destinataires entrants dupliqués.");
-  return {
-    messageId: d.messageId,
-    from: normalizeHeaderFrom(d.from),
-    to,
-    subject: d.subject.trim(),
-    text: d.text,
-  };
+  const raw = d.attachments === undefined ? [] : d.attachments;
+  if (!Array.isArray(raw) || raw.length > MAGNIBOX_INBOUND_MAX_ATTACHMENTS) throw new Error("Liste de pièces jointes invalide.");
+  let total = 0;
+  const attachments = raw.map((item): MagniboxInboundAttachment => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("Pièce jointe invalide.");
+    const a = item as Record<string, unknown>;
+    if (typeof a.fileName !== "string" || typeof a.contentType !== "string" || typeof a.contentBase64 !== "string"
+      || a.fileName.length < 1 || a.fileName.length > 180 || /[\r\n]/.test(a.fileName)
+      || a.contentType.length < 1 || a.contentType.length > 120
+      || !/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(a.contentType)
+      || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(a.contentBase64)) {
+      throw new Error("Métadonnées de pièce jointe invalides.");
+    }
+    const bytes = Buffer.from(a.contentBase64, "base64");
+    if (bytes.length < 1 || bytes.length > MAGNIBOX_INBOUND_MAX_ATTACHMENT_BYTES
+      || bytes.toString("base64") !== a.contentBase64) throw new Error("Taille ou encodage invalide.");
+    total += bytes.length;
+    if (total > MAGNIBOX_INBOUND_MAX_TOTAL_ATTACHMENT_BYTES) throw new Error("Taille totale dépassée.");
+    const fileName = a.fileName.replace(/[\\/]/g, "_").replace(/[^\x20-\x7e]/g, "_").slice(0, 180) || "attachment.bin";
+    return { fileName, contentType: a.contentType.toLowerCase(), contentBase64: a.contentBase64 };
+  });
+  return { messageId: d.messageId, from: normalizeHeaderFrom(d.from), to, subject: d.subject.trim(), text: d.text, attachments };
 }
