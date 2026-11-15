@@ -11,6 +11,12 @@ spec.loader.exec_module(bridge)
 
 
 class InboundBridgeTests(unittest.TestCase):
+    def test_attachment_limits_match_30_mib_contract(self):
+        self.assertEqual(bridge.MAX_ATTACHMENT_BYTES, 30 * 1024 * 1024)
+        self.assertEqual(bridge.MAX_TOTAL_ATTACHMENT_BYTES, 150 * 1024 * 1024)
+        self.assertEqual(bridge.MAX_MESSAGE_BYTES, 205 * 1024 * 1024)
+        self.assertEqual(bridge.MAX_JSON_BYTES, 205 * 1024 * 1024)
+
     def test_normalizes_envelope_recipient(self):
         self.assertEqual(bridge.normalized_address("Finance@Example.org"), "finance@example.org")
 
