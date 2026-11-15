@@ -77,9 +77,10 @@ async function processOne(admin: ReturnType<typeof createClient>, item: Attachme
 
     const detected = detectMagniboxAttachmentMime(bytes);
     if (!detected) {
-      await admin.from("orbit_external_message_attachments")
+      const rejected = await admin.from("orbit_external_message_attachments")
         .update({ scan_status: "rejected", scan_started_at: null, scan_completed_at: new Date().toISOString() })
         .eq("id", item.id).eq("scan_status", "scanning");
+      if (rejected.error) throw new Error("status_update_failed");
       terminal = true;
       await admin.storage.from(BUCKET).remove([item.storage_path]);
       return;
@@ -88,7 +89,7 @@ async function processOne(admin: ReturnType<typeof createClient>, item: Attachme
     const verdict = await scanWithClamAV(bytes, clamHost, clamPort);
     if (verdict === "infected") {
       const rejected = await admin.from("orbit_external_message_attachments")
-        .update({ scan_status: "rejected", scan_completed_at: new Date().toISOString() })
+        .update({ scan_status: "rejected", scan_started_at: null, scan_completed_at: new Date().toISOString() })
         .eq("id", item.id).eq("scan_status", "scanning");
       if (rejected.error) throw new Error("status_update_failed");
       terminal = true;
@@ -120,8 +121,18 @@ async function main() {
   if (!Number.isInteger(clamPort) || clamPort < 1 || clamPort > 65535) throw new Error("Invalid ClamAV port");
 
   const admin = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+  const staleBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const retryable = await admin.from("orbit_external_message_attachments")
+    .update({ scan_status: "quarantined", scan_started_at: null })
+    .eq("scan_status", "scanning").lt("scan_attempts", 5).lt("scan_started_at", staleBefore);
+  if (retryable.error) throw new Error("Unable to recover stale scan leases");
+  const exhausted = await admin.from("orbit_external_message_attachments")
+    .update({ scan_status: "rejected", scan_started_at: null, scan_completed_at: new Date().toISOString() })
+    .eq("scan_status", "scanning").gte("scan_attempts", 5).lt("scan_started_at", staleBefore);
+  if (exhausted.error) throw new Error("Unable to reject exhausted scan leases");
+
   const pending = await admin.from("orbit_external_message_attachments")
-    .select("id,organization_id,message_id,storage_path,byte_size,sha256,scan_status")
+    .select("id,organization_id,message_id,storage_path,byte_size,sha256,scan_status,scan_attempts")
     .eq("scan_status", "quarantined")
     .order("created_at", { ascending: true })
     .limit(BATCH_SIZE);
