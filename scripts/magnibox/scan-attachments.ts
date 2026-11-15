@@ -17,7 +17,7 @@ const BUCKET = "magnibox-attachments";
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const BATCH_SIZE = 10;
 
-function detectMime(bytes: Buffer): string | null {
+export function detectMime(bytes: Buffer): string | null {
   if (bytes.length >= 5 && bytes.subarray(0, 5).toString("ascii") === "%PDF-") return "application/pdf";
   if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return "image/png";
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
