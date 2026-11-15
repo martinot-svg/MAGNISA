@@ -17,9 +17,13 @@ from email.utils import parseaddr
 from html.parser import HTMLParser
 from urllib.parse import urlparse
 
-MAX_MESSAGE_BYTES = 140_000
+MAX_MESSAGE_BYTES = 25 * 1024 * 1024
 # Must match orbit_external_messages.body_text database constraint.
 MAX_TEXT_CHARS = 50_000
+MAX_ATTACHMENT_COUNT = 5
+MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024
+MAX_JSON_BYTES = 28 * 1024 * 1024
 EMAIL_RE = re.compile(r"^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$")
 
 
@@ -42,14 +46,38 @@ def normalized_address(value: str) -> str:
     return address
 
 
-def extract_text(message) -> str:
+def safe_display_name(value: str) -> str:
+    # A display label only; never use sender-controlled names as storage paths.
+    name = value.replace("\r", " ").replace("\n", " ").replace("\\", "/").split("/")[-1]
+    name = "".join(ch for ch in name if ch.isprintable()).strip()
+    return (name or "piece-jointe.bin")[:180]
+
+
+def extract_content(message):
     plain = []
     html = []
+    attachments = []
+    total_bytes = 0
     for part in message.walk():
         if part.is_multipart():
             continue
-        if part.get_content_disposition() == "attachment" or part.get_filename():
-            raise ValueError("attachments are not supported by the current inbox contract")
+        filename = part.get_filename()
+        disposition = part.get_content_disposition()
+        if disposition == "attachment" or filename:
+            payload = part.get_payload(decode=True)
+            if not isinstance(payload, bytes) or not payload:
+                raise ValueError("empty or invalid attachment")
+            if len(payload) > MAX_ATTACHMENT_BYTES:
+                raise ValueError("attachment too large")
+            total_bytes += len(payload)
+            if len(attachments) >= MAX_ATTACHMENT_COUNT or total_bytes > MAX_TOTAL_ATTACHMENT_BYTES:
+                raise ValueError("attachment limits exceeded")
+            attachments.append({
+                "fileName": safe_display_name(str(filename or "piece-jointe.bin")),
+                "contentType": part.get_content_type().lower()[:120],
+                "contentBase64": __import__("base64").b64encode(payload).decode("ascii"),
+            })
+            continue
         content_type = part.get_content_type().lower()
         if content_type == "text/plain":
             plain.append(str(part.get_content()))
@@ -64,6 +92,14 @@ def extract_text(message) -> str:
     text = "\n".join(plain).strip() or "\n".join(html).strip()
     if not text or len(text) > MAX_TEXT_CHARS:
         raise ValueError("empty or oversized message body")
+    return text, attachments
+
+
+def extract_text(message) -> str:
+    # Compatibility wrapper retained for existing contract tests.
+    text, attachments = extract_content(message)
+    if attachments:
+        raise ValueError("attachments are not supported by the current inbox contract")
     return text
 
 
@@ -92,7 +128,7 @@ def forward(raw: bytes, recipient: str) -> int:
             subject = "(sans objet)"
         if len(subject) > 180:
             subject = subject[:180]
-        body = extract_text(msg)
+        body, attachments = extract_content(msg)
         original_id = str(msg.get("Message-ID", "")).strip()
         safe_id = re.sub(r"[^A-Za-z0-9._:@+-]", "", original_id.strip("<>"))[:160]
         if not safe_id:
@@ -103,9 +139,10 @@ def forward(raw: bytes, recipient: str) -> int:
             "to": [to],
             "subject": subject,
             "text": body,
+            "attachments": attachments,
         }
         encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        if len(encoded) > 145_000:
+        if len(encoded) > MAX_JSON_BYTES:
             return 69
         timestamp = str(int(time.time()))
         signature = hmac.new(secret.encode(), timestamp.encode() + b"." + encoded, hashlib.sha256).hexdigest()
