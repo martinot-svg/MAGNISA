@@ -34,3 +34,18 @@ describe("Magnibox native inbound gateway",()=>{
  });
 
 });
+
+
+describe("Magnibox bounded inbound body reader", () => {
+  it("reads a body within the byte limit and rejects invalid UTF-8", async () => {
+    const body = new Response("signed-body").body;
+    await expect(readMagniboxInboundBody(body, 11)).resolves.toBe("signed-body");
+    const invalidUtf8 = new Response(new Uint8Array([0xc3, 0x28])).body;
+    await expect(readMagniboxInboundBody(invalidUtf8, 10)).rejects.toThrow();
+  });
+
+  it("stops reading once the byte limit is exceeded", async () => {
+    const body = new Response(new Uint8Array(9)).body;
+    await expect(readMagniboxInboundBody(body, 8)).rejects.toBeInstanceOf(MagniboxInboundBodyTooLargeError);
+  });
+});
