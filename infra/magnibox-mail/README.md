@@ -34,7 +34,7 @@ Run these commands from this directory on the dedicated Linux host:
 
 ```sh
 cp mailserver.env.example mailserver.env
-mkdir -p docker-data/mail-data docker-data/mail-state docker-data/logs docker-data/config
+mkdir -p docker-data/mail-data docker-data/mail-state docker-data/logs docker-data/config docker-data/provisioning
 chmod 700 docker-data
 ```
 
@@ -105,9 +105,9 @@ Do not change a customer's MX automatically. A root-domain MX change can redirec
 
 ## Remaining implementation work
 
-1. Implement and test the Postfix delivery bridge that sends filtered inbound messages to `/api/internal/magnibox/inbound` using the documented timestamped HMAC signature.
-2. Implement signed delivery/deferred/bounce event forwarding to `/api/internal/magnibox/delivery-event`.
-3. Define a secure dynamic sender/recipient provisioning contract for multiple MAGNISA organizations; the pilot account above is not sufficient.
+1. Validate the signed Postfix inbound bridge and delivery-event forwarder against a dedicated, isolated pilot MTA.
+2. Complete the signed provisioning API and map synchronizer stack, then verify that the exact approved domains and recipients are the only entries accepted by Postfix.
+3. Review map publication, Postfix configuration conflicts, queue retry behavior and rollback before activating the virtual transport.
 4. Add queue monitoring, retry/dead-letter procedures, backup/restore tests, abuse handling and reputation monitoring.
 5. Run external send-and-receive tests with independent providers before any public activation.
 
@@ -137,6 +137,10 @@ The bridge is mounted read-only at `/opt/magnibox-bridge`. Contract tests can be
 bash scripts/ci/check-magnibox-inbound-bridge.sh
 ```
 
-The example Postfix transport files are intentionally **not active**. They must not be copied into the live Postfix configuration until MAGNIBOX has a tested dynamic accepted-domain/recipient provisioning source. Enabling `virtual_transport` prematurely can reject valid mail or route domains incorrectly. A dedicated pilot domain and an end-to-end test are required before enabling this transport. The current Docker Mailserver mailbox path remains unchanged.
+The example Postfix transport files are intentionally **not active**. The signed provisioning API and `bridge/postfix-provision-sync.py` prepare versioned `domains` and `recipients` maps under `docker-data/provisioning`; they do not activate Postfix. The map synchronizer must be present from the provisioning branch before this runbook step is used.
 
-No production endpoint, DNS record, MX, MTA host, or runtime secret is changed by this bridge code.
+The example `postfix-main.cf.example` now explicitly consumes both maps through `virtual_mailbox_domains` and `virtual_mailbox_maps`, then routes approved virtual recipients to `magnibox-inbound`. Compose mounts the map directory read-only at `/etc/postfix/magnibox`. This wiring is deliberate but still requires an operator review for conflicts with `mydestination`, `virtual_alias_domains`, existing DMS virtual mailbox configuration and relay restrictions. Never copy the example config into a live host until the pilot domain, map contents, queue behavior and rollback have been verified.
+
+To stage a snapshot on the host after the synchronizer and its required environment variables are installed, run the script with the host output directory `docker-data/provisioning`. Review the generated manifest and map contents before any Postfix reload. The script only stages files and switches the `current` symlink; it does not reload Postfix or activate a new route.
+
+No production endpoint, DNS record, MX, MTA host, or runtime secret is changed by this code.
