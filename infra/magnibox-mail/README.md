@@ -129,7 +129,7 @@ The `bridge/postfix-inbound.py` pipe program implements the application contract
 - It extracts a bounded text body, creates a deterministic fallback message ID, and signs the exact JSON bytes with the timestamped HMAC-SHA256 contract.
 - It requires an HTTPS endpoint, a 32-character minimum secret, a short network timeout and rejects redirects.
 - Temporary upstream/network failures return Postfix's temporary-failure exit code so the queue can retry. Invalid messages and permanent API rejections return a permanent-failure code.
-- Attachments are deliberately rejected rather than silently discarded; the current MAGNIBOX inbound API stores text only.
+- Attachments are extracted as bounded base64 payloads and written only to the private quarantine bucket. They remain unavailable until the isolated scan worker validates their actual file signature and ClamAV verdict.
 
 The bridge is mounted read-only at `/opt/magnibox-bridge`. Contract tests can be run with:
 
@@ -151,4 +151,9 @@ sh infra/magnibox-mail/scripts/check-antivirus-readiness.sh
 
 The script verifies that the mailserver container is running, ClamAV is enabled in its environment, and \`clamdscan\` can complete a harmless scan against \`/etc/hostname\`. It does not change configuration or enable attachment delivery.
 
-**Important:** a successful daemon check is not proof that every Postfix delivery traverses the antivirus filter, nor does it prove that a message with an infected attachment is rejected before the MAGNIBOX pipe transport. Before enabling attachments, an isolated integration test must demonstrate both clean-message delivery and infected-message rejection through the exact configured Postfix path. The bridge must continue rejecting attachments until that test and the quarantine worker are complete.
+**Important:** a successful daemon check is not proof that every Postfix delivery traverses the antivirus filter, nor does it prove that a message with an infected attachment is rejected before the MAGNIBOX pipe transport. Before enabling attachments, an isolated integration test must demonstrate both clean-message delivery and infected-message rejection through the exact configured Postfix path. The bridge now forwards attachments to quarantine, but the transport must remain disabled for public customer domains until the clean/infected end-to-end test, migration replay and CI gates pass.
+
+
+### Bounded attachment ingestion (staged)
+
+The inbound bridge now accepts up to five attachments per message, 10 MiB per file and 20 MiB aggregate, with a 25 MiB raw-message limit. The MTA example is aligned to a 25 MiB message cap. The application verifies the signed payload and base64 limits, stores objects under organization/message/UUID paths in the private `magnibox-attachments` bucket, and creates quarantined metadata with SHA-256. The worker alone can promote files to `available`. The download endpoint first checks the authenticated user's RLS-visible metadata row and only then creates a 60-second signed URL with the server service role. No browser Storage policy is added.
