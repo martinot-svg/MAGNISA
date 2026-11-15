@@ -1,0 +1,4 @@
+# Copy to docker-data/config/postfix-master.cf only after the domain-routing pilot is approved.
+# This transport hands each recipient to the MAGNIBOX application bridge.
+magnibox-inbound unix - n n - - pipe
+  flags=Rq user=nobody argv=/usr/bin/python3 /opt/magnibox-bridge/postfix-inbound.py ${sender} ${recipient}
