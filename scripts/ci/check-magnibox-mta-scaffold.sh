@@ -24,6 +24,8 @@ has "$COMPOSE" 'NET_ADMIN'
 has "$COMPOSE" 'attachment-worker:'
 has "$COMPOSE" 'network_mode: "service:mailserver"'
 has "$COMPOSE" 'MAGNIBOX_WORKER_SERVICE_ROLE_KEY'
+has "$COMPOSE" 'MAGNIBOX_FORWARDER_IMAGE'
+has "$COMPOSE" 'MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET'
 
 if grep -Eiq '(^|[/:])latest([[:space:]"\047]|$)' "$COMPOSE"; then
   fail "floating latest image tags are forbidden"
@@ -64,6 +66,6 @@ if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; 
   fi
   cleanup() { if [[ "$created_mail_env" == "1" ]]; then rm -f "$MAIL_ENV"; fi; }
   trap cleanup EXIT
-  env MAGNIBOX_DMS_IMAGE=ghcr.io/docker-mailserver/docker-mailserver:v16.0 MAGNIBOX_MTA_HOSTNAME=mail.example.invalid MAGNIBOX_TLS_DIR=/tmp/magnibox-tls MAGNIBOX_WORKER_SUPABASE_URL=https://example.supabase.co MAGNIBOX_WORKER_SERVICE_ROLE_KEY=ci-placeholder-service-role-key docker compose -f "$COMPOSE" config --quiet
+  env MAGNIBOX_DMS_IMAGE=ghcr.io/docker-mailserver/docker-mailserver:v16.0 MAGNIBOX_MTA_HOSTNAME=mail.example.invalid MAGNIBOX_TLS_DIR=/tmp/magnibox-tls MAGNIBOX_WORKER_SUPABASE_URL=https://example.supabase.co MAGNIBOX_WORKER_SERVICE_ROLE_KEY=ci-placeholder-service-role-key MAGNIBOX_FORWARDER_IMAGE=python:3.12-alpine MAGNIBOX_DELIVERY_EVENT_URL=https://example.invalid/api/internal/magnibox/delivery-event MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET=ci-placeholder-delivery-secret docker compose -f "$COMPOSE" config --quiet
 fi
 printf 'Magnibox MTA scaffold checks passed.\n'
