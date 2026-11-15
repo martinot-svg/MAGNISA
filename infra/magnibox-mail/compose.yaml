@@ -53,7 +53,7 @@ services:
     restart: unless-stopped
 
   delivery-events:
-    image: ${MAGNIBOX_FORWARDER_IMAGE:?Set a pinned Python runtime image digest}
+    image: ${MAGNIBOX_FORWARDER_IMAGE:-python:3.12-alpine}
     profiles: ["delivery-events"]
     container_name: magnibox-delivery-events
     entrypoint: ["python3", "/opt/magnibox-bridge/postfix-delivery-events.py"]
