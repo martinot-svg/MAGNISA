@@ -2,6 +2,8 @@ import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   MAGNIBOX_INBOUND_MAX_TEXT_CHARS,
+  MAGNIBOX_INBOUND_MAX_ATTACHMENT_BYTES,
+  MAGNIBOX_INBOUND_MAX_TOTAL_ATTACHMENT_BYTES,
   isMagniboxInboundContentLengthTooLarge,
   parseMagniboxInboundPayload,
   readMagniboxInboundBody,
@@ -13,6 +15,13 @@ const secret="magnibox-test-secret-with-at-least-thirty-two-characters";
 const body=JSON.stringify({messageId:"queue-123",from:"Sender <sender@example.net>",to:["finance@entreprise.mg"],subject:"Bonjour",text:"Message entrant"});
 const ts="1794700000";
 const sig="sha256="+createHmac("sha256",secret).update(ts+"."+body).digest("hex");
+describe("Magnibox inbound attachment limits", () => {
+  it("allows 30 MiB per file and 150 MiB total across five files", () => {
+    expect(MAGNIBOX_INBOUND_MAX_ATTACHMENT_BYTES).toBe(30 * 1024 * 1024);
+    expect(MAGNIBOX_INBOUND_MAX_TOTAL_ATTACHMENT_BYTES).toBe(150 * 1024 * 1024);
+  });
+});
+
 describe("Magnibox inbound Content-Length guard", () => {
   it("rejects only valid decimal lengths above the hard limit", () => {
     const limit = 28 * 1024 * 1024;
