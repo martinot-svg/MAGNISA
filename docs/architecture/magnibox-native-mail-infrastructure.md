@@ -82,3 +82,7 @@ Ne pas placer ces secrets dans des variables `NEXT_PUBLIC_*`. Le kill switch res
 ### Contrat de la passerelle entrante
 
 Après acceptation SMTP, filtrage antispam et antivirus, le MTA POST un JSON `{ messageId, from, to, subject, text }` à `/api/internal/magnibox/inbound`. Il calcule `HMAC-SHA256(secret, timestamp + "." + rawBody)`, transmis dans `x-magnibox-timestamp` (Unix secondes) et `x-magnibox-signature: sha256=<hex>`. La passerelle rejette les signatures de plus de cinq minutes, les enveloppes trop volumineuses, les destinataires non activés et les identités dont le domaine ou l'adresse n'est plus approuvé. Les retries du MTA sont idempotents grâce à l'identifiant de message unique par identité.
+
+### Contrat des accusés de livraison
+
+Le serveur Postfix doit extraire le queue ID de l'acceptation SMTP (réponse `queued as`) et le conserver comme référence de livraison. L'adaptateur MAGNIBOX enregistre ce queue ID, pas seulement l'en-tête RFC Message-ID. Les événements du MTA sont POSTés à `/api/internal/magnibox/delivery-event` avec le même schéma HMAC horodaté et le JSON `{ queueId, event }`, où `event` vaut `delivered`, `bounced`, `failed` ou `deferred`. Les mises à jour ne peuvent cibler que des messages sortants par queue ID ; elles n'acceptent aucun ID d'organisation fourni par l'appelant.
