@@ -1,0 +1,6 @@
+# Copy to docker-data/config/postfix-main.cf only after the signed recipient snapshot
+# has been fetched, reviewed and published by postfix-provision-sync.py.
+# The mounted /etc/postfix/magnibox/current symlink is switched atomically by the sync tool.
+virtual_mailbox_domains = hash:/etc/postfix/magnibox/current/domains
+virtual_mailbox_maps = hash:/etc/postfix/magnibox/current/recipients
+virtual_transport = magnibox-inbound
