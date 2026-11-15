@@ -27,8 +27,9 @@ BEGIN
       AND allowed_mime_types IS NOT NULL
       AND 'application/pdf' = ANY(allowed_mime_types)
       AND 'image/png' = ANY(allowed_mime_types)
+      AND 'application/octet-stream' = ANY(allowed_mime_types)
   ) THEN
-    RAISE EXCEPTION 'MAGNIBOX attachment bucket must retain its MIME allowlist';
+    RAISE EXCEPTION 'MAGNIBOX attachment bucket must retain the scanner formats and quarantined octet-stream ingestion allowlist';
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
