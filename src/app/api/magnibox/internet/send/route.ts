@@ -3,6 +3,7 @@ import { requireOrganization } from "@/lib/current-org";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MagniboxSmtpTransport, magniboxSmtpConfig } from "@/lib/orbit/transport/smtp";
 import { allowPublicSend, enabledMagniboxInternetMail, normalizeOutgoingMessage } from "@/lib/orbit/transport/gates";
+import { isMagniboxInboundContentLengthTooLarge, MagniboxInboundBodyTooLargeError, readMagniboxBoundedBody } from "@/lib/orbit/transport/inbound";
 
 export const runtime = "nodejs";
 
@@ -19,14 +20,21 @@ export async function POST(request: NextRequest) {
   if (!enabledMagniboxInternetMail() || !magniboxSmtpConfig()) {
     return reply("Le transport Internet Magnibox n'est pas encore activé.",503);
   }
-  if (Number(request.headers.get("content-length")||"0")>100000)
-    return reply("Message trop volumineux.",413);
+  let rawBody: string;
+  try {
+    if (isMagniboxInboundContentLengthTooLarge(request.headers.get("content-length"), 100000))
+      return reply("Message trop volumineux.",413);
+    rawBody = await readMagniboxBoundedBody(request.body, 100000);
+  } catch (error) {
+    if (error instanceof MagniboxInboundBodyTooLargeError) return reply("Message trop volumineux.",413);
+    return reply("Corps de requête invalide.",400);
+  }
 
   try {
     const ctx=await requireOrganization();
     let input: ReturnType<typeof normalizeOutgoingMessage>;
     try {
-      input=normalizeOutgoingMessage(await request.json());
+      input=normalizeOutgoingMessage(JSON.parse(rawBody));
     } catch {
       return reply("Identité, destinataires ou contenu de message invalides.",400);
     }
