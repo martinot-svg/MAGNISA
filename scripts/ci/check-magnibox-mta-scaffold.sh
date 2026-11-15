@@ -5,12 +5,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPOSE="$ROOT/infra/magnibox-mail/compose.yaml"
 ENV_EXAMPLE="$ROOT/infra/magnibox-mail/mailserver.env.example"
 README="$ROOT/infra/magnibox-mail/README.md"
+WORKER_DOCKERFILE="$ROOT/infra/magnibox-mail/worker/Dockerfile"
 GITIGNORE="$ROOT/.gitignore"
 
 fail() { printf 'Magnibox MTA scaffold check failed: %s\n' "$1" >&2; exit 1; }
 has() { grep -Fq -- "$2" "$1" || fail "missing expected configuration: $2"; }
 
-[[ -f "$COMPOSE" && -f "$ENV_EXAMPLE" && -f "$README" ]] || fail "scaffold files missing"
+[[ -f "$COMPOSE" && -f "$ENV_EXAMPLE" && -f "$README" && -f "$WORKER_DOCKERFILE" ]] || fail "scaffold files missing"
 
 has "$COMPOSE" '${MAGNIBOX_DMS_IMAGE:?'
 has "$COMPOSE" '${MAGNIBOX_MTA_HOSTNAME:?'
@@ -20,6 +21,9 @@ has "$COMPOSE" '"587:587"'
 has "$COMPOSE" '"993:993"'
 has "$COMPOSE" 'restart: unless-stopped'
 has "$COMPOSE" 'NET_ADMIN'
+has "$COMPOSE" 'attachment-worker:'
+has "$COMPOSE" 'network_mode: "service:mailserver"'
+has "$COMPOSE" 'MAGNIBOX_WORKER_SERVICE_ROLE_KEY'
 
 if grep -Eiq '(^|[/:])latest([[:space:]"\047]|$)' "$COMPOSE"; then
   fail "floating latest image tags are forbidden"
@@ -46,4 +50,7 @@ has "$README" 'does **not** yet connect Dovecot mailboxes'
 has "$README" 'Do not use a server behind carrier-grade NAT'
 has "$README" 'Do not set `MAGNIBOX_EXTERNAL_MAIL_ENABLED=true`'
 has "$README" 'Postfix-to-MAGNIBOX'
+has "$README" 'MAGNIBOX_WORKER_SUPABASE_URL'
+has "$WORKER_DOCKERFILE" 'tsx@4.20.6'
+has "$WORKER_DOCKERFILE" 'USER node'
 printf 'Magnibox MTA scaffold checks passed.\n'
