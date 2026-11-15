@@ -53,6 +53,13 @@ export class MagniboxSmtpTransport implements InternetTransport {
     if (to.length < 1 || to.length > 10 || new Set(to).size !== to.length) {
       throw new Error("Destinataires de courrier externe invalides.");
     }
+    const attachments = message.attachments ?? [];
+    const attachmentBytes = attachments.reduce((total, attachment) => total + (Buffer.isBuffer(attachment.content) ? attachment.content.length : 0), 0);
+    if (attachments.length > 5 || attachmentBytes > 20 * 1024 * 1024 || attachments.some((attachment) =>
+      !Buffer.isBuffer(attachment.content) || attachment.content.length < 1 || attachment.content.length > 10 * 1024 * 1024
+      || !/^[\w .()\-]{1,120}$/.test(attachment.filename) || !/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(attachment.contentType))) {
+      throw new Error("Pièces jointes MAGNIBOX invalides ou trop volumineuses.");
+    }
     const subject = message.subject.trim();
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(message.requestId)
       || !subject || subject.length > 180 || /[\r\n\u0000-\u001f]/.test(subject) || !message.text.trim()
@@ -80,6 +87,11 @@ export class MagniboxSmtpTransport implements InternetTransport {
       to,
       subject,
       text: message.text,
+      ...(attachments.length ? { attachments: attachments.map((attachment) => ({
+        filename: attachment.filename,
+        content: attachment.content,
+        contentType: attachment.contentType,
+      })) } : {}),
       messageId: `<${message.requestId}@${from.split("@")[1]}>`,
       headers: { "X-Magnibox-Request-ID": message.requestId },
     });
