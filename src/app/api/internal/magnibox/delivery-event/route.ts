@@ -43,15 +43,17 @@ export async function POST(request: NextRequest) {
   const state = data.event === "delivered" ? "delivered"
     : data.event === "bounced" ? "bounced"
     : data.event === "failed" ? "failed" : "uncertain";
-  const allowed = state === "bounced" ? ["accepted", "sending", "uncertain", "delivered"]
-    : state === "uncertain" ? ["accepted", "sending"]
-    : ["accepted", "sending", "uncertain"];
   const admin = createAdminClient();
-  const updated = await admin.from("orbit_external_messages")
-    .update({ status: state, updated_at: new Date().toISOString() })
-    .eq("direction", "outgoing")
-    .eq("provider_email_id", data.queueId)
-    .in("status", allowed);
+  const updated = await admin.rpc("orbit_apply_magnibox_delivery_event", {
+    p_queue_id: data.queueId,
+    p_event_state: state,
+  });
   if (updated.error) return NextResponse.json({ error: "Mise à jour de livraison indisponible." }, { status: 503 });
-  return NextResponse.json({ ok: true }, { status: 202 });
+  if (updated.data === "ambiguous") return NextResponse.json(
+    { error: "Référence SMTP ambiguë : aucun message n'a été modifié." }, { status: 409 },
+  );
+  if (updated.data === "not_found") return NextResponse.json(
+    { error: "Référence de livraison inconnue." }, { status: 404 },
+  );
+  return NextResponse.json({ ok: true, applied: updated.data === "updated" }, { status: 202 });
 }
