@@ -6,6 +6,12 @@ export type OutgoingInternetMessage = {
   text: string;
   /** A request UUID persisted atomically before SMTP submission. */
   requestId: string;
+  attachments?: OutgoingInternetAttachment[];
+};
+export type OutgoingInternetAttachment = {
+  filename: string;
+  content: Buffer;
+  contentType: string;
 };
 export type InternetAccepted = {
   provider: "smtp";
