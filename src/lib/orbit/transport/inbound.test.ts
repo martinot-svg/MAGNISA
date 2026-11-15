@@ -4,6 +4,7 @@ import {
   MAGNIBOX_INBOUND_MAX_TEXT_CHARS,
   MAGNIBOX_INBOUND_MAX_ATTACHMENT_BYTES,
   MAGNIBOX_INBOUND_MAX_TOTAL_ATTACHMENT_BYTES,
+  MAGNIBOX_INBOUND_MAX_REQUEST_BYTES,
   isMagniboxInboundContentLengthTooLarge,
   parseMagniboxInboundPayload,
   readMagniboxInboundBody,
@@ -24,7 +25,8 @@ describe("Magnibox inbound attachment limits", () => {
 
 describe("Magnibox inbound Content-Length guard", () => {
   it("rejects only valid decimal lengths above the hard limit", () => {
-    const limit = 28 * 1024 * 1024;
+    const limit = MAGNIBOX_INBOUND_MAX_REQUEST_BYTES;
+    expect(limit).toBe(205 * 1024 * 1024);
     expect(isMagniboxInboundContentLengthTooLarge(String(limit), limit)).toBe(false);
     expect(isMagniboxInboundContentLengthTooLarge(String(limit + 1), limit)).toBe(true);
     expect(isMagniboxInboundContentLengthTooLarge(null, limit)).toBe(false);
