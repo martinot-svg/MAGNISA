@@ -26,7 +26,7 @@ describe("Magnibox native SMTP transport", () => {
     const sendMail = vi.fn().mockResolvedValue({
       messageId: "<request@example.com>",
       response: "250 2.0.0 Ok: queued as ABC123DEF",
-      accepted: ["client@example.net"],
+      accepted: ["client@example.com"],
     });
     const factory = vi.fn(() => ({ sendMail }));
     const transport = new MagniboxSmtpTransport(env as NodeJS.ProcessEnv, factory);
