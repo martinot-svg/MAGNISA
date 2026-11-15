@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { connect } from "node:net";
 import { createHash } from "node:crypto";
-import { TextDecoder } from "node:util";
+import { detectMagniboxAttachmentMime } from "./attachment-scan-core";
 
 type Attachment = {
   id: string;
@@ -16,24 +16,6 @@ type Attachment = {
 const BUCKET = "magnibox-attachments";
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const BATCH_SIZE = 10;
-
-export function detectMime(bytes: Buffer): string | null {
-  if (bytes.length >= 5 && bytes.subarray(0, 5).toString("ascii") === "%PDF-") return "application/pdf";
-  if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return "image/png";
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
-  if (bytes.length >= 6 && ["GIF87a", "GIF89a"].includes(bytes.subarray(0, 6).toString("ascii"))) return "image/gif";
-  if (bytes.length >= 12 && bytes.subarray(0, 4).toString("ascii") === "RIFF"
-    && bytes.subarray(8, 12).toString("ascii") === "WEBP") return "image/webp";
-
-  // Text is accepted only when it is valid UTF-8 and contains no binary NUL bytes.
-  if (bytes.length > 0 && !bytes.includes(0)) {
-    try {
-      new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-      return "text/plain";
-    } catch { /* unsupported binary format */ }
-  }
-  return null;
-}
 
 async function scanWithClamAV(bytes: Buffer, host: string, port: number): Promise<"clean" | "infected"> {
   return new Promise((resolve, reject) => {
@@ -92,7 +74,7 @@ async function processOne(admin: ReturnType<typeof createClient>, item: Attachme
     const digest = createHash("sha256").update(bytes).digest("hex");
     if (digest !== item.sha256.toLowerCase()) throw new Error("sha256_mismatch");
 
-    const detected = detectMime(bytes);
+    const detected = detectMagniboxAttachmentMime(bytes);
     if (!detected) {
       await admin.from("orbit_external_message_attachments")
         .update({ scan_status: "rejected", scan_completed_at: new Date().toISOString() })
