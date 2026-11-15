@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
   let raw: string;
   try {
-    raw = await readMagniboxInboundBody(request.body, 28 * 1024 * 1024);
+    raw = await readMagniboxInboundBody(request.body, 205 * 1024 * 1024);
   } catch (error) {
     if (error instanceof MagniboxInboundBodyTooLargeError)
       return NextResponse.json({ error: "Message entrant trop volumineux." }, { status: 413 });
