@@ -11,6 +11,7 @@ type Attachment = {
   byte_size: number;
   sha256: string;
   scan_status: "quarantined" | "scanning" | "available" | "rejected";
+  scan_attempts: number;
 };
 
 const BUCKET = "magnibox-attachments";
@@ -57,7 +58,7 @@ async function scanWithClamAV(bytes: Buffer, host: string, port: number): Promis
 async function processOne(admin: ReturnType<typeof createClient>, item: Attachment, clamHost: string, clamPort: number) {
   // Atomic compare-and-set prevents two workers from scanning the same object concurrently.
   const claim = await admin.from("orbit_external_message_attachments")
-    .update({ scan_status: "scanning" })
+    .update({ scan_status: "scanning", scan_started_at: new Date().toISOString(), scan_attempts: item.scan_attempts + 1 })
     .eq("id", item.id)
     .eq("scan_status", "quarantined")
     .select("id")
@@ -77,7 +78,7 @@ async function processOne(admin: ReturnType<typeof createClient>, item: Attachme
     const detected = detectMagniboxAttachmentMime(bytes);
     if (!detected) {
       await admin.from("orbit_external_message_attachments")
-        .update({ scan_status: "rejected", scan_completed_at: new Date().toISOString() })
+        .update({ scan_status: "rejected", scan_started_at: null, scan_completed_at: new Date().toISOString() })
         .eq("id", item.id).eq("scan_status", "scanning");
       terminal = true;
       await admin.storage.from(BUCKET).remove([item.storage_path]);
@@ -96,7 +97,7 @@ async function processOne(admin: ReturnType<typeof createClient>, item: Attachme
     }
 
     const available = await admin.from("orbit_external_message_attachments")
-      .update({ scan_status: "available", detected_mime_type: detected, scan_completed_at: new Date().toISOString() })
+      .update({ scan_status: "available", scan_started_at: null, detected_mime_type: detected, scan_completed_at: new Date().toISOString() })
       .eq("id", item.id).eq("scan_status", "scanning");
     if (available.error) throw new Error("status_update_failed");
     terminal = true;
@@ -104,7 +105,7 @@ async function processOne(admin: ReturnType<typeof createClient>, item: Attachme
     // Infrastructure errors are retryable; never expose an unscanned object.
     if (!terminal) {
       await admin.from("orbit_external_message_attachments")
-        .update({ scan_status: "quarantined" })
+        .update({ scan_status: "quarantined", scan_started_at: null })
         .eq("id", item.id).eq("scan_status", "scanning");
     }
   }
