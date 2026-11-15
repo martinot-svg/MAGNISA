@@ -11,7 +11,9 @@ set public = false,
       'image/png',
       'image/gif',
       'image/webp',
-      'text/plain'
+      'text/plain',
+      -- Inbound webhook stores untrusted bytes as octet-stream; ClamAV and signature detection decide availability.
+      'application/octet-stream'
     ]
 where id = 'magnibox-attachments';
 
