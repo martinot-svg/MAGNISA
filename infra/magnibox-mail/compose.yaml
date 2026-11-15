@@ -16,6 +16,8 @@ services:
       - ./docker-data/mail-state:/var/mail-state/
       - ./docker-data/logs:/var/log/mail/
       - ./docker-data/config:/tmp/docker-mailserver/
+      # Recipient maps are generated on the host and mounted read-only into Postfix.
+      - ./docker-data/provisioning:/etc/postfix/magnibox:ro
       - ./bridge:/opt/magnibox-bridge:ro
       - ${MAGNIBOX_TLS_DIR:?Set the host directory containing the TLS certificate and key}:/run/magnibox-tls:ro
     cap_add:
