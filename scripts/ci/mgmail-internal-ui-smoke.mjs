@@ -180,6 +180,7 @@ try {
   // Address administration is a separate screen inside the same product.
   // Return to the single inbox workspace before composing an internal message.
   await a.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
+  await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
   await openDialog(a.page,/Nouveau message/);
   await a.page.locator('select[name="senderId"]').selectOption(sender);
