@@ -18,7 +18,9 @@ from html.parser import HTMLParser
 from urllib.parse import urlparse
 
 MAX_MESSAGE_BYTES = 140_000
-EMAIL_RE = re.compile(r"^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$")
+# Must match orbit_external_messages.body_text database constraint.
+MAX_TEXT_CHARS = 50_000
+EMAIL_RE = re.compile(r"^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$")
 
 
 class StripHTML(HTMLParser):
@@ -54,8 +56,8 @@ def extract_text(message) -> str:
             parser = StripHTML()
             parser.feed(str(part.get_content()))
             html.append(parser.text())
-    text = "\n".join(plain).strip() or "\n".join(html).strip()
-    if not text or len(text) > 100_000:
+    text = "\\n".join(plain).strip() or "\\n".join(html).strip()
+    if not text or len(text) > MAX_TEXT_CHARS:
         raise ValueError("empty or oversized message body")
     return text
 
@@ -80,7 +82,7 @@ def forward(raw: bytes, recipient: str) -> int:
         msg = BytesParser(policy=policy.default).parsebytes(raw)
         sender = normalized_address(str(msg.get("From", "")))
         to = normalized_address(recipient)
-        subject = str(msg.get("Subject", "")).replace("\r", " ").replace("\n", " ").strip()
+        subject = str(msg.get("Subject", "")).replace("\\r", " ").replace("\\n", " ").strip()
         if not subject:
             subject = "(sans objet)"
         if len(subject) > 180:
