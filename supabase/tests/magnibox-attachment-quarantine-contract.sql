@@ -21,6 +21,13 @@ BEGIN
   IF coalesce(v_bucket,false) IS NOT TRUE THEN
     RAISE EXCEPTION 'MAGNIBOX attachment bucket must be private and allow 30 MiB files';
   END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid=v_table AND conname='orbit_external_attachment_byte_size_limit'
+      AND pg_get_constraintdef(oid) LIKE '%31457280%'
+  ) THEN
+    RAISE EXCEPTION 'MAGNIBOX attachment metadata must enforce the 30 MiB per-file limit';
+  END IF;
   IF NOT has_table_privilege('authenticated',v_table,'SELECT')
     OR has_table_privilege('authenticated',v_table,'INSERT')
     OR has_table_privilege('authenticated',v_table,'UPDATE')
