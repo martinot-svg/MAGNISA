@@ -33,8 +33,19 @@ export async function POST(request: NextRequest) {
   try {
     const ctx=await requireOrganization();
     let input: ReturnType<typeof normalizeOutgoingMessage>;
+    let attachmentIds: string[] = [];
     try {
-      input=normalizeOutgoingMessage(JSON.parse(rawBody));
+      const payload = JSON.parse(rawBody) as unknown;
+      input=normalizeOutgoingMessage(payload);
+      const rawAttachments = payload && typeof payload === "object" && !Array.isArray(payload)
+        ? (payload as Record<string, unknown>).attachmentIds : undefined;
+      if (rawAttachments !== undefined) {
+        if (!Array.isArray(rawAttachments) || rawAttachments.length > 5
+          || !rawAttachments.every(value => typeof value === "string"
+            && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value))
+          || new Set(rawAttachments).size !== rawAttachments.length) throw new Error("Invalid attachments");
+        attachmentIds = rawAttachments;
+      }
     } catch {
       return reply("Identité, destinataires ou contenu de message invalides.",400);
     }
@@ -70,7 +81,39 @@ export async function POST(request: NextRequest) {
       addressApproved:!address.error&&address.data?.status==="approved",
       recipientAuthorized:access.data===true,
     });
+
     if(!allowed) return reply("Domaine ou boîte expéditrice non validés pour l'envoi Internet.",403);
+
+    // Only previously received, malware-scanned files in this exact mailbox
+    // may be forwarded. Browser-supplied paths, names and MIME types are ignored.
+    const outgoingAttachments: Array<{filename:string;content:Buffer;contentType:string}> = [];
+    if (attachmentIds.length) {
+      const visible = await ctx.supabase.from("orbit_external_message_attachments")
+        .select("id,message_id,storage_path,display_name,byte_size,detected_mime_type")
+        .in("id", attachmentIds).eq("scan_status", "available");
+      if (visible.error || (visible.data ?? []).length !== attachmentIds.length)
+        return reply("Une ou plusieurs pièces jointes ne sont pas disponibles.",400);
+      const sourceMessages = await ctx.supabase.from("orbit_external_messages")
+        .select("id,identity_id,direction")
+        .in("id", (visible.data ?? []).map(item => item.message_id))
+        .eq("organization_id", ctx.organizationId).eq("identity_id", identity.id)
+        .eq("direction", "incoming");
+      if (sourceMessages.error || (sourceMessages.data ?? []).length !== new Set((visible.data ?? []).map(item => item.message_id)).size)
+        return reply("Les pièces jointes ne proviennent pas de cette boîte.",403);
+      const adminForFiles = createAdminClient();
+      let totalBytes = 0;
+      for (const item of visible.data ?? []) {
+        if (item.byte_size < 1 || item.byte_size > 30 * 1024 * 1024) return reply("Taille de pièce jointe invalide.",400);
+        totalBytes += item.byte_size;
+        if (totalBytes > 150 * 1024 * 1024) return reply("Taille totale des pièces jointes dépassée.",400);
+        const downloaded = await adminForFiles.storage.from("magnibox-attachments").download(item.storage_path);
+        if (downloaded.error || !downloaded.data) return reply("Lecture sécurisée des pièces jointes impossible.",503);
+        const content = Buffer.from(await downloaded.data.arrayBuffer());
+        if (content.length !== item.byte_size) return reply("Intégrité d'une pièce jointe non vérifiée.",400);
+        const filename = item.display_name.replace(/[^\\w .()\\-]/g, "_").slice(0,120) || "attachment.bin";
+        outgoingAttachments.push({filename,content,contentType:item.detected_mime_type});
+      }
+    }
 
     // Repeated requests return the existing result, before evaluating quotas.
     // A reused key with a different payload or author is a conflict, never
@@ -138,7 +181,7 @@ export async function POST(request: NextRequest) {
       const transport=new MagniboxSmtpTransport();
       const result=await transport.send({
         from:identity.email_address,to:input.to,subject:input.subject,
-        text:input.text,requestId:input.requestId,
+        text:input.text,requestId:input.requestId,attachments:outgoingAttachments,
       });
       const saved=await admin.from("orbit_external_messages").update({
         status:"accepted",provider_email_id:result.providerMessageId,
