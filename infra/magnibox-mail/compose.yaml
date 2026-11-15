@@ -58,9 +58,8 @@ services:
     container_name: magnibox-delivery-events
     entrypoint: ["python3", "/opt/magnibox-bridge/postfix-delivery-events.py"]
     command: ["/var/log/mail/mail.log", "/var/lib/magnibox-event-forwarder/cursor.json"]
-    environment:
-      MAGNIBOX_DELIVERY_EVENT_URL: ${MAGNIBOX_DELIVERY_EVENT_URL:?Set the internal MAGNIBOX delivery-event endpoint}
-      MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET: ${MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET:?Set the dedicated delivery-event HMAC secret}
+    env_file:
+      - ./mailserver.env
     volumes:
       - ./docker-data/logs:/var/log/mail:ro
       - ./bridge:/opt/magnibox-bridge:ro
