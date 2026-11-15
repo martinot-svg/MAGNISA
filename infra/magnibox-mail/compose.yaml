@@ -1,0 +1,23 @@
+services:
+  mailserver:
+    image: ${MAGNIBOX_DMS_IMAGE:?Set a pinned Docker Mailserver version or image digest}
+    container_name: magnibox-mailserver
+    hostname: ${MAGNIBOX_MTA_HOSTNAME:?Set the public mail FQDN}
+    env_file:
+      - ./mailserver.env
+    environment:
+      OVERRIDE_HOSTNAME: ${MAGNIBOX_MTA_HOSTNAME:?Set the public mail FQDN}
+    ports:
+      - "25:25"
+      - "587:587"
+      - "993:993"
+    volumes:
+      - ./docker-data/mail-data:/var/mail/
+      - ./docker-data/mail-state:/var/mail-state/
+      - ./docker-data/logs:/var/log/mail/
+      - ./docker-data/config:/tmp/docker-mailserver/
+      - ${MAGNIBOX_TLS_DIR:?Set the host directory containing the TLS certificate and key}:/run/magnibox-tls:ro
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+    stop_grace_period: 1m
