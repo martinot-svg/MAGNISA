@@ -1,35 +1,31 @@
-/** No provider owns the MGMail internal mailbox or the organization's identity. */
+/** Public Internet email is routed by the MAGNIBOX-owned SMTP infrastructure. */
 export type OutgoingInternetMessage = {
-  /** An already provisioned and authorized public sender; never a .mgmail address. */
   from: string;
   to: string[];
   subject: string;
   text: string;
-  /** A request UUID persisted atomically before invoking this adapter. */
+  /** A request UUID persisted atomically before SMTP submission. */
   requestId: string;
+  attachments?: OutgoingInternetAttachment[];
+};
+export type OutgoingInternetAttachment = {
+  filename: string;
+  content: Buffer;
+  contentType: string;
 };
 export type InternetAccepted = {
-  provider: "resend" | "smtp" | "microsoft" | "other";
+  provider: "smtp";
   providerMessageId: string;
-  /** API acceptance is NOT an SMTP delivery confirmation. */
+  /** SMTP queue acceptance is NOT a final remote delivery confirmation. */
   state: "accepted";
 };
 export type IncomingInternetMessage = {
-  from: string; to: string[]; subject: string; text: string;
+  from: string;
+  to: string[];
+  subject: string;
+  text: string;
 };
 export interface InternetTransport {
   readonly provider: InternetAccepted["provider"];
-  /** Requires verified sender/domain/permissions in calling server service. */
   send(message: OutgoingInternetMessage): Promise<InternetAccepted>;
-}
-export function internetTransportReady(input: {
-  domainOwnershipVerified: boolean;
-  sendingProviderVerified: boolean;
-  senderActivated: boolean;
-  hasProviderCredentials: boolean;
-}): boolean {
-  return input.domainOwnershipVerified
-    && input.sendingProviderVerified
-    && input.senderActivated
-    && input.hasProviderCredentials;
 }

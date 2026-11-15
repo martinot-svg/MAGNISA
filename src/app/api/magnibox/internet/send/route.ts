@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { requireOrganization } from "@/lib/current-org";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ResendInternetTransport } from "@/lib/orbit/transport/resend";
+import { MagniboxSmtpTransport, magniboxSmtpConfig } from "@/lib/orbit/transport/smtp";
 import { allowPublicSend, enabledMagniboxInternetMail, normalizeOutgoingMessage } from "@/lib/orbit/transport/gates";
+import { isMagniboxInboundContentLengthTooLarge, MagniboxInboundBodyTooLargeError, readMagniboxBoundedBody } from "@/lib/orbit/transport/inbound";
 
 export const runtime = "nodejs";
 
@@ -16,17 +18,35 @@ function reply(error: string,status: number) {
  * the body. The authenticated membership and BOTH grant layers are checked.
  */
 export async function POST(request: NextRequest) {
-  if (!enabledMagniboxInternetMail() || !process.env.RESEND_API_KEY) {
+  if (!enabledMagniboxInternetMail() || !magniboxSmtpConfig()) {
     return reply("Le transport Internet Magnibox n'est pas encore activé.",503);
   }
-  if (Number(request.headers.get("content-length")||"0")>100000)
-    return reply("Message trop volumineux.",413);
+  let rawBody: string;
+  try {
+    if (isMagniboxInboundContentLengthTooLarge(request.headers.get("content-length"), 100000))
+      return reply("Message trop volumineux.",413);
+    rawBody = await readMagniboxBoundedBody(request.body, 100000);
+  } catch (error) {
+    if (error instanceof MagniboxInboundBodyTooLargeError) return reply("Message trop volumineux.",413);
+    return reply("Corps de requête invalide.",400);
+  }
 
   try {
     const ctx=await requireOrganization();
     let input: ReturnType<typeof normalizeOutgoingMessage>;
+    let attachmentIds: string[] = [];
     try {
-      input=normalizeOutgoingMessage(await request.json());
+      const payload = JSON.parse(rawBody) as unknown;
+      input=normalizeOutgoingMessage(payload);
+      const rawAttachments = payload && typeof payload === "object" && !Array.isArray(payload)
+        ? (payload as Record<string, unknown>).attachmentIds : undefined;
+      if (rawAttachments !== undefined) {
+        if (!Array.isArray(rawAttachments) || rawAttachments.length > 5
+          || !rawAttachments.every(value => typeof value === "string"
+            && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value))
+          || new Set(rawAttachments).size !== rawAttachments.length) throw new Error("Invalid attachments");
+        attachmentIds = rawAttachments;
+      }
     } catch {
       return reply("Identité, destinataires ou contenu de message invalides.",400);
     }
@@ -57,12 +77,44 @@ export async function POST(request: NextRequest) {
     ]);
     const allowed=allowPublicSend(identity,ctx.organizationId,{
       enabled:enabledMagniboxInternetMail(),
-      hasCredentials:!!process.env.RESEND_API_KEY,
+      hasCredentials:!!magniboxSmtpConfig(),
       domainVerified:!domain.error&&domain.data?.status==="verified",
       addressApproved:!address.error&&address.data?.status==="approved",
       recipientAuthorized:access.data===true,
     });
+
     if(!allowed) return reply("Domaine ou boîte expéditrice non validés pour l'envoi Internet.",403);
+
+    // Only previously received, malware-scanned files in this exact mailbox
+    // may be forwarded. Browser-supplied paths, names and MIME types are ignored.
+    const outgoingAttachments: Array<{filename:string;content:Buffer;contentType:string}> = [];
+    if (attachmentIds.length) {
+      const visible = await ctx.supabase.from("orbit_external_message_attachments")
+        .select("id,message_id,storage_path,display_name,byte_size,detected_mime_type,sha256")
+        .in("id", attachmentIds).eq("scan_status", "available");
+      if (visible.error || (visible.data ?? []).length !== attachmentIds.length)
+        return reply("Une ou plusieurs pièces jointes ne sont pas disponibles.",400);
+      const sourceMessages = await ctx.supabase.from("orbit_external_messages")
+        .select("id,identity_id,direction")
+        .in("id", (visible.data ?? []).map(item => item.message_id))
+        .eq("organization_id", ctx.organizationId).eq("identity_id", identity.id)
+        .eq("direction", "incoming");
+      if (sourceMessages.error || (sourceMessages.data ?? []).length !== new Set((visible.data ?? []).map(item => item.message_id)).size)
+        return reply("Les pièces jointes ne proviennent pas de cette boîte.",403);
+      const adminForFiles = createAdminClient();
+      let totalBytes = 0;
+      for (const item of visible.data ?? []) {
+        if (item.byte_size < 1 || item.byte_size > 30 * 1024 * 1024) return reply("Taille de pièce jointe invalide.",400);
+        totalBytes += item.byte_size;
+        if (totalBytes > 150 * 1024 * 1024) return reply("Taille totale des pièces jointes dépassée.",400);
+        const downloaded = await adminForFiles.storage.from("magnibox-attachments").download(item.storage_path);
+        if (downloaded.error || !downloaded.data) return reply("Lecture sécurisée des pièces jointes impossible.",503);
+        const content = Buffer.from(await downloaded.data.arrayBuffer());
+        if (content.length !== item.byte_size || createHash("sha256").update(content).digest("hex") !== item.sha256) return reply("Intégrité d'une pièce jointe non vérifiée.",400);
+        const filename = item.display_name.replace(/[^\\w .()\\-]/g, "_").slice(0,120) || "attachment.bin";
+        outgoingAttachments.push({filename,content,contentType:item.detected_mime_type});
+      }
+    }
 
     // Repeated requests return the existing result, before evaluating quotas.
     // A reused key with a different payload or author is a conflict, never
@@ -85,31 +137,25 @@ export async function POST(request: NextRequest) {
       },{status:202});
     }
 
-    // Conservative free-tier guard. A later atomic quota in the database is
-    // necessary before providing unlimited or high-volume delivery.
-    const since=new Date(Date.now()-24*60*60*1000).toISOString();
-    const quota=await admin.from("orbit_external_messages")
-      .select("id",{count:"exact",head:true})
-      .eq("organization_id",ctx.organizationId)
-      .eq("identity_id",identity.id).eq("direction","outgoing")
-      .gte("created_at",since);
-    if(quota.error) return reply("Le quota de courrier ne peut pas être vérifié.",503);
-    const dailyLimit=Math.max(1,Math.min(20,Number(process.env.MAGNIBOX_OUTBOUND_DAILY_LIMIT)||10));
-    if((quota.count??0)>=dailyLimit)
-      return reply("Le quota quotidien d'envoi de cette boîte est atteint.",429);
-
     // The database's unique (identity_id, request_key) index protects against
     // retries submitting the same mail twice. Never automatically retry an
     // ambiguous provider/network failure.
-    const pending=await admin.from("orbit_external_messages").insert({
-      organization_id:ctx.organizationId,identity_id:identity.id,
-      direction:"outgoing",status:"sending",
-      from_email:identity.email_address,to_emails:input.to,
-      subject:input.subject,body_text:input.text,
-      request_key:input.requestId,created_by:ctx.user.id,
-    }).select("id").single();
-    if(pending.error) {
-      if(pending.error.code==="23505") {
+    // Reserve quota and create the pending row under one transaction-scoped
+    // organization/identity lock. Concurrent sends cannot pass the same count.
+    const dailyLimit=Math.max(1,Math.min(20,Number(process.env.MAGNIBOX_OUTBOUND_DAILY_LIMIT)||10));
+    const pending=await admin.rpc("orbit_reserve_magnibox_outbound",{
+      p_organization_id:ctx.organizationId,
+      p_identity_id:identity.id,
+      p_from_email:identity.email_address,
+      p_to_emails:input.to,
+      p_subject:input.subject,
+      p_body_text:input.text,
+      p_request_key:input.requestId,
+      p_created_by:ctx.user.id,
+      p_daily_limit:dailyLimit,
+    });
+    if(pending.error||!pending.data) {
+      if(pending.error?.code==="23505") {
         const existing=await admin.from("orbit_external_messages")
           .select("id,status,provider_email_id,created_by,to_emails,subject,body_text")
           .eq("organization_id",ctx.organizationId)
@@ -128,14 +174,15 @@ export async function POST(request: NextRequest) {
           },{status:202});
         }
       }
-      return reply("Impossible d'enregistrer la demande d'envoi.",503);
+      if(pending.error?.message?.includes("quota")) return reply("Le quota quotidien d'envoi de cette boîte est atteint.",429);
+      return reply("Impossible de réserver le quota et d'enregistrer la demande d'envoi.",503);
     }
-    const id=pending.data?.id;
+    const id=pending.data;
     try {
-      const transport=new ResendInternetTransport(process.env.RESEND_API_KEY);
+      const transport=new MagniboxSmtpTransport();
       const result=await transport.send({
         from:identity.email_address,to:input.to,subject:input.subject,
-        text:input.text,requestId:input.requestId,
+        text:input.text,requestId:input.requestId,attachments:outgoingAttachments,
       });
       const saved=await admin.from("orbit_external_messages").update({
         status:"accepted",provider_email_id:result.providerMessageId,
@@ -144,20 +191,20 @@ export async function POST(request: NextRequest) {
         .eq("status","sending").select("id").maybeSingle();
       if(saved.error||!saved.data) return NextResponse.json({
         ok:false,id,state:"uncertain",
-        error:"Envoi accepté par le fournisseur, confirmation locale indisponible. Ne renvoyez pas le message.",
+        error:"Envoi accepté par le serveur SMTP MAGNIBOX, confirmation locale indisponible. Ne renvoyez pas le message.",
       },{status:202});
       return NextResponse.json({
         ok:true,id,state:"accepted",providerMessageId:result.providerMessageId,
-        message:"Accepté par le fournisseur, livraison finale non confirmée.",
+        message:"Accepté par le serveur SMTP MAGNIBOX, livraison finale non confirmée.",
       },{status:202});
     } catch {
       await admin.from("orbit_external_messages").update({
-        status:"uncertain",last_error:"Envoi non confirmé — contrôler chez le fournisseur avant nouvelle tentative.",
+        status:"uncertain",last_error:"Envoi non confirmé — vérifier la file SMTP MAGNIBOX avant toute nouvelle tentative.",
         updated_at:new Date().toISOString(),
       }).eq("organization_id",ctx.organizationId).eq("id",id).eq("status","sending");
       return NextResponse.json({
         ok:false,id,state:"uncertain",
-        error:"Le fournisseur n'a pas confirmé l'envoi. Contrôlez l'historique avant de réessayer.",
+        error:"Le serveur SMTP MAGNIBOX n'a pas confirmé l'envoi. Contrôlez l'historique avant de réessayer.",
       },{status:202});
     }
   } catch {
