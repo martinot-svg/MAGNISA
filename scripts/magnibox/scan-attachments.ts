@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { connect } from "node:net";
-import { createHash } from "node:crypto";
-import { detectMagniboxAttachmentMime } from "./attachment-scan-core";
+import { createHash, randomUUID } from "node:crypto";
+import { buildClamAvInstreamFrames, detectMagniboxAttachmentMime, parseClamAvInstreamResponse } from "./attachment-scan-core";
 
 type Attachment = {
   id: string;
@@ -34,31 +34,22 @@ async function scanWithClamAV(bytes: Buffer, host: string, port: number): Promis
     socket.on("error", error => finish(error));
     socket.on("data", chunk => {
       chunks.push(chunk);
-      const response = Buffer.concat(chunks).toString("utf8");
-      if (response.includes(" INSTREAM size limit exceeded")) finish(new Error("ClamAV stream limit exceeded"));
-      else if (response.endsWith(" OK\0")) finish(undefined, "clean");
-      else if (/ FOUND\0$/.test(response)) finish(undefined, "infected");
-      else if (response.includes(" ERROR\0")) finish(new Error("ClamAV scan error"));
+      const verdict = parseClamAvInstreamResponse(Buffer.concat(chunks));
+      if (verdict === "clean") finish(undefined, "clean");
+      else if (verdict === "infected") finish(undefined, "infected");
+      else if (verdict === "error") finish(new Error("ClamAV scan error"));
     });
     socket.on("connect", () => {
-      socket.write("zINSTREAM\0");
-      const chunkSize = 64 * 1024;
-      for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-        const part = bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length));
-        const header = Buffer.alloc(4);
-        header.writeUInt32BE(part.length, 0);
-        socket.write(header);
-        socket.write(part);
-      }
-      socket.write(Buffer.alloc(4));
+      for (const frame of buildClamAvInstreamFrames(bytes)) socket.write(frame);
     });
   });
 }
 
 async function processOne(admin: ReturnType<typeof createClient>, item: Attachment, clamHost: string, clamPort: number) {
   // Atomic compare-and-set prevents two workers from scanning the same object concurrently.
+  const leaseToken = randomUUID();
   const claim = await admin.from("orbit_external_message_attachments")
-    .update({ scan_status: "scanning", scan_started_at: new Date().toISOString(), scan_attempts: item.scan_attempts + 1 })
+    .update({ scan_status: "scanning", scan_started_at: new Date().toISOString(), scan_lease_token: leaseToken, scan_attempts: item.scan_attempts + 1 })
     .eq("id", item.id)
     .eq("scan_status", "quarantined")
     .lt("scan_attempts", 5)
@@ -79,9 +70,10 @@ async function processOne(admin: ReturnType<typeof createClient>, item: Attachme
     const detected = detectMagniboxAttachmentMime(bytes);
     if (!detected) {
       const rejected = await admin.from("orbit_external_message_attachments")
-        .update({ scan_status: "rejected", scan_started_at: null, scan_completed_at: new Date().toISOString() })
-        .eq("id", item.id).eq("scan_status", "scanning");
+        .update({ scan_status: "rejected", scan_started_at: null, scan_lease_token: null, scan_completed_at: new Date().toISOString() })
+        .eq("id", item.id).eq("scan_status", "scanning").eq("scan_lease_token", leaseToken).select("id").maybeSingle();
       if (rejected.error) throw new Error("status_update_failed");
+      if (!rejected.data) { terminal = true; return; }
       terminal = true;
       await admin.storage.from(BUCKET).remove([item.storage_path]);
       return;
@@ -90,25 +82,27 @@ async function processOne(admin: ReturnType<typeof createClient>, item: Attachme
     const verdict = await scanWithClamAV(bytes, clamHost, clamPort);
     if (verdict === "infected") {
       const rejected = await admin.from("orbit_external_message_attachments")
-        .update({ scan_status: "rejected", scan_started_at: null, scan_completed_at: new Date().toISOString() })
-        .eq("id", item.id).eq("scan_status", "scanning");
+        .update({ scan_status: "rejected", scan_started_at: null, scan_lease_token: null, scan_completed_at: new Date().toISOString() })
+        .eq("id", item.id).eq("scan_status", "scanning").eq("scan_lease_token", leaseToken).select("id").maybeSingle();
       if (rejected.error) throw new Error("status_update_failed");
+      if (!rejected.data) { terminal = true; return; }
       terminal = true;
       await admin.storage.from(BUCKET).remove([item.storage_path]);
       return;
     }
 
     const available = await admin.from("orbit_external_message_attachments")
-      .update({ scan_status: "available", scan_started_at: null, detected_mime_type: detected, scan_completed_at: new Date().toISOString() })
-      .eq("id", item.id).eq("scan_status", "scanning");
+      .update({ scan_status: "available", scan_started_at: null, scan_lease_token: null, detected_mime_type: detected, scan_completed_at: new Date().toISOString() })
+      .eq("id", item.id).eq("scan_status", "scanning").eq("scan_lease_token", leaseToken).select("id").maybeSingle();
     if (available.error) throw new Error("status_update_failed");
     terminal = true;
+    if (!available.data) return;
   } finally {
     // Infrastructure errors are retryable; never expose an unscanned object.
     if (!terminal) {
       await admin.from("orbit_external_message_attachments")
-        .update({ scan_status: "quarantined", scan_started_at: null })
-        .eq("id", item.id).eq("scan_status", "scanning");
+        .update({ scan_status: "quarantined", scan_started_at: null, scan_lease_token: null })
+        .eq("id", item.id).eq("scan_status", "scanning").eq("scan_lease_token", leaseToken).select("id").maybeSingle();
     }
   }
 }
@@ -128,12 +122,12 @@ async function main() {
     .eq("scan_status", "scanning").lt("scan_attempts", 5).lt("scan_started_at", staleBefore);
   if (retryable.error) throw new Error("Unable to recover stale scan leases");
   const exhausted = await admin.from("orbit_external_message_attachments")
-    .update({ scan_status: "rejected", scan_started_at: null, scan_completed_at: new Date().toISOString() })
+    .update({ scan_status: "rejected", scan_started_at: null, scan_lease_token: null, scan_completed_at: new Date().toISOString() })
     .eq("scan_status", "scanning").gte("scan_attempts", 5).lt("scan_started_at", staleBefore);
   if (exhausted.error) throw new Error("Unable to reject exhausted scan leases");
 
   const exhaustedQueued = await admin.from("orbit_external_message_attachments")
-    .update({ scan_status: "rejected", scan_completed_at: new Date().toISOString() })
+    .update({ scan_status: "rejected", scan_started_at: null, scan_lease_token: null, scan_completed_at: new Date().toISOString() })
     .eq("scan_status", "quarantined").gte("scan_attempts", 5);
   if (exhaustedQueued.error) throw new Error("Unable to reject exhausted queued scans");
 
