@@ -59,6 +59,7 @@ def follow(log_path:Path,cursor_path:Path,endpoint:str,secret:str)->int:
             with log_path.open("r",encoding="utf-8",errors="replace") as log:
                 stat=os.fstat(log.fileno()); offset=load_cursor(cursor_path,stat.st_ino,stat.st_size); log.seek(offset)
                 while not STOP:
+                    line_start=log.tell()
                     line=log.readline()
                     if not line:
                         time.sleep(0.5)
@@ -70,7 +71,7 @@ def follow(log_path:Path,cursor_path:Path,endpoint:str,secret:str)->int:
                     event=parse_log_line(line)
                     if event and not send_event(event,endpoint,secret):
                         time.sleep(backoff); backoff=min(backoff*2,60)
-                        log.seek(log.tell()-len(line.encode("utf-8",errors="replace")))
+                        log.seek(line_start)
                         continue
                     backoff=1; save_cursor(cursor_path,stat.st_ino,log.tell())
         except OSError: time.sleep(2)
