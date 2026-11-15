@@ -22,3 +22,26 @@ describe("detectMagniboxAttachmentMime", () => {
     expect(detectMagniboxAttachmentMime(Buffer.from("PK\\x03\\x04"))).toBe("text/plain");
   });
 });
+
+
+describe("ClamAV INSTREAM protocol", () => {
+  it("frames payloads with a NUL command and network-order chunk lengths", async () => {
+    const { buildClamAvInstreamFrames } = await import("./attachment-scan-core");
+    const frames = buildClamAvInstreamFrames(Buffer.from("abcdef"), 3);
+    expect(frames[0]).toEqual(Buffer.from("zINSTREAM\0", "ascii"));
+    expect(frames[1].readUInt32BE(0)).toBe(3);
+    expect(frames[2].toString()).toBe("abc");
+    expect(frames[3].readUInt32BE(0)).toBe(3);
+    expect(frames[4].toString()).toBe("def");
+    expect(frames[5]).toEqual(Buffer.alloc(4));
+  });
+
+  it("parses only complete NUL-terminated scanner replies", async () => {
+    const { parseClamAvInstreamResponse } = await import("./attachment-scan-core");
+    expect(parseClamAvInstreamResponse(Buffer.from("stream: O"))).toBeNull();
+    expect(parseClamAvInstreamResponse(Buffer.from("stream: OK\0"))).toBe("clean");
+    expect(parseClamAvInstreamResponse(Buffer.from("stream: Eicar FOUND\0"))).toBe("infected");
+    expect(parseClamAvInstreamResponse(Buffer.from("stream: ERROR\0"))).toBe("error");
+    expect(parseClamAvInstreamResponse(Buffer.from("INSTREAM size limit exceeded. ERROR\0"))).toBe("error");
+  });
+});
