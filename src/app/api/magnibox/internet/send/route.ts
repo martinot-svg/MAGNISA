@@ -109,15 +109,22 @@ export async function POST(request: NextRequest) {
     // The database's unique (identity_id, request_key) index protects against
     // retries submitting the same mail twice. Never automatically retry an
     // ambiguous provider/network failure.
-    const pending=await admin.from("orbit_external_messages").insert({
-      organization_id:ctx.organizationId,identity_id:identity.id,
-      direction:"outgoing",status:"sending",
-      from_email:identity.email_address,to_emails:input.to,
-      subject:input.subject,body_text:input.text,
-      request_key:input.requestId,created_by:ctx.user.id,
-    }).select("id").single();
-    if(pending.error) {
-      if(pending.error.code==="23505") {
+    // Reserve quota and create the pending row under one transaction-scoped
+    // organization/identity lock. Concurrent sends cannot pass the same count.
+    const dailyLimit=Math.max(1,Math.min(20,Number(process.env.MAGNIBOX_OUTBOUND_DAILY_LIMIT)||10));
+    const pending=await admin.rpc("orbit_reserve_magnibox_outbound",{
+      p_organization_id:ctx.organizationId,
+      p_identity_id:identity.id,
+      p_from_email:identity.email_address,
+      p_to_emails:input.to,
+      p_subject:input.subject,
+      p_body_text:input.text,
+      p_request_key:input.requestId,
+      p_created_by:ctx.user.id,
+      p_daily_limit:dailyLimit,
+    });
+    if(pending.error||!pending.data) {
+      if(pending.error?.code==="23505") {
         const existing=await admin.from("orbit_external_messages")
           .select("id,status,provider_email_id,created_by,to_emails,subject,body_text")
           .eq("organization_id",ctx.organizationId)
@@ -136,9 +143,10 @@ export async function POST(request: NextRequest) {
           },{status:202});
         }
       }
-      return reply("Impossible d'enregistrer la demande d'envoi.",503);
+      if(pending.error?.message?.includes("quota")) return reply("Le quota quotidien d'envoi de cette boîte est atteint.",429);
+      return reply("Impossible de réserver le quota et d'enregistrer la demande d'envoi.",503);
     }
-    const id=pending.data?.id;
+    const id=pending.data;
     try {
       const transport=new MagniboxSmtpTransport();
       const result=await transport.send({
