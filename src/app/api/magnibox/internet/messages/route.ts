@@ -34,10 +34,10 @@ export async function GET(request: NextRequest) {
         .select("id,message_id,display_name,byte_size")
         .in("message_id", messageIds)
         .eq("scan_status", "available")
-      : { data: [], error: null };
-    if (attachmentResult.error) return NextResponse.json({ ok: false, error: "Pièces jointes indisponibles." }, { status: 503 });
+      : null;
+    if (attachmentResult?.error) return NextResponse.json({ ok: false, error: "Pièces jointes indisponibles." }, { status: 503 });
     const attachmentsByMessage = new Map<string, Array<{id:string;display_name:string;byte_size:number}>>();
-    for (const attachment of attachmentResult.data ?? []) {
+    for (const attachment of attachmentResult?.data ?? []) {
       const list = attachmentsByMessage.get(attachment.message_id) ?? [];
       list.push({ id: attachment.id, display_name: attachment.display_name, byte_size: attachment.byte_size });
       attachmentsByMessage.set(attachment.message_id, list);
