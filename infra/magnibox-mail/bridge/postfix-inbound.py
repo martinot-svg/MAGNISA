@@ -161,7 +161,10 @@ def forward(raw: bytes, recipient: str) -> int:
         with opener.open(request, timeout=10) as response:
             return 0 if response.status == 202 else (75 if response.status >= 500 else 69)
     except urllib.error.HTTPError as error:
-        if error.code in (300, 301, 302, 303, 307, 308, 401, 403, 404, 408, 425, 429) or error.code >= 500:
+        # Retry only transient upstream conditions. Authentication, routing,
+        # validation and redirect responses are permanent until configuration
+        # or the message changes; retrying them would retain mail indefinitely.
+        if error.code in (408, 425, 429) or error.code >= 500:
             return 75
         return 69
     except (urllib.error.URLError, TimeoutError, OSError):
