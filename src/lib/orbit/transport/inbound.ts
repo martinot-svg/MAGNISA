@@ -103,3 +103,12 @@ export async function readMagniboxInboundBody(
   }
   return new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks, total));
 }
+
+
+/** Reject a declared decimal Content-Length above the gateway ceiling. */
+export function isMagniboxInboundContentLengthTooLarge(value: string | null, maxBytes: number): boolean {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw new RangeError("Invalid body limit.");
+  if (value === null || !/^\\d+$/.test(value)) return false;
+  const declared = Number(value);
+  return Number.isSafeInteger(declared) && declared > maxBytes;
+}
