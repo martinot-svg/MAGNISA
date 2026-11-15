@@ -128,6 +128,7 @@ The `bridge/postfix-inbound.py` pipe program implements the application contract
 - It receives the envelope recipient from Postfix, not from an untrusted message header.
 - It extracts a bounded text body, creates a deterministic fallback message ID, and signs the exact JSON bytes with the timestamped HMAC-SHA256 contract.
 - It requires an HTTPS endpoint, a 32-character minimum secret, a short network timeout and rejects redirects.
+- The mailserver container receives `MAGNIBOX_INBOUND_URL` and `MAGNIBOX_INBOUND_WEBHOOK_SECRET` from the uncommitted `mailserver.env`; the committed example leaves both empty.
 - Temporary upstream/network failures return Postfix's temporary-failure exit code so the queue can retry. Invalid messages and permanent API rejections return a permanent-failure code.
 - Attachments are deliberately rejected rather than silently discarded; the current MAGNIBOX inbound API stores text only.
 
