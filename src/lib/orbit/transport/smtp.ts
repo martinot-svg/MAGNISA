@@ -11,7 +11,7 @@ type SmtpConfig = {
   heloName: string;
 };
 
-type MailResult = { messageId?: string; accepted?: unknown[]; rejected?: unknown[] };
+type MailResult = { messageId?: string; response?: string; accepted?: unknown[]; rejected?: unknown[] };
 type Mailer = { sendMail(input: Record<string, unknown>): Promise<MailResult> };
 type MailerFactory = (options: Record<string, unknown>) => Mailer;
 
@@ -83,14 +83,15 @@ export class MagniboxSmtpTransport implements InternetTransport {
       messageId: `<${message.requestId}@${from.split("@")[1]}>`,
       headers: { "X-Magnibox-Request-ID": message.requestId },
     });
-    if (typeof result.messageId !== "string" || !result.messageId.trim()
+    const queueId = result.response?.match(/queued as ([A-F0-9]{5,20})\\b/i)?.[1];
+    if (!queueId || typeof result.messageId !== "string" || !result.messageId.trim()
       || !Array.isArray(result.accepted) || result.accepted.length !== to.length
       || (Array.isArray(result.rejected) && result.rejected.length > 0)) {
       throw new Error("Le serveur SMTP MAGNIBOX n'a pas confirmé l'acceptation.");
     }
     return {
       provider: this.provider,
-      providerMessageId: result.messageId,
+      providerMessageId: queueId,
       state: "accepted" as const,
     };
   }
