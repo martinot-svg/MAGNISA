@@ -1,18 +1,44 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { connect } from "node:net";
 import { createHash, randomUUID } from "node:crypto";
 import { buildClamAvInstreamFrames, detectMagniboxAttachmentMime, parseClamAvInstreamResponse } from "./attachment-scan-core";
 
-type Attachment = {
+type AttachmentStatus = "quarantined" | "scanning" | "available" | "rejected";
+type AttachmentRow = {
   id: string;
   organization_id: string;
   message_id: string;
   storage_path: string;
+  display_name: string;
+  detected_mime_type: string;
   byte_size: number;
   sha256: string;
-  scan_status: "quarantined" | "scanning" | "available" | "rejected";
+  scan_status: AttachmentStatus;
+  scan_completed_at: string | null;
+  created_at: string;
+  scan_started_at: string | null;
   scan_attempts: number;
+  scan_lease_token: string | null;
 };
+type WorkerDatabase = {
+  public: {
+    Tables: {
+      orbit_external_message_attachments: {
+        Row: AttachmentRow;
+        Insert: Omit<AttachmentRow, "id" | "created_at"> & Partial<Pick<AttachmentRow, "id" | "created_at">>;
+        Update: Partial<AttachmentRow>;
+        Relationships: [];
+      };
+    };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
+  };
+};
+type Attachment = Pick<AttachmentRow,
+  "id" | "organization_id" | "message_id" | "storage_path" | "byte_size" | "sha256" | "scan_status" | "scan_attempts"
+>;
 
 const BUCKET = "magnibox-attachments";
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -52,7 +78,7 @@ async function scanWithClamAV(bytes: Buffer, host: string, port: number): Promis
   });
 }
 
-async function processOne(admin: ReturnType<typeof createClient>, item: Attachment, clamHost: string, clamPort: number) {
+async function processOne(admin: SupabaseClient<WorkerDatabase>, item: Attachment, clamHost: string, clamPort: number) {
   // Atomic compare-and-set prevents two workers from scanning the same object concurrently.
   const leaseToken = randomUUID();
   const claim = await admin.from("orbit_external_message_attachments")
@@ -122,7 +148,7 @@ async function main() {
   if (!url || !key) throw new Error("Supabase service credentials are required");
   if (!Number.isInteger(clamPort) || clamPort < 1 || clamPort > 65535) throw new Error("Invalid ClamAV port");
 
-  const admin = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+  const admin = createClient<WorkerDatabase>(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
   const staleBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const retryable = await admin.from("orbit_external_message_attachments")
     .update({ scan_status: "quarantined", scan_started_at: null, scan_lease_token: null })
@@ -153,7 +179,7 @@ async function main() {
     .limit(BATCH_SIZE);
   if (pending.error) throw new Error("Unable to load quarantined MAGNIBOX attachments");
 
-  for (const item of (pending.data ?? []) as Attachment[]) {
+  for (const item of pending.data ?? []) {
     try {
       await processOne(admin, item, clamHost, clamPort);
       process.stdout.write(`Processed MAGNIBOX attachment ${item.id}\n`);
