@@ -46,6 +46,7 @@ describe("Magnibox native SMTP transport", () => {
       host: "smtp.internal.magnibox.net",
       port: 587,
       requireTLS: true,
+      pool: false,
       tls: expect.objectContaining({ rejectUnauthorized: true }),
     }));
     expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({
