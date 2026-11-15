@@ -56,11 +56,6 @@ has "$README" 'MAGNIBOX_WORKER_SUPABASE_URL'
 has "$WORKER_DOCKERFILE" 'tsx@4.20.6'
 has "$WORKER_DOCKERFILE" 'USER node'
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  MAGNIBOX_DMS_IMAGE=ghcr.io/docker-mailserver/docker-mailserver:v16.0 \\
-  MAGNIBOX_MTA_HOSTNAME=mail.example.invalid \\
-  MAGNIBOX_TLS_DIR=/tmp/magnibox-tls \\
-  MAGNIBOX_WORKER_SUPABASE_URL=https://example.supabase.co \\
-  MAGNIBOX_WORKER_SERVICE_ROLE_KEY=ci-placeholder-service-role-key \\
-    docker compose -f "$COMPOSE" config --quiet
+  env MAGNIBOX_DMS_IMAGE=ghcr.io/docker-mailserver/docker-mailserver:v16.0 MAGNIBOX_MTA_HOSTNAME=mail.example.invalid MAGNIBOX_TLS_DIR=/tmp/magnibox-tls MAGNIBOX_WORKER_SUPABASE_URL=https://example.supabase.co MAGNIBOX_WORKER_SERVICE_ROLE_KEY=ci-placeholder-service-role-key docker compose -f "$COMPOSE" config --quiet
 fi
 printf 'Magnibox MTA scaffold checks passed.\n'
