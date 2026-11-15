@@ -16,25 +16,40 @@ class InboundBridgeTests(unittest.TestCase):
 
     def test_rejects_header_injection_address(self):
         with self.assertRaises(ValueError):
-            bridge.normalized_address("victim@example.org\r\nBcc: other@example.org")
+            bridge.normalized_address("victim@example.org\\r\\nBcc: other@example.org")
 
     def test_extracts_plain_text(self):
         msg = BytesParser(policy=policy.default).parsebytes(
-            b"From: sender@example.org\r\nSubject: Hello\r\n"
-            b"Content-Type: text/plain; charset=utf-8\r\n\r\nBonjour"
+            b"From: sender@example.org\\r\\nSubject: Hello\\r\\n"
+            b"Content-Type: text/plain; charset=utf-8\\r\\n\\r\\nBonjour"
         )
         self.assertEqual(bridge.extract_text(msg), "Bonjour")
 
     def test_rejects_attachment_instead_of_silently_dropping_it(self):
         msg = BytesParser(policy=policy.default).parsebytes(
-            b"From: sender@example.org\r\nSubject: Hello\r\n"
-            b"MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=x\r\n\r\n"
-            b"--x\r\nContent-Type: text/plain\r\n\r\nBody\r\n"
-            b"--x\r\nContent-Type: application/pdf\r\n"
-            b"Content-Disposition: attachment; filename=a.pdf\r\n\r\nPDF\r\n--x--"
+            b"From: sender@example.org\\r\\nSubject: Hello\\r\\n"
+            b"MIME-Version: 1.0\\r\\nContent-Type: multipart/mixed; boundary=x\\r\\n\\r\\n"
+            b"--x\\r\\nContent-Type: text/plain\\r\\n\\r\\nBody\\r\\n"
+            b"--x\\r\\nContent-Type: application/pdf\\r\\n"
+            b"Content-Disposition: attachment; filename=a.pdf\\r\\n\\r\\nPDF\\r\\n--x--"
         )
         with self.assertRaises(ValueError):
             bridge.extract_text(msg)
+
+    def test_rejects_oversized_body_at_database_limit(self):
+        msg = BytesParser(policy=policy.default).parsebytes(
+            ("From: sender@example.org\\r\\nSubject: Hello\\r\\n"
+             "Content-Type: text/plain; charset=utf-8\\r\\n\\r\\n" + "x" * (bridge.MAX_TEXT_CHARS + 1)).encode()
+        )
+        with self.assertRaises(ValueError):
+            bridge.extract_text(msg)
+
+    def test_accepts_body_at_exact_database_limit(self):
+        msg = BytesParser(policy=policy.default).parsebytes(
+            ("From: sender@example.org\\r\\nSubject: Hello\\r\\n"
+             "Content-Type: text/plain; charset=utf-8\\r\\n\\r\\n" + "x" * bridge.MAX_TEXT_CHARS).encode()
+        )
+        self.assertEqual(len(bridge.extract_text(msg)), bridge.MAX_TEXT_CHARS)
 
     def test_rejects_non_https_endpoint(self):
         import os
@@ -42,7 +57,7 @@ class InboundBridgeTests(unittest.TestCase):
         try:
             os.environ["MAGNIBOX_INBOUND_URL"] = "http://example.org/hook"
             os.environ["MAGNIBOX_INBOUND_WEBHOOK_SECRET"] = "x" * 40
-            self.assertEqual(bridge.forward(b"From: a@example.org\n\nhello", "b@example.org"), 75)
+            self.assertEqual(bridge.forward(b"From: a@example.org\\n\\nhello", "b@example.org"), 75)
         finally:
             os.environ.clear()
             os.environ.update(previous)
