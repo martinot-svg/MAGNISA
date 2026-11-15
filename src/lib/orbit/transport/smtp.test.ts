@@ -71,6 +71,38 @@ describe("Magnibox native SMTP transport", () => {
     })).rejects.toThrow(/tous les destinataires/);
   });
 
+  it("submits only bounded validated attachments", async () => {
+    const sendMail = vi.fn().mockResolvedValue({
+      messageId: "<request@example.com>",
+      response: "250 2.0.0 Ok: queued as ABC123DEF",
+      accepted: ["client@example.com"],
+      rejected: [],
+    });
+    const transport = new MagniboxSmtpTransport(env as NodeJS.ProcessEnv, () => ({ sendMail }));
+    const attachment = { filename: "invoice.pdf", content: Buffer.from("%PDF-test"), contentType: "application/pdf" };
+    await transport.send({
+      from: "finance@entreprise.mg", to: ["client@example.com"],
+      subject: "Facture", text: "Bonjour",
+      requestId: "aeeb4255-0860-45d8-9c92-72488919ee51",
+      attachments: [attachment],
+    });
+    expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({
+      attachments: [{ filename: "invoice.pdf", content: attachment.content, contentType: "application/pdf" }],
+    }));
+  });
+
+  it("rejects oversized or unsafe attachment metadata before SMTP submission", async () => {
+    const sendMail = vi.fn();
+    const transport = new MagniboxSmtpTransport(env as NodeJS.ProcessEnv, () => ({ sendMail }));
+    await expect(transport.send({
+      from: "finance@entreprise.mg", to: ["client@example.com"],
+      subject: "Facture", text: "Bonjour",
+      requestId: "aeeb4255-0860-45d8-9c92-72488919ee51",
+      attachments: [{ filename: "../invoice.pdf", content: Buffer.from("x"), contentType: "application/pdf" }],
+    })).rejects.toThrow(/Pièces jointes/);
+    expect(sendMail).not.toHaveBeenCalled();
+  });
+
   it("rejects malformed request IDs and does not report a delivery confirmation", async () => {
     const sendMail = vi.fn();
     const transport = new MagniboxSmtpTransport(env as NodeJS.ProcessEnv, () => ({ sendMail }));
