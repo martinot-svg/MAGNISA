@@ -18,13 +18,13 @@ from email.utils import parseaddr
 from html.parser import HTMLParser
 from urllib.parse import urlparse
 
-MAX_MESSAGE_BYTES = 25 * 1024 * 1024
+MAX_MESSAGE_BYTES = 205 * 1024 * 1024
 # Must match orbit_external_messages.body_text database constraint.
 MAX_TEXT_CHARS = 50_000
 MAX_ATTACHMENT_COUNT = 5
-MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
-MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024
-MAX_JSON_BYTES = 28 * 1024 * 1024
+MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024
+MAX_TOTAL_ATTACHMENT_BYTES = 150 * 1024 * 1024
+MAX_JSON_BYTES = 205 * 1024 * 1024
 EMAIL_RE = re.compile(r"^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$")
 
 
