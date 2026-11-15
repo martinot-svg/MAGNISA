@@ -55,8 +55,8 @@ export class MagniboxSmtpTransport implements InternetTransport {
     }
     const attachments = message.attachments ?? [];
     const attachmentBytes = attachments.reduce((total, attachment) => total + (Buffer.isBuffer(attachment.content) ? attachment.content.length : 0), 0);
-    if (attachments.length > 5 || attachmentBytes > 20 * 1024 * 1024 || attachments.some((attachment) =>
-      !Buffer.isBuffer(attachment.content) || attachment.content.length < 1 || attachment.content.length > 10 * 1024 * 1024
+    if (attachments.length > 5 || attachmentBytes > 150 * 1024 * 1024 || attachments.some((attachment) =>
+      !Buffer.isBuffer(attachment.content) || attachment.content.length < 1 || attachment.content.length > 30 * 1024 * 1024
       || !/^[\w .()\-]{1,120}$/.test(attachment.filename) || !/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(attachment.contentType))) {
       throw new Error("Pièces jointes MAGNIBOX invalides ou trop volumineuses.");
     }
