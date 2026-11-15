@@ -2,7 +2,17 @@
 -- Existing rows remain valid; new uploads may contain files up to 30 MiB each.
 update storage.buckets
 set public = false,
-    file_size_limit = 31457280
+    file_size_limit = 31457280,
+    -- Keep Storage's MIME gate aligned with the scanner's actual signature support.
+    -- Declared SMTP MIME types remain untrusted; only these detected formats can pass ClamAV.
+    allowed_mime_types = array[
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'text/plain'
+    ]
 where id = 'magnibox-attachments';
 
 alter table public.orbit_external_message_attachments
