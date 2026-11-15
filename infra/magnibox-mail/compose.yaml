@@ -16,6 +16,7 @@ services:
       - ./docker-data/mail-state:/var/mail-state/
       - ./docker-data/logs:/var/log/mail/
       - ./docker-data/config:/tmp/docker-mailserver/
+      - ./docker-data/provisioning:/etc/postfix/magnibox:ro
       - ./bridge:/opt/magnibox-bridge:ro
       - ${MAGNIBOX_TLS_DIR:?Set the host directory containing the TLS certificate and key}:/run/magnibox-tls:ro
     cap_add:
@@ -49,4 +50,27 @@ services:
       timeout: 3s
       retries: 3
       start_period: 60s
+    restart: unless-stopped
+
+  delivery-events:
+    image: ${MAGNIBOX_FORWARDER_IMAGE:?Set a pinned Python runtime image digest}
+    profiles: ["delivery-events"]
+    container_name: magnibox-delivery-events
+    entrypoint: ["python3", "/opt/magnibox-bridge/postfix-delivery-events.py"]
+    command: ["/var/log/mail/mail.log", "/var/lib/magnibox-event-forwarder/cursor.json"]
+    environment:
+      MAGNIBOX_DELIVERY_EVENT_URL: ${MAGNIBOX_DELIVERY_EVENT_URL:?Set the internal MAGNIBOX delivery-event endpoint}
+      MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET: ${MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET:?Set the dedicated delivery-event HMAC secret}
+    volumes:
+      - ./docker-data/logs:/var/log/mail:ro
+      - ./bridge:/opt/magnibox-bridge:ro
+      - ./docker-data/event-forwarder:/var/lib/magnibox-event-forwarder
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
