@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireOrganization } from "@/lib/current-org";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ResendInternetTransport } from "@/lib/orbit/transport/resend";
+import { MagniboxSmtpTransport, magniboxSmtpConfig } from "@/lib/orbit/transport/smtp";
 import { allowPublicSend, enabledMagniboxInternetMail, normalizeOutgoingMessage } from "@/lib/orbit/transport/gates";
 
 export const runtime = "nodejs";
@@ -16,7 +16,7 @@ function reply(error: string,status: number) {
  * the body. The authenticated membership and BOTH grant layers are checked.
  */
 export async function POST(request: NextRequest) {
-  if (!enabledMagniboxInternetMail() || !process.env.RESEND_API_KEY) {
+  if (!enabledMagniboxInternetMail() || !magniboxSmtpConfig()) {
     return reply("Le transport Internet Magnibox n'est pas encore activé.",503);
   }
   if (Number(request.headers.get("content-length")||"0")>100000)
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     ]);
     const allowed=allowPublicSend(identity,ctx.organizationId,{
       enabled:enabledMagniboxInternetMail(),
-      hasCredentials:!!process.env.RESEND_API_KEY,
+      hasCredentials:!!magniboxSmtpConfig(),
       domainVerified:!domain.error&&domain.data?.status==="verified",
       addressApproved:!address.error&&address.data?.status==="approved",
       recipientAuthorized:access.data===true,
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
     }
     const id=pending.data?.id;
     try {
-      const transport=new ResendInternetTransport(process.env.RESEND_API_KEY);
+      const transport=new MagniboxSmtpTransport();
       const result=await transport.send({
         from:identity.email_address,to:input.to,subject:input.subject,
         text:input.text,requestId:input.requestId,
@@ -144,20 +144,20 @@ export async function POST(request: NextRequest) {
         .eq("status","sending").select("id").maybeSingle();
       if(saved.error||!saved.data) return NextResponse.json({
         ok:false,id,state:"uncertain",
-        error:"Envoi accepté par le fournisseur, confirmation locale indisponible. Ne renvoyez pas le message.",
+        error:"Envoi accepté par le serveur SMTP MAGNIBOX, confirmation locale indisponible. Ne renvoyez pas le message.",
       },{status:202});
       return NextResponse.json({
         ok:true,id,state:"accepted",providerMessageId:result.providerMessageId,
-        message:"Accepté par le fournisseur, livraison finale non confirmée.",
+        message:"Accepté par le serveur SMTP MAGNIBOX, livraison finale non confirmée.",
       },{status:202});
     } catch {
       await admin.from("orbit_external_messages").update({
-        status:"uncertain",last_error:"Envoi non confirmé — contrôler chez le fournisseur avant nouvelle tentative.",
+        status:"uncertain",last_error:"Envoi non confirmé — vérifier la file SMTP MAGNIBOX avant toute nouvelle tentative.",
         updated_at:new Date().toISOString(),
       }).eq("organization_id",ctx.organizationId).eq("id",id).eq("status","sending");
       return NextResponse.json({
         ok:false,id,state:"uncertain",
-        error:"Le fournisseur n'a pas confirmé l'envoi. Contrôlez l'historique avant de réessayer.",
+        error:"Le serveur SMTP MAGNIBOX n'a pas confirmé l'envoi. Contrôlez l'historique avant de réessayer.",
       },{status:202});
     }
   } catch {
