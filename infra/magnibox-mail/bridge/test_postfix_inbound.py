@@ -1,0 +1,52 @@
+import importlib.util
+import unittest
+from email import policy
+from email.parser import BytesParser
+from pathlib import Path
+
+MODULE = Path(__file__).with_name("postfix-inbound.py")
+spec = importlib.util.spec_from_file_location("postfix_inbound", MODULE)
+bridge = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bridge)
+
+
+class InboundBridgeTests(unittest.TestCase):
+    def test_normalizes_envelope_recipient(self):
+        self.assertEqual(bridge.normalized_address("Finance@Example.org"), "finance@example.org")
+
+    def test_rejects_header_injection_address(self):
+        with self.assertRaises(ValueError):
+            bridge.normalized_address("victim@example.org\\r\\nBcc: other@example.org")
+
+    def test_extracts_plain_text(self):
+        msg = BytesParser(policy=policy.default).parsebytes(
+            b"From: sender@example.org\\r\\nSubject: Hello\\r\\n"
+            b"Content-Type: text/plain; charset=utf-8\\r\\n\\r\\nBonjour"
+        )
+        self.assertEqual(bridge.extract_text(msg), "Bonjour")
+
+    def test_rejects_attachment_instead_of_silently_dropping_it(self):
+        msg = BytesParser(policy=policy.default).parsebytes(
+            b"From: sender@example.org\\r\\nSubject: Hello\\r\\n"
+            b"MIME-Version: 1.0\\r\\nContent-Type: multipart/mixed; boundary=x\\r\\n\\r\\n"
+            b"--x\\r\\nContent-Type: text/plain\\r\\n\\r\\nBody\\r\\n"
+            b"--x\\r\\nContent-Type: application/pdf\\r\\n"
+            b"Content-Disposition: attachment; filename=a.pdf\\r\\n\\r\\nPDF\\r\\n--x--"
+        )
+        with self.assertRaises(ValueError):
+            bridge.extract_text(msg)
+
+    def test_rejects_non_https_endpoint(self):
+        import os
+        previous = dict(os.environ)
+        try:
+            os.environ["MAGNIBOX_INBOUND_URL"] = "http://example.org/hook"
+            os.environ["MAGNIBOX_INBOUND_WEBHOOK_SECRET"] = "x" * 40
+            self.assertEqual(bridge.forward(b"From: a@example.org\\n\\nhello", "b@example.org"), 75)
+        finally:
+            os.environ.clear()
+            os.environ.update(previous)
+
+
+if __name__ == "__main__":
+    unittest.main()
