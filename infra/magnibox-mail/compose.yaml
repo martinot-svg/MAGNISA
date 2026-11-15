@@ -7,6 +7,8 @@ services:
       - ./mailserver.env
     environment:
       OVERRIDE_HOSTNAME: ${MAGNIBOX_MTA_HOSTNAME:?Set the public mail FQDN}
+      POSTFIX_MESSAGE_SIZE_LIMIT: "220M"
+      CLAMAV_MESSAGE_SIZE_LIMIT: "220M"
     ports:
       - "25:25"
       - "587:587"
