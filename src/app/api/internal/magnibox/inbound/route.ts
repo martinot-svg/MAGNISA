@@ -78,19 +78,43 @@ export async function POST(request: NextRequest) {
       // equivalent at the normalized message-field level. Never acknowledge a
       // provider ID that collides with different content for this mailbox.
       const prior = await admin.from("orbit_external_messages")
-        .select("from_email,to_emails,subject,body_text")
+        .select("id,from_email,to_emails,subject,body_text")
         .eq("identity_id", identity.id).eq("direction", "incoming")
         .eq("provider_email_id", message.messageId).maybeSingle();
       if (prior.error) return unavailable();
-      const same = !!prior.data
+      const sameEnvelope = !!prior.data
         && prior.data.from_email === message.from
         && JSON.stringify(prior.data.to_emails) === JSON.stringify([recipient])
         && prior.data.subject === message.subject
         && prior.data.body_text === message.text;
-      if (!same) return NextResponse.json(
+      if (!sameEnvelope) return NextResponse.json(
         { error: "Identifiant de message déjà utilisé avec un contenu différent." },
         { status: 409 },
       );
+
+      // The message row and object storage are not one database transaction.
+      // Confirm every attachment was persisted before acknowledging a replay.
+      const priorAttachments = await admin.from("orbit_external_message_attachments")
+        .select("display_name,byte_size,sha256")
+        .eq("message_id", prior.data.id)
+        .eq("organization_id", identity.organization_id);
+      if (priorAttachments.error) return unavailable();
+      const expectedAttachments = message.attachments.map(attachment => {
+        const bytes = Buffer.from(attachment.contentBase64, "base64");
+        return {
+          display_name: attachment.fileName,
+          byte_size: bytes.length,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+        };
+      }).sort((a, b) => a.display_name.localeCompare(b.display_name) || a.sha256.localeCompare(b.sha256));
+      const storedAttachments = (priorAttachments.data ?? [])
+        .map(attachment => ({
+          display_name: attachment.display_name,
+          byte_size: attachment.byte_size,
+          sha256: attachment.sha256,
+        }))
+        .sort((a, b) => a.display_name.localeCompare(b.display_name) || a.sha256.localeCompare(b.sha256));
+      if (JSON.stringify(storedAttachments) !== JSON.stringify(expectedAttachments)) return unavailable();
       accepted += 1;
       continue;
     }
