@@ -91,6 +91,18 @@ describe("Magnibox native SMTP transport", () => {
     }));
   });
 
+  it("rejects files above 30 MiB before SMTP submission", async () => {
+    const sendMail = vi.fn();
+    const transport = new MagniboxSmtpTransport(env as NodeJS.ProcessEnv, () => ({ sendMail }));
+    await expect(transport.send({
+      from: "finance@entreprise.mg", to: ["client@example.com"],
+      subject: "Facture", text: "Bonjour",
+      requestId: "aeeb4255-0860-45d8-9c92-72488919ee51",
+      attachments: [{ filename: "large.pdf", content: Buffer.alloc(30 * 1024 * 1024 + 1), contentType: "application/pdf" }],
+    })).rejects.toThrow(/Pièces jointes/);
+    expect(sendMail).not.toHaveBeenCalled();
+  });
+
   it("rejects oversized or unsafe attachment metadata before SMTP submission", async () => {
     const sendMail = vi.fn();
     const transport = new MagniboxSmtpTransport(env as NodeJS.ProcessEnv, () => ({ sendMail }));
