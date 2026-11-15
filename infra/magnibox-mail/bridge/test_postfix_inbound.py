@@ -124,7 +124,7 @@ class InboundBridgeTests(unittest.TestCase):
         import os
         from unittest.mock import patch
 
-        raw = b"From: sender@example.org\\r\\nContent-Type: text/plain\\r\\n\\r\\nHello"
+        raw = b"From: sender@example.org\r\nContent-Type: text/plain\r\n\r\nHello"
         previous = dict(os.environ)
         try:
             os.environ["MAGNIBOX_INBOUND_URL"] = "https://magnisa.example/api/internal/magnibox/inbound"
