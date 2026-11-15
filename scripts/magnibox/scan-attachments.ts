@@ -22,6 +22,7 @@ async function scanWithClamAV(bytes: Buffer, host: string, port: number): Promis
   return new Promise((resolve, reject) => {
     const socket = connect({ host, port });
     const chunks: Buffer[] = [];
+    let responseBytes = 0;
     let settled = false;
     const finish = (error?: Error, result?: "clean" | "infected") => {
       if (settled) return;
@@ -34,6 +35,11 @@ async function scanWithClamAV(bytes: Buffer, host: string, port: number): Promis
     socket.on("error", error => finish(error));
     socket.on("end", () => finish(new Error("ClamAV closed before complete response")));
     socket.on("data", chunk => {
+      responseBytes += chunk.length;
+      if (responseBytes > 8192) {
+        finish(new Error("ClamAV response exceeded the protocol limit"));
+        return;
+      }
       chunks.push(chunk);
       const verdict = parseClamAvInstreamResponse(Buffer.concat(chunks));
       if (verdict === "clean") finish(undefined, "clean");
