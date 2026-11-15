@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { isMagniboxInboundContentLengthTooLarge, MagniboxInboundBodyTooLargeError, readMagniboxBoundedBody } from "@/lib/orbit/transport/inbound";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   collectMagniboxProvisioningRows,
@@ -21,18 +22,19 @@ export async function POST(request: NextRequest) {
   if (process.env.MAGNIBOX_EXTERNAL_MAIL_ENABLED !== "true" || !secret) {
     return NextResponse.json({ error: "Provisionnement MAGNIBOX désactivé." }, { status: 503 });
   }
-  if (Number(request.headers.get("content-length") || "0") > MAX_REQUEST_BYTES) {
+  if (isMagniboxInboundContentLengthTooLarge(request.headers.get("content-length"), MAX_REQUEST_BYTES)) {
     return NextResponse.json({ error: "Requête trop volumineuse." }, { status: 413 });
   }
 
   let raw: string;
   try {
-    raw = await request.text();
-  } catch {
+    // Enforce the limit while streaming, including chunked requests without Content-Length.
+    raw = await readMagniboxBoundedBody(request.body, MAX_REQUEST_BYTES);
+  } catch (error) {
+    if (error instanceof MagniboxInboundBodyTooLargeError) {
+      return NextResponse.json({ error: "Requête trop volumineuse." }, { status: 413 });
+    }
     return NextResponse.json({ error: "Corps invalide." }, { status: 400 });
-  }
-  if (Buffer.byteLength(raw, "utf8") > MAX_REQUEST_BYTES) {
-    return NextResponse.json({ error: "Requête trop volumineuse." }, { status: 413 });
   }
   if (!verifyMagniboxProvisioningRequest(
     raw,
