@@ -71,9 +71,9 @@ export class MagniboxSmtpTransport implements InternetTransport {
       connectionTimeout: 10000,
       greetingTimeout: 10000,
       socketTimeout: 20000,
-      pool: true,
-      maxConnections: 3,
-      maxMessages: 100,
+      // This transport is request-scoped; pooling here would retain sockets
+      // without a lifecycle owner to close the pool after the HTTP request.
+      pool: false,
     });
     const result = await mailer.sendMail({
       from,
