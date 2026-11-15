@@ -149,7 +149,7 @@ The optional `delivery-events` Compose profile tails the Docker Mailserver SMTP 
 - `status=deferred` becomes `deferred` (the application conservatively displays this as uncertain until a later terminal event).
 - `status=expired` becomes `failed`.
 
-The forwarder signs the exact JSON bytes with the same timestamped HMAC-SHA256 contract as the inbound bridge. It persists its file inode and byte offset using an atomic cursor write, retries endpoint failures without advancing the cursor, and starts a new log file at offset zero after rotation. Replayed events are safe because the delivery endpoint updates by Postfix queue ID and state.
+The forwarder signs the exact JSON bytes with a dedicated timestamped HMAC-SHA256 secret, separate from the inbound bridge secret. Compromise of the event-forwarder credential therefore does not authorize inbound message injection. It persists its file inode and byte offset using an atomic cursor write, retries endpoint failures without advancing the cursor, and starts a new log file at offset zero after rotation. Replayed events are safe because the delivery endpoint updates by Postfix queue ID and state.
 
 ### Enable only after application secrets and endpoint are configured
 
@@ -158,10 +158,10 @@ Set these host-only values in the uncommitted Compose `.env` file:
 ```dotenv
 MAGNIBOX_FORWARDER_IMAGE=python:3.12-alpine@sha256:<VERIFIED_IMAGE_DIGEST>
 MAGNIBOX_DELIVERY_EVENT_URL=https://<MAGNISA_HOST>/api/internal/magnibox/delivery-event
-MAGNIBOX_INBOUND_WEBHOOK_SECRET=<same-strong-secret-configured-in-MAGNISA>
+MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET=<dedicated-strong-secret-configured-in-MAGNISA>
 ```
 
-Use a verified immutable image digest; the placeholder above is not deployable. Ensure the application has the same secret and `MAGNIBOX_EXTERNAL_MAIL_ENABLED=true` only after all public activation gates have been approved. The delivery-events service is not started by the default Compose profile.
+Use a verified immutable image digest; the placeholder above is not deployable. Configure the matching `MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET` in the MAGNISA server environment. Keep it distinct from `MAGNIBOX_INBOUND_WEBHOOK_SECRET`. Set `MAGNIBOX_EXTERNAL_MAIL_ENABLED=true` only after all public activation gates have been approved. The delivery-events service is not started by the default Compose profile.
 
 Prepare a writable persistent cursor directory for UID/GID 10001, then explicitly opt into the profile:
 
