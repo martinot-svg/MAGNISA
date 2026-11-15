@@ -53,3 +53,32 @@ Le statut `accepted` signifie uniquement « accepté dans la file MAGNIBOX ». I
 Le dépôt contient des tables d'identités/messages Internet et un adaptateur Resend historique. Cela ne constitue pas un serveur de messagerie auto-hébergé. La présente décision documente la cible et interdit de présenter le transport externe comme opérationnel. Aucun DNS, MX, PTR, serveur ou secret de production n'est modifié par ce document.
 
 La capacité de livrer des messages directement depuis nos propres serveurs dépend d'une infrastructure réseau et d'exploitation réelle ; elle ne peut pas être obtenue par une simple modification du code Next.js.
+
+## Implémentation applicative initiale
+
+Le transport applicatif est maintenant défini comme `smtp` uniquement :
+- `src/lib/orbit/transport/smtp.ts` utilise la soumission SMTP authentifiée vers l'hôte MAGNIBOX configuré, impose TLS et valide l'adresse expéditrice et la clé idempotente.
+- `src/app/api/magnibox/internet/send/route.ts` enregistre d'abord la demande, vérifie les droits internes et externes, puis soumet au serveur SMTP MAGNIBOX.
+- `src/app/api/internal/magnibox/inbound/route.ts` reçoit les messages filtrés du MTA MAGNIBOX via une signature HMAC horodatée, puis résout les destinataires exacts dans les identités activées. Aucun identifiant d'organisation fourni par l'appelant n'est accepté.
+- L'ancien endpoint webhook tiers renvoie désormais HTTP 410 ; l'adaptateur Resend et son code de sandbox ont été retirés de cette branche.
+- Les statuts `accepted` et `received` ne prétendent pas prouver la lecture par le destinataire. Le MTA doit encore publier des événements de livraison/rebond signés pour compléter les statuts.
+
+### Variables runtime (serveur uniquement)
+
+```dotenv
+MAGNIBOX_EXTERNAL_MAIL_ENABLED=false
+MAGNIBOX_SMTP_HOST=
+MAGNIBOX_SMTP_PORT=587
+MAGNIBOX_SMTP_SECURE=false
+MAGNIBOX_SMTP_USER=
+MAGNIBOX_SMTP_PASSWORD=
+MAGNIBOX_SMTP_HELO=
+MAGNIBOX_INBOUND_WEBHOOK_SECRET=
+MAGNIBOX_OUTBOUND_DAILY_LIMIT=10
+```
+
+Ne pas placer ces secrets dans des variables `NEXT_PUBLIC_*`. Le kill switch reste à `false` tant que l'infrastructure SMTP, les DNS, les tests de livraison et les contrôles anti-abus ne sont pas terminés.
+
+### Contrat de la passerelle entrante
+
+Après acceptation SMTP, filtrage antispam et antivirus, le MTA POST un JSON `{ messageId, from, to, subject, text }` à `/api/internal/magnibox/inbound`. Il calcule `HMAC-SHA256(secret, timestamp + "." + rawBody)`, transmis dans `x-magnibox-timestamp` (Unix secondes) et `x-magnibox-signature: sha256=<hex>`. La passerelle rejette les signatures de plus de cinq minutes, les enveloppes trop volumineuses, les destinataires non activés et les identités dont le domaine ou l'adresse n'est plus approuvé. Les retries du MTA sont idempotents grâce à l'identifiant de message unique par identité.
