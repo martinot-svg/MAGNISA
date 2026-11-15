@@ -5,6 +5,7 @@ import {
   isMagniboxInboundContentLengthTooLarge,
   parseMagniboxInboundPayload,
   readMagniboxInboundBody,
+  readMagniboxBoundedBody,
   MagniboxInboundBodyTooLargeError,
   verifyMagniboxInboundSignature,
 } from "./inbound";
@@ -61,5 +62,13 @@ describe("Magnibox bounded inbound body reader", () => {
   it("stops reading once the byte limit is exceeded", async () => {
     const body = new Response(new Uint8Array(9)).body;
     await expect(readMagniboxInboundBody(body, 8)).rejects.toBeInstanceOf(MagniboxInboundBodyTooLargeError);
+  });
+
+  it("shares the same strict byte ceiling with outbound requests", async () => {
+    await expect(readMagniboxBoundedBody(new Response("12345678").body, 8)).resolves.toBe("12345678");
+    await expect(readMagniboxBoundedBody(new Response("123456789").body, 8))
+      .rejects.toBeInstanceOf(MagniboxInboundBodyTooLargeError);
+    await expect(readMagniboxBoundedBody(null, 8)).rejects.toThrow("Missing request body.");
+    await expect(readMagniboxBoundedBody(new Response("x").body, 0)).rejects.toThrow("Invalid body limit.");
   });
 });
