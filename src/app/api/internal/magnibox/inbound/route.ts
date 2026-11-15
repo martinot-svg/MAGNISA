@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash, randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseMagniboxInboundPayload, verifyMagniboxInboundSignature } from "@/lib/orbit/transport/inbound";
 
@@ -13,13 +14,13 @@ function unavailable() {
 export async function POST(request: NextRequest) {
   const secret = process.env.MAGNIBOX_INBOUND_WEBHOOK_SECRET;
   if (process.env.MAGNIBOX_EXTERNAL_MAIL_ENABLED !== "true" || !secret) return unavailable();
-  if (Number(request.headers.get("content-length") || "0") > 150000)
+  if (Number(request.headers.get("content-length") || "0") > 28 * 1024 * 1024)
     return NextResponse.json({ error: "Message entrant trop volumineux." }, { status: 413 });
 
   let raw: string;
   try {
     raw = await request.text();
-    if (Buffer.byteLength(raw, "utf8") > 150000)
+    if (Buffer.byteLength(raw, "utf8") > 28 * 1024 * 1024)
       return NextResponse.json({ error: "Message entrant trop volumineux." }, { status: 413 });
   } catch {
     return NextResponse.json({ error: "Corps entrant invalide." }, { status: 400 });
@@ -64,20 +65,36 @@ export async function POST(request: NextRequest) {
     }
   } catch { return unavailable(); }
 
+  let accepted = 0;
   for (const { identity, recipient } of deliveries) {
     const saved = await admin.from("orbit_external_messages").insert({
-      organization_id: identity.organization_id,
-      identity_id: identity.id,
-      direction: "incoming",
-      status: "received",
-      from_email: message.from,
-      to_emails: [recipient],
-      subject: message.subject,
-      body_text: message.text,
-      provider_email_id: message.messageId,
-    });
-    if (saved.error && saved.error.code !== "23505") return unavailable();
+      organization_id: identity.organization_id, identity_id: identity.id, direction: "incoming",
+      status: "received", from_email: message.from, to_emails: [recipient], subject: message.subject,
+      body_text: message.text, provider_email_id: message.messageId,
+    }).select("id").maybeSingle();
+    if (saved.error?.code === "23505") { accepted += 1; continue; }
+    if (saved.error || !saved.data?.id) return unavailable();
+    const uploadedPaths: string[] = [];
+    try {
+      for (const attachment of message.attachments) {
+        const bytes = Buffer.from(attachment.contentBase64, "base64");
+        const storagePath = identity.organization_id + "/" + saved.data.id + "/" + randomUUID();
+        const uploaded = await admin.storage.from("magnibox-attachments").upload(storagePath, bytes, { contentType: "application/octet-stream", upsert: false });
+        if (uploaded.error) throw new Error("attachment_storage_failed");
+        uploadedPaths.push(storagePath);
+        const metadata = await admin.from("orbit_external_message_attachments").insert({
+          organization_id: identity.organization_id, message_id: saved.data.id, storage_path: storagePath,
+          display_name: attachment.fileName, detected_mime_type: "application/octet-stream", byte_size: bytes.length,
+          sha256: createHash("sha256").update(bytes).digest("hex"), scan_status: "quarantined",
+        });
+        if (metadata.error) throw new Error("attachment_metadata_failed");
+      }
+    } catch {
+      if (uploadedPaths.length) await admin.storage.from("magnibox-attachments").remove(uploadedPaths);
+      await admin.from("orbit_external_messages").delete().eq("id", saved.data.id).eq("organization_id", identity.organization_id);
+      return unavailable();
+    }
+    accepted += 1;
   }
-
-  return NextResponse.json({ ok: true, accepted: deliveries.length }, { status: 202 });
+  return NextResponse.json({ ok: true, accepted, quarantinedAttachments: message.attachments.length }, { status: 202 });
 }
