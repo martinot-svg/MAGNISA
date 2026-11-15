@@ -25,6 +25,7 @@ describe("Magnibox native Internet mail: fail-closed gates",()=>{
   expect(()=>normalizeOutgoingMessage({...valid,to:"client@example.com;client@example.com"})).toThrow();
   expect(()=>normalizeOutgoingMessage({...valid,to:"client@example.com\nBcc: thief@example.net"})).toThrow();
   expect(()=>normalizeOutgoingMessage({...valid,subject:""})).toThrow();
+  expect(()=>normalizeOutgoingMessage({...valid,subject:"Hello\\r\\nBcc: attacker@example.net"})).toThrow();
   expect(validExternalRequestId(org)).toBe(true); expect(validExternalRequestId("not-uuid")).toBe(false);
  });
  it("accepts only the exact active SMTP identity for inbound mail",()=>{
