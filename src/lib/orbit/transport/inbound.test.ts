@@ -24,4 +24,13 @@ describe("Magnibox native inbound gateway",()=>{
  it("accepts a body exactly at the database limit",()=>{
   expect(parseMagniboxInboundPayload({...JSON.parse(body),text:"x".repeat(MAGNIBOX_INBOUND_MAX_TEXT_CHARS)}).text).toHaveLength(50000);
  });
+
+ it("validates bounded base64 attachments without trusting their declared MIME",()=>{
+  const attachment={fileName:"invoice.pdf",contentType:"application/pdf",contentBase64:Buffer.from("%PDF-1.7").toString("base64")};
+  expect(parseMagniboxInboundPayload({...JSON.parse(body),attachments:[attachment]}).attachments).toHaveLength(1);
+  expect(()=>parseMagniboxInboundPayload({...JSON.parse(body),attachments:[{...attachment,contentBase64:"%%%"}]})).toThrow();
+  expect(()=>parseMagniboxInboundPayload({...JSON.parse(body),attachments:Array(6).fill(attachment)})).toThrow();
+  expect(()=>parseMagniboxInboundPayload({...JSON.parse(body),attachments:[{...attachment,fileName:"../secret.pdf"}]}).attachments[0].fileName).not.toContain("/");
+ });
+
 });
