@@ -22,3 +22,25 @@ services:
       - NET_ADMIN
     restart: unless-stopped
     stop_grace_period: 1m
+
+  attachment-worker:
+    build:
+      context: ../..
+      dockerfile: infra/magnibox-mail/worker/Dockerfile
+    network_mode: "service:mailserver"
+    depends_on:
+      - mailserver
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${MAGNIBOX_WORKER_SUPABASE_URL:?Set the Supabase project URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${MAGNIBOX_WORKER_SERVICE_ROLE_KEY:?Set the server-only Supabase service role key}
+      MAGNIBOX_CLAMAV_HOST: 127.0.0.1
+      MAGNIBOX_CLAMAV_PORT: "3310"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    restart: unless-stopped
