@@ -24,7 +24,7 @@ export function normalizeOutgoingMessage(value: unknown): { identityId: string; 
   const to=parsePublicRecipients(recipients);
   const subject=typeof d.subject==="string"?d.subject.trim():"";
   const text=typeof d.text==="string"?d.text:"";
-  if (!subject || subject.length>180 || !text.trim() || text.length>50000) throw new Error("Objet ou contenu de message invalide.");
+  if (!subject || subject.length>180 || /[\\r\\n\\u0000-\\u001f]/.test(subject) || !text.trim() || text.length>50000) throw new Error("Objet ou contenu de message invalide.");
   return {identityId:d.identityId,requestId:d.requestId,to,subject,text};
 }
 export function eligiblePublicRecipient(
