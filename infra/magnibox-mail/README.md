@@ -13,7 +13,7 @@ This directory contains an **un-deployed infrastructure scaffold** for a dedicat
 - Rspamd filtering, ClamAV scanning, DKIM capability and Fail2ban.
 - Explicit message/mailbox size limits and modern TLS for authenticated services.
 
-It does **not** yet connect Dovecot mailboxes to the MAGNISA/Supabase inbox. The signed inbound API in the application still needs a tested Postfix-to-MAGNIBOX bridge. This scaffold also does not provision customer domains or their sender identities automatically.
+The MAGNISA application inbox is Supabase-backed; it does not mirror the separate Dovecot pilot mailboxes. The signed Postfix-to-MAGNIBOX inbound bridge, recipient snapshot API and versioned Postfix map synchronizer are now implemented, but remain staged and unactivated. An operator must configure the host-only secrets, run and inspect the map synchronization, enable the example Postfix transport under an approved pilot procedure, and complete end-to-end validation before public use. DNS records are never changed automatically.
 
 ## Requirements before use
 
@@ -152,7 +152,7 @@ The bridge is mounted read-only at `/opt/magnibox-bridge`. Contract tests can be
 bash scripts/ci/check-magnibox-inbound-bridge.sh
 ```
 
-The example Postfix transport files are intentionally **not active**. They must not be copied into the live Postfix configuration until MAGNIBOX has a tested dynamic accepted-domain/recipient provisioning source. Enabling `virtual_transport` prematurely can reject valid mail or route domains incorrectly. A dedicated pilot domain and an end-to-end test are required before enabling this transport. The current Docker Mailserver mailbox path remains unchanged.
+The example Postfix transport files are intentionally **not active**. The signed provisioning API and host-side map synchronizer are implemented: they publish only approved recipients on verified domains, validate the snapshot HMAC and revision, and switch a versioned map generation atomically. They still require a controlled host-side run and operator review; they do not reload Postfix or change DNS. Enabling `virtual_transport` prematurely can reject valid mail or route domains incorrectly. A dedicated pilot domain and an end-to-end receive test are required before enabling this transport. The current Docker Mailserver mailbox path remains unchanged.
 
 No production endpoint, DNS record, MX, MTA host, or runtime secret is changed by this bridge code.
 
