@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/current-org";
+import { FormDialog } from "@/components/form-dialog";
 
 export const runtime = "nodejs";
 const PATH = "/administration-magnibox";
@@ -79,17 +80,23 @@ export default async function MagniboxPlatformAdministration() {
         <td>{item.email_address || item.domain_name}</td>
         <td>{statusLabels[item.request_status] || item.request_status}</td>
         <td>{new Date(item.created_at).toLocaleString("fr-FR")}</td>
-        <td><form action={reviewRequest} className="form">
-          <input type="hidden" name="requestType" value={item.request_type}/>
-          <input type="hidden" name="requestId" value={item.request_id}/>
-          <select name="decision" defaultValue="reviewing" aria-label="Décision">
-            <option value="reviewing">Mettre en examen</option>
-            {item.request_type === "address" && <option value="approved">Approuver l'adresse</option>}
-            <option value="rejected">Rejeter</option>
-          </select>
-          <input name="note" minLength={4} maxLength={500} placeholder="Motif obligatoire" required/>
-          <button className="button primary" type="submit">Enregistrer</button>
-        </form></td>
+        <td><FormDialog title={`Examiner ${item.email_address || item.domain_name}`} buttonLabel="Examiner">
+          <form action={reviewRequest} className="form">
+            <input type="hidden" name="requestType" value={item.request_type}/>
+            <input type="hidden" name="requestId" value={item.request_id}/>
+            <div className="field"><label>Décision</label>
+              <select name="decision" defaultValue="reviewing" aria-label="Décision">
+                <option value="reviewing">Mettre en examen</option>
+                {item.request_type === "address" && <option value="approved">Approuver l'adresse</option>}
+                <option value="rejected">Rejeter</option>
+              </select>
+            </div>
+            <div className="field"><label>Motif de la décision</label>
+              <input name="note" minLength={4} maxLength={500} placeholder="Motif obligatoire" required/>
+            </div>
+            <button className="button primary" type="submit">Enregistrer la décision</button>
+          </form>
+        </FormDialog></td>
       </tr>)}</tbody>
     </table></div>;
   }
