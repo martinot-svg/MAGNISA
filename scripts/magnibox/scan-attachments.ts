@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { connect } from "node:net";
+import { createHash } from "node:crypto";
 import { TextDecoder } from "node:util";
 
 type Attachment = {
@@ -88,6 +89,8 @@ async function processOne(admin: ReturnType<typeof createClient>, item: Attachme
     if (downloaded.error || !downloaded.data) throw new Error("storage_read_failed");
     const bytes = Buffer.from(await downloaded.data.arrayBuffer());
     if (bytes.length !== item.byte_size || bytes.length > MAX_FILE_BYTES) throw new Error("size_mismatch");
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    if (digest !== item.sha256.toLowerCase()) throw new Error("sha256_mismatch");
 
     const detected = detectMime(bytes);
     if (!detected) {
