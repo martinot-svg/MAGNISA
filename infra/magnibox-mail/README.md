@@ -120,3 +120,23 @@ Do not change a customer's MX automatically. A root-domain MX change can redirec
 - [Rspamd integration](https://docker-mailserver.github.io/docker-mailserver/edge/config/security/rspamd/)
 
 This is an infrastructure preparation commit only. It does not deploy a server, create DNS records, change Vercel secrets, alter production data or enable external mail.
+
+## Postfix-to-MAGNIBOX inbound bridge (staged, not enabled)
+
+The `bridge/postfix-inbound.py` pipe program implements the application contract already present at `/api/internal/magnibox/inbound`:
+
+- It receives the envelope recipient from Postfix, not from an untrusted message header.
+- It extracts a bounded text body, creates a deterministic fallback message ID, and signs the exact JSON bytes with the timestamped HMAC-SHA256 contract.
+- It requires an HTTPS endpoint, a 32-character minimum secret, a short network timeout and rejects redirects.
+- Temporary upstream/network failures return Postfix's temporary-failure exit code so the queue can retry. Invalid messages and permanent API rejections return a permanent-failure code.
+- Attachments are deliberately rejected rather than silently discarded; the current MAGNIBOX inbound API stores text only.
+
+The bridge is mounted read-only at `/opt/magnibox-bridge`. Contract tests can be run with:
+
+```sh
+bash scripts/ci/check-magnibox-inbound-bridge.sh
+```
+
+The example Postfix transport files are intentionally **not active**. They must not be copied into the live Postfix configuration until MAGNIBOX has a tested dynamic accepted-domain/recipient provisioning source. Enabling `virtual_transport` prematurely can reject valid mail or route domains incorrectly. A dedicated pilot domain and an end-to-end test are required before enabling this transport. The current Docker Mailserver mailbox path remains unchanged.
+
+No production endpoint, DNS record, MX, MTA host, or runtime secret is changed by this bridge code.
