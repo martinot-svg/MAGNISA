@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { requireOrganization } from "@/lib/current-org";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MagniboxSmtpTransport, magniboxSmtpConfig } from "@/lib/orbit/transport/smtp";
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
     const outgoingAttachments: Array<{filename:string;content:Buffer;contentType:string}> = [];
     if (attachmentIds.length) {
       const visible = await ctx.supabase.from("orbit_external_message_attachments")
-        .select("id,message_id,storage_path,display_name,byte_size,detected_mime_type")
+        .select("id,message_id,storage_path,display_name,byte_size,detected_mime_type,sha256")
         .in("id", attachmentIds).eq("scan_status", "available");
       if (visible.error || (visible.data ?? []).length !== attachmentIds.length)
         return reply("Une ou plusieurs pièces jointes ne sont pas disponibles.",400);
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
         const downloaded = await adminForFiles.storage.from("magnibox-attachments").download(item.storage_path);
         if (downloaded.error || !downloaded.data) return reply("Lecture sécurisée des pièces jointes impossible.",503);
         const content = Buffer.from(await downloaded.data.arrayBuffer());
-        if (content.length !== item.byte_size) return reply("Intégrité d'une pièce jointe non vérifiée.",400);
+        if (content.length !== item.byte_size || createHash("sha256").update(content).digest("hex") !== item.sha256) return reply("Intégrité d'une pièce jointe non vérifiée.",400);
         const filename = item.display_name.replace(/[^\\w .()\\-]/g, "_").slice(0,120) || "attachment.bin";
         outgoingAttachments.push({filename,content,contentType:item.detected_mime_type});
       }
