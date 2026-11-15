@@ -93,19 +93,6 @@ export async function POST(request: NextRequest) {
       },{status:202});
     }
 
-    // Conservative free-tier guard. A later atomic quota in the database is
-    // necessary before providing unlimited or high-volume delivery.
-    const since=new Date(Date.now()-24*60*60*1000).toISOString();
-    const quota=await admin.from("orbit_external_messages")
-      .select("id",{count:"exact",head:true})
-      .eq("organization_id",ctx.organizationId)
-      .eq("identity_id",identity.id).eq("direction","outgoing")
-      .gte("created_at",since);
-    if(quota.error) return reply("Le quota de courrier ne peut pas être vérifié.",503);
-    const dailyLimit=Math.max(1,Math.min(20,Number(process.env.MAGNIBOX_OUTBOUND_DAILY_LIMIT)||10));
-    if((quota.count??0)>=dailyLimit)
-      return reply("Le quota quotidien d'envoi de cette boîte est atteint.",429);
-
     // The database's unique (identity_id, request_key) index protects against
     // retries submitting the same mail twice. Never automatically retry an
     // ambiguous provider/network failure.
