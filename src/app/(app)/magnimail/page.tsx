@@ -2,6 +2,7 @@ import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
 import { MagniMailClient } from "@/components/magnimail-client";
 import { MGMailInternalContent } from "@/components/magnimail-internal-workspace";
+import { MagniboxInternetWorkspace } from "@/components/magnibox-internet-workspace";
 import { DEFAULT_EMAIL_TEMPLATES, getEmailTemplate, renderEmailTemplate, type EmailTemplateKey } from "@/lib/magnimail/templates";
 
 const MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
@@ -66,18 +67,18 @@ export default async function MagniMailPage({
           <div>
             <p className="eyebrow">Magnisa Orbit · Communication</p>
             <h1>Magnibox</h1>
-            <p>Messagerie professionnelle : échanges internes sécurisés et connexions Internet facultatives.</p>
+            <p>Messagerie professionnelle : boîtes internes et adresses Internet gérées par MAGNIBOX.</p>
           </div>
         </div>
         {inboxMessages}
+        <MagniboxInternetWorkspace />
         {extensionCatalogLink}
         {professionalDomainsLink}
         <div className="grid2">
           <div className="card">
-            <h2>Ajouter un compte e-mail Internet (facultatif)</h2>
+            <h2>Connecter un compte Gmail (facultatif)</h2>
             <p className="muted">
-              Un compte Gmail est une option pour utiliser une adresse Internet pour la réception, les envoyés, les brouillons, les réponses,
-              pièces jointes et l'envoi des documents MAGNISA.
+              MAGNIBOX gère ses propres adresses professionnelles et son transport Internet. La connexion Gmail reste une intégration facultative pour consulter un compte Google existant.
             </p>
             <a className="button primary" href="/api/integrations/google/start">
               Connecter Gmail
@@ -135,6 +136,7 @@ export default async function MagniMailPage({
         </div>
       </div>
       {inboxMessages}
+      <MagniboxInternetWorkspace />
       {extensionCatalogLink}
         {professionalDomainsLink}
       {needsUpgrade && (
