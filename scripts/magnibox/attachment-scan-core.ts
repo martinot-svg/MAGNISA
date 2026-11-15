@@ -7,7 +7,7 @@ export function detectMagniboxAttachmentMime(bytes: Buffer): string | null {
   if (bytes.length >= 6 && ["GIF87a", "GIF89a"].includes(bytes.subarray(0, 6).toString("ascii"))) return "image/gif";
   if (bytes.length >= 12 && bytes.subarray(0, 4).toString("ascii") === "RIFF"
     && bytes.subarray(8, 12).toString("ascii") === "WEBP") return "image/webp";
-  if (bytes.length > 0 && !bytes.includes(0)) {
+  if (bytes.length > 0 && !bytes.includes(0) && !bytes.some(byte => byte < 0x09 || (byte > 0x0d && byte < 0x20))) {
     try {
       new TextDecoder("utf-8", { fatal: true }).decode(bytes);
       return "text/plain";
