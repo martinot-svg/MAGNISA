@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
   const secret = process.env.MAGNIBOX_INBOUND_WEBHOOK_SECRET;
   if (process.env.MAGNIBOX_EXTERNAL_MAIL_ENABLED !== "true" || !secret) return unavailable();
   const declaredLength = request.headers.get("content-length");
-  if (isMagniboxInboundContentLengthTooLarge(declaredLength, 28 * 1024 * 1024))
+  if (isMagniboxInboundContentLengthTooLarge(declaredLength, 205 * 1024 * 1024))
     return NextResponse.json({ error: "Message entrant trop volumineux." }, { status: 413 });
 
   let raw: string;
