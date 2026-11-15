@@ -1,6 +1,10 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { parseMagniboxInboundPayload, verifyMagniboxInboundSignature } from "./inbound";
+import {
+  MAGNIBOX_INBOUND_MAX_TEXT_CHARS,
+  parseMagniboxInboundPayload,
+  verifyMagniboxInboundSignature,
+} from "./inbound";
 const secret="magnibox-test-secret-with-at-least-thirty-two-characters";
 const body=JSON.stringify({messageId:"queue-123",from:"Sender <sender@example.net>",to:["finance@entreprise.mg"],subject:"Bonjour",text:"Message entrant"});
 const ts="1794700000";
@@ -15,6 +19,9 @@ describe("Magnibox native inbound gateway",()=>{
  it("normalizes sender and recipients and rejects malformed payloads",()=>{
   expect(parseMagniboxInboundPayload(JSON.parse(body))).toMatchObject({from:"sender@example.net",to:["finance@entreprise.mg"]});
   expect(()=>parseMagniboxInboundPayload({...JSON.parse(body),to:["finance@entreprise.mg","FINANCE@entreprise.mg"]})).toThrow();
-  expect(()=>parseMagniboxInboundPayload({...JSON.parse(body),text:"x".repeat(100001)})).toThrow();
+  expect(()=>parseMagniboxInboundPayload({...JSON.parse(body),text:"x".repeat(MAGNIBOX_INBOUND_MAX_TEXT_CHARS+1)})).toThrow();
+ });
+ it("accepts a body exactly at the database limit",()=>{
+  expect(parseMagniboxInboundPayload({...JSON.parse(body),text:"x".repeat(MAGNIBOX_INBOUND_MAX_TEXT_CHARS)}).text).toHaveLength(50000);
  });
 });
