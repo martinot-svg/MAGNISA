@@ -35,7 +35,7 @@ export function verifyMagniboxProvisioningRequest(
   secret: string,
   nowMilliseconds = Date.now(),
 ): boolean {
-  if (!timestamp || !signature || !/^\\d{10}$/.test(timestamp)
+  if (!timestamp || !signature || !/^\d{10}$/.test(timestamp)
     || Math.abs(nowMilliseconds - Number(timestamp) * 1000) > 300000
     || secret.trim().length < 32 || !/^sha256=[a-f0-9]{64}$/i.test(signature)) return false;
   const expected = createHmac("sha256", secret).update(timestamp + "." + rawBody).digest();
