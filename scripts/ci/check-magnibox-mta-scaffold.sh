@@ -20,6 +20,7 @@ has "$COMPOSE" '"587:587"'
 has "$COMPOSE" '"993:993"'
 has "$COMPOSE" 'restart: unless-stopped'
 has "$COMPOSE" 'NET_ADMIN'
+has "$COMPOSE" './docker-data/provisioning:/etc/postfix/magnibox:ro'
 
 if grep -Eiq '(^|[/:])latest([[:space:]"\047]|$)' "$COMPOSE"; then
   fail "floating latest image tags are forbidden"
@@ -36,6 +37,8 @@ has "$ENV_EXAMPLE" 'TLS_LEVEL=modern'
 has "$ENV_EXAMPLE" 'SSL_TYPE=manual'
 has "$ENV_EXAMPLE" 'SSL_CERT_PATH=/run/magnibox-tls/fullchain.pem'
 has "$ENV_EXAMPLE" 'SSL_KEY_PATH=/run/magnibox-tls/privkey.pem'
+has "$ENV_EXAMPLE" 'MAGNIBOX_INBOUND_URL='
+has "$ENV_EXAMPLE" 'MAGNIBOX_INBOUND_WEBHOOK_SECRET='
 
 has "$GITIGNORE" 'infra/magnibox-mail/mailserver.env'
 has "$GITIGNORE" 'infra/magnibox-mail/docker-data/'
@@ -46,4 +49,6 @@ has "$README" 'does **not** yet connect Dovecot mailboxes'
 has "$README" 'Do not use a server behind carrier-grade NAT'
 has "$README" 'Do not set `MAGNIBOX_EXTERNAL_MAIL_ENABLED=true`'
 has "$README" 'Postfix-to-MAGNIBOX'
+has "$README" 'virtual_mailbox_domains'
+has "$README" 'virtual_mailbox_maps'
 printf 'Magnibox MTA scaffold checks passed.\n'
