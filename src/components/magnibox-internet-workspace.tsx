@@ -21,6 +21,7 @@ export function MagniboxInternetWorkspace() {
   const [to,setTo]=useState("");
   const [subject,setSubject]=useState("");
   const [body,setBody]=useState("");
+  const [attachmentIds,setAttachmentIds]=useState<string[]>([]);
   const [loading,setLoading]=useState(true);
   const [sending,setSending]=useState(false);
   const [error,setError]=useState("");
@@ -62,13 +63,13 @@ export function MagniboxInternetWorkspace() {
       const response=await fetch("/api/magnibox/internet/send",{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
-          identityId:selected.id,requestId:crypto.randomUUID(),to,subject,text:body,
+          identityId:selected.id,requestId:crypto.randomUUID(),to,subject,text:body,attachmentIds,
         }),
       });
       const data=await response.json();
       if(!response.ok && response.status!==202) throw new Error(data?.error || "Envoi impossible.");
       setFeedback(data.state==="accepted"?"Message accepté par le serveur MAGNIBOX. La livraison finale reste à confirmer.":"Demande enregistrée. Consultez son statut avant toute nouvelle tentative.");
-      setTo("");setSubject("");setBody("");
+      setTo("");setSubject("");setBody("");setAttachmentIds([]);
       await loadMessages(selected.id);
     }catch(e){setError(e instanceof Error?e.message:"Envoi impossible.");}
     finally{setSending(false);}
@@ -110,6 +111,7 @@ export function MagniboxInternetWorkspace() {
                   <input id="magnibox-subject" value={subject} onChange={e=>setSubject(e.target.value)} maxLength={180} required />
                   <label htmlFor="magnibox-body">Message</label>
                   <textarea id="magnibox-body" value={body} onChange={e=>setBody(e.target.value)} rows={6} maxLength={50000} required />
+                  {attachmentIds.length > 0 && <p className="muted" style={{fontSize:12}}>{attachmentIds.length} pièce(s) jointe(s) sélectionnée(s) — seules les pièces reçues et validées par ClamAV peuvent être transférées.</p>}
                   <button className="button primary" type="submit" disabled={sending}>{sending?"Envoi…":"Envoyer"}</button>
                 </form>
               )}
@@ -138,6 +140,15 @@ export function MagniboxInternetWorkspace() {
                             <li key={file.id}>
                               <a href={"/api/magnibox/attachments/download?id="+encodeURIComponent(file.id)}>{file.display_name}</a>
                               <span className="muted"> · {Math.max(1,Math.round(file.byte_size/1024))} Ko</span>
+                              {message.direction==="incoming" && (
+                                <label style={{display:"inline-flex",gap:6,alignItems:"center",marginLeft:10,fontSize:12}}>
+                                  <input type="checkbox" checked={attachmentIds.includes(file.id)}
+                                    onChange={event=>setAttachmentIds(current=>event.target.checked
+                                      ? (current.length<5?[...current,file.id]:current)
+                                      : current.filter(id=>id!==file.id))} />
+                                  Transférer
+                                </label>
+                              )}
                             </li>
                           ))}
                         </ul>
