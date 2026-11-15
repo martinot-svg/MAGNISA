@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  collectMagniboxProvisioningRows,
   signMagniboxProvisioningResponse,
   verifyMagniboxProvisioningRequest,
 } from "@/lib/orbit/transport/provisioning";
@@ -50,19 +51,21 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = createAdminClient();
-    const result = await admin.from("orbit_public_identities")
-      .select("organization_id,domain_request_id,address_request_id,email_address,provider,status,receive_enabled,provider_verified_at,provider_domain_ref")
-      .eq("provider", "smtp")
-      .eq("status", "active")
-      .eq("receive_enabled", true)
-      .not("provider_verified_at", "is", null)
-      .limit(10000);
-    if (result.error) {
-      return NextResponse.json({ error: "Instantané de boîtes indisponible." }, { status: 503 });
-    }
+    // Supabase/PostgREST may cap a single response below the directory size.
+    // Explicitly page through every row and fail closed above the MTA's 10k limit.
+    const identities = await collectMagniboxProvisioningRows(async (from, to) => {
+      const page = await admin.from("orbit_public_identities")
+        .select("organization_id,domain_request_id,address_request_id,email_address,provider,status,receive_enabled,provider_verified_at,provider_domain_ref")
+        .eq("provider", "smtp")
+        .eq("status", "active")
+        .eq("receive_enabled", true)
+        .not("provider_verified_at", "is", null)
+        .range(from, to);
+      if (page.error) throw new Error("identity_snapshot_failed");
+      return page.data ?? [];
+    });
 
     const valid: Array<{ email: string; domain: string }> = [];
-    const identities = result.data ?? [];
     for (let start = 0; start < identities.length; start += 50) {
       const batch = identities.slice(start, start + 50);
       const checked = await Promise.all(batch.map(async identity => {
