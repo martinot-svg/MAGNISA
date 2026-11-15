@@ -56,6 +56,21 @@ describe("Magnibox native SMTP transport", () => {
     }));
   });
 
+  it("rejects an SMTP queue response that accepts a different recipient", async () => {
+    const sendMail = vi.fn().mockResolvedValue({
+      messageId: "<request@example.com>",
+      response: "250 2.0.0 Ok: queued as ABC123DEF",
+      accepted: ["attacker@example.net"],
+      rejected: [],
+    });
+    const transport = new MagniboxSmtpTransport(env as NodeJS.ProcessEnv, () => ({ sendMail }));
+    await expect(transport.send({
+      from: "finance@entreprise.mg", to: ["client@example.com"],
+      subject: "Facture", text: "Bonjour",
+      requestId: "aeeb4255-0860-45d8-9c92-72488919ee51",
+    })).rejects.toThrow(/tous les destinataires/);
+  });
+
   it("rejects malformed request IDs and does not report a delivery confirmation", async () => {
     const sendMail = vi.fn();
     const transport = new MagniboxSmtpTransport(env as NodeJS.ProcessEnv, () => ({ sendMail }));
