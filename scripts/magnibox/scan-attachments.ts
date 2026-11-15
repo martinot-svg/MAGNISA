@@ -41,7 +41,7 @@ type Attachment = Pick<AttachmentRow,
 >;
 
 const BUCKET = "magnibox-attachments";
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_FILE_BYTES = 30 * 1024 * 1024;
 const BATCH_SIZE = 10;
 
 async function scanWithClamAV(bytes: Buffer, host: string, port: number): Promise<"clean" | "infected"> {
