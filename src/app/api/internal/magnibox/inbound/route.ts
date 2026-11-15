@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isMagniboxInboundContentLengthTooLarge, MagniboxInboundBodyTooLargeError, parseMagniboxInboundPayload, readMagniboxInboundBody, verifyMagniboxInboundSignature } from "@/lib/orbit/transport/inbound";
+import { isMagniboxInboundContentLengthTooLarge, MagniboxInboundBodyTooLargeError, parseMagniboxInboundPayload, readMagniboxInboundBody, verifyMagniboxInboundSignature, MAGNIBOX_INBOUND_MAX_REQUEST_BYTES } from "@/lib/orbit/transport/inbound";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
   const secret = process.env.MAGNIBOX_INBOUND_WEBHOOK_SECRET;
   if (process.env.MAGNIBOX_EXTERNAL_MAIL_ENABLED !== "true" || !secret) return unavailable();
   const declaredLength = request.headers.get("content-length");
-  if (isMagniboxInboundContentLengthTooLarge(declaredLength, 205 * 1024 * 1024))
+  if (isMagniboxInboundContentLengthTooLarge(declaredLength, MAGNIBOX_INBOUND_MAX_REQUEST_BYTES))
     return NextResponse.json({ error: "Message entrant trop volumineux." }, { status: 413 });
 
   let raw: string;
