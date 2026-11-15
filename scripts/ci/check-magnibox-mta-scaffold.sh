@@ -51,7 +51,7 @@ has "$GITIGNORE" 'infra/magnibox-mail/docker-data/'
 has "$GITIGNORE" 'infra/magnibox-mail/*.pem'
 has "$GITIGNORE" 'infra/magnibox-mail/*.key'
 
-has "$README" 'does **not** yet connect Dovecot mailboxes'
+has "$README" 'The MAGNISA application inbox is Supabase-backed'
 has "$README" 'Do not use a server behind carrier-grade NAT'
 has "$README" 'Do not set `MAGNIBOX_EXTERNAL_MAIL_ENABLED=true`'
 has "$README" 'Postfix-to-MAGNIBOX'
