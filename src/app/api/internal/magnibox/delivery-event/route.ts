@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { verifyMagniboxInboundSignature } from "@/lib/orbit/transport/inbound";
+import { isMagniboxInboundContentLengthTooLarge, MagniboxInboundBodyTooLargeError, readMagniboxBoundedBody, verifyMagniboxInboundSignature } from "@/lib/orbit/transport/inbound";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,13 +11,18 @@ export async function POST(request: NextRequest) {
   if (process.env.MAGNIBOX_EXTERNAL_MAIL_ENABLED !== "true" || !secret) {
     return NextResponse.json({ error: "Événements de livraison désactivés." }, { status: 503 });
   }
-  if (Number(request.headers.get("content-length") || "0") > 10000) {
+  if (isMagniboxInboundContentLengthTooLarge(request.headers.get("content-length"), 10000)) {
     return NextResponse.json({ error: "Événement trop volumineux." }, { status: 413 });
   }
   let raw: string;
-  try { raw = await request.text(); }
-  catch { return NextResponse.json({ error: "Corps invalide." }, { status: 400 }); }
-  if (Buffer.byteLength(raw, "utf8") > 10000) return NextResponse.json({ error: "Événement trop volumineux." }, { status: 413 });
+  try {
+    raw = await readMagniboxBoundedBody(request.body, 10000);
+  } catch (error) {
+    if (error instanceof MagniboxInboundBodyTooLargeError) {
+      return NextResponse.json({ error: "Événement trop volumineux." }, { status: 413 });
+    }
+    return NextResponse.json({ error: "Corps invalide." }, { status: 400 });
+  }
   if (!verifyMagniboxInboundSignature(raw, request.headers.get("x-magnibox-timestamp"),
     request.headers.get("x-magnibox-signature"), secret)) {
     return NextResponse.json({ error: "Signature invalide." }, { status: 401 });
