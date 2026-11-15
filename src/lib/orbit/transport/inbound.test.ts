@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   MAGNIBOX_INBOUND_MAX_TEXT_CHARS,
   parseMagniboxInboundPayload,
+  readMagniboxInboundBody,
+  MagniboxInboundBodyTooLargeError,
   verifyMagniboxInboundSignature,
 } from "./inbound";
 const secret="magnibox-test-secret-with-at-least-thirty-two-characters";
