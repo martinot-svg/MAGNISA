@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { parseMagniboxInboundPayload, verifyMagniboxInboundSignature } from "@/lib/orbit/transport/inbound";
+import { MagniboxInboundBodyTooLargeError, parseMagniboxInboundPayload, readMagniboxInboundBody, verifyMagniboxInboundSignature } from "@/lib/orbit/transport/inbound";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,15 +14,16 @@ function unavailable() {
 export async function POST(request: NextRequest) {
   const secret = process.env.MAGNIBOX_INBOUND_WEBHOOK_SECRET;
   if (process.env.MAGNIBOX_EXTERNAL_MAIL_ENABLED !== "true" || !secret) return unavailable();
-  if (Number(request.headers.get("content-length") || "0") > 28 * 1024 * 1024)
+  const declaredLength = request.headers.get("content-length");
+  if (declaredLength && /^\\d+$/.test(declaredLength) && Number(declaredLength) > 28 * 1024 * 1024)
     return NextResponse.json({ error: "Message entrant trop volumineux." }, { status: 413 });
 
   let raw: string;
   try {
-    raw = await request.text();
-    if (Buffer.byteLength(raw, "utf8") > 28 * 1024 * 1024)
+    raw = await readMagniboxInboundBody(request.body, 28 * 1024 * 1024);
+  } catch (error) {
+    if (error instanceof MagniboxInboundBodyTooLargeError)
       return NextResponse.json({ error: "Message entrant trop volumineux." }, { status: 413 });
-  } catch {
     return NextResponse.json({ error: "Corps entrant invalide." }, { status: 400 });
   }
   if (!verifyMagniboxInboundSignature(raw, request.headers.get("x-magnibox-timestamp"),
