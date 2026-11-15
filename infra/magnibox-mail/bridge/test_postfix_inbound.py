@@ -120,5 +120,33 @@ class InboundBridgeTests(unittest.TestCase):
             bridge.extract_content(msg)
 
 
+    def test_http_permanent_failures_are_not_retried_but_transient_failures_are(self):
+        import os
+        from unittest.mock import patch
+
+        raw = b"From: sender@example.org\\r\\nContent-Type: text/plain\\r\\n\\r\\nHello"
+        previous = dict(os.environ)
+        try:
+            os.environ["MAGNIBOX_INBOUND_URL"] = "https://magnisa.example/api/internal/magnibox/inbound"
+            os.environ["MAGNIBOX_INBOUND_WEBHOOK_SECRET"] = "s" * 40
+            for status in (301, 401, 403, 404, 422):
+                error = __import__("urllib.error", fromlist=["HTTPError"]).HTTPError(
+                    "https://magnisa.example/api/internal/magnibox/inbound", status, "failure", {}, None
+                )
+                opener = type("Opener", (), {"open": lambda self, request, timeout, error=error: (_ for _ in ()).throw(error)})()
+                with patch.object(bridge.urllib.request, "build_opener", return_value=opener):
+                    self.assertEqual(bridge.forward(raw, "inbox@example.org"), 69, status)
+            for status in (408, 425, 429, 500, 503):
+                error = __import__("urllib.error", fromlist=["HTTPError"]).HTTPError(
+                    "https://magnisa.example/api/internal/magnibox/inbound", status, "failure", {}, None
+                )
+                opener = type("Opener", (), {"open": lambda self, request, timeout, error=error: (_ for _ in ()).throw(error)})()
+                with patch.object(bridge.urllib.request, "build_opener", return_value=opener):
+                    self.assertEqual(bridge.forward(raw, "inbox@example.org"), 75, status)
+        finally:
+            os.environ.clear()
+            os.environ.update(previous)
+
+
 if __name__ == "__main__":
     unittest.main()
