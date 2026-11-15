@@ -61,6 +61,7 @@ async function processOne(admin: ReturnType<typeof createClient>, item: Attachme
     .update({ scan_status: "scanning", scan_started_at: new Date().toISOString(), scan_attempts: item.scan_attempts + 1 })
     .eq("id", item.id)
     .eq("scan_status", "quarantined")
+    .lt("scan_attempts", 5)
     .select("id")
     .maybeSingle();
   if (claim.error || !claim.data) return;
@@ -130,6 +131,11 @@ async function main() {
     .update({ scan_status: "rejected", scan_started_at: null, scan_completed_at: new Date().toISOString() })
     .eq("scan_status", "scanning").gte("scan_attempts", 5).lt("scan_started_at", staleBefore);
   if (exhausted.error) throw new Error("Unable to reject exhausted scan leases");
+
+  const exhaustedQueued = await admin.from("orbit_external_message_attachments")
+    .update({ scan_status: "rejected", scan_completed_at: new Date().toISOString() })
+    .eq("scan_status", "quarantined").gte("scan_attempts", 5);
+  if (exhaustedQueued.error) throw new Error("Unable to reject exhausted queued scans");
 
   const pending = await admin.from("orbit_external_message_attachments")
     .select("id,organization_id,message_id,storage_path,byte_size,sha256,scan_status,scan_attempts")
