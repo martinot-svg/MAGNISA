@@ -32,6 +32,7 @@ async function scanWithClamAV(bytes: Buffer, host: string, port: number): Promis
     };
     socket.setTimeout(30_000, () => finish(new Error("ClamAV timeout")));
     socket.on("error", error => finish(error));
+    socket.on("end", () => finish(new Error("ClamAV closed before complete response")));
     socket.on("data", chunk => {
       chunks.push(chunk);
       const verdict = parseClamAvInstreamResponse(Buffer.concat(chunks));
@@ -118,7 +119,7 @@ async function main() {
   const admin = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
   const staleBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const retryable = await admin.from("orbit_external_message_attachments")
-    .update({ scan_status: "quarantined", scan_started_at: null })
+    .update({ scan_status: "quarantined", scan_started_at: null, scan_lease_token: null })
     .eq("scan_status", "scanning").lt("scan_attempts", 5).lt("scan_started_at", staleBefore);
   if (retryable.error) throw new Error("Unable to recover stale scan leases");
   const exhausted = await admin.from("orbit_external_message_attachments")
