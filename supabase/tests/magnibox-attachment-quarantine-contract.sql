@@ -16,9 +16,10 @@ BEGIN
   IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid=v_table) THEN
     RAISE EXCEPTION 'MAGNIBOX attachment RLS must be enabled';
   END IF;
-  SELECT NOT public INTO v_bucket FROM storage.buckets WHERE id='magnibox-attachments';
+  SELECT NOT public AND file_size_limit >= 31457280 INTO v_bucket
+  FROM storage.buckets WHERE id='magnibox-attachments';
   IF coalesce(v_bucket,false) IS NOT TRUE THEN
-    RAISE EXCEPTION 'MAGNIBOX attachment bucket must exist and remain private';
+    RAISE EXCEPTION 'MAGNIBOX attachment bucket must be private and allow 30 MiB files';
   END IF;
   IF NOT has_table_privilege('authenticated',v_table,'SELECT')
     OR has_table_privilege('authenticated',v_table,'INSERT')
