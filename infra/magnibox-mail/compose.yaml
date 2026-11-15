@@ -31,7 +31,7 @@ services:
     command: ["/var/log/mail/mail.log", "/var/lib/magnibox-event-forwarder/cursor.json"]
     environment:
       MAGNIBOX_DELIVERY_EVENT_URL: ${MAGNIBOX_DELIVERY_EVENT_URL:?Set the internal MAGNIBOX delivery-event endpoint}
-      MAGNIBOX_INBOUND_WEBHOOK_SECRET: ${MAGNIBOX_INBOUND_WEBHOOK_SECRET:?Set the shared HMAC secret}
+      MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET: ${MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET:?Set the dedicated delivery-event HMAC secret}
     volumes:
       - ./docker-data/logs:/var/log/mail:ro
       - ./bridge:/opt/magnibox-bridge:ro
