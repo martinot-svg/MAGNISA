@@ -51,6 +51,20 @@ jobs:
       - name: Enforce interactive form and button contracts
         run: node scripts/qa/check-interactive-contracts.mjs
 
+      - name: Validate Magnibox self-hosted MTA scaffold
+        run: |
+          bash -n scripts/ci/check-magnibox-mta-scaffold.sh
+          bash scripts/ci/check-magnibox-mta-scaffold.sh
+
+      - name: Validate Magnibox Postfix inbound bridge
+        run: bash scripts/ci/check-magnibox-inbound-bridge.sh
+
+      - name: Validate Magnibox recipient provisioning sync
+        run: bash scripts/ci/check-magnibox-provision-sync.sh
+
+      - name: Validate Magnibox delivery event forwarding
+        run: bash scripts/ci/check-magnibox-delivery-events.sh
+
       - name: Dependency audit report
         run: |
           npm audit --json > npm-audit.json || true
