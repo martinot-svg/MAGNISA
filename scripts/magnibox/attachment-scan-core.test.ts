@@ -19,7 +19,7 @@ describe("detectMagniboxAttachmentMime", () => {
 
   it("does not trust extensions or declared MIME types", () => {
     expect(detectMagniboxAttachmentMime(Buffer.from("<html>fake pdf</html>"))).toBe("text/plain");
-    expect(detectMagniboxAttachmentMime(Buffer.from([0x50, 0x4b, 0x03, 0x04]))).toBe("text/plain");
+    expect(detectMagniboxAttachmentMime(Buffer.from([0x50, 0x4b, 0x03, 0x04]))).toBeNull();
   });
 });
 
