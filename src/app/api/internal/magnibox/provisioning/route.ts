@@ -62,31 +62,33 @@ export async function POST(request: NextRequest) {
     }
 
     const valid: Array<{ email: string; domain: string }> = [];
-    for (const identity of result.data ?? []) {
-      if (!identity.provider_domain_ref?.trim() || !identity.email_address?.trim()) continue;
-      const [domain, address] = await Promise.all([
-        admin.from("mgmail_domain_requests").select("domain_name,status")
-          .eq("id", identity.domain_request_id)
-          .eq("organization_id", identity.organization_id).maybeSingle(),
-        admin.from("mgmail_public_address_requests").select("email_address,status")
-          .eq("id", identity.address_request_id)
-          .eq("organization_id", identity.organization_id).maybeSingle(),
-      ]);
-      if (domain.error || address.error) {
-        return NextResponse.json({ error: "Validation des boîtes indisponible." }, { status: 503 });
-      }
-      if (domain.data?.status !== "verified" || address.data?.status !== "approved") continue;
-      const email = identity.email_address.trim().toLowerCase();
-      const domainName = domain.data.domain_name?.trim().toLowerCase();
-      if (!domainName || email.split("@").length !== 2 || email.split("@")[1] !== domainName) continue;
-      if (address.data.email_address?.trim().toLowerCase() !== email) continue;
-      valid.push({ email, domain: domainName });
+    const identities = result.data ?? [];
+    for (let start = 0; start < identities.length; start += 50) {
+      const batch = identities.slice(start, start + 50);
+      const checked = await Promise.all(batch.map(async identity => {
+        if (!identity.provider_domain_ref?.trim() || !identity.email_address?.trim()) return null;
+        const [domain, address] = await Promise.all([
+          admin.from("mgmail_domain_requests").select("domain_name,status")
+            .eq("id", identity.domain_request_id)
+            .eq("organization_id", identity.organization_id).maybeSingle(),
+          admin.from("mgmail_public_address_requests").select("email_address,status")
+            .eq("id", identity.address_request_id)
+            .eq("organization_id", identity.organization_id).maybeSingle(),
+        ]);
+        if (domain.error || address.error) throw new Error("mailbox_validation_failed");
+        if (domain.data?.status !== "verified" || address.data?.status !== "approved") return null;
+        const email = identity.email_address.trim().toLowerCase();
+        const domainName = domain.data.domain_name?.trim().toLowerCase();
+        if (!domainName || email.split("@").length !== 2 || email.split("@")[1] !== domainName) return null;
+        if (address.data.email_address?.trim().toLowerCase() !== email) return null;
+        return { email, domain: domainName };
+      }));
+      valid.push(...checked.filter((item): item is { email: string; domain: string } => item !== null));
     }
 
     const recipients = [...new Set(valid.map(x => x.email))].sort();
     const domains = [...new Set(valid.map(x => x.domain))].sort();
     const generatedAt = new Date().toISOString();
-    const canonical = JSON.stringify({ generatedAt, domains, recipients });
     const snapshot = {
       generatedAt,
       domains,
