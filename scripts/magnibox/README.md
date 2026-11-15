@@ -40,3 +40,8 @@ The first implementation supports PDF, PNG, JPEG, GIF, WebP and plain UTF-8 text
 ## Current limitation
 
 This is the isolated scan worker foundation. It does not yet ingest MIME attachments from Postfix, create attachment metadata, or expose downloads. The inbound bridge must continue rejecting attachments until the full ingestion-to-scan integration and end-to-end tests are merged and deployed.
+
+
+### Worker lease fencing
+
+Each claimed scan stores a fresh UUID lease token. Every completion or retry update is conditional on that token, so a worker whose lease was recovered cannot overwrite a new worker's verdict. The migration enforces that only scanning rows carry a lease token and start timestamp. Stale scans return to quarantine with the token cleared; exhausted attempts are rejected. ClamAV protocol framing and NUL-terminated response parsing are covered by unit tests.
