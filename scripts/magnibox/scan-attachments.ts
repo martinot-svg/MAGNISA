@@ -130,13 +130,21 @@ async function main() {
   if (retryable.error) throw new Error("Unable to recover stale scan leases");
   const exhausted = await admin.from("orbit_external_message_attachments")
     .update({ scan_status: "rejected", scan_started_at: null, scan_lease_token: null, scan_completed_at: new Date().toISOString() })
-    .eq("scan_status", "scanning").gte("scan_attempts", 5).lt("scan_started_at", staleBefore);
+    .eq("scan_status", "scanning").gte("scan_attempts", 5).lt("scan_started_at", staleBefore)
+    .select("storage_path");
   if (exhausted.error) throw new Error("Unable to reject exhausted scan leases");
 
   const exhaustedQueued = await admin.from("orbit_external_message_attachments")
     .update({ scan_status: "rejected", scan_started_at: null, scan_lease_token: null, scan_completed_at: new Date().toISOString() })
-    .eq("scan_status", "quarantined").gte("scan_attempts", 5);
+    .eq("scan_status", "quarantined").gte("scan_attempts", 5)
+    .select("storage_path");
   if (exhaustedQueued.error) throw new Error("Unable to reject exhausted queued scans");
+  const rejectedPaths = [...(exhausted.data ?? []), ...(exhaustedQueued.data ?? [])]
+    .map(row => row.storage_path).filter(Boolean);
+  if (rejectedPaths.length) {
+    const removed = await admin.storage.from(BUCKET).remove(rejectedPaths);
+    if (removed.error) process.stderr.write("MAGNIBOX rejected attachment cleanup deferred\\n");
+  }
 
   const pending = await admin.from("orbit_external_message_attachments")
     .select("id,organization_id,message_id,storage_path,byte_size,sha256,scan_status,scan_attempts")
