@@ -85,5 +85,40 @@ class InboundBridgeTests(unittest.TestCase):
             os.environ.update(previous)
 
 
+    def test_extracts_attachment_as_bounded_base64_payload(self):
+        msg = BytesParser(policy=policy.default).parsebytes(
+            b"From: sender@example.org\r\nSubject: Hello\r\n"
+            b"MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=x\r\n\r\n"
+            b"--x\r\nContent-Type: text/plain\r\n\r\nBody\r\n"
+            b"--x\r\nContent-Type: application/pdf\r\n"
+            b"Content-Disposition: attachment; filename=../invoice.pdf\r\n"
+            b"Content-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQ=\r\n--x--"
+        )
+        text, attachments = bridge.extract_content(msg)
+        self.assertEqual(text, "Body")
+        self.assertEqual(len(attachments), 1)
+        self.assertEqual(attachments[0]["fileName"], "invoice.pdf")
+        self.assertEqual(attachments[0]["contentType"], "application/pdf")
+        self.assertEqual(attachments[0]["contentBase64"], "JVBERi0xLjQ=")
+
+    def test_rejects_more_than_five_attachments(self):
+        boundary = "x"
+        parts = []
+        for index in range(6):
+            parts.append(
+                f"--{boundary}\r\nContent-Type: application/octet-stream\r\n"
+                f"Content-Disposition: attachment; filename=f{index}.bin\r\n"
+                f"Content-Transfer-Encoding: base64\r\n\r\nQQ==\r\n"
+            )
+        raw = (
+            "From: sender@example.org\r\nSubject: Hello\r\nMIME-Version: 1.0\r\n"
+            f"Content-Type: multipart/mixed; boundary={boundary}\r\n\r\n"
+            + "".join(parts) + f"--{boundary}--"
+        ).encode()
+        msg = BytesParser(policy=policy.default).parsebytes(raw)
+        with self.assertRaisesRegex(ValueError, "attachment limits"):
+            bridge.extract_content(msg)
+
+
 if __name__ == "__main__":
     unittest.main()
