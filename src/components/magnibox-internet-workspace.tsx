@@ -6,6 +6,7 @@ type Identity = { id: string; email_address: string; status: string; receive_ena
 type Message = {
   id: string; direction: "incoming" | "outgoing"; status: string;
   from_email: string; to_emails: string[]; subject: string; body_text: string; created_at: string;
+  attachments: Array<{ id: string; display_name: string; byte_size: number }>;
 };
 const statusLabel: Record<string,string> = {
   queued: "En file", sending: "Envoi en cours", accepted: "Accepté par le serveur",
@@ -129,6 +130,19 @@ export function MagniboxInternetWorkspace() {
                       {" · "}{new Intl.DateTimeFormat("fr-FR",{dateStyle:"short",timeStyle:"short"}).format(new Date(message.created_at))}
                     </p>
                     <p style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{message.body_text}</p>
+                    {message.attachments?.length > 0 && (
+                      <div style={{borderTop:"1px solid var(--border, #e5e7eb)",paddingTop:9,marginTop:9}}>
+                        <strong style={{fontSize:13}}>Pièces jointes disponibles</strong>
+                        <ul style={{margin:"6px 0 0",paddingLeft:18}}>
+                          {message.attachments.map(file=>(
+                            <li key={file.id}>
+                              <a href={"/api/magnibox/attachments/download?id="+encodeURIComponent(file.id)}>{file.display_name}</a>
+                              <span className="muted"> · {Math.max(1,Math.round(file.byte_size/1024))} Ko</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </article>
                 ))}
               </div>
