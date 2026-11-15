@@ -39,6 +39,8 @@ has "$ENV_EXAMPLE" 'SSL_CERT_PATH=/run/magnibox-tls/fullchain.pem'
 has "$ENV_EXAMPLE" 'SSL_KEY_PATH=/run/magnibox-tls/privkey.pem'
 has "$ENV_EXAMPLE" 'MAGNIBOX_INBOUND_URL='
 has "$ENV_EXAMPLE" 'MAGNIBOX_INBOUND_WEBHOOK_SECRET='
+has "$ENV_EXAMPLE" 'MAGNIBOX_PROVISIONING_URL='
+has "$ENV_EXAMPLE" 'MAGNIBOX_PROVISIONING_WEBHOOK_SECRET='
 
 has "$GITIGNORE" 'infra/magnibox-mail/mailserver.env'
 has "$GITIGNORE" 'infra/magnibox-mail/docker-data/'
