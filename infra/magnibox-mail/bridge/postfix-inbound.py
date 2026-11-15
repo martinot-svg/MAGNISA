@@ -2,6 +2,7 @@
 """Postfix pipe transport: forward one filtered envelope recipient to MAGNIBOX."""
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import json
@@ -75,7 +76,7 @@ def extract_content(message):
             attachments.append({
                 "fileName": safe_display_name(str(filename or "piece-jointe.bin")),
                 "contentType": part.get_content_type().lower()[:120],
-                "contentBase64": __import__("base64").b64encode(payload).decode("ascii"),
+                "contentBase64": base64.b64encode(payload).decode("ascii"),
             })
             continue
         content_type = part.get_content_type().lower()
