@@ -177,6 +177,10 @@ try {
   await a.page.getByRole("button",{name:"Enregistrer la demande"}).click();
   await a.page.getByRole("cell",{name:"finance@"+requestedDomain}).waitFor({timeout:20000});
   console.log("Magnibox: public address request remains pending, not activated");
+  // Domain administration is a separate route; return to the inbox and wait for hydration.
+  await a.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
+  await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
+  await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
   await openDialog(a.page,/Nouveau message/);
   await a.page.locator('select[name="senderId"]').selectOption(sender);
   await a.page.locator('select[name="recipientId"]').selectOption(recipient);
