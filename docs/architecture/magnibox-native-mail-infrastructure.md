@@ -86,3 +86,17 @@ Après acceptation SMTP, filtrage antispam et antivirus, le MTA POST un JSON `{ 
 ### Contrat des accusés de livraison
 
 Le serveur Postfix doit extraire le queue ID de l'acceptation SMTP (réponse `queued as`) et le conserver comme référence de livraison. L'adaptateur MAGNIBOX enregistre ce queue ID, pas seulement l'en-tête RFC Message-ID. Les événements du MTA sont POSTés à `/api/internal/magnibox/delivery-event` avec le même schéma HMAC horodaté et le JSON `{ queueId, event }`, où `event` vaut `delivered`, `bounced`, `failed` ou `deferred`. Les mises à jour ne peuvent cibler que des messages sortants par queue ID ; elles n'acceptent aucun ID d'organisation fourni par l'appelant.
+
+
+### Contrat de provisionnement automatique des destinataires
+
+`POST /api/internal/magnibox/provisioning` fournit au MTA un instantané signé en lecture seule. Le MTA envoie le corps exact `{}` avec `x-magnibox-timestamp` (Unix secondes) et `x-magnibox-signature: sha256=<hex>`, calculé sur `HMAC-SHA256(secret, timestamp + "." + rawBody)`. La réponse est signée de la même manière ; le MTA doit vérifier la signature avant d'utiliser le contenu.
+
+L'instantané contient uniquement :
+- `domains` : domaines possédant au moins une identité de réception active et approuvée ;
+- `recipients` : adresses exactes actives et approuvées ;
+- `generatedAt` et `revision` : date de génération et SHA-256 du couple domaines/destinataires.
+
+Le serveur revérifie chaque identité, le statut `verified` du domaine et le statut `approved` de l'adresse dans la même organisation. Les identifiants d'organisation, IDs de boîte, mots de passe et secrets ne sont jamais renvoyés. La route est désactivée tant que `MAGNIBOX_EXTERNAL_MAIL_ENABLED` n'est pas explicitement activé et exige le secret serveur dédié `MAGNIBOX_PROVISIONING_WEBHOOK_SECRET` (au moins 32 caractères).
+
+Cet endpoint ne crée ni ne supprime de boîte, ne change pas de statut et ne modifie aucun DNS. Le synchroniseur Postfix doit encore valider l'instantané, écrire ses cartes de domaines/destinataires de façon atomique, vérifier la configuration puis recharger Postfix dans un environnement pilote. Aucun MX client ne doit être modifié automatiquement.
