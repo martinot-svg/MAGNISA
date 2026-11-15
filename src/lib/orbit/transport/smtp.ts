@@ -83,7 +83,7 @@ export class MagniboxSmtpTransport implements InternetTransport {
       messageId: `<${message.requestId}@${from.split("@")[1]}>`,
       headers: { "X-Magnibox-Request-ID": message.requestId },
     });
-    const queueId = result.response?.match(/queued as ([A-F0-9]{5,20})\\b/i)?.[1];
+    const queueId = result.response?.match(/queued as ([A-F0-9]{5,20})\b/i)?.[1];
     if (!queueId || typeof result.messageId !== "string" || !result.messageId.trim()
       || !Array.isArray(result.accepted) || result.accepted.length !== to.length
       || (Array.isArray(result.rejected) && result.rejected.length > 0)) {
