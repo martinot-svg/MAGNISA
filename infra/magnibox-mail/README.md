@@ -140,3 +140,41 @@ bash scripts/ci/check-magnibox-inbound-bridge.sh
 The example Postfix transport files are intentionally **not active**. They must not be copied into the live Postfix configuration until MAGNIBOX has a tested dynamic accepted-domain/recipient provisioning source. Enabling `virtual_transport` prematurely can reject valid mail or route domains incorrectly. A dedicated pilot domain and an end-to-end test are required before enabling this transport. The current Docker Mailserver mailbox path remains unchanged.
 
 No production endpoint, DNS record, MX, MTA host, or runtime secret is changed by this bridge code.
+## Signed Postfix delivery-event forwarder (opt-in profile)
+
+The optional `delivery-events` Compose profile tails the Docker Mailserver SMTP log and forwards queue outcomes to the application's signed `/api/internal/magnibox/delivery-event` endpoint:
+
+- `status=sent` becomes `delivered`: the next-hop remote SMTP server accepted the message. This does **not** prove inbox placement, human reading or opening.
+- `status=bounced` becomes `bounced`.
+- `status=deferred` becomes `deferred` (the application conservatively displays this as uncertain until a later terminal event).
+- `status=expired` becomes `failed`.
+
+The forwarder signs the exact JSON bytes with the same timestamped HMAC-SHA256 contract as the inbound bridge. It persists its file inode and byte offset using an atomic cursor write, retries endpoint failures without advancing the cursor, and starts a new log file at offset zero after rotation. Replayed events are safe because the delivery endpoint updates by Postfix queue ID and state.
+
+### Enable only after application secrets and endpoint are configured
+
+Set these host-only values in the uncommitted Compose `.env` file:
+
+```dotenv
+MAGNIBOX_FORWARDER_IMAGE=python:3.12-alpine@sha256:<VERIFIED_IMAGE_DIGEST>
+MAGNIBOX_DELIVERY_EVENT_URL=https://<MAGNISA_HOST>/api/internal/magnibox/delivery-event
+MAGNIBOX_INBOUND_WEBHOOK_SECRET=<same-strong-secret-configured-in-MAGNISA>
+```
+
+Use a verified immutable image digest; the placeholder above is not deployable. Ensure the application has the same secret and `MAGNIBOX_EXTERNAL_MAIL_ENABLED=true` only after all public activation gates have been approved. The delivery-events service is not started by the default Compose profile.
+
+Prepare a writable persistent cursor directory for UID/GID 10001, then explicitly opt into the profile:
+
+```sh
+mkdir -p docker-data/event-forwarder
+sudo chown 10001:10001 docker-data/event-forwarder
+docker compose --profile delivery-events config --quiet
+docker compose --profile delivery-events up -d delivery-events
+docker compose logs --tail=100 magnibox-delivery-events
+```
+
+The sidecar has no Linux capabilities, a read-only root filesystem, read-only mail-log/code mounts and only one writable cursor directory. It does not mount the Docker socket. Verify log file readability for UID 10001 before enabling it.
+
+Log rotation is handled by detecting a changed inode or a truncated file. During rename-and-create rotation, operators should allow the forwarder to drain the old log before removing it; the forwarder follows the active path and durable cursor, not an archive directory. Monitor its logs and disk usage.
+
+The word `delivered` in MAGNIBOX means accepted by the remote next-hop SMTP server, not confirmed inbox placement. Delivery receipts do not provide read/open tracking.
