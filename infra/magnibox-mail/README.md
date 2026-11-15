@@ -44,9 +44,11 @@ Create a host directory for the certificate and private key, then set its path i
 MAGNIBOX_MTA_HOSTNAME=mail.example.net
 MAGNIBOX_DMS_IMAGE=ghcr.io/docker-mailserver/docker-mailserver:<PINNED_RELEASE>
 MAGNIBOX_TLS_DIR=/srv/magnibox/tls
+MAGNIBOX_WORKER_SUPABASE_URL=https://your-project.supabase.co
+MAGNIBOX_WORKER_SERVICE_ROLE_KEY=server-only-service-role-key
 ```
 
-Replace every example value. Use an audited, pinned release tag or immutable image digest; do not use `:latest`. Put `fullchain.pem` and `privkey.pem` in the TLS directory and restrict access to the private key. Keep both `.env` and `mailserver.env` out of Git.
+Replace every example value. Use an audited, pinned release tag or immutable image digest; do not use `:latest`. Put `fullchain.pem` and `privkey.pem` in the TLS directory and restrict access to the private key. Keep both `.env` and `mailserver.env` out of Git. The worker reads the Supabase URL and service-role key only from this uncommitted host `.env`; never place the service-role key in `mailserver.env`, a `NEXT_PUBLIC_*` variable or source control.
 
 Validate the rendered Compose configuration before starting anything:
 
@@ -61,6 +63,7 @@ docker compose pull
 docker compose up -d
 docker compose ps
 docker logs --tail=200 magnibox-mailserver
+docker compose logs --tail=100 attachment-worker
 ```
 
 ## Initial pilot account and DKIM
@@ -103,13 +106,25 @@ For each domain, MAGNIBOX must provide exact DNS instructions and verify the rec
 
 Do not change a customer's MX automatically. A root-domain MX change can redirect all incoming mail away from the customer's existing provider. Prefer a pilot subdomain until the customer explicitly approves a migration.
 
-## Remaining implementation work
+## Worker de scan des pièces jointes
 
-1. Implement and test the Postfix delivery bridge that sends filtered inbound messages to `/api/internal/magnibox/inbound` using the documented timestamped HMAC signature.
-2. Implement signed delivery/deferred/bounce event forwarding to `/api/internal/magnibox/delivery-event`.
-3. Define a secure dynamic sender/recipient provisioning contract for multiple MAGNISA organizations; the pilot account above is not sufficient.
-4. Add queue monitoring, retry/dead-letter procedures, backup/restore tests, abuse handling and reputation monitoring.
-5. Run external send-and-receive tests with independent providers before any public activation.
+Le service `attachment-worker` est construit depuis le dépôt et partage l'espace réseau du conteneur MTA afin d'atteindre ClamAV sur `127.0.0.1:3310`. Il exécute le worker TypeScript toutes les 60 secondes, sans port entrant, avec système de fichiers en lecture seule, capacités Linux supprimées et clé Supabase réservée au serveur. Les migrations et le bucket privé doivent être appliqués avant de démarrer ce service.
+
+Sur l'hôte pilote, configure `MAGNIBOX_WORKER_SUPABASE_URL` et `MAGNIBOX_WORKER_SERVICE_ROLE_KEY` dans le fichier `.env` non versionné. Vérifie les journaux avec :
+
+```sh
+docker compose logs -f attachment-worker
+```
+
+## Derniers contrôles avant activation publique
+
+1. Réussir MAGNISA CI et le replay de toutes les migrations sur le SHA destiné à la production.
+2. Sur un domaine pilote isolé, vérifier la réception Postfix réelle, la synchronisation des domaines/destinataires approuvés et les événements de livraison.
+3. Démontrer le parcours pièce jointe propre → quarantaine → ClamAV → disponible → téléchargement authentifié, puis vérifier qu'un fichier de test antivirus reste rejeté.
+4. Tester les envois et réceptions avec plusieurs fournisseurs indépendants, y compris SPF, DKIM, DMARC, TLS, PTR/rDNS et les retours de livraison.
+5. Finaliser la supervision de file, les alertes, les procédures de reprise/dead-letter, les sauvegardes chiffrées et la gestion des abus.
+
+Ces contrôles nécessitent un hôte MTA, des secrets d'exploitation et des validations DNS appartenant à l'opérateur. Le code ne les simule pas et ne modifie aucun MX client automatiquement.
 
 ## Upstream technical references
 
