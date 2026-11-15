@@ -51,7 +51,7 @@ def safe_display_name(value: str) -> str:
     # A display label only; never use sender-controlled names as storage paths.
     name = value.replace("\r", " ").replace("\n", " ").replace("\\", "/").split("/")[-1]
     name = "".join(ch for ch in name if ch.isprintable()).strip()
-    return (name or "piece-jointe.bin")[:180]
+    return (name if name not in ("", ".", "..") else "piece-jointe.bin")[:180]
 
 
 def extract_content(message):
