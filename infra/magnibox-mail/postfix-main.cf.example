@@ -1,0 +1,3 @@
+# Copy to docker-data/config/postfix-main.cf only after accepted-domain provisioning is implemented.
+# Do not apply globally until Postfix virtual-domain acceptance is sourced from MAGNIBOX.
+virtual_transport = magnibox-inbound
