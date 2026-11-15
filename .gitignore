@@ -12,6 +12,12 @@ out/
 .env.*
 !.env.example
 
+# MAGNIBOX dedicated MTA secrets and persistent state
+infra/magnibox-mail/mailserver.env
+infra/magnibox-mail/docker-data/
+infra/magnibox-mail/*.pem
+infra/magnibox-mail/*.key
+
 # Logs
 *.log
 npm-debug.log*
