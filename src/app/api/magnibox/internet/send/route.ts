@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
       },{status:202});
     } catch {
       await admin.from("orbit_external_messages").update({
-        status:"uncertain",last_error:"Envoi non confirmé — contrôler chez le fournisseur avant nouvelle tentative.",
+        status:"uncertain",last_error:"Envoi non confirmé — vérifier la file SMTP MAGNIBOX avant toute nouvelle tentative.",
         updated_at:new Date().toISOString(),
       }).eq("organization_id",ctx.organizationId).eq("id",id).eq("status","sending");
       return NextResponse.json({
