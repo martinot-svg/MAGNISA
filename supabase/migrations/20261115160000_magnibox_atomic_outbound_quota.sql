@@ -20,7 +20,7 @@ declare
   v_count bigint;
 begin
   if p_organization_id is null or p_identity_id is null or p_created_by is null
-    or p_request_key is null or p_daily_limit not between 1 and 20
+    or p_request_key is null or p_daily_limit is null or p_daily_limit not between 1 and 20
     or p_from_email is null or p_to_emails is null
     or cardinality(p_to_emails) not between 1 and 10
     or p_subject is null or length(btrim(p_subject)) not between 1 and 180
