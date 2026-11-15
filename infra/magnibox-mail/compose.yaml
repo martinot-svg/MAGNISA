@@ -43,4 +43,10 @@ services:
     security_opt:
       - no-new-privileges:true
     init: true
+    healthcheck:
+      test: ["CMD", "node", "-e", "const s=require('net').connect(3310,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
