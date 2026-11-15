@@ -44,6 +44,17 @@ begin
     pg_catalog.hashtextextended(p_organization_id::text || ':' || p_identity_id::text, 0)
   );
 
+  -- Resolve a concurrent retry before quota evaluation. The API then reads
+  -- the existing row and verifies its author and payload before returning it.
+  if exists (
+    select 1 from public.orbit_external_messages m
+    where m.organization_id = p_organization_id
+      and m.identity_id = p_identity_id
+      and m.request_key = p_request_key
+  ) then
+    raise exception 'MAGNIBOX outbound request key already exists' using errcode = '23505';
+  end if;
+
   select count(*) into v_count
   from public.orbit_external_messages m
   where m.organization_id = p_organization_id
