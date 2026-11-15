@@ -25,6 +25,7 @@ describe("Magnibox native SMTP transport", () => {
   it("submits only a validated sender with stable request ID and TLS", async () => {
     const sendMail = vi.fn().mockResolvedValue({
       messageId: "<request@example.com>",
+      response: "250 2.0.0 Ok: queued as ABC123DEF",
       accepted: ["client@example.net"],
     });
     const factory = vi.fn(() => ({ sendMail }));
@@ -38,7 +39,7 @@ describe("Magnibox native SMTP transport", () => {
     });
     expect(result).toEqual({
       provider: "smtp",
-      providerMessageId: "<request@example.com>",
+      providerMessageId: "ABC123DEF",
       state: "accepted",
     });
     expect(factory).toHaveBeenCalledWith(expect.objectContaining({
