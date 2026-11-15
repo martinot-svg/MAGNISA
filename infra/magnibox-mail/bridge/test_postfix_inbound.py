@@ -31,7 +31,7 @@ class InboundBridgeTests(unittest.TestCase):
             b"MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=x\r\n\r\n"
             b"--x\r\nContent-Type: text/plain\r\n\r\nBody\r\n"
             b"--x\r\nContent-Type: application/pdf\r\n"
-            b"Content-Disposition: attachment; filename=a.pdf\r\n\r\nPDF\r\n--x--"
+            b'Content-Disposition: attachment; filename="../invoice.pdf"\r\n'
         )
         with self.assertRaises(ValueError):
             bridge.extract_text(msg)
