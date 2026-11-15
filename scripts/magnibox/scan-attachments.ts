@@ -36,12 +36,12 @@ async function scanWithClamAV(bytes: Buffer, host: string, port: number): Promis
       chunks.push(chunk);
       const response = Buffer.concat(chunks).toString("utf8");
       if (response.includes(" INSTREAM size limit exceeded")) finish(new Error("ClamAV stream limit exceeded"));
-      else if (response.endsWith(" OK\\0")) finish(undefined, "clean");
-      else if (/ FOUND\\0$/.test(response)) finish(undefined, "infected");
-      else if (response.includes(" ERROR\\0")) finish(new Error("ClamAV scan error"));
+      else if (response.endsWith(" OK\0")) finish(undefined, "clean");
+      else if (/ FOUND\0$/.test(response)) finish(undefined, "infected");
+      else if (response.includes(" ERROR\0")) finish(new Error("ClamAV scan error"));
     });
     socket.on("connect", () => {
-      socket.write("zINSTREAM\\0");
+      socket.write("zINSTREAM\0");
       const chunkSize = 64 * 1024;
       for (let offset = 0; offset < bytes.length; offset += chunkSize) {
         const part = bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length));
@@ -147,15 +147,15 @@ async function main() {
   for (const item of (pending.data ?? []) as Attachment[]) {
     try {
       await processOne(admin, item, clamHost, clamPort);
-      process.stdout.write(`Processed MAGNIBOX attachment ${item.id}\\n`);
+      process.stdout.write(`Processed MAGNIBOX attachment ${item.id}\n`);
     } catch {
       // Do not log message contents, paths, credentials, or scanner diagnostics.
-      process.stderr.write(`MAGNIBOX attachment scan deferred: ${item.id}\\n`);
+      process.stderr.write(`MAGNIBOX attachment scan deferred: ${item.id}\n`);
     }
   }
 }
 
 main().catch(() => {
-  process.stderr.write("MAGNIBOX attachment worker failed closed\\n");
+  process.stderr.write("MAGNIBOX attachment worker failed closed\n");
   process.exitCode = 1;
 });
