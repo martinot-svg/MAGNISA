@@ -27,7 +27,23 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(100);
     if (result.error) return NextResponse.json({ ok: false, error: "Messages Internet indisponibles." }, { status: 503 });
-    return NextResponse.json({ ok: true, items: result.data ?? [] }, {
+    const rows = result.data ?? [];
+    const messageIds = rows.map(row => row.id);
+    const attachmentResult = messageIds.length
+      ? await ctx.supabase.from("orbit_external_message_attachments")
+        .select("id,message_id,display_name,byte_size")
+        .in("message_id", messageIds)
+        .eq("scan_status", "available")
+      : { data: [], error: null };
+    if (attachmentResult.error) return NextResponse.json({ ok: false, error: "Pièces jointes indisponibles." }, { status: 503 });
+    const attachmentsByMessage = new Map<string, Array<{id:string;display_name:string;byte_size:number}>>();
+    for (const attachment of attachmentResult.data ?? []) {
+      const list = attachmentsByMessage.get(attachment.message_id) ?? [];
+      list.push({ id: attachment.id, display_name: attachment.display_name, byte_size: attachment.byte_size });
+      attachmentsByMessage.set(attachment.message_id, list);
+    }
+    const items = rows.map(row => ({ ...row, attachments: attachmentsByMessage.get(row.id) ?? [] }));
+    return NextResponse.json({ ok: true, items }, {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch {
