@@ -51,6 +51,9 @@ jobs:
       - name: Enforce interactive form and button contracts
         run: node scripts/qa/check-interactive-contracts.mjs
 
+      - name: Validate Magnibox Postfix recipient map synchronizer
+        run: bash scripts/ci/check-magnibox-provision-sync.sh
+
       - name: Dependency audit report
         run: |
           npm audit --json > npm-audit.json || true
