@@ -1,0 +1,76 @@
+services:
+  mailserver:
+    image: ${MAGNIBOX_DMS_IMAGE:?Set a pinned Docker Mailserver version or image digest}
+    container_name: magnibox-mailserver
+    hostname: ${MAGNIBOX_MTA_HOSTNAME:?Set the public mail FQDN}
+    env_file:
+      - ./mailserver.env
+    environment:
+      OVERRIDE_HOSTNAME: ${MAGNIBOX_MTA_HOSTNAME:?Set the public mail FQDN}
+    ports:
+      - "25:25"
+      - "587:587"
+      - "993:993"
+    volumes:
+      - ./docker-data/mail-data:/var/mail/
+      - ./docker-data/mail-state:/var/mail-state/
+      - ./docker-data/logs:/var/log/mail/
+      - ./docker-data/config:/tmp/docker-mailserver/
+      - ./docker-data/provisioning:/etc/postfix/magnibox:ro
+      - ./bridge:/opt/magnibox-bridge:ro
+      - ${MAGNIBOX_TLS_DIR:?Set the host directory containing the TLS certificate and key}:/run/magnibox-tls:ro
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+    stop_grace_period: 1m
+
+  attachment-worker:
+    build:
+      context: ../..
+      dockerfile: infra/magnibox-mail/worker/Dockerfile
+    network_mode: "service:mailserver"
+    depends_on:
+      - mailserver
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${MAGNIBOX_WORKER_SUPABASE_URL:?Set the Supabase project URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${MAGNIBOX_WORKER_SERVICE_ROLE_KEY:?Set the server-only Supabase service role key}
+      MAGNIBOX_CLAMAV_HOST: 127.0.0.1
+      MAGNIBOX_CLAMAV_PORT: "3310"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    healthcheck:
+      test: ["CMD", "node", "-e", "const s=require('net').connect(3310,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  delivery-events:
+    image: ${MAGNIBOX_FORWARDER_IMAGE:-python:3.12-alpine}
+    profiles: ["delivery-events"]
+    container_name: magnibox-delivery-events
+    entrypoint: ["python3", "/opt/magnibox-bridge/postfix-delivery-events.py"]
+    command: ["/var/log/mail/mail.log", "/var/lib/magnibox-event-forwarder/cursor.json"]
+    environment:
+      MAGNIBOX_DELIVERY_EVENT_URL: ${MAGNIBOX_DELIVERY_EVENT_URL:?Set the internal MAGNIBOX delivery-event endpoint}
+      MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET: ${MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET:?Set the dedicated delivery-event HMAC secret}
+    volumes:
+      - ./docker-data/logs:/var/log/mail:ro
+      - ./bridge:/opt/magnibox-bridge:ro
+      - ./docker-data/event-forwarder:/var/lib/magnibox-event-forwarder
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
