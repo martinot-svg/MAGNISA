@@ -67,3 +67,39 @@ export function parseMagniboxInboundPayload(value: unknown): MagniboxInboundPayl
   });
   return { messageId: d.messageId, from: normalizeHeaderFrom(d.from), to, subject: d.subject.trim(), text: d.text, attachments };
 }
+
+
+export class MagniboxInboundBodyTooLargeError extends Error {
+  constructor() {
+    super("Inbound request body exceeds the configured limit.");
+    this.name = "MagniboxInboundBodyTooLargeError";
+  }
+}
+
+/** Read a signed webhook body with a hard byte ceiling before allocating it. */
+export async function readMagniboxInboundBody(
+  body: ReadableStream<Uint8Array> | null,
+  maxBytes: number,
+): Promise<string> {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw new RangeError("Invalid body limit.");
+  if (!body) throw new Error("Missing request body.");
+  const reader = body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new MagniboxInboundBodyTooLargeError();
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks, total));
+}
