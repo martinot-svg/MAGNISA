@@ -144,11 +144,11 @@ export async function POST(request: NextRequest) {
         .eq("status","sending").select("id").maybeSingle();
       if(saved.error||!saved.data) return NextResponse.json({
         ok:false,id,state:"uncertain",
-        error:"Envoi accepté par le fournisseur, confirmation locale indisponible. Ne renvoyez pas le message.",
+        error:"Envoi accepté par le serveur SMTP MAGNIBOX, confirmation locale indisponible. Ne renvoyez pas le message.",
       },{status:202});
       return NextResponse.json({
         ok:true,id,state:"accepted",providerMessageId:result.providerMessageId,
-        message:"Accepté par le fournisseur, livraison finale non confirmée.",
+        message:"Accepté par le serveur SMTP MAGNIBOX, livraison finale non confirmée.",
       },{status:202});
     } catch {
       await admin.from("orbit_external_messages").update({
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
       }).eq("organization_id",ctx.organizationId).eq("id",id).eq("status","sending");
       return NextResponse.json({
         ok:false,id,state:"uncertain",
-        error:"Le fournisseur n'a pas confirmé l'envoi. Contrôlez l'historique avant de réessayer.",
+        error:"Le serveur SMTP MAGNIBOX n'a pas confirmé l'envoi. Contrôlez l'historique avant de réessayer.",
       },{status:202});
     }
   } catch {
