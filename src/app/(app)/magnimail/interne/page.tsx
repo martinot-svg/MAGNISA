@@ -1,6 +1,6 @@
-import { MGMailInternalContent } from "@/components/magnimail-internal-workspace";
+import { MagniboxInternalContent } from "@/components/magnimail-internal-workspace";
 
-/** Historical route remains usable without creating a separate messaging product. */
-export default function MGMailInternalPage() {
-  return <MGMailInternalContent />;
+/** Compatibility URL for the internal area of the single Magnibox workspace. */
+export default function MagniboxInternalPage() {
+  return <MagniboxInternalContent />;
 }
