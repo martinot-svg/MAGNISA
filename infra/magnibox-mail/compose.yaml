@@ -16,6 +16,7 @@ services:
       - ./docker-data/mail-state:/var/mail-state/
       - ./docker-data/logs:/var/log/mail/
       - ./docker-data/config:/tmp/docker-mailserver/
+      - ./bridge:/opt/magnibox-bridge:ro
       - ${MAGNIBOX_TLS_DIR:?Set the host directory containing the TLS certificate and key}:/run/magnibox-tls:ro
     cap_add:
       - NET_ADMIN
