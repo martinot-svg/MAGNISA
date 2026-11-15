@@ -129,6 +129,7 @@ The `bridge/postfix-inbound.py` pipe program implements the application contract
 - It extracts a bounded text body, creates a deterministic fallback message ID, and signs the exact JSON bytes with the timestamped HMAC-SHA256 contract.
 - It requires an HTTPS endpoint, a 32-character minimum secret, a short network timeout and rejects redirects.
 - The mailserver container receives `MAGNIBOX_INBOUND_URL` and `MAGNIBOX_INBOUND_WEBHOOK_SECRET` from the uncommitted `mailserver.env`; the committed example leaves both empty.
+- The host-side provisioning synchronizer uses `MAGNIBOX_PROVISIONING_URL` and `MAGNIBOX_PROVISIONING_WEBHOOK_SECRET` from the same uncommitted file; these are separate from the inbound bridge secret.
 - Temporary upstream/network failures return Postfix's temporary-failure exit code so the queue can retry. Invalid messages and permanent API rejections return a permanent-failure code.
 - Attachments are deliberately rejected rather than silently discarded; the current MAGNIBOX inbound API stores text only.
 
@@ -142,6 +143,15 @@ The example Postfix transport files are intentionally **not active**. The signed
 
 The example `postfix-main.cf.example` now explicitly consumes both maps through `virtual_mailbox_domains` and `virtual_mailbox_maps`, then routes approved virtual recipients to `magnibox-inbound`. Compose mounts the map directory read-only at `/etc/postfix/magnibox`. This wiring is deliberate but still requires an operator review for conflicts with `mydestination`, `virtual_alias_domains`, existing DMS virtual mailbox configuration and relay restrictions. Never copy the example config into a live host until the pilot domain, map contents, queue behavior and rollback have been verified.
 
-To stage a snapshot on the host after the synchronizer and its required environment variables are installed, run the script with the host output directory `docker-data/provisioning`. Review the generated manifest and map contents before any Postfix reload. The script only stages files and switches the `current` symlink; it does not reload Postfix or activate a new route.
+To stage a snapshot on the host after the provisioning API and synchronizer from PRs #247 and #248 are present, set `MAGNIBOX_PROVISIONING_URL` to the application's `/api/internal/magnibox/provisioning` endpoint and set a dedicated 32+ character `MAGNIBOX_PROVISIONING_WEBHOOK_SECRET` matching the Vercel secret. Then run:
+
+```sh
+set -a
+. ./mailserver.env
+set +a
+python3 bridge/postfix-provision-sync.py docker-data/provisioning
+```
+
+Review `docker-data/provisioning/current/manifest.json`, `domains`, and `recipients` before any Postfix reload. The script only stages files and switches the `current` symlink; it does not reload Postfix or activate a new route. This command is a host-side pilot operation and must not be run against production until the MTA review and approval gates are complete.
 
 No production endpoint, DNS record, MX, MTA host, or runtime secret is changed by this code.
