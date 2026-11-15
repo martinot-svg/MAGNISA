@@ -50,12 +50,17 @@ def extract_text(message) -> str:
             continue
         if part.get_content_disposition() == "attachment" or part.get_filename():
             raise ValueError("attachments are not supported by the current inbox contract")
-        if part.get_content_type() == "text/plain":
+        content_type = part.get_content_type().lower()
+        if content_type == "text/plain":
             plain.append(str(part.get_content()))
-        elif part.get_content_type() == "text/html":
+        elif content_type == "text/html":
             parser = StripHTML()
             parser.feed(str(part.get_content()))
             html.append(parser.text())
+        else:
+            # Never acknowledge a message after silently discarding an unhandled
+            # MIME payload (including inline binary parts without a filename).
+            raise ValueError("unsupported MIME part in the current inbox contract")
     text = "\n".join(plain).strip() or "\n".join(html).strip()
     if not text or len(text) > MAX_TEXT_CHARS:
         raise ValueError("empty or oversized message body")
