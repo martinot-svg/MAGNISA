@@ -93,7 +93,7 @@ export async function readMagniboxInboundBody(
       if (!value) continue;
       total += value.byteLength;
       if (total > maxBytes) {
-        await reader.cancel().catch(() => undefined);
+        await reader.cancel().catch((): void => undefined);
         throw new MagniboxInboundBodyTooLargeError();
       }
       chunks.push(Buffer.from(value));
