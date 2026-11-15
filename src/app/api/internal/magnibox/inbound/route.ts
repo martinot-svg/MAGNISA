@@ -73,7 +73,27 @@ export async function POST(request: NextRequest) {
       status: "received", from_email: message.from, to_emails: [recipient], subject: message.subject,
       body_text: message.text, provider_email_id: message.messageId,
     }).select("id").maybeSingle();
-    if (saved.error?.code === "23505") { accepted += 1; continue; }
+    if (saved.error?.code === "23505") {
+      // A replay is idempotent only when the stored envelope is byte-for-byte
+      // equivalent at the normalized message-field level. Never acknowledge a
+      // provider ID that collides with different content for this mailbox.
+      const prior = await admin.from("orbit_external_messages")
+        .select("from_email,to_emails,subject,body_text")
+        .eq("identity_id", identity.id).eq("direction", "incoming")
+        .eq("provider_email_id", message.messageId).maybeSingle();
+      if (prior.error) return unavailable();
+      const same = !!prior.data
+        && prior.data.from_email === message.from
+        && JSON.stringify(prior.data.to_emails) === JSON.stringify([recipient])
+        && prior.data.subject === message.subject
+        && prior.data.body_text === message.text;
+      if (!same) return NextResponse.json(
+        { error: "Identifiant de message déjà utilisé avec un contenu différent." },
+        { status: 409 },
+      );
+      accepted += 1;
+      continue;
+    }
     if (saved.error || !saved.data?.id) return unavailable();
     const uploadedPaths: string[] = [];
     try {
