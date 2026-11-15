@@ -55,7 +55,7 @@ export class MagniboxSmtpTransport implements InternetTransport {
     }
     const subject = message.subject.trim();
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(message.requestId)
-      || !subject || subject.length > 180 || !message.text.trim()
+      || !subject || subject.length > 180 || /[\r\n\u0000-\u001f]/.test(subject) || !message.text.trim()
       || message.text.length > 50000) {
       throw new Error("Message ou clé de déduplication invalide.");
     }
