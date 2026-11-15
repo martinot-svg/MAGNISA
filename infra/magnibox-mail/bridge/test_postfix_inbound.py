@@ -39,21 +39,21 @@ class InboundBridgeTests(unittest.TestCase):
 
     def test_rejects_inline_binary_part_without_filename(self):
         msg = BytesParser(policy=policy.default).parsebytes(
-            b"From: sender@example.org\\r\\nSubject: Hello\\r\\n"
-            b"MIME-Version: 1.0\\r\\nContent-Type: multipart/related; boundary=x\\r\\n\\r\\n"
-            b"--x\\r\\nContent-Type: text/plain; charset=utf-8\\r\\n\\r\\nBody\\r\\n"
-            b"--x\\r\\nContent-Type: application/octet-stream\\r\\n"
-            b"Content-Disposition: inline\\r\\nContent-Transfer-Encoding: base64\\r\\n\\r\\n"
-            b"AAECAwQ=\\r\\n--x--"
+            b"From: sender@example.org\r\nSubject: Hello\r\n"
+            b"MIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=x\r\n\r\n"
+            b"--x\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nBody\r\n"
+            b"--x\r\nContent-Type: application/octet-stream\r\n"
+            b"Content-Disposition: inline\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+            b"AAECAwQ=\r\n--x--"
         )
         with self.assertRaisesRegex(ValueError, "unsupported MIME part"):
             bridge.extract_text(msg)
 
     def test_rejects_unknown_text_subtype(self):
         msg = BytesParser(policy=policy.default).parsebytes(
-            b"From: sender@example.org\\r\\nSubject: Hello\\r\\n"
-            b"MIME-Version: 1.0\\r\\nContent-Type: multipart/mixed; boundary=x\\r\\n\\r\\n"
-            b"--x\\r\\nContent-Type: text/calendar\\r\\n\\r\\nBEGIN:VCALENDAR\\r\\n--x--"
+            b"From: sender@example.org\r\nSubject: Hello\r\n"
+            b"MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=x\r\n\r\n"
+            b"--x\r\nContent-Type: text/calendar\r\n\r\nBEGIN:VCALENDAR\r\n--x--"
         )
         with self.assertRaisesRegex(ValueError, "unsupported MIME part"):
             bridge.extract_text(msg)
