@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient();
   const { data, error: signedError } = await admin.storage
     .from("magnibox-attachments")
-    .createSignedUrl(attachment.storage_path, 60, { download: attachment.display_name });
+    .createSignedUrl(attachment.storage_path, 60, { download: attachment.display_name.replace(/[^A-Za-z0-9._ -]/g, "_").slice(0, 180) || "attachment.bin" });
   if (signedError || !data?.signedUrl) {
     return NextResponse.json({ error: "Téléchargement indisponible." }, { status: 503 });
   }
