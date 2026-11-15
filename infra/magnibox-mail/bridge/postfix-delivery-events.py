@@ -81,6 +81,6 @@ def main()->int:
     if len(sys.argv)!=3: return 64
     signal.signal(signal.SIGTERM,lambda *_: globals().__setitem__("STOP",True))
     signal.signal(signal.SIGINT,lambda *_: globals().__setitem__("STOP",True))
-    return follow(Path(sys.argv[1]),Path(sys.argv[2]),os.environ.get("MAGNIBOX_DELIVERY_EVENT_URL","").strip(),os.environ.get("MAGNIBOX_INBOUND_WEBHOOK_SECRET",""))
+    return follow(Path(sys.argv[1]),Path(sys.argv[2]),os.environ.get("MAGNIBOX_DELIVERY_EVENT_URL","").strip(),os.environ.get("MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET",""))
 
 if __name__=="__main__": raise SystemExit(main())
