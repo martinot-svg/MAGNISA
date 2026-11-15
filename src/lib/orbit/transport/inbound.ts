@@ -6,6 +6,8 @@ export const MAGNIBOX_INBOUND_MAX_TEXT_CHARS = 50_000;
 export const MAGNIBOX_INBOUND_MAX_ATTACHMENTS = 5;
 export const MAGNIBOX_INBOUND_MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024;
 export const MAGNIBOX_INBOUND_MAX_TOTAL_ATTACHMENT_BYTES = 150 * 1024 * 1024;
+// JSON/base64 envelope ceiling; aligned with the Postfix bridge and MTA limit.
+export const MAGNIBOX_INBOUND_MAX_REQUEST_BYTES = 205 * 1024 * 1024;
 
 export type MagniboxInboundAttachment = { fileName: string; contentType: string; contentBase64: string };
 
