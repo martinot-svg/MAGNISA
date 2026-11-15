@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireOrganization } from "@/lib/current-org";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ResendInternetTransport } from "@/lib/orbit/transport/resend";
+import { MagniboxSmtpTransport, magniboxSmtpConfig } from "@/lib/orbit/transport/smtp";
 import { allowPublicSend, enabledMagniboxInternetMail, normalizeOutgoingMessage } from "@/lib/orbit/transport/gates";
 
 export const runtime = "nodejs";
@@ -16,7 +16,7 @@ function reply(error: string,status: number) {
  * the body. The authenticated membership and BOTH grant layers are checked.
  */
 export async function POST(request: NextRequest) {
-  if (!enabledMagniboxInternetMail() || !process.env.RESEND_API_KEY) {
+  if (!enabledMagniboxInternetMail() || !magniboxSmtpConfig()) {
     return reply("Le transport Internet Magnibox n'est pas encore activé.",503);
   }
   if (Number(request.headers.get("content-length")||"0")>100000)
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     ]);
     const allowed=allowPublicSend(identity,ctx.organizationId,{
       enabled:enabledMagniboxInternetMail(),
-      hasCredentials:!!process.env.RESEND_API_KEY,
+      hasCredentials:!!magniboxSmtpConfig(),
       domainVerified:!domain.error&&domain.data?.status==="verified",
       addressApproved:!address.error&&address.data?.status==="approved",
       recipientAuthorized:access.data===true,
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
     }
     const id=pending.data?.id;
     try {
-      const transport=new ResendInternetTransport(process.env.RESEND_API_KEY);
+      const transport=new MagniboxSmtpTransport();
       const result=await transport.send({
         from:identity.email_address,to:input.to,subject:input.subject,
         text:input.text,requestId:input.requestId,
