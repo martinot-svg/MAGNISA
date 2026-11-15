@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-CONTAINER="\${MAGNIBOX_MAIL_CONTAINER:-magnibox-mailserver}"
+CONTAINER="${MAGNIBOX_MAIL_CONTAINER:-magnibox-mailserver}"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "ERREUR: docker est introuvable." >&2
@@ -30,4 +30,4 @@ fi
 
 echo "OK: ClamAV est activé et répond à un scan de contrôle."
 echo "ATTENTION: ce contrôle ne prouve pas à lui seul que le chemin Postfix filtre chaque message."
-echo "Ne pas activer les pièces jointes MAGNIBOX avant un test d'intégration de bout en bout."
+echo "Ne pas activer les pièces jointes MAGNIBOX avant un test d’intégration de bout en bout."
