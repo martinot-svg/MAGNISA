@@ -17,9 +17,14 @@ BEGIN
   SELECT pg_catalog.pg_get_functiondef(v_fn) INTO v_def;
   IF v_def NOT ILIKE '%pg_advisory_xact_lock%'
     OR v_def NOT ILIKE '%ambiguous%'
-    OR v_def NOT ILIKE '%direction = ''outgoing''%' THEN
-    RAISE EXCEPTION 'Delivery event RPC must lock queue IDs and reject ambiguous outgoing matches';
+    OR v_def NOT ILIKE '%direction = ''outgoing''%'
+    OR v_def NOT ILIKE '%A-F0-9%'
+    OR v_def NOT ILIKE '%delivered%'
+    OR v_def NOT ILIKE '%bounced%'
+    OR v_def NOT ILIKE '%failed%'
+    OR v_def NOT ILIKE '%uncertain%' THEN
+    RAISE EXCEPTION 'Delivery event RPC must lock queue IDs, validate input, and reject ambiguous outgoing matches';
   END IF;
-  RAISE NOTICE 'PASS MAGNIBOX delivery receipts: transaction lock, ambiguity guard, service-role boundary';
+  RAISE NOTICE 'PASS MAGNIBOX delivery receipts: queue-ID validation, state allowlist, transaction lock, ambiguity guard, service-role boundary';
 END
 $magnibox_delivery$;
