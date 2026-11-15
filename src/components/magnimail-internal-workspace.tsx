@@ -195,7 +195,7 @@ async function markInternalRead(form: FormData) {
 }
 
 /** Shared internal mail capability, embedded in the single Magnibox workspace. */
-export async function MGMailInternalContent({ embedded = false }: { embedded?: boolean } = {}) {
+export async function MagniboxInternalContent({ embedded = false }: { embedded?: boolean } = {}) {
   const ctx = await requireOrganization();
   const canManage = await hasPermission(ctx, "users.manage");
   const [namespaceResult, mailboxesResult, messagesResult, grantsResult, readsResult] = await Promise.all([
@@ -431,3 +431,6 @@ export async function MGMailInternalContent({ embedded = false }: { embedded?: b
     </>
   );
 }
+
+/** Backward-compatible export for historical internal routes; the product is Magnibox. */
+export const MGMailInternalContent = MagniboxInternalContent;
