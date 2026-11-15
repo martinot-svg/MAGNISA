@@ -140,3 +140,15 @@ bash scripts/ci/check-magnibox-inbound-bridge.sh
 The example Postfix transport files are intentionally **not active**. They must not be copied into the live Postfix configuration until MAGNIBOX has a tested dynamic accepted-domain/recipient provisioning source. Enabling `virtual_transport` prematurely can reject valid mail or route domains incorrectly. A dedicated pilot domain and an end-to-end test are required before enabling this transport. The current Docker Mailserver mailbox path remains unchanged.
 
 No production endpoint, DNS record, MX, MTA host, or runtime secret is changed by this bridge code.
+
+## ClamAV readiness gate for MAGNIBOX attachments
+
+The mailserver profile enables ClamAV with \`ENABLE_CLAMAV=1\`. Before any attachment-ingestion work is enabled, run this read-only preflight on the MTA host:
+
+\`\`\`sh
+sh infra/magnibox-mail/scripts/check-antivirus-readiness.sh
+\`\`\`
+
+The script verifies that the mailserver container is running, ClamAV is enabled in its environment, and \`clamdscan\` can complete a harmless scan against \`/etc/hostname\`. It does not change configuration or enable attachment delivery.
+
+**Important:** a successful daemon check is not proof that every Postfix delivery traverses the antivirus filter, nor does it prove that a message with an infected attachment is rejected before the MAGNIBOX pipe transport. Before enabling attachments, an isolated integration test must demonstrate both clean-message delivery and infected-message rejection through the exact configured Postfix path. The bridge must continue rejecting attachments until that test and the quarantine worker are complete.
