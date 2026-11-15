@@ -26,6 +26,7 @@ has "$COMPOSE" 'network_mode: "service:mailserver"'
 has "$COMPOSE" 'MAGNIBOX_WORKER_SERVICE_ROLE_KEY'
 has "$COMPOSE" 'MAGNIBOX_FORWARDER_IMAGE'
 has "$COMPOSE" 'MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET'
+has "$COMPOSE" 'MAGNIBOX_FORWARDER_IMAGE:-python:3.12-alpine'
 
 if grep -Eiq '(^|[/:])latest([[:space:]"\047]|$)' "$COMPOSE"; then
   fail "floating latest image tags are forbidden"
