@@ -77,7 +77,7 @@ export class MagniboxInboundBodyTooLargeError extends Error {
 }
 
 /** Read a signed webhook body with a hard byte ceiling before allocating it. */
-export async function readMagniboxInboundBody(
+export async function readMagniboxBoundedBody(
   body: ReadableStream<Uint8Array> | null,
   maxBytes: number,
 ): Promise<string> {
@@ -111,4 +111,13 @@ export function isMagniboxInboundContentLengthTooLarge(value: string | null, max
   if (value === null || !/^\d+$/.test(value)) return false;
   const declared = Number(value);
   return Number.isSafeInteger(declared) && declared > maxBytes;
+}
+
+
+/** Backwards-compatible name for the inbound gateway's bounded reader. */
+export async function readMagniboxInboundBody(
+  body: ReadableStream<Uint8Array> | null,
+  maxBytes: number,
+): Promise<string> {
+  return readMagniboxBoundedBody(body, maxBytes);
 }
