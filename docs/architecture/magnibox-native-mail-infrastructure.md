@@ -100,3 +100,9 @@ L'instantané contient uniquement :
 Le serveur revérifie chaque identité, le statut `verified` du domaine et le statut `approved` de l'adresse dans la même organisation. Les identifiants d'organisation, IDs de boîte, mots de passe et secrets ne sont jamais renvoyés. La route est désactivée tant que `MAGNIBOX_EXTERNAL_MAIL_ENABLED` n'est pas explicitement activé et exige le secret serveur dédié `MAGNIBOX_PROVISIONING_WEBHOOK_SECRET` (au moins 32 caractères).
 
 Cet endpoint ne crée ni ne supprime de boîte, ne change pas de statut et ne modifie aucun DNS. Le synchroniseur Postfix doit encore valider l'instantané, écrire ses cartes de domaines/destinataires de façon atomique, vérifier la configuration puis recharger Postfix dans un environnement pilote. Aucun MX client ne doit être modifié automatiquement.
+
+### Synchronisation des cartes Postfix
+
+Le script `infra/magnibox-mail/bridge/postfix-provision-sync.py` consomme l'instantané signé, vérifie la signature de réponse, la fraîcheur, le SHA-256 de révision, l'appartenance de chaque destinataire à un domaine autorisé et l'absence de doublons. Il génère une version immuable des cartes Postfix `domains` et `recipients`, exécute `postmap` sur la génération temporaire, puis bascule le lien `current` atomiquement vers la nouvelle révision.
+
+Cette étape prépare les cartes, mais ne modifie pas automatiquement la configuration active et ne recharge pas Postfix. Avant toute activation, l'opérateur doit vérifier les paramètres `virtual_mailbox_domains`, `virtual_mailbox_maps` et `virtual_transport` dans un environnement pilote, contrôler les conflits avec les domaines internes DMS, puis recharger Postfix explicitement. La synchronisation ne touche jamais les comptes SMTP de soumission, les mots de passe, les DNS ou les MX.
