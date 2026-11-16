@@ -156,10 +156,14 @@ async function saveInternalDraft(form: FormData) {
   const result = draftId
     ? await ctx.supabase.from("mgmail_internal_drafts").update(values)
         .eq("id", draftId).eq("organization_id", ctx.organizationId)
+        .select("id,subject,body_text").maybeSingle()
     : await ctx.supabase.from("mgmail_internal_drafts").insert({
         organization_id: ctx.organizationId, sender_mailbox_id: senderId, ...values,
-      });
-  if (result.error) throw new Error("Impossible d'enregistrer le brouillon.");
+      }).select("id,subject,body_text").single();
+  if (result.error || !result.data
+    || result.data.subject !== subject || result.data.body_text !== body) {
+    throw new Error("Le brouillon n'a pas été enregistré. Vérifie les droits et réessaie.");
+  }
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
   revalidatePath("/orbit/magnibox");
