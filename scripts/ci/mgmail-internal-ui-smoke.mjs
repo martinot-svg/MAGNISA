@@ -197,6 +197,10 @@ try {
   await a.page.locator('textarea[name="body"]').fill("Test sécurisé entre deux collaborateurs authentifiés.");
   await a.page.getByRole("button",{name:"Enregistrer les modifications"}).click();
   await a.page.getByRole("heading",{name:"Brouillons (1)"}).waitFor({timeout:20000});
+  const persistedDraft=await admin.from("mgmail_internal_drafts").select("body_text")
+    .eq("organization_id",organizationId).eq("subject",subject).single();
+  if(persistedDraft.error||persistedDraft.data?.body_text!=="Test sécurisé entre deux collaborateurs authentifiés.")
+    throw persistedDraft.error||new Error("La modification du brouillon n'a pas été persistée en base.");
   await openDialog(a.page,"Ouvrir",initialDraftCard);
   if(await a.page.locator('textarea[name="body"]').inputValue()!=="Test sécurisé entre deux collaborateurs authentifiés.")
     throw new Error("Le contenu modifié du brouillon n'a pas été conservé.");
