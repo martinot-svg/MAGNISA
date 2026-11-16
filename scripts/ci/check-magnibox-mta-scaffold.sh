@@ -73,4 +73,19 @@ if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; 
   trap cleanup EXIT
   env MAGNIBOX_DMS_IMAGE=ghcr.io/docker-mailserver/docker-mailserver:v16.0 MAGNIBOX_MTA_HOSTNAME=mail.example.invalid MAGNIBOX_TLS_DIR=/tmp/magnibox-tls MAGNIBOX_WORKER_SUPABASE_URL=https://example.supabase.co MAGNIBOX_WORKER_SERVICE_ROLE_KEY=ci-placeholder-service-role-key MAGNIBOX_FORWARDER_IMAGE=python:3.12-alpine MAGNIBOX_DELIVERY_EVENT_URL=https://example.invalid/api/internal/magnibox/delivery-event MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET=ci-placeholder-delivery-secret docker compose -f "$COMPOSE" config --quiet
 fi
+# Keep all operator preflight scripts syntactically valid in CI. These checks
+# are intentionally static: CI must never probe a real host or open network ports.
+HOST_PREFLIGHT="$ROOT/infra/magnibox-mail/scripts/check-host-readiness.sh"
+PUBLIC_PROBE="$ROOT/infra/magnibox-mail/scripts/probe-public-endpoints.sh"
+ANTIVIRUS_PREFLIGHT="$ROOT/infra/magnibox-mail/scripts/check-antivirus-readiness.sh"
+[[ -f "$HOST_PREFLIGHT" && -f "$PUBLIC_PROBE" && -f "$ANTIVIRUS_PREFLIGHT" ]] || fail "readiness scripts missing"
+bash -n "$HOST_PREFLIGHT" || fail "host readiness preflight has invalid Bash syntax"
+bash -n "$PUBLIC_PROBE" || fail "public endpoint probe has invalid Bash syntax"
+sh -n "$ANTIVIRUS_PREFLIGHT" || fail "ClamAV readiness preflight has invalid POSIX shell syntax"
+has "$HOST_PREFLIGHT" 'Read-only host/network preflight'
+has "$HOST_PREFLIGHT" 'MANUAL EXTERNAL CHECK REQUIRED'
+has "$PUBLIC_PROBE" 'read-only probe'
+has "$PUBLIC_PROBE" 'Do not enable MAGNIBOX_EXTERNAL_MAIL_ENABLED'
+has "$ANTIVIRUS_PREFLIGHT" 'does not prove'
+
 printf 'Magnibox MTA scaffold checks passed.\n'
