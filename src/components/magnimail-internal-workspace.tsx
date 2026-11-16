@@ -270,7 +270,7 @@ export async function MagniboxInternalContent({ embedded = false }: { embedded?:
                 <div className="field">
                   <label>Votre réponse</label>
                   <textarea name="body" rows={8} maxLength={50000}
-                    defaultValue={`\\n\\n--- Message d'origine ---\\nDe : ${address(message.sender_mailbox_id)}\\nÀ : ${address(message.recipient_mailbox_id)}\\n\\n${message.body_text.slice(0, 35000)}`} required />
+                    defaultValue={`\n\n--- Message d'origine ---\nDe : ${address(message.sender_mailbox_id)}\nÀ : ${address(message.recipient_mailbox_id)}\n\n${message.body_text.slice(0, 35000)}`} required />
                 </div>
                 <button className="button primary" type="submit">Envoyer la réponse</button>
               </form>
@@ -296,7 +296,7 @@ export async function MagniboxInternalContent({ embedded = false }: { embedded?:
                 <div className="field">
                   <label>Commentaire (facultatif)</label>
                   <textarea name="body" rows={8} maxLength={50000}
-                    defaultValue={`--- Message transféré ---\\nDe : ${address(message.sender_mailbox_id)}\\nÀ : ${address(message.recipient_mailbox_id)}\\n\\n${message.body_text.slice(0, 35000)}`} required />
+                    defaultValue={`--- Message transféré ---\nDe : ${address(message.sender_mailbox_id)}\nÀ : ${address(message.recipient_mailbox_id)}\n\n${message.body_text.slice(0, 35000)}`} required />
                 </div>
                 <button className="button primary" type="submit">Transférer le message</button>
               </form>
