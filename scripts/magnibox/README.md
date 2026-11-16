@@ -1,19 +1,28 @@
 # MAGNIBOX attachment quarantine worker
 
-This worker is an opt-in, one-shot batch processor. It is not enabled by the mail-server Compose profile and does not change public mail routing.
+The attachment worker scans metadata rows that have already been created by the signed inbound bridge and API. It does not parse Postfix MIME itself: the Postfix bridge extracts bounded attachments, the internal MAGNIBOX inbound API stores each object in the private `magnibox-attachments` bucket and creates a `quarantined` metadata row, and this worker performs the trusted scan before an object can become available.
 
-## Required environment
+## Compose operation
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY` (server-side secret only; never expose to browser code)
-- `MAGNIBOX_CLAMAV_HOST` (default: `clamav`)
-- `MAGNIBOX_CLAMAV_PORT` (default: `3310`)
+The `attachment-worker` service is defined in `infra/magnibox-mail/compose.yaml` without a Compose profile. It is therefore started by the normal Compose deployment alongside the mailserver. It shares the mailserver network namespace to reach ClamAV at `127.0.0.1:3310`, runs with a read-only root filesystem, drops Linux capabilities, and polls at 60-second intervals. Each invocation handles at most ten quarantined rows.
 
-The ClamAV daemon must be reachable only on a private network. Do not publish its TCP port to the public Internet.
+Required host-only `.env` settings are:
 
-## Run
+- `MAGNIBOX_WORKER_SUPABASE_URL`
+- `MAGNIBOX_WORKER_SERVICE_ROLE_KEY` (server-side secret only; never expose to browser code)
 
-Compile the worker from the repository root, then run the generated JavaScript in a private worker/container that has network access to Supabase and ClamAV:
+The Compose service maps these to `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` inside the worker container. The variable name `NEXT_PUBLIC_SUPABASE_URL` is used by the Supabase client for the project URL; it is not a secret. The service-role key must remain server-side.
+
+The ClamAV endpoint is private to the shared container network namespace:
+
+- `MAGNIBOX_CLAMAV_HOST` (Compose default: `127.0.0.1`)
+- `MAGNIBOX_CLAMAV_PORT` (Compose default: `3310`)
+
+Never publish ClamAV TCP/3310 to the public Internet. The Compose worker is part of the staged pilot scaffold; do not start or expose the MTA publicly until the operator prerequisites and approval gates in `infra/magnibox-mail/README.md` are satisfied.
+
+## Manual one-shot run
+
+For isolated development or diagnosis, compile the worker from the repository root and run the generated JavaScript in a private environment that can reach Supabase and ClamAV:
 
 ```sh
 npx tsc scripts/magnibox/scan-attachments.ts scripts/magnibox/attachment-scan-core.ts \
@@ -22,26 +31,31 @@ npx tsc scripts/magnibox/scan-attachments.ts scripts/magnibox/attachment-scan-co
 node /tmp/magnibox-attachment-worker/scan-attachments.js
 ```
 
-The process handles at most ten quarantined rows and exits. Schedule repeated invocations only after operational monitoring and retry limits are configured.
-
 ## Fail-closed behavior
 
-- Claims rows with a conditional `quarantined → scanning` update.
+- Claims rows with a conditional `quarantined → scanning` update and a fresh lease token.
 - Downloads only from the private `magnibox-attachments` bucket.
 - Verifies byte size and the stored SHA-256 digest before scanning.
 - Detects supported file signatures independently of the sender-provided MIME value.
 - Sends bytes to ClamAV using the INSTREAM protocol.
-- Marks a file `available` only after a clean verdict and successful database update.
+- Marks a file `available` only after a clean verdict and a successful, lease-fenced database update.
 - Marks unsupported or infected files `rejected`; attempts to remove their private object.
 - Returns transient infrastructure failures to `quarantined`; it never converts scan errors into approval.
+- Recovers stale scan leases and rejects rows whose retry budget is exhausted.
 
-The first implementation supports PDF, PNG, JPEG, GIF, WebP and plain UTF-8 text. Other formats (including ZIP-based Office documents) remain rejected until a dedicated structural parser and format-specific validation are implemented. The database bucket's MIME allowlist is not itself an approval decision.
+The first implementation supports PDF, PNG, JPEG, GIF, WebP and plain UTF-8 text. Other formats (including ZIP-based Office documents), unknown formats, empty files and malformed content remain rejected until dedicated structural validation is implemented. The database bucket MIME allowlist is not itself an approval decision.
 
-## Current limitation
+## Integration boundary and operational limitation
 
-This is the isolated scan worker foundation. It does not yet ingest MIME attachments from Postfix, create attachment metadata, or expose downloads. The inbound bridge must continue rejecting attachments until the full ingestion-to-scan integration and end-to-end tests are merged and deployed.
+The inbound bridge and API already implement attachment extraction, bounded payload validation, private object storage and `quarantined` metadata creation. The worker then performs scanning and controls the transition to `available` or `rejected`. This describes the code path; it is not evidence that a real MTA, ClamAV daemon, Supabase project or external SMTP route has been provisioned or passed an end-to-end operational test.
 
+Before enabling the Postfix inbound transport or customer-facing attachment access, run an isolated pilot that proves all of the following on the deployed host:
 
-### Worker lease fencing
+1. A clean supported attachment is received, stored as `quarantined`, scanned, and becomes `available`.
+2. An infected test attachment is rejected and its private object is removed.
+3. Unsupported and malformed files remain unavailable.
+4. A ClamAV outage or timeout leaves the object quarantined for retry; it never becomes available.
+5. Duplicate inbound deliveries and concurrent/stale worker leases cannot create an unsafe state or overwrite a newer verdict.
+6. Authenticated downloads succeed only for metadata rows visible through the user's RLS access.
 
-Each claimed scan stores a fresh UUID lease token. Every completion or retry update is conditional on that token, so a worker whose lease was recovered cannot overwrite a new worker's verdict. The migration enforces that only scanning rows carry a lease token and start timestamp. Stale scans return to quarantine with the token cleared; exhausted attempts are rejected. ClamAV protocol framing and NUL-terminated response parsing are covered by unit tests.
+Until those tests and the operator approval gates pass, keep the public MTA transport and customer MX changes disabled. No MX record is modified automatically by this worker.
