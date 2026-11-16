@@ -259,6 +259,22 @@ try {
     && postfixAttachment.sha256 === createHash("sha256").update(attachmentBytes).digest("hex"),
     "Postfix-delivered attachment must remain quarantined with a verified SHA-256 hash");
 
+  // A second SMTP submission with the same Message-ID must not duplicate the
+  // message or its quarantined attachment in MAGNIBOX.
+  await smtp.sendMail(postfixMail);
+  const duplicateMessageCount = await admin.from("orbit_external_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("identity_id", identity.id).eq("direction", "incoming").eq("provider_email_id", postfixMessageId);
+  if (duplicateMessageCount.error) throw duplicateMessageCount.error;
+  assert(duplicateMessageCount.count === 1,
+    "replayed Postfix SMTP Message-ID must leave exactly one MAGNIBOX message");
+  const duplicateAttachmentCount = await admin.from("orbit_external_message_attachments")
+    .select("id", { count: "exact", head: true }).eq("message_id", postfixMessage.id);
+  if (duplicateAttachmentCount.error) throw duplicateAttachmentCount.error;
+  assert(duplicateAttachmentCount.count === 1,
+    "replayed Postfix SMTP delivery must not duplicate quarantined attachments");
+  console.log("Inbound E2E: duplicate SMTP Message-ID is idempotent, with one quarantined attachment");
+
   // Unknown recipients must be refused by Postfix at SMTP RCPT time, before DATA.
   let unknownRejected = false;
   try {
