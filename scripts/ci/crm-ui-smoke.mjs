@@ -70,7 +70,9 @@ try {
   // clicking the FormDialog trigger, otherwise the server-rendered button is inert.
   await waitForWorkspace(page);
   // The editable catalog is intentionally inside the shared FormDialog.
-  await page.getByRole("button", { name: "Enregistrer la configuration" }).click();
+  const interventionTrigger = page.getByRole("button", { name: "Enregistrer la configuration" });
+  await interventionTrigger.locator('[data-form-dialog-hydrated="true"]').waitFor({ state: "attached", timeout: 20000 });
+  await interventionTrigger.click();
   const interventionDialog = page.getByRole("dialog");
   await interventionDialog.waitFor({ state: "visible", timeout: 10000 });
   assert(await interventionDialog.locator("tbody tr").count() === 11, "The configurable intervention catalog must show 11 types.");
