@@ -261,7 +261,7 @@ export async function MagniboxInternalContent({ embedded = false }: { embedded?:
           {kind === "inbox" && mine.length > 0 && mailboxById.get(message.sender_mailbox_id)?.is_active && (
             <FormDialog title={`Répondre : ${message.subject}`} buttonLabel="Répondre" buttonClassName="button">
               <form action={sendInternal} className="form">
-                <input type="hidden" name="senderId" value={mine[0].id} />
+                <input type="hidden" name="senderId" value={(mine.find((mailbox) => mailbox.id === message.recipient_mailbox_id) ?? mine[0]).id} />
                 <input type="hidden" name="recipientId" value={message.sender_mailbox_id} />
                 <div className="field">
                   <label>Objet</label>
@@ -279,7 +279,14 @@ export async function MagniboxInternalContent({ embedded = false }: { embedded?:
           {mine.length > 0 && (
             <FormDialog title={`Transférer : ${message.subject}`} buttonLabel="Transférer" buttonClassName="button">
               <form action={sendInternal} className="form">
-                <input type="hidden" name="senderId" value={mine[0].id} />
+                <div className="field">
+                  <label>Expéditeur</label>
+                  <select name="senderId" required defaultValue={mine[0].id}>
+                    {mine.map((mailbox) => (
+                      <option key={mailbox.id} value={mailbox.id}>{address(mailbox.id)}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="field">
                   <label>Destinataire</label>
                   <select name="recipientId" required defaultValue="">
