@@ -1,0 +1,13 @@
+# Local-only email capture service for MAGNIBOX development and CI.
+# This file is intentionally separate from the MTA production Compose stack.
+services:
+  mailpit:
+    image: axllent/mailpit:v1.33.1
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
