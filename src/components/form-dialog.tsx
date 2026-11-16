@@ -2,6 +2,7 @@
 
 import { Children, cloneElement, createContext, Fragment, isValidElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { ModalFrame } from "@/components/modal-frame";
+import { useRouter } from "next/navigation";
 import { executeFormDialogAction, type FormDialogServerAction } from "@/lib/form-dialog-action";
 
 type ServerAction = FormDialogServerAction;
@@ -59,6 +60,7 @@ export function FormDialog({
   buttonClassName?: string;
   isBusy?: boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [pending, setPending] = useState(false);
@@ -86,9 +88,13 @@ export function FormDialog({
     await executeFormDialogAction(action, formData, pendingRef, {
       setPending,
       setError,
-      onSuccess: () => { setSuccess(true); setOpen(false); },
+      onSuccess: () => {
+        setSuccess(true);
+        setOpen(false);
+        router.refresh();
+      },
     }, propagateErrors);
-  }, []);
+  }, [router]);
   const dialogContextValue = useMemo(() => ({ wrapAction }), [wrapAction]);
   const wrappedChildren = replaceServerActions(children, wrapAction);
   const content = <>
