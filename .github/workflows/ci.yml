@@ -55,6 +55,7 @@ jobs:
         run: |
           bash -n scripts/ci/check-magnibox-mta-scaffold.sh
           bash scripts/ci/check-magnibox-mta-scaffold.sh
+          bash -n infra/magnibox-mail/scripts/check-host-readiness.sh
 
       - name: Validate Magnibox Postfix inbound bridge
         run: bash scripts/ci/check-magnibox-inbound-bridge.sh

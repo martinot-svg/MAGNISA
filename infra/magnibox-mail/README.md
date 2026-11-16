@@ -172,3 +172,16 @@ The script verifies that the mailserver container is running, ClamAV is enabled 
 ### Bounded attachment ingestion (staged)
 
 The inbound bridge accepts up to five attachments per message, with a maximum of 30 MiB per file and 150 MiB aggregate attachment payload. The application inbound request/message ceiling is 205 MiB; the Postfix container transport limit is configured separately at 220M to provide transport headroom. The bridge, application validation and scan worker enforce the attachment limits; the worker processes files up to 30 MiB. The application verifies the signed payload and base64 limits, stores objects under organization/message/UUID paths in the private `magnibox-attachments` bucket, and creates quarantined metadata with SHA-256. The worker alone can promote files to `available`. The download endpoint first checks the authenticated user's RLS-visible metadata row and only then creates a 60-second signed URL with the server service role. No browser Storage policy is added.
+
+
+## Read-only host/network readiness preflight
+
+Before configuring Postfix or connecting the application, run the following on the intended dedicated Linux host:
+
+```sh
+MAGNIBOX_MTA_HOSTNAME=mail.example.net sh infra/magnibox-mail/scripts/check-host-readiness.sh
+```
+
+Optionally set `MAGNIBOX_SMTP_PROBE_DOMAIN` to another independent domain whose MX host accepts SMTP on TCP/25. The preflight checks that the MTA hostname has globally routable IPv4 A records, that each address has a matching PTR record, and that outbound TCP/25 can reach a remote MX. It is read-only: it does not alter DNS/firewall settings, start containers, or enable external mail.
+
+A successful local preflight does **not** prove inbound TCP/25 reachability from the public Internet. Verify that separately from an external network and obtain written provider confirmation for TCP/25 in both directions. CI only checks the script's shell syntax; it cannot verify a real host, public IP, DNS delegation or provider policy.
