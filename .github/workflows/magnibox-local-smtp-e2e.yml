@@ -1,0 +1,133 @@
+name: MAGNIBOX local Postfix to Mailpit E2E
+
+on:
+  pull_request:
+    paths:
+      - "infra/magnibox-mail/**"
+      - "src/lib/orbit/transport/**"
+      - "scripts/ci/test-magnibox-postfix-mailpit-e2e.ts"
+      - ".github/workflows/magnibox-local-smtp-e2e.yml"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [main]
+    paths:
+      - "infra/magnibox-mail/**"
+      - "src/lib/orbit/transport/**"
+      - "scripts/ci/test-magnibox-postfix-mailpit-e2e.ts"
+      - ".github/workflows/magnibox-local-smtp-e2e.yml"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: magnibox-local-smtp-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postfix-mailpit-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      COMPOSE_PROJECT_NAME: magnibox-smtp-ci
+      MAGNIBOX_MTA_HOSTNAME: mail.example.test
+      MAGNIBOX_DMS_IMAGE: ghcr.io/docker-mailserver/docker-mailserver:15.0.2
+      MAGNIBOX_BIND_ADDRESS: 127.0.0.1
+      MAGNIBOX_TLS_DIR: ${{ github.workspace }}/.ci-tls
+      MAGNIBOX_WORKER_SUPABASE_URL: https://example.supabase.co
+      MAGNIBOX_WORKER_SERVICE_ROLE_KEY: ci-placeholder-not-used
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install application dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Prepare isolated local MTA configuration and test TLS
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-tls infra/magnibox-mail/docker-data/{mail-data,mail-state,logs,config,provisioning}
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
+            -keyout .ci-tls/privkey.pem -out .ci-tls/fullchain.pem \
+            -subj "/CN=mail.example.test" \
+            -addext "subjectAltName=DNS:mail.example.test"
+          chmod 600 .ci-tls/privkey.pem
+          cat > infra/magnibox-mail/mailserver.env <<'EOF'
+          ACCOUNT_PROVISIONER=FILE
+          POSTMASTER_ADDRESS=postmaster@example.test
+          ENABLE_IMAP=0
+          ENABLE_POP3=0
+          ENABLE_CLAMAV=0
+          ENABLE_RSPAMD=0
+          ENABLE_RSPAMD_VALKEY=0
+          ENABLE_FAIL2BAN=0
+          ENABLE_OPENDKIM=0
+          ENABLE_OPENDMARC=0
+          ENABLE_POLICYD_SPF=0
+          ENABLE_AMAVIS=0
+          ENABLE_SPAMASSASSIN=0
+          PERMIT_DOCKER=none
+          TLS_LEVEL=modern
+          SSL_TYPE=manual
+          SSL_CERT_PATH=/run/magnibox-tls/fullchain.pem
+          SSL_KEY_PATH=/run/magnibox-tls/privkey.pem
+          ENABLE_UPDATE_CHECK=0
+          EOF
+          cat >> "$GITHUB_ENV" <<EOF
+          MAGNIBOX_SMTP_PASSWORD=$(openssl rand -hex 24)
+          EOF
+          echo "127.0.0.1 mail.example.test" | sudo tee -a /etc/hosts
+
+      - name: Start Docker Mailserver Postfix and Mailpit relay
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose \
+            -f infra/magnibox-mail/compose.yaml \
+            -f infra/magnibox-mail/compose.mailpit-relay.yaml \
+            up -d mailserver mailpit
+          ready=0
+          for attempt in $(seq 1 120); do
+            if timeout 2 bash -c '</dev/tcp/127.0.0.1/587' 2>/dev/null \
+              && curl --fail --silent http://127.0.0.1:8025/api/v1/messages >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 5
+          done
+          if [ "$ready" -ne 1 ]; then
+            docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.mailpit-relay.yaml logs --tail=200
+            exit 1
+          fi
+          docker exec magnibox-mailserver setup email add sender@example.test "$MAGNIBOX_SMTP_PASSWORD"
+
+      - name: Submit from MAGNIBOX application transport and assert Mailpit capture
+        env:
+          NODE_EXTRA_CA_CERTS: ${{ github.workspace }}/.ci-tls/fullchain.pem
+          MAGNIBOX_SMTP_HOST: mail.example.test
+          MAGNIBOX_SMTP_PORT: "587"
+          MAGNIBOX_SMTP_SECURE: "false"
+          MAGNIBOX_SMTP_USER: sender@example.test
+          MAGNIBOX_SMTP_HELO: mail.example.test
+          MAILPIT_API_URL: http://127.0.0.1:8025
+        run: npx tsx scripts/ci/test-magnibox-postfix-mailpit-e2e.ts
+
+      - name: Upload Postfix and Mailpit diagnostic logs on failure
+        if: failure()
+        run: |
+          docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.mailpit-relay.yaml logs --no-color --tail=300 || true
+
+      - name: Stop isolated SMTP lab
+        if: always()
+        run: |
+          docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.mailpit-relay.yaml down --remove-orphans || true
+          rm -f infra/magnibox-mail/mailserver.env
+          rm -rf .ci-tls infra/magnibox-mail/docker-data
