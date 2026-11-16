@@ -203,12 +203,11 @@ try {
     "virtual_mailbox_maps=hash:/tmp/docker-mailserver/magnibox-test-recipients"]);
   execFileSync("docker", ["exec", "magnibox-mailserver", "postconf", "-e", "virtual_transport=magnibox-inbound"]);
   const installPipe = [
-    "if ! grep -qE '^magnibox-inbound[[:space:]]+unix[[:space:]]' /etc/postfix/master.cf; then",
+    "sed -i '/^magnibox-inbound[[:space:]]/,+1d' /etc/postfix/master.cf",
     "cat >> /etc/postfix/master.cf <<'MAGNIBOX_EOF'",
     "magnibox-inbound unix - n n - - pipe",
     "  flags=Rq user=nobody argv=/usr/bin/python3 /opt/magnibox-bridge/postfix-inbound.py ${sender} ${recipient}",
     "MAGNIBOX_EOF",
-    "fi",
   ].join("\n");
   execFileSync("docker", ["exec", "magnibox-mailserver", "sh", "-ec", installPipe]);
   execFileSync("docker", ["exec", "magnibox-mailserver", "postfix", "reload"]);
