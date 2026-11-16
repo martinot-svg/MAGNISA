@@ -134,9 +134,16 @@ try {
     "ClamAV outage must release its lease for retry");
 
   // Simulate a worker crash by leaving a scan lease older than the 15-minute recovery threshold.
+  const staleMessage = unwrap(await admin.from("orbit_external_messages").insert({
+    organization_id: org, identity_id: identity.id, direction: "incoming", status: "received",
+    from_email: "fixture@example.invalid", to_emails: ["scanner@" + domain],
+    subject: "MAGNIBOX stale lease recovery fixture", body_text: "Synthetic local-only message.",
+    provider_email_id: "local-stale-" + stamp,
+  }).select("id").single(), "create stale lease message");
+  created.staleMessageId = staleMessage.id;
   const staleBytes = Buffer.from("MAGNIBOX stale lease recovery");
   const staleId = randomUUID();
-  const stalePath = org + "/" + message.id + "/" + staleId;
+  const stalePath = org + "/" + staleMessage.id + "/" + staleId;
   const staleUpload = await admin.storage.from(bucket).upload(stalePath, staleBytes, { contentType: "text/plain", upsert: false });
   if (staleUpload.error) throw new Error("upload stale lease fixture: " + staleUpload.error.message);
   created.paths.push(stalePath);
