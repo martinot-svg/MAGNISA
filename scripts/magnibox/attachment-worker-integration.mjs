@@ -18,7 +18,7 @@ const password = "Worker-" + randomBytes(20).toString("hex") + "!9";
 const stamp = randomUUID().replaceAll("-", "").slice(0, 12);
 const bucket = "magnibox-attachments";
 const compose = ["compose", "-f", "infra/magnibox-mail/compose.local.yaml"];
-const created = { userId: null, organizationId: null, mailboxId: null, domainId: null, addressId: null, identityId: null, messageId: null, paths: [] };
+const created = { userId: null, secondUserId: null, organizationId: null, secondOrganizationId: null, mailboxId: null, domainId: null, addressId: null, identityId: null, messageId: null, paths: [] };
 const fixtures = [
   { name: "clean.pdf", bytes: Buffer.from("%PDF-1.7\nMAGNIBOX LOCAL E2E\n%%EOF\n"), contentType: "application/pdf", expected: "available", validHash: true },
   { name: "eicar.txt", bytes: Buffer.from("X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"), contentType: "text/plain", expected: "rejected", validHash: true },
@@ -173,7 +173,27 @@ try {
   const badHash = ids.find(item => item.name === "bad-sha.txt");
   const badHashDownload = await admin.storage.from(bucket).download(badHash.path);
   assert(!badHashDownload.error && badHashDownload.data, "hash mismatch must remain quarantined, not be published or deleted");
-  console.log("PASS MAGNIBOX worker + local Storage + ClamAV: clean available; EICAR and unsupported rejected/deleted; bad SHA quarantined; leases released.");
+
+  // Verify tenant isolation with a second authenticated user in a different organization.
+  const secondEmail = "magnibox-isolation-" + randomUUID() + "@magnisa.test";
+  const secondPassword = "Isolation-" + randomBytes(20).toString("hex") + "!9";
+  const secondUser = unwrap(await admin.auth.admin.createUser({
+    email: secondEmail, password: secondPassword, email_confirm: true,
+  }), "create second isolated test user");
+  created.secondUserId = secondUser.user.id;
+  const secondOwner = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  unwrap(await secondOwner.auth.signInWithPassword({ email: secondEmail, password: secondPassword }),
+    "sign in second isolated test owner");
+  created.secondOrganizationId = unwrap(await secondOwner.rpc("create_organization", {
+    p_name: "MAGNIBOX Isolation E2E " + stamp, p_currency: "MGA",
+  }), "create second isolated organization");
+  const crossTenantRead = await secondOwner.from("orbit_external_message_attachments")
+    .select("id").eq("id", clean.id);
+  if (crossTenantRead.error) throw new Error("cross-tenant RLS query failed: " + crossTenantRead.error.message);
+  assert((crossTenantRead.data ?? []).length === 0,
+    "a user from another organization must not read this attachment metadata");
+
+  console.log("PASS MAGNIBOX worker + Storage + ClamAV: clean available; EICAR and unsupported rejected/deleted; bad SHA quarantined; outage retry and stale lease recovered; cross-organization RLS isolation enforced.");
 } finally {
   if (created.paths.length) await admin.storage.from(bucket).remove(created.paths).catch(() => {});
   if (created.messageId) await admin.from("orbit_external_messages").delete().eq("id", created.messageId);
