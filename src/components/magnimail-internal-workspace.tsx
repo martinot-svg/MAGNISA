@@ -258,7 +258,7 @@ export async function MagniboxInternalContent({ embedded = false }: { embedded?:
             {" · "}{new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(message.created_at))}
           </p>
           <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.body_text}</p>
-          {kind === "inbox" && mine.some((mailbox) => mailbox.id !== message.sender_mailbox_id) && (
+          {kind === "inbox" && mine.length > 0 && mailboxById.get(message.sender_mailbox_id)?.is_active && (
             <FormDialog title={`Répondre : ${message.subject}`} buttonLabel="Répondre" buttonClassName="button">
               <form action={sendInternal} className="form">
                 <input type="hidden" name="senderId" value={mine[0].id} />
