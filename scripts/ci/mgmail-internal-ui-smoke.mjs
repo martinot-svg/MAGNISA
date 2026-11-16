@@ -45,8 +45,8 @@ async function login(user) {
 }
 // A streamed Next.js page can expose its trigger before the nested client dialog
 // is interactive. Verify that the dialog really opened, retrying only lost clicks.
-async function openDialog(page,label){
-  const trigger=page.getByRole("button",{name:label});
+async function openDialog(page,label,scope=page){
+  const trigger=scope.getByRole("button",{name:label});
   await trigger.waitFor({state:"visible",timeout:20000});
   for(let attempt=0;attempt<5;attempt++){
     await trigger.click();
@@ -143,12 +143,14 @@ try {
   }
   await createMailbox("direction",owner.id);
   await createMailbox("finance",employee.id);
+  await createMailbox("archives",owner.id);
   const {data:boxes,error:boxesError}=await admin.from("mgmail_internal_mailboxes")
     .select("id,local_part").eq("organization_id",organizationId);
   if(boxesError)throw boxesError;
   const sender=boxes.find(x=>x.local_part==="direction")?.id;
   const recipient=boxes.find(x=>x.local_part==="finance")?.id;
-  if(!sender||!recipient)throw new Error("Boîtes collaborateur non enregistrées");
+  const archive=boxes.find(x=>x.local_part==="archives")?.id;
+  if(!sender||!recipient||!archive)throw new Error("Boîtes collaborateur non enregistrées");
   // The organization controls its own professional requests inside Magnibox.
   await a.page.getByRole("link",{name:"Administrer les domaines"}).click();
   await a.page.getByRole("heading",{name:"Domaines et adresses professionnelles"}).waitFor({timeout:20000});
@@ -202,6 +204,30 @@ try {
   await b.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
   await b.page.getByText(subject).waitFor({timeout:20000});
   console.log("MGMail UI: message réceptionné par le collaborateur");
+  // Reply must return to the original sender using the employee's authorized mailbox.
+  await openDialog(b.page,/Répondre/);
+  const replySubject="Re : "+subject;
+  await b.page.locator('textarea[name="body"]').fill("Réponse de test\n\n--- Message d'origine ---\nMessage cité");
+  await b.page.getByRole("button",{name:"Envoyer la réponse"}).click();
+  await b.page.getByText(replySubject).first().waitFor({timeout:20000});
+  console.log("MGMail UI: réponse envoyée");
+
+  const c=await login(owner);
+  await c.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
+  await c.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
+  await c.page.getByText(replySubject).first().waitFor({timeout:20000});
+  // Forward the received reply to a third internal mailbox.
+  const replyRow=c.page.locator('div[style*="border-bottom"]').filter({has:c.page.getByText(replySubject,{exact:true})});
+  if(await replyRow.count()!==1)throw new Error("Impossible d’identifier une seule carte pour le message à transférer : "+await replyRow.count());
+  await openDialog(c.page,/Transférer/,replyRow);
+  await c.page.locator('select[name="senderId"]').selectOption(sender);
+  await c.page.locator('select[name="recipientId"]').selectOption(archive);
+  await c.page.getByRole("button",{name:"Transférer le message"}).click();
+  const forwardedSubject="Tr : "+replySubject;
+  await c.page.getByText(forwardedSubject).first().waitFor({timeout:20000});
+  console.log("MGMail UI: transfert vers une troisième boîte");
+  await c.context.close();
+
   await openDialog(b.page,/Marquer comme lu/);
   await b.page.getByRole("button",{name:"Confirmer"}).click();
   await b.page.getByRole("heading",{name:/Boîte de réception interne \(0 non lus affichés\)/}).waitFor({timeout:20000});

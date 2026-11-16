@@ -258,6 +258,57 @@ export async function MagniboxInternalContent({ embedded = false }: { embedded?:
             {" · "}{new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(message.created_at))}
           </p>
           <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.body_text}</p>
+          {kind === "inbox" && mine.length > 0 && mailboxById.get(message.sender_mailbox_id)?.is_active && (
+            <FormDialog title={`Répondre : ${message.subject}`} buttonLabel="Répondre" buttonClassName="button">
+              <form action={sendInternal} className="form">
+                <input type="hidden" name="senderId" value={(mine.find((mailbox) => mailbox.id === message.recipient_mailbox_id) ?? mine[0]).id} />
+                <input type="hidden" name="recipientId" value={message.sender_mailbox_id} />
+                <div className="field">
+                  <label>Objet</label>
+                  <input name="subject" maxLength={180} defaultValue={`Re : ${message.subject}`.slice(0, 180)} required />
+                </div>
+                <div className="field">
+                  <label>Votre réponse</label>
+                  <textarea name="body" rows={8} maxLength={50000}
+                    defaultValue={`\n\n--- Message d'origine ---\nDe : ${address(message.sender_mailbox_id)}\nÀ : ${address(message.recipient_mailbox_id)}\n\n${message.body_text.slice(0, 35000)}`} required />
+                </div>
+                <button className="button primary" type="submit">Envoyer la réponse</button>
+              </form>
+            </FormDialog>
+          )}
+          {mine.length > 0 && (
+            <FormDialog title={`Transférer : ${message.subject}`} buttonLabel="Transférer" buttonClassName="button">
+              <form action={sendInternal} className="form">
+                <div className="field">
+                  <label>Expéditeur</label>
+                  <select name="senderId" required defaultValue={mine[0].id}>
+                    {mine.map((mailbox) => (
+                      <option key={mailbox.id} value={mailbox.id}>{address(mailbox.id)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Destinataire</label>
+                  <select name="recipientId" required defaultValue="">
+                    <option value="" disabled>Choisir une boîte active</option>
+                    {mailboxes.filter((mailbox) => mailbox.is_active).map((mailbox) => (
+                      <option key={mailbox.id} value={mailbox.id}>{address(mailbox.id)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Objet</label>
+                  <input name="subject" maxLength={180} defaultValue={`Tr : ${message.subject}`.slice(0, 180)} required />
+                </div>
+                <div className="field">
+                  <label>Message transféré (modifiable)</label>
+                  <textarea name="body" rows={8} maxLength={50000}
+                    defaultValue={`--- Message transféré ---\nDe : ${address(message.sender_mailbox_id)}\nÀ : ${address(message.recipient_mailbox_id)}\n\n${message.body_text.slice(0, 35000)}`} required />
+                </div>
+                <button className="button primary" type="submit">Transférer le message</button>
+              </form>
+            </FormDialog>
+          )}
           {kind === "inbox" && !readIds.has(message.id) && (
             <FormDialog title="Confirmer la lecture du message" buttonLabel="Marquer comme lu" buttonClassName="button">
               <form action={markInternalRead} className="form">
