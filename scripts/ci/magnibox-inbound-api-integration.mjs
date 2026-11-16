@@ -133,7 +133,8 @@ try {
   console.log("PASS MAGNIBOX inbound API: HMAC accepted; verified recipient resolved; message persisted; retry idempotent; conflicting ID 409; unknown recipient 422; invalid signature 401; attachment persisted privately as quarantined.");
 } finally {
   if (created.storagePaths.length) await admin.storage.from("magnibox-attachments").remove(created.storagePaths).catch(() => {});
-  if (created.messageIds.length) await admin.from("orbit_external_messages").delete().in("id", created.messageIds);
+  if (created.identityId) await admin.from("orbit_external_messages").delete()
+    .eq("identity_id", created.identityId).eq("direction", "incoming").eq("provider_email_id", messageId);
   if (created.identityId) await admin.from("orbit_public_identities").delete().eq("id", created.identityId);
   if (created.addressId) await admin.from("mgmail_public_address_requests").delete().eq("id", created.addressId);
   if (created.domainId) await admin.from("mgmail_domain_requests").delete().eq("id", created.domainId);
