@@ -20,6 +20,12 @@ export default async function MagniboxPage() {
       <MagniboxInternalContent embedded />
       <MagniboxInternetWorkspace />
 
+      <div className="card section">
+        <h2>Agenda et rendez-vous</h2>
+        <p className="muted">Calendriers personnels, de service et d'entreprise avec fuseaux horaires et rappels internes.</p>
+        <a className="button" href="/orbit/magnibox/agenda">Ouvrir l'agenda</a>
+      </div>
+
       {canManageDomains && (
         <>
           <div className="card section">
