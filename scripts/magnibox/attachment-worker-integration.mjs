@@ -20,8 +20,8 @@ const bucket = "magnibox-attachments";
 const compose = ["compose", "-f", "infra/magnibox-mail/compose.local.yaml"];
 const created = { userId: null, organizationId: null, mailboxId: null, domainId: null, addressId: null, identityId: null, messageId: null, paths: [] };
 const fixtures = [
-  { name: "clean.pdf", bytes: Buffer.from("%PDF-1.7\nMAGNIBOX LOCAL E2E\n%%EOF\n"), expected: "available", validHash: true },
-  { name: "eicar.txt", bytes: Buffer.from("X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"), expected: "rejected", validHash: true },
+  { name: "clean.pdf", bytes: Buffer.from("%PDF-1.7\nMAGNIBOX LOCAL E2E\n%%EOF\n"), contentType: "application/pdf", expected: "available", validHash: true },
+  { name: "eicar.txt", bytes: Buffer.from("X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"), contentType: "text/plain", expected: "rejected", validHash: true },
   { name: "unsupported.bin", bytes: Buffer.from([0, 1, 2, 3, 255, 0, 9]), contentType: "image/png", expected: "rejected", validHash: true },
   { name: "bad-sha.txt", bytes: Buffer.from("MAGNIBOX hash mismatch fixture"), contentType: "text/plain", expected: "quarantined", validHash: false },
 ];
