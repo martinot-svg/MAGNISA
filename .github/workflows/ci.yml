@@ -39,7 +39,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          supabase start
+          # MAGNIBOX integration tests do not use Supabase Inbucket; skip it to avoid
+          # binding the runner's commonly occupied host port 54324.
+          supabase start -x inbucket
           supabase db reset
           eval "$(supabase status -o env)"
           echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
