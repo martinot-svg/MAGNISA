@@ -143,6 +143,7 @@ try {
   }
   await createMailbox("direction",owner.id);
   await createMailbox("finance",employee.id);
+  await createMailbox("archives",owner.id);
   const {data:boxes,error:boxesError}=await admin.from("mgmail_internal_mailboxes")
     .select("id,local_part").eq("organization_id",organizationId);
   if(boxesError)throw boxesError;
@@ -202,6 +203,29 @@ try {
   await b.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
   await b.page.getByText(subject).waitFor({timeout:20000});
   console.log("MGMail UI: message réceptionné par le collaborateur");
+  // Reply must return to the original sender using the employee's authorized mailbox.
+  await openDialog(b.page,/Répondre/);
+  const replySubject="Re : "+subject;
+  await b.page.locator('textarea[name="body"]').fill("Réponse de test\n\n--- Message d'origine ---\nMessage cité");
+  await b.page.getByRole("button",{name:"Envoyer la réponse"}).click();
+  await b.page.getByText(replySubject).first().waitFor({timeout:20000});
+  console.log("MGMail UI: réponse envoyée");
+  await b.context.close();
+
+  const c=await login(owner);
+  await c.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
+  await c.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
+  await c.page.getByText(replySubject).first().waitFor({timeout:20000});
+  // Forward the received reply to a third internal mailbox.
+  const replyRow=c.page.locator("div").filter({has:c.page.getByText(replySubject,{exact:true})}).filter({has:c.page.getByRole("button",{name:/Transférer/})}).first();
+  await openDialog(c.page,/Transférer/);
+  await c.page.locator('select[name="recipientId"]').selectOption({label:/archives/});
+  await c.page.getByRole("button",{name:"Transférer le message"}).click();
+  const forwardedSubject="Tr : "+replySubject;
+  await c.page.getByText(forwardedSubject).first().waitFor({timeout:20000});
+  console.log("MGMail UI: transfert vers une troisième boîte");
+  await c.context.close();
+
   await openDialog(b.page,/Marquer comme lu/);
   await b.page.getByRole("button",{name:"Confirmer"}).click();
   await b.page.getByRole("heading",{name:/Boîte de réception interne \(0 non lus affichés\)/}).waitFor({timeout:20000});
