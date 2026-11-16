@@ -90,6 +90,31 @@ class InboundBridgeTests(unittest.TestCase):
             os.environ.clear()
             os.environ.update(previous)
 
+    def test_allows_http_only_for_explicit_loopback_integration_tests(self):
+        import os
+        previous = dict(os.environ)
+        try:
+            os.environ["MAGNIBOX_INBOUND_URL"] = "http://127.0.0.1:3000/hook"
+            os.environ["MAGNIBOX_INBOUND_WEBHOOK_SECRET"] = "x" * 40
+            os.environ["MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"] = "true"
+            # The endpoint passes transport validation; the local test server
+            # is intentionally absent, so urllib reports a retryable outage.
+            self.assertEqual(bridge.forward(b"From: a@example.org\n\nhello", "b@example.org"), 75)
+        finally:
+            os.environ.clear()
+            os.environ.update(previous)
+
+    def test_http_loopback_flag_never_allows_remote_hosts(self):
+        import os
+        previous = dict(os.environ)
+        try:
+            os.environ["MAGNIBOX_INBOUND_URL"] = "http://example.org/hook"
+            os.environ["MAGNIBOX_INBOUND_WEBHOOK_SECRET"] = "x" * 40
+            os.environ["MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"] = "true"
+            self.assertEqual(bridge.forward(b"From: a@example.org\n\nhello", "b@example.org"), 75)
+        finally:
+            os.environ.clear()
+            os.environ.update(previous)
 
     def test_extracts_attachment_as_bounded_base64_payload(self):
         msg = BytesParser(policy=policy.default).parsebytes(
