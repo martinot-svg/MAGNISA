@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "prebuild": "node scripts/ci/check-next-swc-lockfile.mjs"
+    "prebuild": "node scripts/ci/check-next-swc-lockfile.mjs",
+    "test:magnibox:integration": "node scripts/magnibox/attachment-worker-integration.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.1",
