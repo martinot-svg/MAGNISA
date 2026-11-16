@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { access, unlink, writeFile } from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
 
 const execFileAsync = promisify(execFile);
@@ -29,10 +30,19 @@ function unwrap(result, label) {
   if (result.error || result.data == null) throw new Error(label + ": " + (result.error?.message ?? "no data"));
   return result.data;
 }
+let generatedEnvFile = false;
 async function workerOnce() {
-  await execFileAsync("docker", [...compose, "run", "--rm", "--no-deps", "attachment-worker"], { maxBuffer: 1024 * 1024 });
+  await execFileAsync("docker", [...compose, "run", "--rm", "--no-deps",
+    "-e", "NEXT_PUBLIC_SUPABASE_URL=http://host.docker.internal:54321",
+    "-e", "SUPABASE_SERVICE_ROLE_KEY=" + serviceKey,
+    "attachment-worker"], { maxBuffer: 1024 * 1024 });
 }
 try {
+  try { await access("infra/magnibox-mail/.env.local-dev"); }
+  catch {
+    await writeFile("infra/magnibox-mail/.env.local-dev", "# generated temporarily by local E2E test\\n", { mode: 0o600, flag: "wx" });
+    generatedEnvFile = true;
+  }
   const user = unwrap(await admin.auth.admin.createUser({ email, password, email_confirm: true }), "create local test user");
   created.userId = user.user.id;
   const owner = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
@@ -94,8 +104,7 @@ try {
     ids.push({ ...fixture, id: row.id, path });
   }
 
-  await execFileAsync("docker", [...compose, "up", "-d", "clamav"], { maxBuffer: 1024 * 1024 });
-  await workerOnce();
+  await execFileAsync("docker", [...compose, "up", "-d", "--wait", "clamav"], { maxBuffer: 1024 * 1024 });
   await Promise.all([workerOnce(), workerOnce()]);
 
   const rows = unwrap(await admin.from("orbit_external_message_attachments")
@@ -131,4 +140,5 @@ try {
   if (created.organizationId) await admin.from("organizations").delete().eq("id", created.organizationId);
   if (created.userId) await admin.auth.admin.deleteUser(created.userId);
   await execFileAsync("docker", [...compose, "down"], { maxBuffer: 1024 * 1024 }).catch(() => {});
+  if (generatedEnvFile) await unlink("infra/magnibox-mail/.env.local-dev").catch(() => {});
 }
