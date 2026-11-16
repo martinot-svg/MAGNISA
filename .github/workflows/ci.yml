@@ -70,6 +70,38 @@ jobs:
           bash -n scripts/ci/check-magnibox-mailpit.sh
           bash scripts/ci/check-magnibox-mailpit.sh
 
+      - name: Validate isolated Magnibox local development stack
+        run: bash scripts/ci/check-magnibox-local-dev.sh
+
+      - name: Exercise real ClamAV INSTREAM scanner
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name magnibox-clamav-integration -p 127.0.0.1:3310:3310 clamav/clamav:1.4.3
+          trap 'docker rm -f magnibox-clamav-integration >/dev/null 2>&1 || true' EXIT
+          ready=0
+          for attempt in $(seq 1 90); do
+            if docker exec magnibox-clamav-integration clamdscan --ping=1 >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 5
+          done
+          if [ "$ready" -ne 1 ]; then
+            docker logs magnibox-clamav-integration
+            echo "ClamAV did not become ready within 7.5 minutes" >&2
+            exit 1
+          fi
+          npx tsx scripts/ci/test-magnibox-clamav-integration.ts
+
+      - name: Build and verify isolated Magnibox attachment worker image
+        run: |
+          set -euo pipefail
+          docker build --pull --file infra/magnibox-mail/worker/Dockerfile --tag magnibox-attachment-worker:ci .
+          test "$(docker image inspect --format '{{.Config.User}}' magnibox-attachment-worker:ci)" = "node"
+          docker image inspect --format 'Entrypoint={{json .Config.Entrypoint}} Cmd={{json .Config.Cmd}}' magnibox-attachment-worker:ci
+
+
       - name: Validate Magnibox Postfix inbound bridge
         run: bash scripts/ci/check-magnibox-inbound-bridge.sh
 

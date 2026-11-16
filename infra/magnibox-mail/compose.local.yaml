@@ -1,0 +1,40 @@
+# Local-only validation stack. Deliberately excludes the public MTA and SMTP ports.
+services:
+  clamav:
+    image: clamav/clamav:1.4.3
+    restart: unless-stopped
+    volumes:
+      - magnibox-local-clamav-db:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --ping=1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+  attachment-worker:
+    build:
+      context: ../..
+      dockerfile: infra/magnibox-mail/worker/Dockerfile
+    depends_on:
+      clamav:
+        condition: service_healthy
+    env_file:
+      - ./.env.local-dev
+    environment:
+      MAGNIBOX_CLAMAV_HOST: clamav
+      MAGNIBOX_CLAMAV_PORT: "3310"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    restart: unless-stopped
+
+volumes:
+  magnibox-local-clamav-db:

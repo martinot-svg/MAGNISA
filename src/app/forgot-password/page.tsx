@@ -1,2 +1,18 @@
-"use client";import Link from "next/link";import {useActionState} from "react";import {requestPasswordReset} from "@/server/actions/auth";import {BrandMark} from "@/components/brand-mark";
-export default function Forgot(){const [state,action,pending]=useActionState<any,FormData>(async(_:any,fd:FormData)=>requestPasswordReset(fd),{});return <main className="auth authPremium"><BrandMark/><div><p className="eyebrow">Récupération</p><h1>Mot de passe oublié</h1><p className="muted">Nous enverrons un lien sécurisé à l'adresse du compte.</p></div><form action={action} className="form"><div className="field"><label>Adresse e-mail</label><input name="email" type="email" required/></div>{state?.error&&<p className="error">{state.error}</p>}{state?.success&&<p className="success">{state.success}</p>}<button className="button primary" disabled={pending}>{pending?"Envoi…":"Envoyer le lien"}</button></form><Link className="muted" href="/login">Retour à la connexion</Link></main>}
+import Link from "next/link";
+import { BrandMark } from "@/components/brand-mark";
+import { ForgotPasswordForm } from "@/components/forgot-password-form";
+
+export default function ForgotPasswordPage() {
+  return (
+    <main className="auth authPremium">
+      <BrandMark />
+      <div>
+        <p className="eyebrow">Récupération</p>
+        <h1>Mot de passe oublié</h1>
+        <p className="muted">Nous enverrons un lien sécurisé à l'adresse du compte.</p>
+      </div>
+      <ForgotPasswordForm />
+      <Link className="muted" href="/login">Retour à la connexion</Link>
+    </main>
+  );
+}

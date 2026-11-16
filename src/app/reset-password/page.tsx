@@ -1,2 +1,16 @@
-"use client";import {useActionState} from "react";import {updatePassword} from "@/server/actions/auth";import {BrandMark} from "@/components/brand-mark";
-export default function Reset(){const [state,action,pending]=useActionState<any,FormData>(async(_:any,fd:FormData)=>updatePassword(fd),{});return <main className="auth authPremium"><BrandMark/><div><p className="eyebrow">Sécurité</p><h1>Nouveau mot de passe</h1><p className="muted">Choisis un mot de passe d'au moins 10 caractères.</p></div><form action={action} className="form"><div className="field"><label>Nouveau mot de passe</label><input name="password" type="password" minLength={10} required/></div><div className="field"><label>Confirmer</label><input name="confirm" type="password" minLength={10} required/></div>{state?.error&&<p className="error">{state.error}</p>}{state?.success&&<p className="success">{state.success}</p>}<button className="button primary" disabled={pending}>{pending?"Modification…":"Modifier le mot de passe"}</button></form></main>}
+import { BrandMark } from "@/components/brand-mark";
+import { ResetPasswordForm } from "@/components/reset-password-form";
+
+export default function ResetPasswordPage() {
+  return (
+    <main className="auth authPremium">
+      <BrandMark />
+      <div>
+        <p className="eyebrow">Sécurité</p>
+        <h1>Nouveau mot de passe</h1>
+        <p className="muted">Choisis un mot de passe d'au moins 10 caractères.</p>
+      </div>
+      <ResetPasswordForm />
+    </main>
+  );
+}
