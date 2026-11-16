@@ -185,15 +185,20 @@ try {
   await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
   await openDialog(a.page,/Nouveau message/);
   await a.page.locator('select[name="senderId"]').selectOption(sender);
-  await a.page.locator('select[name="recipientId"]').selectOption(recipient);
+  // Drafts are allowed to be incomplete: the submitter's formNoValidate must
+  // override required recipient/subject/body controls in FormValidityGuard.
   const subject="Message interne "+fixture;
-  await a.page.locator('input[name="subject"]').fill(subject);
-  await a.page.locator('textarea[name="body"]').fill("Brouillon initial à modifier.");
-  await a.page.getByRole("button",{name:"Enregistrer le brouillon"}).click();
+  const saveDraftButton=a.page.getByRole("button",{name:"Enregistrer le brouillon"});
+  if(await saveDraftButton.isDisabled()) {
+    throw new Error("Le bouton de sauvegarde d'un brouillon incomplet ne doit pas être désactivé par la validation HTML.");
+  }
+  await saveDraftButton.click();
   await a.page.getByRole("heading",{name:"Brouillons (1)"}).waitFor({timeout:20000});
-  const initialDraftCard=a.page.getByTestId("magnibox-internal-draft").filter({hasText:subject});
+  const initialDraftCard=a.page.getByTestId("magnibox-internal-draft").first();
   await initialDraftCard.waitFor({state:"visible",timeout:15000});
   await openDialog(a.page,"Ouvrir",initialDraftCard);
+  await a.page.locator('select[name="recipientId"]').selectOption(recipient);
+  await a.page.locator('input[name="subject"]').fill(subject);
   await a.page.locator('textarea[name="body"]').fill("Test sécurisé entre deux collaborateurs authentifiés.");
   await a.page.getByRole("button",{name:"Enregistrer les modifications"}).click();
   await a.page.getByRole("heading",{name:"Brouillons (1)"}).waitFor({timeout:20000});
