@@ -4,6 +4,7 @@ import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, hasPermission } from "@/lib/permissions";
 import { FormDialog } from "@/components/form-dialog";
 import { normalizeOrbitDomain, normalizeOrbitLocalPart } from "@/lib/orbit/domains";
+import { fetchOfficialTldCatalog, getMatchingSuffix } from "@/lib/orbit/tld-catalog";
 
 const PATH = "/orbit/magnibox/domaines";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,6 +20,9 @@ async function requestDomain(form: FormData) {
   const ctx = await requireOrganization();
   await assertPermission(ctx, "users.manage");
   const domainName = normalizeOrbitDomain(String(form.get("domainName") || ""));
+  // Fail closed for unknown TLDs; this checks delegation, not registrar availability.
+  const catalog = await fetchOfficialTldCatalog();
+  getMatchingSuffix(domainName, catalog);
   const { error } = await ctx.supabase.from("mgmail_domain_requests").insert({
     organization_id: ctx.organizationId,
     domain_name: domainName,
@@ -99,7 +103,10 @@ export default async function MagnisaInboxProfessionalDomains() {
           <h1>Domaines et adresses professionnelles</h1>
           <p>Déclarer les domaines autorisés de l'entreprise et demander les adresses à attribuer aux boîtes.</p>
         </div>
-        <Link className="button" href="/orbit/magnibox">Retour à Magnibox</Link>
+        <div className="actions">
+          <Link className="button" href="/orbit/magnibox/extensions">Catalogue des extensions</Link>
+          <Link className="button" href="/orbit/magnibox">Retour à Magnibox</Link>
+        </div>
       </div>
       <div className="card section">
         <strong>La demande ne crée pas encore une adresse Internet opérationnelle.</strong>
