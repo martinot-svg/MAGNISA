@@ -16,8 +16,8 @@ export function assertMagniboxPostfixTransport(mainConfig, masterConfig) {
   }
   const exportedEnvironment = new Set((settings.get("export_environment") || "").split(/\s+/));
   for (const name of ["MAGNIBOX_INBOUND_URL", "MAGNIBOX_INBOUND_WEBHOOK_SECRET", "MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"]) {
-    if (!importedEnvironment.has(name)) {
-      throw new Error("Postfix master does not pass " + name + " to pipe transports");
+    if (!exportedEnvironment.has(name)) {
+      throw new Error("Postfix pipe transport does not export " + name + " to the bridge process");
     }
   }
   const lines = masterConfig.split(/\r?\n/);
