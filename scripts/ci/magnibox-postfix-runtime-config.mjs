@@ -14,7 +14,7 @@ export function assertMagniboxPostfixTransport(mainConfig, masterConfig) {
       throw new Error("Postfix active main.cf is missing " + key + " = " + value);
     }
   }
-  const importedEnvironment = new Set((settings.get("import_environment") || "").split(/\s+/));
+  const exportedEnvironment = new Set((settings.get("export_environment") || "").split(/\s+/));
   for (const name of ["MAGNIBOX_INBOUND_URL", "MAGNIBOX_INBOUND_WEBHOOK_SECRET", "MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"]) {
     if (!importedEnvironment.has(name)) {
       throw new Error("Postfix master does not pass " + name + " to pipe transports");
