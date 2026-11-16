@@ -29,10 +29,11 @@ Depuis la racine du dépôt :
    cp infra/magnibox-mail/.env.local-dev.example infra/magnibox-mail/.env.local-dev
    ```
 
-3. Remplacer `MAGNIBOX_WORKER_SERVICE_ROLE_KEY` dans le fichier local par la clé
-   `service_role` fournie par `supabase status`. Garder cette clé côté serveur :
-   ne pas la committer, ne pas la mettre dans une variable `NEXT_PUBLIC_*`, ni
-   l'utiliser dans le navigateur.
+3. Remplacer `SUPABASE_SERVICE_ROLE_KEY` dans le fichier local par la clé
+   `service_role` fournie par `supabase status`. Le worker attend exactement
+   `NEXT_PUBLIC_SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY`. La clé service-role
+   reste exclusivement côté serveur : ne jamais la committer, la placer dans une
+   variable `NEXT_PUBLIC_*`, ni l'utiliser dans le navigateur.
 
 4. Construire et démarrer uniquement ClamAV et le worker :
 
