@@ -280,8 +280,8 @@ try {
   throw error;
 } finally {
   if (created.storagePaths.length) await admin.storage.from("magnibox-attachments").remove(created.storagePaths).catch(() => {});
-  if (created.identityId) await admin.from("orbit_external_messages").delete()
-    .eq("identity_id", created.identityId).eq("direction", "incoming").in("provider_email_id", [messageId, "bridge-" + stamp + "@magnisa.test"]);
+  if (created.identityId && created.messageIds.length) await admin.from("orbit_external_messages").delete()
+    .eq("identity_id", created.identityId).eq("direction", "incoming").in("id", created.messageIds);
   if (created.identityId) await admin.from("orbit_public_identities").delete().eq("id", created.identityId);
   if (created.addressId) await admin.from("mgmail_public_address_requests").delete().eq("id", created.addressId);
   if (created.domainId) await admin.from("mgmail_domain_requests").delete().eq("id", created.domainId);
