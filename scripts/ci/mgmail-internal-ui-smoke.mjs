@@ -188,10 +188,44 @@ try {
   await a.page.locator('select[name="recipientId"]').selectOption(recipient);
   const subject="Message interne "+fixture;
   await a.page.locator('input[name="subject"]').fill(subject);
+  await a.page.locator('textarea[name="body"]').fill("Brouillon initial à modifier.");
+  await a.page.getByRole("button",{name:"Enregistrer le brouillon"}).click();
+  await a.page.getByRole("heading",{name:"Brouillons (1)"}).waitFor({timeout:20000});
+  const initialDraftCard=a.page.getByTestId("magnibox-internal-draft").filter({hasText:subject});
+  await initialDraftCard.waitFor({state:"visible",timeout:15000});
+  await openDialog(a.page,"Ouvrir",initialDraftCard);
   await a.page.locator('textarea[name="body"]').fill("Test sécurisé entre deux collaborateurs authentifiés.");
+  await a.page.getByRole("button",{name:"Enregistrer les modifications"}).click();
+  await a.page.getByRole("heading",{name:"Brouillons (1)"}).waitFor({timeout:20000});
+  await openDialog(a.page,"Ouvrir",initialDraftCard);
+  if(await a.page.locator('textarea[name="body"]').inputValue()!=="Test sécurisé entre deux collaborateurs authentifiés.")
+    throw new Error("Le contenu modifié du brouillon n'a pas été conservé.");
   await a.page.getByRole("button",{name:"Envoyer dans MAGNISA"}).click();
   await a.page.getByText(subject).first().waitFor({timeout:20000});
-  console.log("MGMail UI: message envoyé");
+  await a.page.getByRole("heading",{name:"Brouillons (0)"}).waitFor({timeout:20000});
+  console.log("MGMail UI: brouillon enregistré, modifié puis envoyé atomiquement");
+
+  // A second unsent draft must remain private to its author.
+  await openDialog(a.page,/Nouveau message/);
+  await a.page.locator('select[name="senderId"]').selectOption(sender);
+  const privateDraft="Brouillon privé "+fixture;
+  await a.page.locator('input[name="subject"]').fill(privateDraft);
+  await a.page.locator('textarea[name="body"]').fill("Contenu privé du brouillon administrateur.");
+  await a.page.getByRole("button",{name:"Enregistrer le brouillon"}).click();
+  await a.page.getByRole("heading",{name:"Brouillons (1)"}).waitFor({timeout:20000});
+
+  // Search is tenant-scoped and includes both message bodies and private drafts.
+  await a.page.locator('input[name="q"]').fill(subject);
+  await a.page.getByRole("button",{name:"Rechercher"}).click();
+  await a.page.waitForURL(url=>url.searchParams.get("q")===subject,{timeout:20000});
+  await a.page.getByText(subject).first().waitFor({timeout:20000});
+  await a.page.locator('input[name="q"]').fill(privateDraft);
+  await a.page.getByRole("button",{name:"Rechercher"}).click();
+  await a.page.waitForURL(url=>url.searchParams.get("q")===privateDraft,{timeout:20000});
+  await a.page.getByRole("heading",{name:"Brouillons (1)"}).waitFor({timeout:20000});
+  await a.page.getByText(privateDraft,{exact:true}).waitFor({timeout:15000});
+  await a.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
+  await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   await a.context.close();
 
   const b=await login(employee);
@@ -202,6 +236,13 @@ try {
   await b.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
   await b.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   await b.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
+  await b.page.getByRole("heading",{name:"Brouillons (0)"}).waitFor({timeout:20000});
+  const employeeDraftProbe=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
+  const employeeDraftLogin=await employeeDraftProbe.auth.signInWithPassword({email:employee.email,password:employee.password});
+  if(employeeDraftLogin.error)throw employeeDraftLogin.error;
+  const privateDraftRows=await employeeDraftProbe.from("mgmail_internal_drafts").select("id").eq("organization_id",organizationId);
+  if(privateDraftRows.error||(privateDraftRows.data??[]).length!==0)
+    throw new Error("Un collaborateur peut lire les brouillons privés d'un autre utilisateur.");
   await b.page.getByText(subject).waitFor({timeout:20000});
   console.log("MGMail UI: message réceptionné par le collaborateur");
   // Reply must return to the original sender using the employee's authorized mailbox.
@@ -226,6 +267,10 @@ try {
   const forwardedSubject="Tr : "+replySubject;
   await c.page.getByText(forwardedSubject).first().waitFor({timeout:20000});
   console.log("MGMail UI: transfert vers une troisième boîte");
+  await c.page.getByText(privateDraft,{exact:true}).waitFor({timeout:15000});
+  const draftCard=c.page.locator("div").filter({has:c.page.getByText(privateDraft,{exact:true})}).filter({has:c.page.getByRole("button",{name:"Supprimer le brouillon"})}).first();
+  await draftCard.getByRole("button",{name:"Supprimer le brouillon"}).click();
+  await c.page.getByRole("heading",{name:"Brouillons (0)"}).waitFor({timeout:20000});
   await c.context.close();
 
   await openDialog(b.page,/Marquer comme lu/);

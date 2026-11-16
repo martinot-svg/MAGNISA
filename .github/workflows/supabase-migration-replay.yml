@@ -50,7 +50,14 @@ jobs:
         run: |
           # Avoid collisions with PostgreSQL already bound to the runner's default 54322.
           sed -i '/^\[db\]/,/^\[/ s/^port = 54322$/port = 55432/' supabase/config.toml
-          supabase start -x studio,edge-runtime,logflare,vector,analytics
+          # Inbucket is unused by schema and browser E2E; disable its default
+          # 54324 listener to prevent collisions with runner services.
+          if grep -q '^\[inbucket\]' supabase/config.toml; then
+            sed -i '/^\[inbucket\]/,/^\[/ s/^enabled = true$/enabled = false/' supabase/config.toml
+          else
+            printf '\\n[inbucket]\\nenabled = false\\n' >> supabase/config.toml
+          fi
+          supabase start -x studio,edge-runtime,logflare,vector,analytics,inbucket
       - name: Replay every migration from a clean database
         run: supabase db reset --yes
       - name: Verify MGMail production schema contract (read-only)

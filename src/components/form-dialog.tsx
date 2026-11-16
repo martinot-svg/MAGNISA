@@ -5,7 +5,7 @@ import { ModalFrame } from "@/components/modal-frame";
 import { executeFormDialogAction, type FormDialogServerAction } from "@/lib/form-dialog-action";
 
 type ServerAction = FormDialogServerAction;
-type ActionElementProps = { action?: string | ServerAction; children?: ReactNode };
+type ActionElementProps = { action?: string | ServerAction; formAction?: string | ServerAction; children?: ReactNode };
 type FormControlSnapshot = {
   index: number;
   value: string;
@@ -27,16 +27,21 @@ function replaceServerActions(node: ReactNode, wrapAction: (action: ServerAction
   let found = false;
   const children = nodes.map((child) => {
     if (!isValidElement<ActionElementProps>(child)) return child;
+    const actionProps: Partial<ActionElementProps> = {};
     if (typeof child.props.action === "function") {
+      actionProps.action = wrapAction(child.props.action);
       found = true;
-      return cloneElement(child, { action: wrapAction(child.props.action) });
+    }
+    if (typeof child.props.formAction === "function") {
+      actionProps.formAction = wrapAction(child.props.formAction);
+      found = true;
     }
     const nested = replaceServerActions(child.props.children, wrapAction);
-    if (nested.found) {
-      found = true;
-      return cloneElement(child, undefined, ...nested.children);
+    if (nested.found) found = true;
+    if (found && (Object.keys(actionProps).length > 0 || nested.found)) {
+      return cloneElement(child, actionProps, ...nested.children);
     }
-    return child;
+    return Object.keys(actionProps).length > 0 ? cloneElement(child, actionProps) : child;
   });
   return { children, found };
 }
