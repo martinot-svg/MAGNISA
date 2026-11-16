@@ -95,7 +95,7 @@ export function FormDialog({
         startRefresh(() => router.refresh());
       },
     }, propagateErrors);
-  }, [router]);
+  }, [router, startRefresh]);
   const dialogContextValue = useMemo(() => ({ wrapAction }), [wrapAction]);
   const wrappedChildren = replaceServerActions(children, wrapAction);
   const content = <>
