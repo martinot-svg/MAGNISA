@@ -167,7 +167,9 @@ try {
     assert(row, "missing result for " + fixture.name);
     assert(row.scan_status === fixture.expected, fixture.name + ": expected " + fixture.expected + ", got " + row.scan_status);
     assert(row.scan_lease_token === null && row.scan_started_at === null, fixture.name + ": scan lease was not released");
-    if (fixture.expectedAttempts != null) assert(row.scan_attempts === fixture.expectedAttempts, fixture.name + ": unexpected scan attempt count " + row.scan_attempts);\n    else if (fixture.maxAttempts != null) assert(row.scan_attempts >= 1 && row.scan_attempts <= fixture.maxAttempts, fixture.name + ": retry budget exceeded: " + row.scan_attempts);\n    else assert(row.scan_attempts === 1, fixture.name + ": unexpected scan attempt count " + row.scan_attempts);
+    if (fixture.expectedAttempts != null) assert(row.scan_attempts === fixture.expectedAttempts, fixture.name + ": unexpected scan attempt count " + row.scan_attempts);
+    else if (fixture.maxAttempts != null) assert(row.scan_attempts >= 1 && row.scan_attempts <= fixture.maxAttempts, fixture.name + ": retry budget exceeded: " + row.scan_attempts);
+    else assert(row.scan_attempts === 1, fixture.name + ": unexpected scan attempt count " + row.scan_attempts);
   }
   const clean = ids.find(item => item.name === "clean.pdf");
   const cleanDownload = await admin.storage.from(bucket).download(clean.path);
