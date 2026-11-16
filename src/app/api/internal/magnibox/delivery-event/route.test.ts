@@ -69,9 +69,10 @@ describe("MAGNIBOX signed delivery-event route", () => {
 
   it.each([
     ["delivered", "delivered"],
+    ["relayed", "relayed"],
     ["bounced", "bounced"],
     ["failed", "failed"],
-    ["deferred", "uncertain"],
+    ["deferred", "deferred"],
   ])("maps %s into the database delivery state", async (event, expectedState) => {
     const response = await POST(signedRequest({ queueId: "ABC123DEF", event }) as never);
     expect(response.status).toBe(202);
