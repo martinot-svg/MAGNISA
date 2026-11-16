@@ -82,6 +82,7 @@ try {
     status: "active", receive_enabled: true,
   }).select("id").single(), "create local inbound identity");
   created.identityId = identity.id;
+  console.log("Inbound E2E: synthetic organization, approved domain, mailbox and SMTP identity ready");
 
   const payload = {
     messageId, from: "sender@example.invalid", to: [recipient],
@@ -101,6 +102,7 @@ try {
     .eq("identity_id", identity.id).eq("direction", "incoming").eq("provider_email_id", messageId).single(),
     "read accepted inbound message");
   created.messageIds.push(stored.id);
+  console.log("Inbound E2E: signed API accepted and persisted the primary message");
   assert(stored.from_email === payload.from && stored.to_emails?.[0] === recipient
     && stored.subject === payload.subject && stored.body_text === payload.text,
   "stored inbound envelope does not match the submitted message");
@@ -124,6 +126,7 @@ try {
     .eq("identity_id", identity.id).eq("direction", "incoming").eq("provider_email_id", messageId);
   if (replayCount.error) throw replayCount.error;
   assert(replayCount.count === 1, "duplicate retry must leave exactly one message row; got " + replayCount.count);
+  console.log("Inbound E2E: identical replay is idempotent");
 
   const conflict = await signedRequest({ ...payload, text: payload.text + " altered" });
   assert(conflict.status === 409, "same provider message ID with different content must return 409; got " + conflict.status);
@@ -172,6 +175,7 @@ try {
   });
   assert(bridgeRun.status === 0, "Postfix inbound bridge must POST the MIME envelope successfully; exit="
     + bridgeRun.status + " stderr=" + bridgeRun.stderr);
+  console.log("Inbound E2E: MIME bridge successfully forwarded to the local API");
   const bridged = unwrap(await admin.from("orbit_external_messages")
     .select("id,subject,body_text,provider_email_id")
     .eq("identity_id", identity.id).eq("direction", "incoming").eq("provider_email_id", bridgeMessageId).single(),
@@ -193,6 +197,7 @@ try {
   execFileSync("docker", ["exec", "magnibox-mailserver", "postmap", "/tmp/docker-mailserver/magnibox-test-domains"]);
   execFileSync("docker", ["exec", "magnibox-mailserver", "postmap", "/tmp/docker-mailserver/magnibox-test-recipients"]);
   execFileSync("docker", ["exec", "magnibox-mailserver", "postfix", "reload"]);
+  console.log("Inbound E2E: Postfix recipient maps compiled and transport reloaded");
   const smtp = nodemailer.createTransport({
     host: "127.0.0.1", port: 25, secure: false, ignoreTLS: true,
     connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000,
@@ -208,6 +213,7 @@ try {
     attachments: [{ filename: attachment.fileName, content: attachmentBytes, contentType: "text/plain" }],
   };
   await smtp.sendMail(postfixMail);
+  console.log("Inbound E2E: Postfix accepted the SMTP transaction for " + recipient);
   let postfixMessage = null;
   const deadline = Date.now() + 45000;
   while (Date.now() < deadline) {
@@ -219,6 +225,7 @@ try {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   assert(postfixMessage, "Postfix accepted SMTP but the MAGNIBOX pipe bridge did not persist the message within 45 seconds");
+  console.log("Inbound E2E: Postfix pipe delivery reached the MAGNIBOX database");
   created.messageIds.push(postfixMessage.id);
   assert(postfixMessage.subject === postfixSubject && postfixMessage.body_text.includes("submitted over SMTP"),
     "Postfix-to-MAGNIBOX delivery must preserve the SMTP subject and body");
@@ -238,6 +245,7 @@ try {
     unknownRejected = Number(error?.responseCode) === 550 || String(error?.response || "").includes("5.1.1");
   }
   assert(unknownRejected, "Postfix must reject a recipient absent from the provisioned virtual mailbox map");
+  console.log("Inbound E2E: Postfix rejected an unknown recipient at SMTP RCPT");
   await smtp.close();
 
   console.log("PASS MAGNIBOX inbound: signed API, replay/conflict protection, MIME bridge, real Postfix SMTP pipe delivery, unknown RCPT rejection, and private attachment quarantine.");
