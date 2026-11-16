@@ -219,6 +219,7 @@ try {
   // Forward the received reply to a third internal mailbox.
   const replyRow=c.page.locator("div").filter({has:c.page.getByText(replySubject,{exact:true})}).filter({has:c.page.getByRole("button",{name:/Transférer/})}).first();
   await openDialog(c.page,/Transférer/,replyRow);
+  await c.page.locator('select[name="senderId"]').selectOption(sender);
   await c.page.locator('select[name="recipientId"]').selectOption(archive);
   await c.page.getByRole("button",{name:"Transférer le message"}).click();
   const forwardedSubject="Tr : "+replySubject;
