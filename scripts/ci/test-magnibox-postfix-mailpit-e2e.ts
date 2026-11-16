@@ -25,7 +25,7 @@ while (Date.now() < deadline) {
   if (!response.ok) throw new Error(`Mailpit API returned HTTP ${response.status}`);
   const payload: unknown = await response.json();
   const serialized = JSON.stringify(payload);
-  if (serialized.includes(subject) && serialized.includes(requestId)) {
+  if (serialized.includes(subject) && serialized.includes("sender@example.test") && serialized.includes("recipient@example.invalid")) {
     captured = payload;
     break;
   }
