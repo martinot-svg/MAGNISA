@@ -50,7 +50,9 @@ jobs:
         run: |
           # Avoid collisions with PostgreSQL already bound to the runner's default 54322.
           sed -i '/^\[db\]/,/^\[/ s/^port = 54322$/port = 55432/' supabase/config.toml
-          supabase start -x studio,edge-runtime,logflare,vector,analytics
+          # This workflow validates database migrations and SQL contracts only.
+          # Skip Inbucket: its default host port 54324 can be occupied on hosted runners.
+          supabase start -x studio,edge-runtime,logflare,vector,analytics,inbucket
       - name: Replay every migration from a clean database
         run: supabase db reset --yes
       - name: Verify MGMail production schema contract (read-only)
@@ -91,7 +93,7 @@ jobs:
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-draft-submission-contract.sql
       - name: Verify supplier invoice matching, VAT, multi-order and customer mandate accounting
         run: |
-          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\"')
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\\"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/supplier-invoice-matching-invariants.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/procurement-ledger-invariants.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/customer-credit-notes.sql
