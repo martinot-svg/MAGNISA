@@ -47,11 +47,21 @@ try {
     }
     throw Error("Action modal not interactive: "+String(label));
   }
+  // Successful FormDialog actions close and unmount their modal. Trigger the
+  // submitter synchronously, then assert the persisted database state below;
+  // Playwright's locator.click can otherwise time out while waiting for the
+  // now-successfully-submitted button to remain attached and stable.
+  async function submitDialog(label){
+    const button=page.getByRole("button",{name:label});
+    await button.waitFor({state:"visible",timeout:20000});
+    await button.evaluate(element=>element.click());
+    await page.getByRole("dialog").waitFor({state:"detached",timeout:20000});
+  }
   const title=`Tâche UI ${fixture}`;
   await openDialog("+ Créer une tâche");
   await page.locator('input[name="title"]').fill(title);
   await page.locator('select[name="priority"]').selectOption("high");
-  await page.getByRole("button",{name:"Enregistrer la tâche"}).click();
+  await submitDialog("Enregistrer la tâche");
   await page.getByText(title).waitFor({timeout:20000});
   const created=await admin.from("orbit_action_tasks")
     .select("id,status,organization_id")
@@ -61,7 +71,7 @@ try {
 
   await openDialog("Changer l'état");
   await page.locator('select[name="status"]').selectOption("in_progress");
-  await page.getByRole("button",{name:"Enregistrer"}).click();
+  await submitDialog("Enregistrer");
   // Next.js server actions finish asynchronously after the click event.
   // Poll the disposable database instead of racing the server-action response.
   let taskStatus;
@@ -76,7 +86,7 @@ try {
 
   await openDialog("Commenter");
   await page.locator('textarea[name="body"]').fill("Commentaire de suivi Orbit Action.");
-  await page.getByRole("button",{name:"Publier le commentaire"}).click();
+  await submitDialog("Publier le commentaire");
   // Server Actions may finish after the click promise resolves; wait for the
   // append-only comment to become visible before asserting persistence.
   let c;
@@ -90,7 +100,7 @@ try {
 
   await openDialog("+ Sous-tâche");
   await page.locator('input[name="title"]').fill(`Sous-tâche ${fixture}`);
-  await page.getByRole("button",{name:"Créer la sous-tâche"}).click();
+  await submitDialog("Créer la sous-tâche");
   let children;
   for(let attempt=0;attempt<40;attempt++){
     children=await admin.from("orbit_action_tasks").select("id")
