@@ -294,7 +294,7 @@ export async function MagniboxInternalContent({ embedded = false }: { embedded?:
                   <input name="subject" maxLength={180} defaultValue={`Tr : ${message.subject}`.slice(0, 180)} required />
                 </div>
                 <div className="field">
-                  <label>Commentaire (facultatif)</label>
+                  <label>Message transféré (modifiable)</label>
                   <textarea name="body" rows={8} maxLength={50000}
                     defaultValue={`--- Message transféré ---\nDe : ${address(message.sender_mailbox_id)}\nÀ : ${address(message.recipient_mailbox_id)}\n\n${message.body_text.slice(0, 35000)}`} required />
                 </div>
