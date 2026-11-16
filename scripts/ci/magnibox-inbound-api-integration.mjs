@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, randomUUID, createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { spawnSync } from "node:child_process";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -130,11 +131,67 @@ try {
   const invalidSignature = await signedRequest({ ...payload, messageId: messageId + "-bad-signature" }, "sha256=" + "0".repeat(64));
   assert(invalidSignature.status === 401, "invalid HMAC must be rejected; got " + invalidSignature.status);
 
-  console.log("PASS MAGNIBOX inbound API: HMAC accepted; verified recipient resolved; message persisted; retry idempotent; conflicting ID 409; unknown recipient 422; invalid signature 401; attachment persisted privately as quarantined.");
+  // Exercise the exact MIME parser and HMAC forwarder used by Postfix's pipe
+  // transport. HTTP is permitted only for this explicit loopback CI test.
+  const bridgeMessageId = "bridge-" + stamp + "@magnisa.test";
+  const bridgeSubject = "MAGNIBOX inbound bridge E2E " + stamp;
+  const boundary = "magnibox-" + stamp;
+  const bridgeRaw = [
+    "From: sender@example.invalid",
+    "To: " + recipient,
+    "Message-ID: <" + bridgeMessageId + ">",
+    "Subject: " + bridgeSubject,
+    "MIME-Version: 1.0",
+    'Content-Type: multipart/mixed; boundary="' + boundary + '"',
+    "",
+    "--" + boundary,
+    "Content-Type: text/plain; charset=utf-8",
+    "",
+    "Message passed through the Postfix inbound bridge parser.",
+    "--" + boundary,
+    'Content-Type: text/plain; name="bridge-fixture.txt"',
+    'Content-Disposition: attachment; filename="bridge-fixture.txt"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    attachment.contentBase64,
+    "--" + boundary + "--",
+    "",
+  ].join("\\r\\n");
+  const bridgeRun = spawnSync("python3", [
+    "infra/magnibox-mail/bridge/postfix-inbound.py", "sender@example.invalid", recipient,
+  ], {
+    input: bridgeRaw,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      MAGNIBOX_INBOUND_URL: base + "/api/internal/magnibox/inbound",
+      MAGNIBOX_INBOUND_WEBHOOK_SECRET: secret,
+      MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL: "true",
+    },
+  });
+  assert(bridgeRun.status === 0, "Postfix inbound bridge must POST the MIME envelope successfully; exit="
+    + bridgeRun.status + " stderr=" + bridgeRun.stderr);
+  const bridged = unwrap(await admin.from("orbit_external_messages")
+    .select("id,subject,body_text,provider_email_id")
+    .eq("identity_id", identity.id).eq("direction", "incoming").eq("provider_email_id", bridgeMessageId).single(),
+    "read bridged MIME message");
+  created.messageIds.push(bridged.id);
+  assert(bridged.subject === bridgeSubject && bridged.body_text.includes("Postfix inbound bridge parser"),
+    "bridge must preserve the MIME subject and text body");
+  const bridgedAttachment = unwrap(await admin.from("orbit_external_message_attachments")
+    .select("id,storage_path,scan_status,sha256")
+    .eq("message_id", bridged.id).eq("organization_id", org).single(),
+    "read bridge attachment quarantine");
+  created.storagePaths.push(bridgedAttachment.storage_path);
+  assert(bridgedAttachment.scan_status === "quarantined"
+    && bridgedAttachment.sha256 === createHash("sha256").update(attachmentBytes).digest("hex"),
+  "bridge attachment must be stored in quarantine with its content hash");
+
+  console.log("PASS MAGNIBOX inbound API + bridge: HMAC accepted; recipient resolved; message persisted; idempotent retry; conflicting ID 409; unknown recipient 422; invalid signature 401; MIME bridge forwarded a message and attachment to private quarantine.");
 } finally {
   if (created.storagePaths.length) await admin.storage.from("magnibox-attachments").remove(created.storagePaths).catch(() => {});
   if (created.identityId) await admin.from("orbit_external_messages").delete()
-    .eq("identity_id", created.identityId).eq("direction", "incoming").eq("provider_email_id", messageId);
+    .eq("identity_id", created.identityId).eq("direction", "incoming").in("provider_email_id", [messageId, "bridge-" + stamp + "@magnisa.test"]);
   if (created.identityId) await admin.from("orbit_public_identities").delete().eq("id", created.identityId);
   if (created.addressId) await admin.from("mgmail_public_address_requests").delete().eq("id", created.addressId);
   if (created.domainId) await admin.from("mgmail_domain_requests").delete().eq("id", created.domainId);
