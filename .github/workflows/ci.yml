@@ -94,6 +94,13 @@ jobs:
           fi
           npx tsx scripts/ci/test-magnibox-clamav-integration.ts
 
+      - name: Build and verify isolated Magnibox attachment worker image
+        run: |
+          set -euo pipefail
+          docker build --pull --file infra/magnibox-mail/worker/Dockerfile --tag magnibox-attachment-worker:ci .
+          test "$(docker image inspect --format '{{.Config.User}}' magnibox-attachment-worker:ci)" = "node"
+          docker image inspect --format 'Entrypoint={{json .Config.Entrypoint}} Cmd={{json .Config.Cmd}}' magnibox-attachment-worker:ci
+
 
       - name: Validate Magnibox Postfix inbound bridge
         run: bash scripts/ci/check-magnibox-inbound-bridge.sh
