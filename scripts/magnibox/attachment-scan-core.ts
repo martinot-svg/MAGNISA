@@ -16,13 +16,12 @@ export function detectMagniboxAttachmentMime(bytes: Buffer): string | null {
   return null;
 }
 
-
 /** Build ClamAV zINSTREAM frames, including the terminal zero-length chunk. */
 export function buildClamAvInstreamFrames(bytes: Buffer, chunkSize = 64 * 1024): Buffer[] {
   if (!Number.isInteger(chunkSize) || chunkSize < 1 || chunkSize > 0xffffffff) {
     throw new RangeError("Invalid ClamAV chunk size");
   }
-  const frames: Buffer[] = [Buffer.from("zINSTREAM\0", "ascii")];
+  const frames: Buffer[] = [Buffer.from("zINSTREAM\\0", "ascii")];
   for (let offset = 0; offset < bytes.length; offset += chunkSize) {
     const part = bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length));
     const header = Buffer.alloc(4);
@@ -33,10 +32,17 @@ export function buildClamAvInstreamFrames(bytes: Buffer, chunkSize = 64 * 1024):
   return frames;
 }
 
-/** Return null until a complete NUL-terminated ClamAV reply has arrived. */
+/**
+ * Parse exactly one complete NUL-terminated ClamAV reply.
+ * Incomplete replies return null; bytes after the terminator are a protocol error.
+ */
 export function parseClamAvInstreamResponse(response: Buffer): "clean" | "infected" | "error" | null {
-  if (response.length === 0 || response[response.length - 1] !== 0) return null;
-  const message = response.toString("utf8").slice(0, -1);
+  if (response.length === 0) return null;
+  const terminator = response.indexOf(0);
+  if (terminator === -1) return null;
+  if (terminator !== response.length - 1) return "error";
+
+  const message = response.toString("utf8", 0, terminator);
   if (message.endsWith(" OK")) return "clean";
   if (message.endsWith(" FOUND")) return "infected";
   if (message.endsWith(" ERROR") || message.includes("INSTREAM size limit exceeded")) return "error";
