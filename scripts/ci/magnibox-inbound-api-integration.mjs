@@ -1,0 +1,143 @@
+import { createHmac, randomBytes, randomUUID, createHash } from "node:crypto";
+import { createClient } from "@supabase/supabase-js";
+
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const secret = process.env.MAGNIBOX_INBOUND_WEBHOOK_SECRET;
+const base = process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:3000";
+if (!url || !anon || !service || !secret) throw new Error("Missing local Supabase or inbound test configuration.");
+if (!["localhost", "127.0.0.1", "::1"].includes(new URL(url).hostname)) {
+  throw new Error("Safety stop: inbound integration only accepts localhost Supabase.");
+}
+if (secret.length < 32) throw new Error("Inbound test secret must contain at least 32 characters.");
+
+const admin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
+const stamp = randomUUID().replaceAll("-", "").slice(0, 16);
+const email = "magnibox-inbound-" + stamp + "@magnisa.test";
+const password = "Inbound-" + randomBytes(24).toString("hex") + "!9";
+const domain = "inbound-" + stamp + ".example.org";
+const recipient = "receiver@" + domain;
+const messageId = "local-inbound-" + stamp;
+const attachmentBytes = Buffer.from("MAGNIBOX LOCAL INBOUND QUARANTINE FIXTURE");
+const attachment = {
+  fileName: "inbound-fixture.txt",
+  contentType: "text/plain",
+  contentBase64: attachmentBytes.toString("base64"),
+};
+const created = { userId: null, organizationId: null, mailboxId: null, domainId: null, addressId: null, identityId: null, messageIds: [], storagePaths: [] };
+function assert(condition, message) { if (!condition) throw new Error(message); }
+function unwrap(result, label) {
+  if (result.error || result.data == null) throw new Error(label + ": " + (result.error?.message ?? "no data"));
+  return result.data;
+}
+function signedRequest(payload, signatureOverride) {
+  const raw = JSON.stringify(payload);
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const signature = signatureOverride ?? "sha256=" + createHmac("sha256", secret)
+    .update(timestamp + "." + raw).digest("hex");
+  return fetch(base + "/api/internal/magnibox/inbound", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-magnibox-timestamp": timestamp, "x-magnibox-signature": signature },
+    body: raw,
+  });
+}
+try {
+  const user = unwrap(await admin.auth.admin.createUser({ email, password, email_confirm: true }), "create inbound test user");
+  created.userId = user.user.id;
+  const owner = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
+  unwrap(await owner.auth.signInWithPassword({ email, password }), "sign in inbound test owner");
+  const org = unwrap(await owner.rpc("create_organization", {
+    p_name: "MAGNIBOX inbound E2E " + stamp, p_currency: "MGA",
+  }), "create isolated inbound organization");
+  created.organizationId = org;
+  unwrap(await owner.from("mgmail_internal_namespaces").insert({
+    organization_id: org, slug: "inbound-" + stamp,
+  }).select("organization_id").single(), "create internal namespace");
+  const mailbox = unwrap(await owner.from("mgmail_internal_mailboxes").insert({
+    organization_id: org, local_part: "receiver", owner_user_id: user.user.id,
+    display_name: "Inbound E2E receiver",
+  }).select("id").single(), "create inbound mailbox");
+  created.mailboxId = mailbox.id;
+  const domainRow = unwrap(await owner.from("mgmail_domain_requests").insert({
+    organization_id: org, domain_name: domain, requested_by: user.user.id,
+  }).select("id").single(), "create test domain request");
+  created.domainId = domainRow.id;
+  const addressRow = unwrap(await owner.from("mgmail_public_address_requests").insert({
+    organization_id: org, mailbox_id: mailbox.id, domain_request_id: domainRow.id,
+    domain_name: domain, local_part: "receiver", requested_by: user.user.id,
+  }).select("id").single(), "create test address request");
+  created.addressId = addressRow.id;
+  unwrap(await admin.from("mgmail_domain_requests").update({
+    status: "verified", verified_at: new Date().toISOString(), proof_reference: "local-inbound-e2e-only",
+  }).eq("id", domainRow.id).select("id").single(), "verify local test domain");
+  unwrap(await admin.from("mgmail_public_address_requests").update({ status: "approved" })
+    .eq("id", addressRow.id).select("id").single(), "approve local test address");
+  const identity = unwrap(await admin.from("orbit_public_identities").insert({
+    organization_id: org, domain_request_id: domainRow.id, address_request_id: addressRow.id,
+    mailbox_id: mailbox.id, domain_name: domain, local_part: "receiver", provider: "smtp",
+    provider_domain_ref: "local-inbound-e2e-no-provider", provider_verified_at: new Date().toISOString(),
+    status: "active", receive_enabled: true,
+  }).select("id").single(), "create local inbound identity");
+  created.identityId = identity.id;
+
+  const payload = {
+    messageId, from: "sender@example.invalid", to: [recipient],
+    subject: "MAGNIBOX inbound local E2E " + stamp,
+    text: "Synthetic message accepted through the signed inbound API.",
+    attachments: [attachment],
+  };
+  const accepted = await signedRequest(payload);
+  const acceptedText = await accepted.text();
+  assert(accepted.status === 202, "valid signed inbound message must be accepted; got HTTP " + accepted.status + " " + acceptedText);
+  const acceptedBody = JSON.parse(acceptedText);
+  assert(acceptedBody.ok === true && acceptedBody.accepted === 1 && acceptedBody.quarantinedAttachments === 1,
+    "unexpected inbound acceptance response: " + JSON.stringify(acceptedBody));
+
+  const stored = unwrap(await admin.from("orbit_external_messages")
+    .select("id,from_email,to_emails,subject,body_text,provider_email_id")
+    .eq("identity_id", identity.id).eq("direction", "incoming").eq("provider_email_id", messageId).single(),
+    "read accepted inbound message");
+  created.messageIds.push(stored.id);
+  assert(stored.from_email === payload.from && stored.to_emails?.[0] === recipient
+    && stored.subject === payload.subject && stored.body_text === payload.text,
+  "stored inbound envelope does not match the submitted message");
+
+  const metadata = unwrap(await admin.from("orbit_external_message_attachments")
+    .select("id,storage_path,display_name,byte_size,sha256,scan_status")
+    .eq("message_id", stored.id).eq("organization_id", org).single(),
+    "read quarantined attachment metadata");
+  created.storagePaths.push(metadata.storage_path);
+  assert(metadata.display_name === attachment.fileName && metadata.byte_size === attachmentBytes.length
+    && metadata.sha256 === createHash("sha256").update(attachmentBytes).digest("hex")
+    && metadata.scan_status === "quarantined",
+  "inbound attachment must be stored with SHA-256 metadata in quarantine");
+  const storedObject = await admin.storage.from("magnibox-attachments").download(metadata.storage_path);
+  assert(!storedObject.error && storedObject.data, "quarantined attachment object must exist in private storage");
+
+  const replay = await signedRequest(payload);
+  const replayText = await replay.text();
+  assert(replay.status === 202, "identical retry must be idempotently accepted; got HTTP " + replay.status + " " + replayText);
+  const replayCount = await admin.from("orbit_external_messages").select("id", { count: "exact", head: true })
+    .eq("identity_id", identity.id).eq("direction", "incoming").eq("provider_email_id", messageId);
+  if (replayCount.error) throw replayCount.error;
+  assert(replayCount.count === 1, "duplicate retry must leave exactly one message row; got " + replayCount.count);
+
+  const conflict = await signedRequest({ ...payload, text: payload.text + " altered" });
+  assert(conflict.status === 409, "same provider message ID with different content must return 409; got " + conflict.status);
+  const unknown = await signedRequest({ ...payload, messageId: messageId + "-unknown", to: ["nobody@" + domain] });
+  assert(unknown.status === 422, "unprovisioned recipient must be rejected; got " + unknown.status);
+  const invalidSignature = await signedRequest({ ...payload, messageId: messageId + "-bad-signature" }, "sha256=" + "0".repeat(64));
+  assert(invalidSignature.status === 401, "invalid HMAC must be rejected; got " + invalidSignature.status);
+
+  console.log("PASS MAGNIBOX inbound API: HMAC accepted; verified recipient resolved; message persisted; retry idempotent; conflicting ID 409; unknown recipient 422; invalid signature 401; attachment persisted privately as quarantined.");
+} finally {
+  if (created.storagePaths.length) await admin.storage.from("magnibox-attachments").remove(created.storagePaths).catch(() => {});
+  if (created.messageIds.length) await admin.from("orbit_external_messages").delete().in("id", created.messageIds);
+  if (created.identityId) await admin.from("orbit_public_identities").delete().eq("id", created.identityId);
+  if (created.addressId) await admin.from("mgmail_public_address_requests").delete().eq("id", created.addressId);
+  if (created.domainId) await admin.from("mgmail_domain_requests").delete().eq("id", created.domainId);
+  if (created.mailboxId) await admin.from("mgmail_internal_mailboxes").delete().eq("id", created.mailboxId);
+  if (created.organizationId) await admin.from("mgmail_internal_namespaces").delete().eq("organization_id", created.organizationId);
+  if (created.userId) await admin.auth.admin.deleteUser(created.userId);
+}
