@@ -156,7 +156,7 @@ try {
     attachment.contentBase64,
     "--" + boundary + "--",
     "",
-  ].join("\\r\\n");
+  ].join("\r\n");
   const bridgeRun = spawnSync("python3", [
     "infra/magnibox-mail/bridge/postfix-inbound.py", "sender@example.invalid", recipient,
   ], {
