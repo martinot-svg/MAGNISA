@@ -123,7 +123,7 @@ try {
     display_name: "scanner-outage-retry.txt", detected_mime_type: "text/plain",
     byte_size: retryBytes.length, sha256: retryDigest, scan_status: "quarantined",
   }).select("id").single(), "create scanner outage fixture");
-  ids.push({ name: "scanner-outage-retry.txt", id: retryId, path: retryPath, expected: "available" });
+  ids.push({ name: "scanner-outage-retry.txt", id: retryId, path: retryPath, expected: "available", expectedAttempts: 2 });
   await workerOnce("127.0.0.1", "1");
   const outageState = unwrap(await admin.from("orbit_external_message_attachments")
     .select("scan_status,scan_attempts,scan_lease_token,scan_started_at").eq("id", retryId).single(),
@@ -148,7 +148,7 @@ try {
     scan_attempts: 1, scan_started_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
     scan_lease_token: randomUUID(),
   }).select("id").single(), "create stale lease fixture");
-  ids.push({ name: "stale-lease-recovery.txt", id: staleId, path: stalePath, expected: "available" });
+  ids.push({ name: "stale-lease-recovery.txt", id: staleId, path: stalePath, expected: "available", expectedAttempts: 2 });
   await workerOnce();
 
   const rows = unwrap(await admin.from("orbit_external_message_attachments")
@@ -160,7 +160,7 @@ try {
     assert(row, "missing result for " + fixture.name);
     assert(row.scan_status === fixture.expected, fixture.name + ": expected " + fixture.expected + ", got " + row.scan_status);
     assert(row.scan_lease_token === null && row.scan_started_at === null, fixture.name + ": scan lease was not released");
-    assert(row.scan_attempts <= 1, fixture.name + ": concurrent workers claimed fixture more than once");
+    assert(row.scan_attempts === (fixture.expectedAttempts ?? 1), fixture.name + ": unexpected scan attempt count " + row.scan_attempts);
   }
   const clean = ids.find(item => item.name === "clean.pdf");
   const cleanDownload = await admin.storage.from(bucket).download(clean.path);
