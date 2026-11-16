@@ -51,7 +51,7 @@ try {
     p_name: "MAGNIBOX Worker E2E " + stamp, p_currency: "MGA",
   }), "create isolated test organization");
   created.organizationId = org;
-  unwrap(await owner.from("mgmail_internal_namespaces").insert({ organization_id: org, slug: "magnibox-e2e-" + stamp }), "create internal namespace");
+  unwrap(await owner.from("mgmail_internal_namespaces").insert({ organization_id: org, slug: "magnibox-e2e-" + stamp }).select("organization_id").single(), "create internal namespace");
   const mailbox = unwrap(await owner.from("mgmail_internal_mailboxes").insert({
     organization_id: org, local_part: "scanner", owner_user_id: user.user.id, display_name: "MAGNIBOX E2E scanner",
   }).select("id").single(), "create test mailbox");
@@ -137,6 +137,9 @@ try {
   if (created.addressId) await admin.from("mgmail_public_address_requests").delete().eq("id", created.addressId);
   if (created.domainId) await admin.from("mgmail_domain_requests").delete().eq("id", created.domainId);
   if (created.mailboxId) await admin.from("mgmail_internal_mailboxes").delete().eq("id", created.mailboxId);
+  // Remove the namespace explicitly; otherwise its organization foreign key can
+  // leave synthetic test data behind when the organization delete is attempted.
+  if (created.organizationId) await admin.from("mgmail_internal_namespaces").delete().eq("organization_id", created.organizationId);
   if (created.organizationId) await admin.from("organizations").delete().eq("id", created.organizationId);
   if (created.userId) await admin.auth.admin.deleteUser(created.userId);
   await execFileAsync("docker", [...compose, "down"], { maxBuffer: 1024 * 1024 }).catch(() => {});
