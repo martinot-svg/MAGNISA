@@ -43,18 +43,18 @@ describe("MAGNIBOX signed delivery-event route", () => {
     expect(disabled.status).toBe(503);
     vi.stubEnv("MAGNIBOX_EXTERNAL_MAIL_ENABLED", "true");
     vi.stubEnv("MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET", "");
-    const noSecret = await POST(signedRequest({ queueId: "ABC123DEF", event: "delivered" }) as never);
+    const noSecret = await POST(signedRequest({ queueId: "ABC123DEF", event: "accepted" }) as never);
     expect(noSecret.status).toBe(503);
     expect(fixture.rpc).not.toHaveBeenCalled();
   });
 
   it("rejects invalid signatures and expired timestamps before database access", async () => {
     const invalid = await POST(signedRequest(
-      { queueId: "ABC123DEF", event: "delivered" }, { signature: "sha256=" + "0".repeat(64) },
+      { queueId: "ABC123DEF", event: "accepted" }, { signature: "sha256=" + "0".repeat(64) },
     ) as never);
     expect(invalid.status).toBe(401);
     const expired = await POST(signedRequest(
-      { queueId: "ABC123DEF", event: "delivered" }, { timestamp: String(NOW - 301) },
+      { queueId: "ABC123DEF", event: "accepted" }, { timestamp: String(NOW - 301) },
     ) as never);
     expect(expired.status).toBe(401);
     expect(fixture.rpc).not.toHaveBeenCalled();
@@ -62,7 +62,7 @@ describe("MAGNIBOX signed delivery-event route", () => {
 
   it("rejects malformed JSON, queue IDs and event names", async () => {
     expect((await POST(signedRequest("{") as never)).status).toBe(400);
-    expect((await POST(signedRequest({ queueId: "not a queue id", event: "delivered" }) as never)).status).toBe(400);
+    expect((await POST(signedRequest({ queueId: "not a queue id", event: "accepted" }) as never)).status).toBe(400);
     expect((await POST(signedRequest({ queueId: "ABC123DEF", event: "unknown" }) as never)).status).toBe(400);
     expect(fixture.rpc).not.toHaveBeenCalled();
   });
@@ -84,7 +84,7 @@ describe("MAGNIBOX signed delivery-event route", () => {
 
   it("does not claim an update when the queue ID is unknown", async () => {
     fixture.rpc.mockResolvedValue({ data: "not_found", error: null });
-    const response = await POST(signedRequest({ queueId: "ABC123DEF", event: "delivered" }) as never);
+    const response = await POST(signedRequest({ queueId: "ABC123DEF", event: "accepted" }) as never);
     expect(response.status).toBe(404);
     expect(await response.json()).toMatchObject({ error: expect.any(String) });
   });
@@ -97,7 +97,7 @@ describe("MAGNIBOX signed delivery-event route", () => {
 
   it("returns service unavailable when the database RPC fails", async () => {
     fixture.rpc.mockResolvedValue({ data: null, error: { message: "database unavailable" } });
-    const response = await POST(signedRequest({ queueId: "ABC123DEF", event: "delivered" }) as never);
+    const response = await POST(signedRequest({ queueId: "ABC123DEF", event: "accepted" }) as never);
     expect(response.status).toBe(503);
   });
 
