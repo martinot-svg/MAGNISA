@@ -149,7 +149,8 @@ try {
   if(boxesError)throw boxesError;
   const sender=boxes.find(x=>x.local_part==="direction")?.id;
   const recipient=boxes.find(x=>x.local_part==="finance")?.id;
-  if(!sender||!recipient)throw new Error("Boîtes collaborateur non enregistrées");
+  const archive=boxes.find(x=>x.local_part==="archives")?.id;
+  if(!sender||!recipient||!archive)throw new Error("Boîtes collaborateur non enregistrées");
   // The organization controls its own professional requests inside Magnibox.
   await a.page.getByRole("link",{name:"Administrer les domaines"}).click();
   await a.page.getByRole("heading",{name:"Domaines et adresses professionnelles"}).waitFor({timeout:20000});
@@ -210,7 +211,6 @@ try {
   await b.page.getByRole("button",{name:"Envoyer la réponse"}).click();
   await b.page.getByText(replySubject).first().waitFor({timeout:20000});
   console.log("MGMail UI: réponse envoyée");
-  await b.context.close();
 
   const c=await login(owner);
   await c.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
@@ -219,7 +219,7 @@ try {
   // Forward the received reply to a third internal mailbox.
   const replyRow=c.page.locator("div").filter({has:c.page.getByText(replySubject,{exact:true})}).filter({has:c.page.getByRole("button",{name:/Transférer/})}).first();
   await openDialog(c.page,/Transférer/);
-  await c.page.locator('select[name="recipientId"]').selectOption({label:/archives/});
+  await c.page.locator('select[name="recipientId"]').selectOption(archive);
   await c.page.getByRole("button",{name:"Transférer le message"}).click();
   const forwardedSubject="Tr : "+replySubject;
   await c.page.getByText(forwardedSubject).first().waitFor({timeout:20000});
