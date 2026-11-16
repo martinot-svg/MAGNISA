@@ -20,6 +20,8 @@ BEGIN
     OR v_def NOT ILIKE '%direction = ''outgoing''%'
     OR v_def NOT ILIKE '%A-F0-9%'
     OR v_def NOT ILIKE '%delivered%'
+    OR v_def NOT ILIKE '%relayed%'
+    OR v_def NOT ILIKE '%deferred%'
     OR v_def NOT ILIKE '%bounced%'
     OR v_def NOT ILIKE '%failed%'
     OR v_def NOT ILIKE '%uncertain%' THEN
