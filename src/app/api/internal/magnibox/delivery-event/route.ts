@@ -36,13 +36,14 @@ export async function POST(request: NextRequest) {
   }
   const data = payload as Record<string, unknown>;
   if (typeof data.queueId !== "string" || !/^[A-F0-9]{5,20}$/i.test(data.queueId)
-    || !["delivered", "bounced", "failed", "deferred"].includes(String(data.event))) {
+    || !["delivered", "relayed", "bounced", "failed", "deferred"].includes(String(data.event))) {
     return NextResponse.json({ error: "Référence de livraison invalide." }, { status: 400 });
   }
 
   const state = data.event === "delivered" ? "delivered"
+    : data.event === "relayed" ? "relayed"
     : data.event === "bounced" ? "bounced"
-    : data.event === "failed" ? "failed" : "uncertain";
+    : data.event === "failed" ? "failed" : "deferred";
   const admin = createAdminClient();
   const updated = await admin.rpc("orbit_apply_magnibox_delivery_event", {
     p_queue_id: data.queueId,
