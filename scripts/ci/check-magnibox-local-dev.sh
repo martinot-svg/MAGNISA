@@ -23,10 +23,7 @@ fi
 grep -Fq 'MAGNIBOX_CLAMAV_HOST: clamav' "$COMPOSE"
 grep -Fq 'host.docker.internal:host-gateway' "$COMPOSE"
 grep -Fq 'MAGNIBOX_WORKER_SERVICE_ROLE_KEY' "$ENV_EXAMPLE"
-if grep -Eq '^[[:space:]]*MAGNIBOX_WORKER_SERVICE_ROLE_KEY=(?!replace-with-local)' "$ENV_EXAMPLE" 2>/dev/null; then
-  echo "Environment example must not contain a real service-role key." >&2
-  exit 1
-fi
+grep -Fq 'MAGNIBOX_WORKER_SERVICE_ROLE_KEY=replace-with-local-supabase-service-role-key' "$ENV_EXAMPLE"
 grep -Fq 'supabase db reset' "$DOC"
 grep -Fq 'ne pas la committer' "$DOC"
 echo "MAGNIBOX local development safety checks passed."
