@@ -6,9 +6,9 @@ spec=importlib.util.spec_from_file_location("postfix_delivery_events",MODULE)
 forwarder=importlib.util.module_from_spec(spec); spec.loader.exec_module(forwarder)
 
 class PostfixDeliveryEventTests(unittest.TestCase):
-    def test_parses_sent_as_remote_mta_acceptance(self):
+    def test_parses_sent_as_relayed_not_final_delivery(self):
         line="Nov 15 10:20:30 mx postfix/smtp[123]: ABC123DEF: to=<client@example.net>, relay=mx.example.net[192.0.2.1]:25, delay=1, dsn=2.0.0, status=sent (250 queued)"
-        self.assertEqual(forwarder.parse_log_line(line),{"queueId":"ABC123DEF","event":"delivered"})
+        self.assertEqual(forwarder.parse_log_line(line),{"queueId":"ABC123DEF","event":"relayed"})
     def test_maps_bounce_defer_and_expiry(self):
         base="postfix/smtp[123]: 1A2B3C4D: to=<x@example.net>, relay=mx, status={status} (diagnostic)"
         self.assertEqual(forwarder.parse_log_line(base.format(status="bounced"))["event"],"bounced")
