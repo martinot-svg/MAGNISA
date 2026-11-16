@@ -27,6 +27,7 @@ test("accepts only the active Postfix configuration that routes recipients to th
     "virtual_mailbox_domains = hash:/tmp/docker-mailserver/magnibox-test-domains",
     "virtual_mailbox_maps = hash:/tmp/docker-mailserver/magnibox-test-recipients",
     "virtual_transport = magnibox-inbound",
+    "import_environment = MAIL_CONFIG TZ MAGNIBOX_INBOUND_URL MAGNIBOX_INBOUND_WEBHOOK_SECRET MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL",
   ].join("\n");
   const master = [
     "smtp inet n - y - - smtpd",
