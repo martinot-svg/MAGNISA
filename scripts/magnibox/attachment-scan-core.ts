@@ -21,7 +21,7 @@ export function buildClamAvInstreamFrames(bytes: Buffer, chunkSize = 64 * 1024):
   if (!Number.isInteger(chunkSize) || chunkSize < 1 || chunkSize > 0xffffffff) {
     throw new RangeError("Invalid ClamAV chunk size");
   }
-  const frames: Buffer[] = [Buffer.from("zINSTREAM\\0", "ascii")];
+  const frames: Buffer[] = [Buffer.from("zINSTREAM\0", "ascii")];
   for (let offset = 0; offset < bytes.length; offset += chunkSize) {
     const part = bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length));
     const header = Buffer.alloc(4);
