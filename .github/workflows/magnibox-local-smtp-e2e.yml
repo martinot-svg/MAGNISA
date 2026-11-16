@@ -83,10 +83,9 @@ jobs:
           SSL_KEY_PATH=/run/magnibox-tls/privkey.pem
           ENABLE_UPDATE_CHECK=0
           EOF
-          cat >> "$GITHUB_ENV" <<EOF
-          MAGNIBOX_SMTP_PASSWORD=$(openssl rand -hex 24)
-          EOF
-          echo "::add-mask::$MAGNIBOX_SMTP_PASSWORD"
+          SMTP_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$SMTP_PASSWORD"
+          echo "MAGNIBOX_SMTP_PASSWORD=$SMTP_PASSWORD" >> "$GITHUB_ENV"
           echo "127.0.0.1 mail.example.test" | sudo tee -a /etc/hosts
 
       - name: Start Docker Mailserver Postfix and Mailpit relay
