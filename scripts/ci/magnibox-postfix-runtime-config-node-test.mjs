@@ -42,7 +42,7 @@ test("rejects Postfix master configuration that strips bridge credentials", () =
     "virtual_mailbox_domains = hash:/tmp/docker-mailserver/magnibox-test-domains",
     "virtual_mailbox_maps = hash:/tmp/docker-mailserver/magnibox-test-recipients",
     "virtual_transport = magnibox-inbound",
-    "export_environment = MAIL_CONFIG TZ",
+    "import_environment = MAIL_CONFIG MAIL_DEBUG MAIL_LOGTAG TZ XAUTHORITY DISPLAY MAGNIBOX_INBOUND_URL MAGNIBOX_INBOUND_WEBHOOK_SECRET MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL",
   ].join("\n");
   const master = [
     "magnibox-inbound unix - n n - - pipe",
@@ -50,6 +50,6 @@ test("rejects Postfix master configuration that strips bridge credentials", () =
   ].join("\n");
   assert.throws(
     () => assertMagniboxPostfixTransport(main, master),
-    /does not pass MAGNIBOX_INBOUND_URL/
+    /does not export MAGNIBOX_INBOUND_URL/
   );
 });
