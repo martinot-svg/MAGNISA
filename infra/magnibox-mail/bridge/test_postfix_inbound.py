@@ -116,6 +116,29 @@ class InboundBridgeTests(unittest.TestCase):
             os.environ.clear()
             os.environ.update(previous)
 
+    def test_allows_explicit_host_gateway_http_only_in_local_mode(self):
+        import os
+        from unittest.mock import patch
+
+        class Response:
+            status = 202
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+
+        class Opener:
+            def open(self, request, timeout): return Response()
+
+        previous = dict(os.environ)
+        try:
+            os.environ["MAGNIBOX_INBOUND_URL"] = "http://host.docker.internal:3000/hook"
+            os.environ["MAGNIBOX_INBOUND_WEBHOOK_SECRET"] = "x" * 40
+            os.environ["MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"] = "true"
+            with patch.object(bridge.urllib.request, "build_opener", return_value=Opener()):
+                self.assertEqual(bridge.forward(b"From: a@example.org\n\nhello", "b@example.org"), 0)
+        finally:
+            os.environ.clear()
+            os.environ.update(previous)
+
     def test_extracts_attachment_as_bounded_base64_payload(self):
         msg = BytesParser(policy=policy.default).parsebytes(
             b"From: sender@example.org\r\nSubject: Hello\r\n"
