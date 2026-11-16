@@ -357,11 +357,12 @@ jobs:
           MAGNIBOX_DMS_IMAGE: ghcr.io/docker-mailserver/docker-mailserver:15.0.2
           MAGNIBOX_BIND_ADDRESS: 127.0.0.1
           MAGNIBOX_TLS_DIR: ${{ github.workspace }}/.ci-tls
-          MAGNIBOX_WORKER_SUPABASE_URL: ${{ env.NEXT_PUBLIC_SUPABASE_URL }}
-          MAGNIBOX_WORKER_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
+          MAGNIBOX_WORKER_SUPABASE_URL: http://127.0.0.1:54321
+          MAGNIBOX_WORKER_SERVICE_ROLE_KEY: ci-cleanup-placeholder-not-used
           MAGNIBOX_DELIVERY_EVENT_URL: https://example.invalid/delivery-event
           MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET: ci-delivery-event-secret-unused
           MAGNIBOX_INBOUND_URL: http://host.docker.internal:3000/api/internal/magnibox/inbound
+          MAGNIBOX_INBOUND_WEBHOOK_SECRET: ci-cleanup-placeholder-not-used
         run: |
           docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.inbound-e2e.yaml down --remove-orphans || true
           rm -f infra/magnibox-mail/mailserver.env
