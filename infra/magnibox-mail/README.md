@@ -93,6 +93,16 @@ Do not put credentials in `NEXT_PUBLIC_*` variables. Do not set `MAGNIBOX_EXTERN
 
 Before connecting the application, verify authenticated submission with TLS and confirm the Postfix queue ID format matches the parser in `src/lib/orbit/transport/smtp.ts`. Then perform controlled tests to independent mailboxes and inspect final delivery outcomes; SMTP queue acceptance alone is not delivery confirmation.
 
+## Independent public endpoint probe
+
+After the pilot MTA is running and its firewall is configured, run the public probe from a machine on a different network (not from the MTA host itself):
+
+```sh
+MAGNIBOX_MTA_HOSTNAME=mail.example.net bash infra/magnibox-mail/scripts/probe-public-endpoints.sh
+```
+
+The probe verifies external reachability of TCP/25, TCP/587 and TCP/993, then validates the SMTP STARTTLS certificates and IMAPS certificate chain, expiry and hostname. It is read-only and does not modify DNS, firewall rules, containers, mail queues or the external-mail kill switch. A passing probe is necessary but not sufficient for activation: the host-side A/PTR and outbound TCP/25 preflight, provider confirmation, abuse controls, backups and the full end-to-end campaign in issue #261 remain mandatory.
+
 ## DNS and public activation gate
 
 For each domain, MAGNIBOX must provide exact DNS instructions and verify the records before activation:
