@@ -14,7 +14,7 @@ export function FormValidityGuard(): null {
       );
 
       for (const submitter of submitters) {
-        if (form.noValidate) {
+        // A submitter-level formNoValidate (for example, saving an incomplete draft)\n        // must bypass the same guard as a form-level noValidate attribute.\n        if (form.noValidate || submitter.formNoValidate) {
           if (submitter.dataset.validityDisabled === "true") {
             submitter.disabled = false;
             delete submitter.dataset.validityDisabled;
