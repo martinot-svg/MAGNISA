@@ -9,10 +9,12 @@ services:
       OVERRIDE_HOSTNAME: ${MAGNIBOX_MTA_HOSTNAME:?Set the public mail FQDN}
       POSTFIX_MESSAGE_SIZE_LIMIT: "220M"
       CLAMAV_MESSAGE_SIZE_LIMIT: "220M"
+    # Safe by default: ports are reachable only from this host until an
+    # operator explicitly changes MAGNIBOX_BIND_ADDRESS after review.
     ports:
-      - "25:25"
-      - "587:587"
-      - "993:993"
+      - "${MAGNIBOX_BIND_ADDRESS:-127.0.0.1}:25:25"
+      - "${MAGNIBOX_BIND_ADDRESS:-127.0.0.1}:587:587"
+      - "${MAGNIBOX_BIND_ADDRESS:-127.0.0.1}:993:993"
     volumes:
       - ./docker-data/mail-data:/var/mail/
       - ./docker-data/mail-state:/var/mail-state/
