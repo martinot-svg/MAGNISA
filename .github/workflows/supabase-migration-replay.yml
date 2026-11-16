@@ -325,7 +325,7 @@ jobs:
             exit 1
           fi
       - name: Unit-test active Postfix inbound transport configuration
-        run: node --test scripts/ci/magnibox-postfix-runtime-config.test.mjs
+        run: node --test scripts/ci/magnibox-postfix-runtime-config-node-test.mjs
       - name: Verify MAGNIBOX signed inbound API, replay protection and attachment quarantine
         run: node scripts/ci/magnibox-inbound-api-integration.mjs
       - name: Verify Orbit Action task, status, comment and subtask UI
