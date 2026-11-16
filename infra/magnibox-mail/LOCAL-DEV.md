@@ -28,7 +28,7 @@ Depuis la racine du dépôt :
    export SUPABASE_SERVICE_ROLE_KEY='<service_role locale>'
 
    Le test refuse toute URL autre que localhost. Les clés restent dans l'environnement
-   local : ne jamais les committer ni les utiliser dans le navigateur.
+   local : ne jamais la committer ni les utiliser dans le navigateur.
 
 3. Lancer le test :
 
