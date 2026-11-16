@@ -2,6 +2,7 @@ import { createHmac, randomBytes, randomUUID, createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { spawnSync, execFileSync } from "node:child_process";
 import nodemailer from "nodemailer";
+import { assertMagniboxPostfixTransport } from "./magnibox-postfix-runtime-config.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -196,8 +197,25 @@ try {
   // session. The maps are synthetic and only contain this test recipient.
   execFileSync("docker", ["exec", "magnibox-mailserver", "postmap", "/tmp/docker-mailserver/magnibox-test-domains"]);
   execFileSync("docker", ["exec", "magnibox-mailserver", "postmap", "/tmp/docker-mailserver/magnibox-test-recipients"]);
+  execFileSync("docker", ["exec", "magnibox-mailserver", "postconf", "-e",
+    "virtual_mailbox_domains=hash:/tmp/docker-mailserver/magnibox-test-domains"]);
+  execFileSync("docker", ["exec", "magnibox-mailserver", "postconf", "-e",
+    "virtual_mailbox_maps=hash:/tmp/docker-mailserver/magnibox-test-recipients"]);
+  execFileSync("docker", ["exec", "magnibox-mailserver", "postconf", "-e", "virtual_transport=magnibox-inbound"]);
+  const installPipe = [
+    "if ! grep -qE '^magnibox-inbound[[:space:]]+unix[[:space:]]' /etc/postfix/master.cf; then",
+    "cat >> /etc/postfix/master.cf <<'MAGNIBOX_EOF'",
+    "magnibox-inbound unix - n n - - pipe",
+    "  flags=Rq user=nobody argv=/usr/bin/python3 /opt/magnibox-bridge/postfix-inbound.py ${sender} ${recipient}",
+    "MAGNIBOX_EOF",
+    "fi",
+  ].join("\n");
+  execFileSync("docker", ["exec", "magnibox-mailserver", "sh", "-ec", installPipe]);
   execFileSync("docker", ["exec", "magnibox-mailserver", "postfix", "reload"]);
-  console.log("Inbound E2E: Postfix recipient maps compiled and transport reloaded");
+  const activeMain = execFileSync("docker", ["exec", "magnibox-mailserver", "postconf", "-n"], { encoding: "utf8" });
+  const activeMaster = execFileSync("docker", ["exec", "magnibox-mailserver", "cat", "/etc/postfix/master.cf"], { encoding: "utf8" });
+  assertMagniboxPostfixTransport(activeMain, activeMaster);
+  console.log("Inbound E2E: active Postfix maps and magnibox-inbound pipe transport verified");
   const smtp = nodemailer.createTransport({
     host: "127.0.0.1", port: 25, secure: false, ignoreTLS: true,
     connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000,
