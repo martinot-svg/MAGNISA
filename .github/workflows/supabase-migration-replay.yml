@@ -55,10 +55,7 @@ jobs:
           if grep -q '^\[inbucket\]' supabase/config.toml; then
             sed -i '/^\[inbucket\]/,/^\[/ s/^enabled = true$/enabled = false/' supabase/config.toml
           else
-            cat >> supabase/config.toml <<'INBUCKET_DISABLED'
-            [inbucket]
-            enabled = false
-            INBUCKET_DISABLED
+            printf '%s\\n' '' '[inbucket]' 'enabled = false' >> supabase/config.toml
           fi
           supabase start -x studio,edge-runtime,logflare,vector,analytics,inbucket
       - name: Replay every migration from a clean database
