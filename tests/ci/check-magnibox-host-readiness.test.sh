@@ -25,7 +25,7 @@ chmod +x "$TMP/bin/dig" "$TMP/bin/nc"
 export PATH="$TMP/bin:$PATH"
 
 run_ok() {
-  if ! output="$(MAGNIBOX_MTA_HOSTNAME=mail.test "$SCRIPT" 2>&1)"; then
+  if ! output="$(MAGNIBOX_MTA_HOSTNAME=mail.test bash "$SCRIPT" 2>&1)"; then
     printf 'Expected success, got failure:\n%s\n' "$output" >&2
     exit 1
   fi
@@ -37,7 +37,7 @@ run_fail() {
   local expected="$1"
   shift
   local output
-  if output="$(env MAGNIBOX_MTA_HOSTNAME=mail.test "$@" "$SCRIPT" 2>&1)"; then
+  if output="$(env MAGNIBOX_MTA_HOSTNAME=mail.test "$@" bash "$SCRIPT" 2>&1)"; then
     printf 'Expected failure containing "%s", but command succeeded.\n' "$expected" >&2
     exit 1
   fi
