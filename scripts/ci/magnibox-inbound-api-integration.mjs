@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, randomUUID, createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execFileSync } from "node:child_process";
+import nodemailer from "nodemailer";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -17,7 +18,7 @@ const admin = createClient(url, service, { auth: { autoRefreshToken: false, pers
 const stamp = randomUUID().replaceAll("-", "").slice(0, 16);
 const email = "magnibox-inbound-" + stamp + "@magnisa.test";
 const password = "Inbound-" + randomBytes(24).toString("hex") + "!9";
-const domain = "inbound-" + stamp + ".example.org";
+const domain = process.env.MAGNIBOX_INBOUND_TEST_DOMAIN || ("inbound-" + stamp + ".example.org");
 const recipient = "receiver@" + domain;
 const messageId = "local-inbound-" + stamp;
 const attachmentBytes = Buffer.from("MAGNIBOX LOCAL INBOUND QUARANTINE FIXTURE");
@@ -187,7 +188,59 @@ try {
     && bridgedAttachment.sha256 === createHash("sha256").update(attachmentBytes).digest("hex"),
   "bridge attachment must be stored in quarantine with its content hash");
 
-  console.log("PASS MAGNIBOX inbound API + bridge: HMAC accepted; recipient resolved; message persisted; idempotent retry; conflicting ID 409; unknown recipient 422; invalid signature 401; MIME bridge forwarded a message and attachment to private quarantine.");
+  // Drive the configured Postfix virtual transport over a real loopback SMTP
+  // session. The maps are synthetic and only contain this test recipient.
+  execFileSync("docker", ["exec", "magnibox-mailserver", "postmap", "/tmp/docker-mailserver/magnibox-test-domains"]);
+  execFileSync("docker", ["exec", "magnibox-mailserver", "postmap", "/tmp/docker-mailserver/magnibox-test-recipients"]);
+  execFileSync("docker", ["exec", "magnibox-mailserver", "postfix", "reload"]);
+  const smtp = nodemailer.createTransport({
+    host: "127.0.0.1", port: 25, secure: false, ignoreTLS: true,
+    connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000,
+  });
+  const postfixMessageId = "postfix-" + stamp + "@magnisa.test";
+  const postfixSubject = "MAGNIBOX Postfix inbound E2E " + stamp;
+  const postfixMail = {
+    from: "sender@example.test",
+    to: recipient,
+    subject: postfixSubject,
+    text: "Message submitted over SMTP to local Postfix and delivered through its MAGNIBOX pipe transport.",
+    messageId: "<" + postfixMessageId + ">",
+    attachments: [{ filename: attachment.fileName, content: attachmentBytes, contentType: "text/plain" }],
+  };
+  await smtp.sendMail(postfixMail);
+  let postfixMessage = null;
+  const deadline = Date.now() + 45000;
+  while (Date.now() < deadline) {
+    const lookup = await admin.from("orbit_external_messages")
+      .select("id,subject,body_text,provider_email_id")
+      .eq("identity_id", identity.id).eq("direction", "incoming").eq("provider_email_id", postfixMessageId).maybeSingle();
+    if (lookup.error) throw lookup.error;
+    if (lookup.data) { postfixMessage = lookup.data; break; }
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  assert(postfixMessage, "Postfix accepted SMTP but the MAGNIBOX pipe bridge did not persist the message within 45 seconds");
+  created.messageIds.push(postfixMessage.id);
+  assert(postfixMessage.subject === postfixSubject && postfixMessage.body_text.includes("submitted over SMTP"),
+    "Postfix-to-MAGNIBOX delivery must preserve the SMTP subject and body");
+  const postfixAttachment = unwrap(await admin.from("orbit_external_message_attachments")
+    .select("storage_path,scan_status,sha256").eq("message_id", postfixMessage.id).eq("organization_id", org).single(),
+    "read Postfix-delivered attachment metadata");
+  created.storagePaths.push(postfixAttachment.storage_path);
+  assert(postfixAttachment.scan_status === "quarantined"
+    && postfixAttachment.sha256 === createHash("sha256").update(attachmentBytes).digest("hex"),
+    "Postfix-delivered attachment must remain quarantined with a verified SHA-256 hash");
+
+  // Unknown recipients must be refused by Postfix at SMTP RCPT time, before DATA.
+  let unknownRejected = false;
+  try {
+    await smtp.sendMail({ from: "sender@example.test", to: "missing@" + domain, subject: "Unknown recipient", text: "Must be rejected" });
+  } catch (error) {
+    unknownRejected = Number(error?.responseCode) === 550 || String(error?.response || "").includes("5.1.1");
+  }
+  assert(unknownRejected, "Postfix must reject a recipient absent from the provisioned virtual mailbox map");
+  await smtp.close();
+
+  console.log("PASS MAGNIBOX inbound: signed API, replay/conflict protection, MIME bridge, real Postfix SMTP pipe delivery, unknown RCPT rejection, and private attachment quarantine.");
 } finally {
   if (created.storagePaths.length) await admin.storage.from("magnibox-attachments").remove(created.storagePaths).catch(() => {});
   if (created.identityId) await admin.from("orbit_external_messages").delete()
