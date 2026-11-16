@@ -196,7 +196,7 @@ The inbound bridge accepts up to five attachments per message, with a maximum of
 Before configuring Postfix or connecting the application, run the following on the intended dedicated Linux host:
 
 ```sh
-MAGNIBOX_MTA_HOSTNAME=mail.example.net sh infra/magnibox-mail/scripts/check-host-readiness.sh
+MAGNIBOX_MTA_HOSTNAME=mail.example.net bash infra/magnibox-mail/scripts/check-host-readiness.sh
 ```
 
 Optionally set `MAGNIBOX_SMTP_PROBE_DOMAIN` to another independent domain whose MX host accepts SMTP on TCP/25. The preflight checks that the MTA hostname has globally routable IPv4 A records, that each address has a matching PTR record, and that outbound TCP/25 can reach a remote MX. It is read-only: it does not alter DNS/firewall settings, start containers, or enable external mail.
