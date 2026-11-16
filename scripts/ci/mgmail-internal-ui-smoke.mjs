@@ -45,8 +45,8 @@ async function login(user) {
 }
 // A streamed Next.js page can expose its trigger before the nested client dialog
 // is interactive. Verify that the dialog really opened, retrying only lost clicks.
-async function openDialog(page,label){
-  const trigger=page.getByRole("button",{name:label});
+async function openDialog(page,label,scope=page){
+  const trigger=scope.getByRole("button",{name:label});
   await trigger.waitFor({state:"visible",timeout:20000});
   for(let attempt=0;attempt<5;attempt++){
     await trigger.click();
@@ -218,7 +218,7 @@ try {
   await c.page.getByText(replySubject).first().waitFor({timeout:20000});
   // Forward the received reply to a third internal mailbox.
   const replyRow=c.page.locator("div").filter({has:c.page.getByText(replySubject,{exact:true})}).filter({has:c.page.getByRole("button",{name:/Transférer/})}).first();
-  await openDialog(c.page,/Transférer/);
+  await openDialog(c.page,/Transférer/,replyRow);
   await c.page.locator('select[name="recipientId"]').selectOption(archive);
   await c.page.getByRole("button",{name:"Transférer le message"}).click();
   const forwardedSubject="Tr : "+replySubject;
