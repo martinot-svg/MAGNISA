@@ -137,6 +137,9 @@ try {
   if (created.addressId) await admin.from("mgmail_public_address_requests").delete().eq("id", created.addressId);
   if (created.domainId) await admin.from("mgmail_domain_requests").delete().eq("id", created.domainId);
   if (created.mailboxId) await admin.from("mgmail_internal_mailboxes").delete().eq("id", created.mailboxId);
+  // Remove the namespace explicitly; otherwise its organization foreign key can
+  // leave synthetic test data behind when the organization delete is attempted.
+  if (created.organizationId) await admin.from("mgmail_internal_namespaces").delete().eq("organization_id", created.organizationId);
   if (created.organizationId) await admin.from("organizations").delete().eq("id", created.organizationId);
   if (created.userId) await admin.auth.admin.deleteUser(created.userId);
   await execFileAsync("docker", [...compose, "down"], { maxBuffer: 1024 * 1024 }).catch(() => {});
