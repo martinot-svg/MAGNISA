@@ -74,35 +74,35 @@ The webhook is the only unauthenticated public endpoint; it must validate Meta's
 
 ## 5. Data model (Supabase)
 
-All business records include `organization_id`, foreign keys and RLS policies. Suggested migration prefix: `whatsapp_*`.
+All business records include `organization_id`, same-tenant composite foreign keys where relevant, and RLS policies. The first foundation migration is `supabase/migrations/20261116190000_orbit_whatsapp_company_foundation.sql`; the implemented table prefix is `orbit_whatsapp_*`.
 
-### `whatsapp_business_connections`
+### `orbit_whatsapp_connections`
 - `id`, `organization_id` (unique per active phone/account as product policy decides)
 - `waba_id`, `phone_number_id`, `display_phone_number`, `verified_name`
 - encrypted access-token material / secret reference, token expiry, scopes
 - `status` (pending, active, expired, disconnected, error), timestamps, created_by
 
-### `whatsapp_contacts`
+### `orbit_whatsapp_contacts`
 - `id`, `organization_id`, `wa_id`, `display_name`, `phone_e164`, `customer_id` nullable
 - `opt_in_status`, `opt_in_source`, `opt_in_at`, `opt_out_at`
 - unique `(organization_id, wa_id)`
 
-### `whatsapp_conversations`
+### `orbit_whatsapp_conversations`
 - `id`, `organization_id`, `connection_id`, `contact_id`
 - `last_message_at`, `last_message_preview`, `unread_count`, `status`
 - unique active conversation policy per connection/contact
 
-### `whatsapp_messages`
+### `orbit_whatsapp_messages`
 - `id`, `organization_id`, `conversation_id`, `contact_id`, `connection_id`
 - `direction`, `message_type`, `text_body`, `media_storage_path`, `mime_type`, `file_name`
 - `meta_message_id` unique when present, `status`, `error_code`, `error_detail`
 - `template_name`, `context_message_id`, `sent_at`, `delivered_at`, `read_at`, `created_by`
 
-### `whatsapp_message_events`
+### `orbit_whatsapp_message_events`
 - `id`, `organization_id`, `message_id`, `provider_event_id` / dedupe key, `event_type`, `payload_redacted`, `occurred_at`
 - unique deduplication key; retain only necessary and redacted provider payload data.
 
-### `whatsapp_document_dispatches`
+### `orbit_whatsapp_document_dispatches`
 - `id`, `organization_id`, `message_id`, `document_type`, `document_id`, `recipient_contact_id`, `file_name`, `status`, `created_by`
 - supports traceability from an invoice/quote to the WhatsApp message that delivered it.
 
@@ -124,7 +124,7 @@ Indexes should cover organization + last activity, conversation + created_at, an
 
 ## 7. Meta onboarding model
 
-For this company-account SaaS model, each organization connects its own WABA and phone number. The preferred scalable onboarding is Meta Embedded Signup, requiring the Meta app configuration, business verification/onboarding as applicable, required permissions/app review and webhook subscriptions. A development/test WABA and test phone number should be used first.
+For this company-account SaaS model, each organization connects its own WABA and phone number. Use **WhatsApp Embedded Signup v4** through Facebook Login for Business; v2/v3 were deprecated on October 15, 2026. Create a v4 configuration in Meta App Dashboard and select Cloud API. The Cloud API product requires Advanced Access for `whatsapp_business_management` and `whatsapp_business_messaging`. MAGNISA must complete Meta's Tech Provider onboarding/App Review process before general customer onboarding; use a development/test WABA and test phone number first. The Graph API version must be configurable; the current Meta reference is v27.0 as of this architecture date.
 
 The user-facing connection wizard must explain that the company controls its own WhatsApp Business account and number. MAGNISA stores only the authorization needed to operate that connected account.
 
@@ -173,10 +173,12 @@ Email remains on its current Gmail route. WhatsApp gets its own transport and hi
 
 ## 10. Required configuration (server only)
 
-Names to settle during implementation:
+Server-only configuration (never commit real values):
 - `META_APP_ID`
 - `META_APP_SECRET`
-- `META_CONFIG_ID` (Embedded Signup, if enabled)
+- `META_CONFIG_ID` (Embedded Signup v4 Facebook Login for Business configuration)
+- `NEXT_PUBLIC_META_APP_ID` (public app ID only; no secret)
+- `WHATSAPP_GRAPH_API_VERSION` (e.g. `v27.0`, configurable)
 - `WHATSAPP_TOKEN_ENCRYPTION_KEY`
 - `WHATSAPP_WEBHOOK_VERIFY_TOKEN`
 - `WHATSAPP_GRAPH_API_VERSION`
