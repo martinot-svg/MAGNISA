@@ -51,7 +51,7 @@ try {
     p_name: "MAGNIBOX Worker E2E " + stamp, p_currency: "MGA",
   }), "create isolated test organization");
   created.organizationId = org;
-  unwrap(await owner.from("mgmail_internal_namespaces").insert({ organization_id: org, slug: "magnibox-e2e-" + stamp }), "create internal namespace");
+  unwrap(await owner.from("mgmail_internal_namespaces").insert({ organization_id: org, slug: "magnibox-e2e-" + stamp }).select("organization_id").single(), "create internal namespace");
   const mailbox = unwrap(await owner.from("mgmail_internal_mailboxes").insert({
     organization_id: org, local_part: "scanner", owner_user_id: user.user.id, display_name: "MAGNIBOX E2E scanner",
   }).select("id").single(), "create test mailbox");
