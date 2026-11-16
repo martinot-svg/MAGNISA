@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   }
   const data = payload as Record<string, unknown>;
   if (typeof data.queueId !== "string" || !/^[A-F0-9]{5,20}$/i.test(data.queueId)
-    || !["delivered", "bounced", "failed", "deferred"].includes(String(data.event))) {
+    || !["accepted", "bounced", "failed", "deferred"].includes(String(data.event))) {
     return NextResponse.json({ error: "Référence de livraison invalide." }, { status: 400 });
   }
 
