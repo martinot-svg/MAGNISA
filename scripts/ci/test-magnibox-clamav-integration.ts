@@ -40,7 +40,7 @@ async function main() {
   if (clean !== "clean") throw new Error(`Expected clean verdict, received ${clean}`);
 
   // EICAR is a harmless industry-standard antivirus test pattern, not malware.
-  const eicar = Buffer.from("X5O!P%@AP[4\\\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*");
+  const eicar = Buffer.from("X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*");
   const infected = await scan(eicar);
   if (infected !== "infected") throw new Error(`Expected EICAR test detection, received ${infected}`);
 
