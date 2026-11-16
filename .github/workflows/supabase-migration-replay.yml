@@ -50,6 +50,13 @@ jobs:
         run: |
           # Avoid collisions with PostgreSQL already bound to the runner's default 54322.
           sed -i '/^\[db\]/,/^\[/ s/^port = 54322$/port = 55432/' supabase/config.toml
+          # Inbucket is not used by these isolated tests; disable it explicitly
+          # so no runner service can collide with its default host port 54324.
+          if grep -q '^\[inbucket\]' supabase/config.toml; then
+            sed -i '/^\[inbucket\]/,/^\[/ s/^enabled = true$/enabled = false/' supabase/config.toml
+          else
+            printf '\\n[inbucket]\\nenabled = false\\n' >> supabase/config.toml
+          fi
           supabase start -x studio,edge-runtime,logflare,vector,analytics,inbucket
       - name: Replay every migration from a clean database
         run: supabase db reset --yes
@@ -317,6 +324,8 @@ jobs:
             docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.inbound-e2e.yaml logs --tail=200
             exit 1
           fi
+      - name: Unit-test active Postfix inbound transport configuration
+        run: node --test scripts/ci/magnibox-postfix-runtime-config.test.mjs
       - name: Verify MAGNIBOX signed inbound API, replay protection and attachment quarantine
         run: node scripts/ci/magnibox-inbound-api-integration.mjs
       - name: Verify Orbit Action task, status, comment and subtask UI
