@@ -31,11 +31,14 @@ function unwrap(result, label) {
   return result.data;
 }
 let generatedEnvFile = false;
-async function workerOnce() {
-  await execFileAsync("docker", [...compose, "run", "--rm", "--no-deps",
+async function workerOnce(clamHost, clamPort) {
+  const args = [...compose, "run", "--rm", "--no-deps",
     "-e", "NEXT_PUBLIC_SUPABASE_URL=http://host.docker.internal:54321",
-    "-e", "SUPABASE_SERVICE_ROLE_KEY=" + serviceKey,
-    "attachment-worker", "./node_modules/.bin/tsx", "scripts/magnibox/scan-attachments.ts"], { maxBuffer: 1024 * 1024 });
+    "-e", "SUPABASE_SERVICE_ROLE_KEY=" + serviceKey];
+  if (clamHost) args.push("-e", "MAGNIBOX_CLAMAV_HOST=" + clamHost);
+  if (clamPort) args.push("-e", "MAGNIBOX_CLAMAV_PORT=" + clamPort);
+  args.push("attachment-worker", "./node_modules/.bin/tsx", "scripts/magnibox/scan-attachments.ts");
+  await execFileAsync("docker", args, { maxBuffer: 1024 * 1024 });
 }
 try {
   try { await access("infra/magnibox-mail/.env.local-dev"); }
@@ -106,6 +109,47 @@ try {
 
   await execFileAsync("docker", [...compose, "up", "-d", "--wait", "clamav"], { maxBuffer: 1024 * 1024 });
   await Promise.all([workerOnce(), workerOnce()]);
+
+  // Prove a scanner outage is retryable and never publishes an attachment.
+  const retryBytes = Buffer.from("MAGNIBOX retry after scanner outage");
+  const retryId = randomUUID();
+  const retryPath = org + "/" + message.id + "/" + retryId;
+  const retryUpload = await admin.storage.from(bucket).upload(retryPath, retryBytes, { contentType: "text/plain", upsert: false });
+  if (retryUpload.error) throw new Error("upload outage retry fixture: " + retryUpload.error.message);
+  created.paths.push(retryPath);
+  const retryDigest = createHash("sha256").update(retryBytes).digest("hex");
+  unwrap(await admin.from("orbit_external_message_attachments").insert({
+    id: retryId, organization_id: org, message_id: message.id, storage_path: retryPath,
+    display_name: "scanner-outage-retry.txt", detected_mime_type: "text/plain",
+    byte_size: retryBytes.length, sha256: retryDigest, scan_status: "quarantined",
+  }).select("id").single(), "create scanner outage fixture");
+  ids.push({ name: "scanner-outage-retry.txt", id: retryId, path: retryPath, expected: "available" });
+  await workerOnce("127.0.0.1", "1");
+  const outageState = unwrap(await admin.from("orbit_external_message_attachments")
+    .select("scan_status,scan_attempts,scan_lease_token,scan_started_at").eq("id", retryId).single(),
+    "read scanner outage state");
+  assert(outageState.scan_status === "quarantined", "ClamAV outage must keep the attachment quarantined");
+  assert(outageState.scan_attempts === 1, "ClamAV outage should consume exactly one attempt");
+  assert(outageState.scan_lease_token === null && outageState.scan_started_at === null,
+    "ClamAV outage must release its lease for retry");
+
+  // Simulate a worker crash by leaving a scan lease older than the 15-minute recovery threshold.
+  const staleBytes = Buffer.from("MAGNIBOX stale lease recovery");
+  const staleId = randomUUID();
+  const stalePath = org + "/" + message.id + "/" + staleId;
+  const staleUpload = await admin.storage.from(bucket).upload(stalePath, staleBytes, { contentType: "text/plain", upsert: false });
+  if (staleUpload.error) throw new Error("upload stale lease fixture: " + staleUpload.error.message);
+  created.paths.push(stalePath);
+  const staleDigest = createHash("sha256").update(staleBytes).digest("hex");
+  unwrap(await admin.from("orbit_external_message_attachments").insert({
+    id: staleId, organization_id: org, message_id: message.id, storage_path: stalePath,
+    display_name: "stale-lease-recovery.txt", detected_mime_type: "text/plain",
+    byte_size: staleBytes.length, sha256: staleDigest, scan_status: "scanning",
+    scan_attempts: 1, scan_started_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+    scan_lease_token: randomUUID(),
+  }).select("id").single(), "create stale lease fixture");
+  ids.push({ name: "stale-lease-recovery.txt", id: staleId, path: stalePath, expected: "available" });
+  await workerOnce();
 
   const rows = unwrap(await admin.from("orbit_external_message_attachments")
     .select("id,scan_status,scan_attempts,scan_lease_token,scan_started_at")
