@@ -18,7 +18,7 @@ const password = "Worker-" + randomBytes(20).toString("hex") + "!9";
 const stamp = randomUUID().replaceAll("-", "").slice(0, 12);
 const bucket = "magnibox-attachments";
 const compose = ["compose", "-f", "infra/magnibox-mail/compose.local.yaml"];
-const created = { userId: null, secondUserId: null, organizationId: null, secondOrganizationId: null, mailboxId: null, domainId: null, addressId: null, identityId: null, messageId: null, paths: [] };
+const created = { userId: null, secondUserId: null, organizationId: null, secondOrganizationId: null, mailboxId: null, domainId: null, addressId: null, identityId: null, messageId: null, staleMessageId: null, paths: [] };
 const fixtures = [
   { name: "clean.pdf", bytes: Buffer.from("%PDF-1.7\nMAGNIBOX LOCAL E2E\n%%EOF\n"), contentType: "application/pdf", expected: "available", validHash: true },
   { name: "eicar.txt", bytes: Buffer.from("X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"), contentType: "text/plain", expected: "rejected", validHash: true },
@@ -142,7 +142,7 @@ try {
   created.paths.push(stalePath);
   const staleDigest = createHash("sha256").update(staleBytes).digest("hex");
   unwrap(await admin.from("orbit_external_message_attachments").insert({
-    id: staleId, organization_id: org, message_id: message.id, storage_path: stalePath,
+    id: staleId, organization_id: org, message_id: staleMessage.id, storage_path: stalePath,
     display_name: "stale-lease-recovery.txt", detected_mime_type: "text/plain",
     byte_size: staleBytes.length, sha256: staleDigest, scan_status: "scanning",
     scan_attempts: 1, scan_started_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
@@ -196,7 +196,7 @@ try {
   console.log("PASS MAGNIBOX worker + Storage + ClamAV: clean available; EICAR and unsupported rejected/deleted; bad SHA quarantined; outage retry and stale lease recovered; cross-organization RLS isolation enforced.");
 } finally {
   if (created.paths.length) await admin.storage.from(bucket).remove(created.paths).catch(() => {});
-  if (created.messageId) await admin.from("orbit_external_messages").delete().eq("id", created.messageId);
+  if (created.staleMessageId) await admin.from("orbit_external_messages").delete().eq("id", created.staleMessageId);\n  if (created.messageId) await admin.from("orbit_external_messages").delete().eq("id", created.messageId);
   if (created.identityId) await admin.from("orbit_public_identities").delete().eq("id", created.identityId);
   if (created.addressId) await admin.from("mgmail_public_address_requests").delete().eq("id", created.addressId);
   if (created.domainId) await admin.from("mgmail_domain_requests").delete().eq("id", created.domainId);
