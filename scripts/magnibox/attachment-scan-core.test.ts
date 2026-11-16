@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { detectMagniboxAttachmentMime } from "./attachment-scan-core";
+import {
+  buildClamAvInstreamFrames,
+  detectMagniboxAttachmentMime,
+  parseClamAvInstreamResponse,
+} from "./attachment-scan-core";
 
 describe("detectMagniboxAttachmentMime", () => {
   it("recognizes supported file signatures", () => {
@@ -23,12 +27,10 @@ describe("detectMagniboxAttachmentMime", () => {
   });
 });
 
-
 describe("ClamAV INSTREAM protocol", () => {
-  it("frames payloads with a NUL command and network-order chunk lengths", async () => {
-    const { buildClamAvInstreamFrames } = await import("./attachment-scan-core");
+  it("frames payloads with a NUL command and network-order chunk lengths", () => {
     const frames = buildClamAvInstreamFrames(Buffer.from("abcdef"), 3);
-    expect(frames[0]).toEqual(Buffer.from("zINSTREAM\0", "ascii"));
+    expect(frames[0]).toEqual(Buffer.from("zINSTREAM\\0", "ascii"));
     expect(frames[1].readUInt32BE(0)).toBe(3);
     expect(frames[2].toString()).toBe("abc");
     expect(frames[3].readUInt32BE(0)).toBe(3);
@@ -36,12 +38,30 @@ describe("ClamAV INSTREAM protocol", () => {
     expect(frames[5]).toEqual(Buffer.alloc(4));
   });
 
-  it("parses only complete NUL-terminated scanner replies", async () => {
-    const { parseClamAvInstreamResponse } = await import("./attachment-scan-core");
+  it("always sends a terminal zero-length frame, including for an empty payload", () => {
+    const frames = buildClamAvInstreamFrames(Buffer.alloc(0));
+    expect(frames).toHaveLength(2);
+    expect(frames[0]).toEqual(Buffer.from("zINSTREAM\\0", "ascii"));
+    expect(frames[1]).toEqual(Buffer.alloc(4));
+  });
+
+  it("rejects invalid chunk sizes before constructing frames", () => {
+    expect(() => buildClamAvInstreamFrames(Buffer.from("x"), 0)).toThrow(RangeError);
+    expect(() => buildClamAvInstreamFrames(Buffer.from("x"), -1)).toThrow(RangeError);
+    expect(() => buildClamAvInstreamFrames(Buffer.from("x"), 1.5)).toThrow(RangeError);
+    expect(() => buildClamAvInstreamFrames(Buffer.from("x"), 0x1_0000_0000)).toThrow(RangeError);
+  });
+
+  it("parses only complete NUL-terminated scanner replies", () => {
     expect(parseClamAvInstreamResponse(Buffer.from("stream: O"))).toBeNull();
-    expect(parseClamAvInstreamResponse(Buffer.from("stream: OK\0"))).toBe("clean");
-    expect(parseClamAvInstreamResponse(Buffer.from("stream: Eicar FOUND\0"))).toBe("infected");
-    expect(parseClamAvInstreamResponse(Buffer.from("stream: ERROR\0"))).toBe("error");
-    expect(parseClamAvInstreamResponse(Buffer.from("INSTREAM size limit exceeded. ERROR\0"))).toBe("error");
+    expect(parseClamAvInstreamResponse(Buffer.from("stream: OK\\0"))).toBe("clean");
+    expect(parseClamAvInstreamResponse(Buffer.from("stream: Eicar FOUND\\0"))).toBe("infected");
+    expect(parseClamAvInstreamResponse(Buffer.from("stream: ERROR\\0"))).toBe("error");
+    expect(parseClamAvInstreamResponse(Buffer.from("INSTREAM size limit exceeded. ERROR\\0"))).toBe("error");
+  });
+
+  it("does not treat an unknown or trailing response as a clean verdict", () => {
+    expect(parseClamAvInstreamResponse(Buffer.from("stream: MAYBE\\0"))).toBe("error");
+    expect(parseClamAvInstreamResponse(Buffer.from("stream: OK\\0extra"))).toBe("error");
   });
 });
