@@ -55,6 +55,7 @@ export function FormDialog({
   isBusy?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Do not expose a validation error before React has restored uncontrolled inputs.
@@ -64,6 +65,10 @@ export function FormDialog({
   const formSnapshotRef = useRef<FormControlSnapshot[] | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   const close = useCallback(() => {
     if (isBusy || pendingRef.current) return;
@@ -156,6 +161,7 @@ export function FormDialog({
         ref={openerRef}
         type="button"
         className={buttonClassName}
+        data-form-dialog-hydrated={hydrated ? "true" : "false"}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => {

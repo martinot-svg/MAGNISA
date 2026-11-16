@@ -66,8 +66,18 @@ try {
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   await page.getByRole("link", { name: "Configurer les interventions" }).click();
   await page.getByRole("heading", { name: "Types d'intervention" }).waitFor();
+  // The settings route is a hard navigation too: wait for client hydration before
+  // clicking the FormDialog trigger, otherwise the server-rendered button is inert.
+  await waitForWorkspace(page);
   // The editable catalog is intentionally inside the shared FormDialog.
-  await page.getByRole("button", { name: "Enregistrer la configuration" }).click();
+  const interventionTrigger = page.getByRole("button", { name: "Enregistrer la configuration" });
+  await interventionTrigger.waitFor({ state: "visible", timeout: 20000 });
+  await page.waitForFunction(
+    (element) => element instanceof HTMLButtonElement && element.dataset.formDialogHydrated === "true",
+    await interventionTrigger.elementHandle(),
+    { timeout: 20000 },
+  );
+  await interventionTrigger.click();
   const interventionDialog = page.getByRole("dialog");
   await interventionDialog.waitFor({ state: "visible", timeout: 10000 });
   assert(await interventionDialog.locator("tbody tr").count() === 11, "The configurable intervention catalog must show 11 types.");
