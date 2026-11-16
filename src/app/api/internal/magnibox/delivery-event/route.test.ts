@@ -39,7 +39,7 @@ describe("MAGNIBOX signed delivery-event route", () => {
 
   it("fails closed while external mail is disabled or the secret is absent", async () => {
     vi.stubEnv("MAGNIBOX_EXTERNAL_MAIL_ENABLED", "false");
-    const disabled = await POST(signedRequest({ queueId: "ABC123DEF", event: "delivered" }) as never);
+    const disabled = await POST(signedRequest({ queueId: "ABC123DEF", event: "accepted" }) as never);
     expect(disabled.status).toBe(503);
     vi.stubEnv("MAGNIBOX_EXTERNAL_MAIL_ENABLED", "true");
     vi.stubEnv("MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET", "");
