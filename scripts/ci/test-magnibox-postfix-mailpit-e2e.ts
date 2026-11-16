@@ -1,5 +1,6 @@
 import { MagniboxSmtpTransport } from "../../src/lib/orbit/transport/smtp";
 
+async function main() {
 const baseUrl = process.env.MAILPIT_API_URL ?? "http://127.0.0.1:8025";
 const requestId = "28700000-0000-4000-8000-000000000001";
 const subject = "MAGNIBOX local Postfix Mailpit E2E";
@@ -43,3 +44,6 @@ console.log(JSON.stringify({
   requestId,
   externalDeliveryAttempted: false,
 }, null, 2));
+}
+
+main().catch((error) => { console.error(error); process.exitCode = 1; });
