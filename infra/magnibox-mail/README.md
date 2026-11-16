@@ -6,6 +6,30 @@ This directory contains an **un-deployed infrastructure scaffold** for a dedicat
 
 ## What this first stage provides
 
+## Local email capture with Mailpit (development only)
+
+Mailpit is provided as a **separate, local-only Compose service**. It does not replace Postfix, Rspamd or ClamAV, and it is not part of the production MTA stack. It captures messages sent directly by a local MAGNISA development instance; it does not currently reroute Postfix traffic through Mailpit.
+
+From the repository root, start it with:
+
+```sh
+docker compose -f infra/magnibox-mail/compose.mailpit.yaml up -d
+docker compose -f infra/magnibox-mail/compose.mailpit.yaml ps
+```
+
+- Web inbox: http://127.0.0.1:8025
+- SMTP endpoint for an application running on the host: `127.0.0.1:1025`
+- Stop it with: `docker compose -f infra/magnibox-mail/compose.mailpit.yaml down`
+
+Both published ports are explicitly bound to loopback; do not change them to public interfaces. Configure only a local development environment to use this SMTP endpoint. Do not put these settings in production secrets or enable customer mail through Mailpit. Mailpit captures test messages and does not deliver them to external recipients. Its container is separate from the production MTA Compose file.
+
+Validate the configuration with:
+
+```sh
+bash scripts/ci/check-magnibox-mailpit.sh
+```
+
+
 - SMTP reception on TCP/25 at the MTA host.
 - Authenticated SMTP submission on TCP/587 for the MAGNIBOX application.
 - IMAPS on TCP/993 for controlled diagnostics or future client compatibility.

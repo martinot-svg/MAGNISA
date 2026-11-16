@@ -65,6 +65,11 @@ jobs:
           bash -n tests/ci/check-magnibox-public-mta-probe.test.sh
           bash tests/ci/check-magnibox-public-mta-probe.test.sh
 
+      - name: Validate isolated Magnibox Mailpit test service
+        run: |
+          bash -n scripts/ci/check-magnibox-mailpit.sh
+          bash scripts/ci/check-magnibox-mailpit.sh
+
       - name: Validate Magnibox Postfix inbound bridge
         run: bash scripts/ci/check-magnibox-inbound-bridge.sh
 
