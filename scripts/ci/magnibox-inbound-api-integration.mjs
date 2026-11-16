@@ -202,6 +202,11 @@ try {
   execFileSync("docker", ["exec", "magnibox-mailserver", "postconf", "-e",
     "virtual_mailbox_maps=hash:/tmp/docker-mailserver/magnibox-test-recipients"]);
   execFileSync("docker", ["exec", "magnibox-mailserver", "postconf", "-e", "virtual_transport=magnibox-inbound"]);
+  const inheritedEnvironment = execFileSync("docker", ["exec", "magnibox-mailserver", "postconf", "-h", "import_environment"], { encoding: "utf8" })
+    .trim().split(/\\s+/).filter(Boolean);
+  const bridgeEnvironment = ["MAGNIBOX_INBOUND_URL", "MAGNIBOX_INBOUND_WEBHOOK_SECRET", "MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"];
+  const importedEnvironment = [...new Set([...inheritedEnvironment, ...bridgeEnvironment])].join(" ");
+  execFileSync("docker", ["exec", "magnibox-mailserver", "postconf", "-e", "import_environment=" + importedEnvironment]);
   const installPipe = [
     "sed -i '/^magnibox-inbound[[:space:]]/,+1d' /etc/postfix/master.cf",
     "cat >> /etc/postfix/master.cf <<'MAGNIBOX_EOF'",
