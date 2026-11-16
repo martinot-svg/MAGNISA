@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, cloneElement, createContext, Fragment, isValidElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { Children, cloneElement, createContext, Fragment, isValidElement, useCallback, useContext, useEffect, useMemo, useRef, useState, useTransition, type ReactElement, type ReactNode } from "react";
 import { ModalFrame } from "@/components/modal-frame";
 import { useRouter } from "next/navigation";
 import { executeFormDialogAction, type FormDialogServerAction } from "@/lib/form-dialog-action";
@@ -62,6 +62,7 @@ export function FormDialog({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [refreshPending, startRefresh] = useTransition();
   const [hydrated, setHydrated] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +92,7 @@ export function FormDialog({
       onSuccess: () => {
         setSuccess(true);
         setOpen(false);
-        router.refresh();
+        startRefresh(() => router.refresh());
       },
     }, propagateErrors);
   }, [router]);
@@ -170,6 +171,7 @@ export function FormDialog({
     <>
       <button
         ref={openerRef}
+        disabled={refreshPending}
         type="button"
         className={buttonClassName}
         data-form-dialog-hydrated={hydrated ? "true" : "false"}
