@@ -10,7 +10,8 @@ type Message = {
 };
 const statusLabel: Record<string,string> = {
   queued: "En file", sending: "Envoi en cours", accepted: "Accepté par le serveur",
-  delivered: "Livré", failed: "Échec", bounced: "Rejeté", uncertain: "À vérifier",
+  relayed: "Transmis au serveur destinataire", delivered: "Livraison confirmée (DSN)",
+  deferred: "Livraison différée", failed: "Échec", bounced: "Rejeté", uncertain: "À vérifier",
   received: "Reçu",
 };
 
