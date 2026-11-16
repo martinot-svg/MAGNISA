@@ -71,7 +71,12 @@ try {
   await waitForWorkspace(page);
   // The editable catalog is intentionally inside the shared FormDialog.
   const interventionTrigger = page.getByRole("button", { name: "Enregistrer la configuration" });
-  await interventionTrigger.locator('[data-form-dialog-hydrated="true"]').waitFor({ state: "attached", timeout: 20000 });
+  await interventionTrigger.waitFor({ state: "visible", timeout: 20000 });
+  await page.waitForFunction(
+    (element) => element instanceof HTMLButtonElement && element.dataset.formDialogHydrated === "true",
+    await interventionTrigger.elementHandle(),
+    { timeout: 20000 },
+  );
   await interventionTrigger.click();
   const interventionDialog = page.getByRole("dialog");
   await interventionDialog.waitFor({ state: "visible", timeout: 10000 });
