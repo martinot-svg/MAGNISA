@@ -39,6 +39,8 @@ jobs:
       MAGNIBOX_TLS_DIR: ${{ github.workspace }}/.ci-tls
       MAGNIBOX_WORKER_SUPABASE_URL: https://example.supabase.co
       MAGNIBOX_WORKER_SERVICE_ROLE_KEY: ci-placeholder-not-used
+      MAGNIBOX_DELIVERY_EVENT_URL: https://example.supabase.co/functions/v1/magnibox-delivery-event
+      MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET: ci-placeholder-delivery-secret-not-used
     steps:
       - uses: actions/checkout@v4
 
