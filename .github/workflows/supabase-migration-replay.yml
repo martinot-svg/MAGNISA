@@ -47,7 +47,10 @@ jobs:
         with:
           version: 3.0.0
       - name: Start local Supabase stack on PostgreSQL 17
-        run: supabase start -x studio,edge-runtime,logflare,vector,analytics
+        run: |
+          # Avoid collisions with PostgreSQL already bound to the runner's default 54322.
+          sed -i '/^\[db\]/,/^\[/ s/^port = 54322$/port = 55432/' supabase/config.toml
+          supabase start -x studio,edge-runtime,logflare,vector,analytics
       - name: Replay every migration from a clean database
         run: supabase db reset --yes
       - name: Verify MGMail production schema contract (read-only)
