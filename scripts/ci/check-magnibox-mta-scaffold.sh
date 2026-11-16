@@ -86,6 +86,6 @@ has "$HOST_PREFLIGHT" 'Read-only host/network preflight'
 has "$HOST_PREFLIGHT" 'MANUAL EXTERNAL CHECK REQUIRED'
 has "$PUBLIC_PROBE" 'read-only probe'
 has "$PUBLIC_PROBE" 'Do not enable MAGNIBOX_EXTERNAL_MAIL_ENABLED'
-has "$ANTIVIRUS_PREFLIGHT" 'does not prove'
+has "$ANTIVIRUS_PREFLIGHT" 'ne prouve pas'
 
 printf 'Magnibox MTA scaffold checks passed.\n'
