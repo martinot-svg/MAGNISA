@@ -249,6 +249,18 @@ try {
   await smtp.close();
 
   console.log("PASS MAGNIBOX inbound: signed API, replay/conflict protection, MIME bridge, real Postfix SMTP pipe delivery, unknown RCPT rejection, and private attachment quarantine.");
+} catch (error) {
+  console.error("Inbound E2E failure diagnostics:", error);
+  for (const args of [
+    ["compose", "-f", "infra/magnibox-mail/compose.yaml", "-f", "infra/magnibox-mail/compose.inbound-e2e.yaml", "logs", "--tail=160", "mailserver"],
+    ["exec", "magnibox-mailserver", "postconf", "-M"],
+    ["exec", "magnibox-mailserver", "postconf", "-n"],
+    ["exec", "magnibox-mailserver", "postqueue", "-p"],
+  ]) {
+    const diagnostic = spawnSync("docker", args, { encoding: "utf8" });
+    console.error("DIAGNOSTIC docker " + args.join(" ") + "\\n" + (diagnostic.stdout || "") + (diagnostic.stderr || ""));
+  }
+  throw error;
 } finally {
   if (created.storagePaths.length) await admin.storage.from("magnibox-attachments").remove(created.storagePaths).catch(() => {});
   if (created.identityId) await admin.from("orbit_external_messages").delete()
