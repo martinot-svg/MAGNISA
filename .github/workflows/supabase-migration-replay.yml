@@ -218,6 +218,7 @@ jobs:
           export MAGNIBOX_EXTERNAL_MAIL_ENABLED=true
           export MAGNIBOX_INBOUND_WEBHOOK_SECRET="$(openssl rand -hex 32)"
           export MAGNIBOX_INBOUND_TEST_DOMAIN="magnibox-inbound.example.test"
+          echo "::add-mask::$MAGNIBOX_INBOUND_WEBHOOK_SECRET"
           echo "MAGNIBOX_EXTERNAL_MAIL_ENABLED=$MAGNIBOX_EXTERNAL_MAIL_ENABLED" >> "$GITHUB_ENV"
           echo "MAGNIBOX_INBOUND_WEBHOOK_SECRET=$MAGNIBOX_INBOUND_WEBHOOK_SECRET" >> "$GITHUB_ENV"
           echo "MAGNIBOX_INBOUND_TEST_DOMAIN=$MAGNIBOX_INBOUND_TEST_DOMAIN" >> "$GITHUB_ENV"
@@ -249,7 +250,7 @@ jobs:
           export MAGNIBOX_WORKER_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL"
           export MAGNIBOX_WORKER_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY"
           export MAGNIBOX_DELIVERY_EVENT_URL=https://example.invalid/delivery-event
-          export MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET="$(openssl rand -hex 32)"
+          export MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET="ci-delivery-event-secret-unused"
           export MAGNIBOX_INBOUND_URL=http://host.docker.internal:3000/api/internal/magnibox/inbound
           export MAGNIBOX_INBOUND_WEBHOOK_SECRET
           export MAGNIBOX_INBOUND_TEST_DOMAIN
@@ -351,6 +352,16 @@ jobs:
           if-no-files-found: ignore
       - name: Stop isolated Postfix inbound bridge
         if: always()
+        env:
+          MAGNIBOX_MTA_HOSTNAME: mail.example.test
+          MAGNIBOX_DMS_IMAGE: ghcr.io/docker-mailserver/docker-mailserver:15.0.2
+          MAGNIBOX_BIND_ADDRESS: 127.0.0.1
+          MAGNIBOX_TLS_DIR: ${{ github.workspace }}/.ci-tls
+          MAGNIBOX_WORKER_SUPABASE_URL: ${{ env.NEXT_PUBLIC_SUPABASE_URL }}
+          MAGNIBOX_WORKER_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
+          MAGNIBOX_DELIVERY_EVENT_URL: https://example.invalid/delivery-event
+          MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET: ci-delivery-event-secret-unused
+          MAGNIBOX_INBOUND_URL: http://host.docker.internal:3000/api/internal/magnibox/inbound
         run: |
           docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.inbound-e2e.yaml down --remove-orphans || true
           rm -f infra/magnibox-mail/mailserver.env
