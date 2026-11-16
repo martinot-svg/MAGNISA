@@ -300,6 +300,7 @@ jobs:
           virtual_mailbox_domains = hash:/tmp/docker-mailserver/magnibox-test-domains
           virtual_mailbox_maps = hash:/tmp/docker-mailserver/magnibox-test-recipients
           virtual_transport = magnibox-inbound
+          import_environment = MAIL_CONFIG MAIL_DEBUG MAIL_LOGTAG TZ XAUTHORITY DISPLAY MAGNIBOX_INBOUND_URL MAGNIBOX_INBOUND_WEBHOOK_SECRET MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL
           EOF
           cat > infra/magnibox-mail/docker-data/config/postfix-master.cf <<'EOF'
           magnibox-inbound unix - n n - - pipe
