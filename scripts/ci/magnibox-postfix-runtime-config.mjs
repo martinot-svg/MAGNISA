@@ -1,17 +1,21 @@
 export function assertMagniboxPostfixTransport(mainConfig, masterConfig) {
+  const settings = new Map();
+  for (const line of mainConfig.split(/\r?\n/)) {
+    const match = line.match(/^\s*([a-z0-9_]+)\s*=\s*(.*?)\s*$/i);
+    if (match) settings.set(match[1], match[2]);
+  }
   const required = [
     ["virtual_mailbox_domains", "hash:/tmp/docker-mailserver/magnibox-test-domains"],
     ["virtual_mailbox_maps", "hash:/tmp/docker-mailserver/magnibox-test-recipients"],
     ["virtual_transport", "magnibox-inbound"],
   ];
   for (const [key, value] of required) {
-    const expression = new RegExp("^" + key + "\\s*=\\s*" + value.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&") + "\\s*$", "m");
-    if (!expression.test(mainConfig)) {
+    if (settings.get(key) !== value) {
       throw new Error("Postfix active main.cf is missing " + key + " = " + value);
     }
   }
-  const lines = masterConfig.split(/\\r?\\n/);
-  const serviceIndex = lines.findIndex(line => /^magnibox-inbound\\s+unix\\s+.*\\bpipe\\s*$/.test(line.trim()));
+  const lines = masterConfig.split(/\r?\n/);
+  const serviceIndex = lines.findIndex(line => /^magnibox-inbound\s+unix\s+.*\bpipe\s*$/.test(line.trim()));
   if (serviceIndex < 0) {
     throw new Error("Postfix active master.cf has no magnibox-inbound pipe service");
   }
