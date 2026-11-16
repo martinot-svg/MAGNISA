@@ -13,7 +13,7 @@ This directory contains an **un-deployed infrastructure scaffold** for a dedicat
 - Rspamd filtering, ClamAV scanning, DKIM capability and Fail2ban.
 - Explicit message/mailbox size limits and modern TLS for authenticated services.
 
-The MAGNISA application inbox is Supabase-backed; it does not mirror the separate Dovecot pilot mailboxes. The signed Postfix-to-MAGNIBOX inbound bridge, recipient snapshot API and versioned Postfix map synchronizer are now implemented, but remain staged and unactivated. An operator must configure the host-only secrets, run and inspect the map synchronization, enable the example Postfix transport under an approved pilot procedure, and complete end-to-end validation before public use. DNS records are never changed automatically.
+The MAGNISA application inbox is Supabase-backed; it does not mirror the separate Dovecot pilot mailboxes. The signed Postfix-to-MAGNIBOX inbound bridge, recipient snapshot API and versioned Postfix map synchronizer are implemented, but remain staged and unactivated. An operator must configure the host-only secrets, run and inspect the map synchronization, enable the example Postfix transport under an approved pilot procedure, and complete end-to-end validation before public use. DNS records are never changed automatically.
 
 ## Requirements before use
 
@@ -21,12 +21,18 @@ The MAGNISA application inbox is Supabase-backed; it does not mirror the separat
 2. Written confirmation from the hosting provider that TCP/25 is permitted in both directions.
 3. A public FQDN such as `mail.example.net`, with matching A record and PTR/rDNS.
 4. A valid TLS certificate whose SAN contains the MTA FQDN.
-5. Sufficient memory and disk for the mail queue, persistent mail, logs and antivirus definitions. ClamAV can require substantial memory; size the host accordingly.
+5. Sufficient memory and disk for the mail queue, persistent mail, logs and antivirus definitions. Initial sizing target: at least 4 vCPU, 8 GiB RAM and 100 GB SSD; validate ClamAV memory use and expected queue/storage volume before purchase.
 6. Firewall rules that expose only TCP/25, TCP/587 and TCP/993 as required. Never expose Docker's management socket or the Rspamd control interface publicly.
 7. Encrypted off-host backups and a tested restore procedure.
 8. An abuse mailbox, postmaster contact, rate limits, monitoring and an incident-response process.
 
 Do not use a server behind carrier-grade NAT or a residential IP for public mail delivery. Do not proceed if outbound TCP/25 is blocked.
+
+## Safe network binding — loopback by default
+
+The Compose file binds TCP/25, TCP/587 and TCP/993 to `127.0.0.1` by default. This permits host-local preparation and checks without publishing SMTP/IMAPS on the public interface. **Do not override this during initial provisioning.**
+
+Only after written operator approval, provider confirmation, firewall review and the independent exposure review may the operator set `MAGNIBOX_BIND_ADDRESS=0.0.0.0` in the host-only `.env` to publish the selected ports. Restrict the host firewall to the exact approved sources and ports first; never treat Docker port publishing as a firewall. The public endpoint probe is meaningful only after that separately approved exposure step. No customer MX or external-mail kill switch is changed by this setting.
 
 ## Prepare the host
 
@@ -42,13 +48,14 @@ Create a host directory for the certificate and private key, then set its path i
 
 ```dotenv
 MAGNIBOX_MTA_HOSTNAME=mail.example.net
-MAGNIBOX_DMS_IMAGE=ghcr.io/docker-mailserver/docker-mailserver:<PINNED_RELEASE>
+MAGNIBOX_DMS_IMAGE=ghcr.io/docker-mailserver/docker-mailserver:<PINNED_RELEASE_OR_DIGEST>
+MAGNIBOX_BIND_ADDRESS=127.0.0.1
 MAGNIBOX_TLS_DIR=/srv/magnibox/tls
 MAGNIBOX_WORKER_SUPABASE_URL=https://your-project.supabase.co
 MAGNIBOX_WORKER_SERVICE_ROLE_KEY=server-only-service-role-key
 ```
 
-Replace every example value. Use an audited, pinned release tag or immutable image digest; do not use `:latest`. Put `fullchain.pem` and `privkey.pem` in the TLS directory and restrict access to the private key. Keep both `.env` and `mailserver.env` out of Git. The worker reads the Supabase URL and service-role key only from this uncommitted host `.env`; never place the service-role key in `mailserver.env`, a `NEXT_PUBLIC_*` variable or source control.
+Replace every example value. Use an audited, pinned release tag or immutable image digest; do not use `:latest`. Keep `MAGNIBOX_BIND_ADDRESS=127.0.0.1` until the explicit exposure approval above. Put `fullchain.pem` and `privkey.pem` in the TLS directory and restrict access to the private key. Keep both `.env` and `mailserver.env` out of Git. The worker reads the Supabase URL and service-role key only from this uncommitted host `.env`; never place the service-role key in `mailserver.env`, a `NEXT_PUBLIC_*` variable or source control. Generate distinct random HMAC secrets for inbound, provisioning and delivery events directly on the host; never reuse them or send them through chat/tickets.
 
 Validate the rendered Compose configuration before starting anything:
 
@@ -56,7 +63,7 @@ Validate the rendered Compose configuration before starting anything:
 docker compose config --quiet
 ```
 
-Only after the host, image, certificate, storage, firewall and backup checks are complete:
+Only after the host, image, certificate, storage, firewall and backup checks are complete — and while the ports remain loopback-bound — may the operator start the isolated host services:
 
 ```sh
 docker compose pull
@@ -65,6 +72,8 @@ docker compose ps
 docker logs --tail=200 magnibox-mailserver
 docker compose logs --tail=100 attachment-worker
 ```
+
+Do not enable the Postfix inbound bridge transport, public port binding, application SMTP adapter or external-mail kill switch as part of this preparation stage.
 
 ## Initial pilot account and DKIM
 
@@ -75,9 +84,9 @@ docker exec -it magnibox-mailserver setup email add pilot@example.net
 docker exec -it magnibox-mailserver setup config dkim domain example.net
 ```
 
-Protect the generated DKIM private key on the host. Publish only the corresponding public TXT record at the selector and domain specified by the generated configuration. Never copy private DKIM material into MAGNISA, Git, browser storage or support tickets.
+Protect the generated DKIM private key on the host. Publish only the corresponding public TXT record at the selector and domain specified by the generated configuration. Never copy private DKIM material into MAGNIBOX, Git, browser storage or support tickets.
 
-This account is a technical pilot account. It is not the final dynamic identity-provisioning mechanism for each MAGNISA organization.
+This account is a technical pilot account. It is not the final dynamic identity-provisioning mechanism for each MAGNIBOX organization.
 
 ## Connect the application only after validation
 
@@ -168,21 +177,19 @@ No production endpoint, DNS record, MX, MTA host, or runtime secret is changed b
 
 ## ClamAV readiness gate for MAGNIBOX attachments
 
-The mailserver profile enables ClamAV with \`ENABLE_CLAMAV=1\`. Before any attachment-ingestion work is enabled, run this read-only preflight on the MTA host:
+The mailserver profile enables ClamAV with `ENABLE_CLAMAV=1`. Before any attachment-ingestion work is enabled, run this read-only preflight on the MTA host:
 
-\`\`\`sh
+```sh
 sh infra/magnibox-mail/scripts/check-antivirus-readiness.sh
-\`\`\`
+```
 
-The script verifies that the mailserver container is running, ClamAV is enabled in its environment, and \`clamdscan\` can complete a harmless scan against \`/etc/hostname\`. It does not change configuration or enable attachment delivery.
+The script verifies that the mailserver container is running, ClamAV is enabled in its environment, and `clamdscan` can complete a harmless scan against `/etc/hostname`. It does not change configuration or enable attachment delivery.
 
 **Important:** a successful daemon check is not proof that every Postfix delivery traverses the antivirus filter, nor does it prove that a message with an infected attachment is rejected before the MAGNIBOX pipe transport. Before enabling attachments, an isolated integration test must demonstrate both clean-message delivery and infected-message rejection through the exact configured Postfix path. The bridge now forwards attachments to quarantine, but the transport must remain disabled for public customer domains until the clean/infected end-to-end test, migration replay and CI gates pass.
-
 
 ### Bounded attachment ingestion (staged)
 
 The inbound bridge accepts up to five attachments per message, with a maximum of 30 MiB per file and 150 MiB aggregate attachment payload. The application inbound request/message ceiling is 205 MiB; the Postfix container transport limit is configured separately at 220M to provide transport headroom. The bridge, application validation and scan worker enforce the attachment limits; the worker processes files up to 30 MiB. The application verifies the signed payload and base64 limits, stores objects under organization/message/UUID paths in the private `magnibox-attachments` bucket, and creates quarantined metadata with SHA-256. The worker alone can promote files to `available`. The download endpoint first checks the authenticated user's RLS-visible metadata row and only then creates a 60-second signed URL with the server service role. No browser Storage policy is added.
-
 
 ## Read-only host/network readiness preflight
 
