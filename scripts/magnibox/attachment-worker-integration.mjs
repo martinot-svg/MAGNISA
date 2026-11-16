@@ -203,7 +203,8 @@ try {
   console.log("PASS MAGNIBOX worker + Storage + ClamAV: clean available; EICAR and unsupported rejected/deleted; bad SHA quarantined; outage retry and stale lease recovered; cross-organization RLS isolation enforced.");
 } finally {
   if (created.paths.length) await admin.storage.from(bucket).remove(created.paths).catch(() => {});
-  if (created.staleMessageId) await admin.from("orbit_external_messages").delete().eq("id", created.staleMessageId);\n  if (created.messageId) await admin.from("orbit_external_messages").delete().eq("id", created.messageId);
+  if (created.staleMessageId) await admin.from("orbit_external_messages").delete().eq("id", created.staleMessageId);
+  if (created.messageId) await admin.from("orbit_external_messages").delete().eq("id", created.messageId);
   if (created.identityId) await admin.from("orbit_public_identities").delete().eq("id", created.identityId);
   if (created.addressId) await admin.from("mgmail_public_address_requests").delete().eq("id", created.addressId);
   if (created.domainId) await admin.from("mgmail_domain_requests").delete().eq("id", created.domainId);
@@ -212,6 +213,8 @@ try {
   // leave synthetic test data behind when the organization delete is attempted.
   if (created.organizationId) await admin.from("mgmail_internal_namespaces").delete().eq("organization_id", created.organizationId);
   if (created.organizationId) await admin.from("organizations").delete().eq("id", created.organizationId);
+  if (created.secondOrganizationId) await admin.from("organizations").delete().eq("id", created.secondOrganizationId);
+  if (created.secondUserId) await admin.auth.admin.deleteUser(created.secondUserId);
   if (created.userId) await admin.auth.admin.deleteUser(created.userId);
   await execFileAsync("docker", [...compose, "down"], { maxBuffer: 1024 * 1024 }).catch(() => {});
   if (generatedEnvFile) await unlink("infra/magnibox-mail/.env.local-dev").catch(() => {});
