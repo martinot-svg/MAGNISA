@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Référence de livraison invalide." }, { status: 400 });
   }
 
-  const state = data.event === "delivered" ? "delivered"
+  const state = data.event === "accepted" ? "accepted"
     : data.event === "bounced" ? "bounced"
     : data.event === "failed" ? "failed" : "uncertain";
   const admin = createAdminClient();
