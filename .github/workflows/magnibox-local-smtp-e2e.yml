@@ -101,7 +101,7 @@ jobs:
             if timeout 8 openssl s_client -starttls smtp \
                 -connect mail.example.test:587 \
                 -servername mail.example.test \
-                -CAfile "$MAGNIBOX_TLS_DIR/fullchain.pem" -brief </dev/null >/tmp/magnibox-smtp-tls.log 2>&1 \
+                -CAfile "$MAGNIBOX_TLS_DIR/fullchain.pem" -brief <<< "QUIT" >/tmp/magnibox-smtp-tls.log 2>&1 \
               && curl --fail --silent http://127.0.0.1:8025/api/v1/messages >/dev/null; then
               ready=1
               break
