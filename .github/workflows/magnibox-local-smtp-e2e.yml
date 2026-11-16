@@ -98,7 +98,10 @@ jobs:
             up -d mailserver mailpit
           ready=0
           for attempt in $(seq 1 120); do
-            if timeout 2 bash -c '</dev/tcp/127.0.0.1/587' 2>/dev/null \
+            if timeout 8 openssl s_client -starttls smtp \
+                -connect mail.example.test:587 \
+                -servername mail.example.test \
+                -CAfile "$MAGNIBOX_TLS_DIR/fullchain.pem" -brief </dev/null >/tmp/magnibox-smtp-tls.log 2>&1 \
               && curl --fail --silent http://127.0.0.1:8025/api/v1/messages >/dev/null; then
               ready=1
               break
@@ -110,6 +113,7 @@ jobs:
             exit 1
           fi
           docker exec magnibox-mailserver setup email add sender@example.test "$MAGNIBOX_SMTP_PASSWORD"
+          sleep 5
 
       - name: Submit from MAGNIBOX application transport and assert Mailpit capture
         env:
