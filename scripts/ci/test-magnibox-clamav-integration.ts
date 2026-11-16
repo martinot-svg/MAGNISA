@@ -44,10 +44,10 @@ async function main() {
   const infected = await scan(eicar);
   if (infected !== "infected") throw new Error(`Expected EICAR test detection, received ${infected}`);
 
-  process.stdout.write("MAGNIBOX live ClamAV INSTREAM integration passed: clean and EICAR test verdicts confirmed.\\n");
+  process.stdout.write("MAGNIBOX live ClamAV INSTREAM integration passed: clean and EICAR test verdicts confirmed.\n");
 }
 
 main().catch(error => {
-  process.stderr.write(`MAGNIBOX live ClamAV integration failed: ${error instanceof Error ? error.message : "unknown error"}\\n`);
+  process.stderr.write(`MAGNIBOX live ClamAV integration failed: ${error instanceof Error ? error.message : "unknown error"}\n`);
   process.exitCode = 1;
 });
