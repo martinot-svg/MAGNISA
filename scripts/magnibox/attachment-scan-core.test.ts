@@ -17,6 +17,7 @@ describe("detectMagniboxAttachmentMime", () => {
   it("accepts valid UTF-8 text and rejects binary or empty content", () => {
     expect(detectMagniboxAttachmentMime(Buffer.from("Bonjour MAGNIBOX"))).toBe("text/plain");
     expect(detectMagniboxAttachmentMime(Buffer.from([0x41, 0x00, 0x42]))).toBeNull();
+    expect(detectMagniboxAttachmentMime(Buffer.alloc(0))).toBeNull();
     expect(detectMagniboxAttachmentMime(Buffer.from([0xff, 0xfe, 0xfd]))).toBeNull();
   });
 
