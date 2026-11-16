@@ -58,6 +58,9 @@ jobs:
           bash -n infra/magnibox-mail/scripts/check-host-readiness.sh
           bash -n tests/ci/check-magnibox-host-readiness.test.sh
           bash tests/ci/check-magnibox-host-readiness.test.sh
+          sh -n infra/magnibox-mail/scripts/check-antivirus-readiness.sh
+          bash -n tests/ci/check-magnibox-antivirus-readiness.test.sh
+          bash tests/ci/check-magnibox-antivirus-readiness.test.sh
           bash -n infra/magnibox-mail/scripts/probe-public-endpoints.sh
           bash -n tests/ci/check-magnibox-public-mta-probe.test.sh
           bash tests/ci/check-magnibox-public-mta-probe.test.sh
