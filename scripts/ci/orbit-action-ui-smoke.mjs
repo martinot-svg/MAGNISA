@@ -77,9 +77,16 @@ try {
   await openDialog("Commenter");
   await page.locator('textarea[name="body"]').fill("Commentaire de suivi Orbit Action.");
   await page.getByRole("button",{name:"Publier le commentaire"}).click();
-  const c=await admin.from("orbit_action_comments").select("id")
-    .eq("organization_id",org.data).eq("task_id",created.data.id);
-  if(c.error||c.data.length!==1)throw Error("Task comment not persisted");
+  // Server Actions may finish after the click promise resolves; wait for the
+  // append-only comment to become visible before asserting persistence.
+  let c;
+  for(let attempt=0;attempt<40;attempt++){
+    c=await admin.from("orbit_action_comments").select("id")
+      .eq("organization_id",org.data).eq("task_id",created.data.id);
+    if(!c.error && c.data?.length===1) break;
+    await new Promise(resolve=>setTimeout(resolve,250));
+  }
+  if(c?.error||c?.data?.length!==1)throw Error("Task comment not persisted after server-action completion window");
 
   await openDialog("+ Sous-tâche");
   await page.locator('input[name="title"]').fill(`Sous-tâche ${fixture}`);
