@@ -108,6 +108,8 @@ jobs:
         run: |
           bash -n scripts/ci/check-magnibox-mailpit.sh
           bash scripts/ci/check-magnibox-mailpit.sh
+          bash -n scripts/ci/check-magnibox-mailpit-relay.sh
+          bash scripts/ci/check-magnibox-mailpit-relay.sh
 
       - name: Validate isolated Magnibox local development stack
         run: bash scripts/ci/check-magnibox-local-dev.sh
