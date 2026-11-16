@@ -14,6 +14,7 @@ test("rejects a virtual transport name without a registered pipe service", () =>
     "virtual_mailbox_domains = hash:/tmp/docker-mailserver/magnibox-test-domains",
     "virtual_mailbox_maps = hash:/tmp/docker-mailserver/magnibox-test-recipients",
     "virtual_transport = magnibox-inbound",
+    "import_environment = MAIL_CONFIG TZ MAGNIBOX_INBOUND_URL MAGNIBOX_INBOUND_WEBHOOK_SECRET MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL",
   ].join("\n");
   assert.throws(
     () => assertMagniboxPostfixTransport(main, "smtp inet n - y - - smtpd"),
@@ -33,4 +34,21 @@ test("accepts only the active Postfix configuration that routes recipients to th
     "  flags=Rq user=nobody argv=/usr/bin/python3 /opt/magnibox-bridge/postfix-inbound.py ${sender} ${recipient}",
   ].join("\n");
   assert.equal(assertMagniboxPostfixTransport(main, master), true);
+});
+
+test("rejects Postfix master configuration that strips bridge credentials", () => {
+  const main = [
+    "virtual_mailbox_domains = hash:/tmp/docker-mailserver/magnibox-test-domains",
+    "virtual_mailbox_maps = hash:/tmp/docker-mailserver/magnibox-test-recipients",
+    "virtual_transport = magnibox-inbound",
+    "import_environment = MAIL_CONFIG TZ",
+  ].join("\n");
+  const master = [
+    "magnibox-inbound unix - n n - - pipe",
+    "  flags=Rq user=nobody argv=/usr/bin/python3 /opt/magnibox-bridge/postfix-inbound.py ${sender} ${recipient}",
+  ].join("\n");
+  assert.throws(
+    () => assertMagniboxPostfixTransport(main, master),
+    /does not pass MAGNIBOX_INBOUND_URL/
+  );
 });
