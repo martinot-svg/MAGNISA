@@ -217,7 +217,8 @@ try {
   await c.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   await c.page.getByText(replySubject).first().waitFor({timeout:20000});
   // Forward the received reply to a third internal mailbox.
-  const replyRow=c.page.locator("div").filter({has:c.page.getByText(replySubject,{exact:true})}).filter({has:c.page.getByRole("button",{name:/Transférer/})}).first();
+  const replyRow=c.page.locator('div[style*="border-bottom"]').filter({has:c.page.getByText(replySubject,{exact:true})});
+  if(await replyRow.count()!==1)throw new Error("Impossible d’identifier une seule carte pour le message à transférer : "+await replyRow.count());
   await openDialog(c.page,/Transférer/,replyRow);
   await c.page.locator('select[name="senderId"]').selectOption(sender);
   await c.page.locator('select[name="recipientId"]').selectOption(archive);
