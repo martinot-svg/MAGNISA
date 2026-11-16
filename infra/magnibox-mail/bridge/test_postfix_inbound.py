@@ -94,7 +94,7 @@ class InboundBridgeTests(unittest.TestCase):
         import os
         previous = dict(os.environ)
         try:
-            os.environ["MAGNIBOX_INBOUND_URL"] = "http://127.0.0.1:3000/hook"
+            os.environ["MAGNIBOX_INBOUND_URL"] = "http://127.0.0.1:1/hook"
             os.environ["MAGNIBOX_INBOUND_WEBHOOK_SECRET"] = "x" * 40
             os.environ["MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"] = "true"
             # The endpoint passes transport validation; the local test server
