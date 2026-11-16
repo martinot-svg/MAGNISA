@@ -215,6 +215,8 @@ jobs:
       - name: Start MAGNISA locally
         id: app_server
         run: |
+          echo "MAGNIBOX_EXTERNAL_MAIL_ENABLED=true" >> "$GITHUB_ENV"
+          echo "MAGNIBOX_INBOUND_WEBHOOK_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
           npm run dev -- --hostname 127.0.0.1 > /tmp/magnisa-next.log 2>&1 &
           echo $! > /tmp/magnisa-next.pid
           for i in {1..60}; do
@@ -231,6 +233,8 @@ jobs:
         run: node scripts/ci/company-onboarding-browser-smoke.mjs
       - name: Verify MGMail internal browser exchange between authenticated collaborators
         run: node scripts/ci/mgmail-internal-ui-smoke.mjs
+      - name: Verify MAGNIBOX signed inbound API, replay protection and attachment quarantine
+        run: node scripts/ci/magnibox-inbound-api-integration.mjs
       - name: Verify Orbit Action task, status, comment and subtask UI
         if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
         run: node scripts/ci/orbit-action-ui-smoke.mjs
