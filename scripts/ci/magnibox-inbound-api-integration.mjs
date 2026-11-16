@@ -205,7 +205,7 @@ try {
   const postfixMessageId = "postfix-" + stamp + "@magnisa.test";
   const postfixSubject = "MAGNIBOX Postfix inbound E2E " + stamp;
   const postfixMail = {
-    from: "sender@example.test",
+    from: "sender@mail.example.test",
     to: recipient,
     subject: postfixSubject,
     text: "Message submitted over SMTP to local Postfix and delivered through its MAGNIBOX pipe transport.",
@@ -240,7 +240,7 @@ try {
   // Unknown recipients must be refused by Postfix at SMTP RCPT time, before DATA.
   let unknownRejected = false;
   try {
-    await smtp.sendMail({ from: "sender@example.test", to: "missing@" + domain, subject: "Unknown recipient", text: "Must be rejected" });
+    await smtp.sendMail({ from: "sender@mail.example.test", to: "missing@" + domain, subject: "Unknown recipient", text: "Must be rejected" });
   } catch (error) {
     unknownRejected = Number(error?.responseCode) === 550 || String(error?.response || "").includes("5.1.1");
   }
