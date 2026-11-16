@@ -22,8 +22,8 @@ const created = { userId: null, organizationId: null, mailboxId: null, domainId:
 const fixtures = [
   { name: "clean.pdf", bytes: Buffer.from("%PDF-1.7\nMAGNIBOX LOCAL E2E\n%%EOF\n"), expected: "available", validHash: true },
   { name: "eicar.txt", bytes: Buffer.from("X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"), expected: "rejected", validHash: true },
-  { name: "unsupported.bin", bytes: Buffer.from([0, 1, 2, 3, 255, 0, 9]), expected: "rejected", validHash: true },
-  { name: "bad-sha.txt", bytes: Buffer.from("MAGNIBOX hash mismatch fixture"), expected: "quarantined", validHash: false },
+  { name: "unsupported.bin", bytes: Buffer.from([0, 1, 2, 3, 255, 0, 9]), contentType: "image/png", expected: "rejected", validHash: true },
+  { name: "bad-sha.txt", bytes: Buffer.from("MAGNIBOX hash mismatch fixture"), contentType: "text/plain", expected: "quarantined", validHash: false },
 ];
 function assert(condition, message) { if (!condition) throw new Error(message); }
 function unwrap(result, label) {
@@ -35,7 +35,7 @@ async function workerOnce() {
   await execFileAsync("docker", [...compose, "run", "--rm", "--no-deps",
     "-e", "NEXT_PUBLIC_SUPABASE_URL=http://host.docker.internal:54321",
     "-e", "SUPABASE_SERVICE_ROLE_KEY=" + serviceKey,
-    "attachment-worker"], { maxBuffer: 1024 * 1024 });
+    "attachment-worker", "./node_modules/.bin/tsx", "scripts/magnibox/scan-attachments.ts"], { maxBuffer: 1024 * 1024 });
 }
 try {
   try { await access("infra/magnibox-mail/.env.local-dev"); }
@@ -91,7 +91,7 @@ try {
   for (const fixture of fixtures) {
     const id = randomUUID();
     const path = org + "/" + message.id + "/" + id;
-    const upload = await admin.storage.from(bucket).upload(path, fixture.bytes, { contentType: "application/octet-stream", upsert: false });
+    const upload = await admin.storage.from(bucket).upload(path, fixture.bytes, { contentType: fixture.contentType, upsert: false });
     if (upload.error) throw new Error("upload " + fixture.name + ": " + upload.error.message);
     created.paths.push(path);
     const digest = createHash("sha256").update(fixture.bytes).digest("hex");
