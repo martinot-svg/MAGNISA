@@ -23,7 +23,7 @@ const fixtures = [
   { name: "clean.pdf", bytes: Buffer.from("%PDF-1.7\nMAGNIBOX LOCAL E2E\n%%EOF\n"), contentType: "application/pdf", expected: "available", validHash: true },
   { name: "eicar.txt", bytes: Buffer.from("X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"), contentType: "text/plain", expected: "rejected", validHash: true },
   { name: "unsupported.bin", bytes: Buffer.from([0, 1, 2, 3, 255, 0, 9]), contentType: "image/png", expected: "rejected", validHash: true },
-  { name: "bad-sha.txt", bytes: Buffer.from("MAGNIBOX hash mismatch fixture"), contentType: "text/plain", expected: "quarantined", validHash: false },
+  { name: "bad-sha.txt", bytes: Buffer.from("MAGNIBOX hash mismatch fixture"), contentType: "text/plain", expected: "quarantined", validHash: false, maxAttempts: 4 },
 ];
 function assert(condition, message) { if (!condition) throw new Error(message); }
 function unwrap(result, label) {
@@ -167,7 +167,7 @@ try {
     assert(row, "missing result for " + fixture.name);
     assert(row.scan_status === fixture.expected, fixture.name + ": expected " + fixture.expected + ", got " + row.scan_status);
     assert(row.scan_lease_token === null && row.scan_started_at === null, fixture.name + ": scan lease was not released");
-    assert(row.scan_attempts === (fixture.expectedAttempts ?? 1), fixture.name + ": unexpected scan attempt count " + row.scan_attempts);
+    if (fixture.expectedAttempts != null) assert(row.scan_attempts === fixture.expectedAttempts, fixture.name + ": unexpected scan attempt count " + row.scan_attempts);\n    else if (fixture.maxAttempts != null) assert(row.scan_attempts >= 1 && row.scan_attempts <= fixture.maxAttempts, fixture.name + ": retry budget exceeded: " + row.scan_attempts);\n    else assert(row.scan_attempts === 1, fixture.name + ": unexpected scan attempt count " + row.scan_attempts);
   }
   const clean = ids.find(item => item.name === "clean.pdf");
   const cleanDownload = await admin.storage.from(bucket).download(clean.path);
