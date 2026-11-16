@@ -91,9 +91,15 @@ try {
   await openDialog("+ Sous-tâche");
   await page.locator('input[name="title"]').fill(`Sous-tâche ${fixture}`);
   await page.getByRole("button",{name:"Créer la sous-tâche"}).click();
-  const children=await admin.from("orbit_action_tasks").select("id")
-    .eq("organization_id",org.data).eq("parent_task_id",created.data.id);
-  if(children.error||children.data.length!==1)throw Error("Subtask not persisted");
+  let children;
+  for(let attempt=0;attempt<40;attempt++){
+    children=await admin.from("orbit_action_tasks").select("id")
+      .eq("organization_id",org.data).eq("parent_task_id",created.data.id);
+    if(!children.error && children.data?.length===1) break;
+    await new Promise(resolve=>setTimeout(resolve,250));
+  }
+  if(children?.error||children?.data?.length!==1)
+    throw Error("Subtask not persisted after server-action completion window");
 
   if(await page.locator("html").evaluate(el=>el.scrollWidth>el.clientWidth+12))
     throw Error("Orbit Action mobile horizontal overflow");
