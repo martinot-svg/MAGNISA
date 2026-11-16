@@ -18,12 +18,12 @@ const password = "Worker-" + randomBytes(20).toString("hex") + "!9";
 const stamp = randomUUID().replaceAll("-", "").slice(0, 12);
 const bucket = "magnibox-attachments";
 const compose = ["compose", "-f", "infra/magnibox-mail/compose.local.yaml"];
-const created = { userId: null, organizationId: null, mailboxId: null, domainId: null, addressId: null, identityId: null, messageId: null, paths: [] };
+const created = { userId: null, secondUserId: null, organizationId: null, secondOrganizationId: null, mailboxId: null, domainId: null, addressId: null, identityId: null, messageId: null, staleMessageId: null, paths: [] };
 const fixtures = [
   { name: "clean.pdf", bytes: Buffer.from("%PDF-1.7\nMAGNIBOX LOCAL E2E\n%%EOF\n"), contentType: "application/pdf", expected: "available", validHash: true },
   { name: "eicar.txt", bytes: Buffer.from("X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"), contentType: "text/plain", expected: "rejected", validHash: true },
   { name: "unsupported.bin", bytes: Buffer.from([0, 1, 2, 3, 255, 0, 9]), contentType: "image/png", expected: "rejected", validHash: true },
-  { name: "bad-sha.txt", bytes: Buffer.from("MAGNIBOX hash mismatch fixture"), contentType: "text/plain", expected: "quarantined", validHash: false },
+  { name: "bad-sha.txt", bytes: Buffer.from("MAGNIBOX hash mismatch fixture"), contentType: "text/plain", expected: "quarantined", validHash: false, maxAttempts: 4 },
 ];
 function assert(condition, message) { if (!condition) throw new Error(message); }
 function unwrap(result, label) {
@@ -31,11 +31,14 @@ function unwrap(result, label) {
   return result.data;
 }
 let generatedEnvFile = false;
-async function workerOnce() {
-  await execFileAsync("docker", [...compose, "run", "--rm", "--no-deps",
+async function workerOnce(clamHost, clamPort) {
+  const args = [...compose, "run", "--rm", "--no-deps",
     "-e", "NEXT_PUBLIC_SUPABASE_URL=http://host.docker.internal:54321",
-    "-e", "SUPABASE_SERVICE_ROLE_KEY=" + serviceKey,
-    "attachment-worker", "./node_modules/.bin/tsx", "scripts/magnibox/scan-attachments.ts"], { maxBuffer: 1024 * 1024 });
+    "-e", "SUPABASE_SERVICE_ROLE_KEY=" + serviceKey];
+  if (clamHost) args.push("-e", "MAGNIBOX_CLAMAV_HOST=" + clamHost);
+  if (clamPort) args.push("-e", "MAGNIBOX_CLAMAV_PORT=" + clamPort);
+  args.push("attachment-worker", "./node_modules/.bin/tsx", "scripts/magnibox/scan-attachments.ts");
+  await execFileAsync("docker", args, { maxBuffer: 1024 * 1024 });
 }
 try {
   try { await access("infra/magnibox-mail/.env.local-dev"); }
@@ -107,6 +110,54 @@ try {
   await execFileAsync("docker", [...compose, "up", "-d", "--wait", "clamav"], { maxBuffer: 1024 * 1024 });
   await Promise.all([workerOnce(), workerOnce()]);
 
+  // Prove a scanner outage is retryable and never publishes an attachment.
+  const retryBytes = Buffer.from("MAGNIBOX retry after scanner outage");
+  const retryId = randomUUID();
+  const retryPath = org + "/" + message.id + "/" + retryId;
+  const retryUpload = await admin.storage.from(bucket).upload(retryPath, retryBytes, { contentType: "text/plain", upsert: false });
+  if (retryUpload.error) throw new Error("upload outage retry fixture: " + retryUpload.error.message);
+  created.paths.push(retryPath);
+  const retryDigest = createHash("sha256").update(retryBytes).digest("hex");
+  unwrap(await admin.from("orbit_external_message_attachments").insert({
+    id: retryId, organization_id: org, message_id: message.id, storage_path: retryPath,
+    display_name: "scanner-outage-retry.txt", detected_mime_type: "text/plain",
+    byte_size: retryBytes.length, sha256: retryDigest, scan_status: "quarantined",
+  }).select("id").single(), "create scanner outage fixture");
+  ids.push({ name: "scanner-outage-retry.txt", id: retryId, path: retryPath, expected: "available", expectedAttempts: 2 });
+  await workerOnce("127.0.0.1", "1");
+  const outageState = unwrap(await admin.from("orbit_external_message_attachments")
+    .select("scan_status,scan_attempts,scan_lease_token,scan_started_at").eq("id", retryId).single(),
+    "read scanner outage state");
+  assert(outageState.scan_status === "quarantined", "ClamAV outage must keep the attachment quarantined");
+  assert(outageState.scan_attempts === 1, "ClamAV outage should consume exactly one attempt");
+  assert(outageState.scan_lease_token === null && outageState.scan_started_at === null,
+    "ClamAV outage must release its lease for retry");
+
+  // Simulate a worker crash by leaving a scan lease older than the 15-minute recovery threshold.
+  const staleMessage = unwrap(await admin.from("orbit_external_messages").insert({
+    organization_id: org, identity_id: identity.id, direction: "incoming", status: "received",
+    from_email: "fixture@example.invalid", to_emails: ["scanner@" + domain],
+    subject: "MAGNIBOX stale lease recovery fixture", body_text: "Synthetic local-only message.",
+    provider_email_id: "local-stale-" + stamp,
+  }).select("id").single(), "create stale lease message");
+  created.staleMessageId = staleMessage.id;
+  const staleBytes = Buffer.from("MAGNIBOX stale lease recovery");
+  const staleId = randomUUID();
+  const stalePath = org + "/" + staleMessage.id + "/" + staleId;
+  const staleUpload = await admin.storage.from(bucket).upload(stalePath, staleBytes, { contentType: "text/plain", upsert: false });
+  if (staleUpload.error) throw new Error("upload stale lease fixture: " + staleUpload.error.message);
+  created.paths.push(stalePath);
+  const staleDigest = createHash("sha256").update(staleBytes).digest("hex");
+  unwrap(await admin.from("orbit_external_message_attachments").insert({
+    id: staleId, organization_id: org, message_id: staleMessage.id, storage_path: stalePath,
+    display_name: "stale-lease-recovery.txt", detected_mime_type: "text/plain",
+    byte_size: staleBytes.length, sha256: staleDigest, scan_status: "scanning",
+    scan_attempts: 1, scan_started_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+    scan_lease_token: randomUUID(),
+  }).select("id").single(), "create stale lease fixture");
+  ids.push({ name: "stale-lease-recovery.txt", id: staleId, path: stalePath, expected: "available", expectedAttempts: 2 });
+  await workerOnce();
+
   const rows = unwrap(await admin.from("orbit_external_message_attachments")
     .select("id,scan_status,scan_attempts,scan_lease_token,scan_started_at")
     .in("id", ids.map(item => item.id)), "read final scan states");
@@ -116,7 +167,9 @@ try {
     assert(row, "missing result for " + fixture.name);
     assert(row.scan_status === fixture.expected, fixture.name + ": expected " + fixture.expected + ", got " + row.scan_status);
     assert(row.scan_lease_token === null && row.scan_started_at === null, fixture.name + ": scan lease was not released");
-    assert(row.scan_attempts <= 1, fixture.name + ": concurrent workers claimed fixture more than once");
+    if (fixture.expectedAttempts != null) assert(row.scan_attempts === fixture.expectedAttempts, fixture.name + ": unexpected scan attempt count " + row.scan_attempts);
+    else if (fixture.maxAttempts != null) assert(row.scan_attempts >= 1 && row.scan_attempts <= fixture.maxAttempts, fixture.name + ": retry budget exceeded: " + row.scan_attempts);
+    else assert(row.scan_attempts === 1, fixture.name + ": unexpected scan attempt count " + row.scan_attempts);
   }
   const clean = ids.find(item => item.name === "clean.pdf");
   const cleanDownload = await admin.storage.from(bucket).download(clean.path);
@@ -129,9 +182,30 @@ try {
   const badHash = ids.find(item => item.name === "bad-sha.txt");
   const badHashDownload = await admin.storage.from(bucket).download(badHash.path);
   assert(!badHashDownload.error && badHashDownload.data, "hash mismatch must remain quarantined, not be published or deleted");
-  console.log("PASS MAGNIBOX worker + local Storage + ClamAV: clean available; EICAR and unsupported rejected/deleted; bad SHA quarantined; leases released.");
+
+  // Verify tenant isolation with a second authenticated user in a different organization.
+  const secondEmail = "magnibox-isolation-" + randomUUID() + "@magnisa.test";
+  const secondPassword = "Isolation-" + randomBytes(20).toString("hex") + "!9";
+  const secondUser = unwrap(await admin.auth.admin.createUser({
+    email: secondEmail, password: secondPassword, email_confirm: true,
+  }), "create second isolated test user");
+  created.secondUserId = secondUser.user.id;
+  const secondOwner = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  unwrap(await secondOwner.auth.signInWithPassword({ email: secondEmail, password: secondPassword }),
+    "sign in second isolated test owner");
+  created.secondOrganizationId = unwrap(await secondOwner.rpc("create_organization", {
+    p_name: "MAGNIBOX Isolation E2E " + stamp, p_currency: "MGA",
+  }), "create second isolated organization");
+  const crossTenantRead = await secondOwner.from("orbit_external_message_attachments")
+    .select("id").eq("id", clean.id);
+  if (crossTenantRead.error) throw new Error("cross-tenant RLS query failed: " + crossTenantRead.error.message);
+  assert((crossTenantRead.data ?? []).length === 0,
+    "a user from another organization must not read this attachment metadata");
+
+  console.log("PASS MAGNIBOX worker + Storage + ClamAV: clean available; EICAR and unsupported rejected/deleted; bad SHA quarantined; outage retry and stale lease recovered; cross-organization RLS isolation enforced.");
 } finally {
   if (created.paths.length) await admin.storage.from(bucket).remove(created.paths).catch(() => {});
+  if (created.staleMessageId) await admin.from("orbit_external_messages").delete().eq("id", created.staleMessageId);
   if (created.messageId) await admin.from("orbit_external_messages").delete().eq("id", created.messageId);
   if (created.identityId) await admin.from("orbit_public_identities").delete().eq("id", created.identityId);
   if (created.addressId) await admin.from("mgmail_public_address_requests").delete().eq("id", created.addressId);
@@ -141,6 +215,8 @@ try {
   // leave synthetic test data behind when the organization delete is attempted.
   if (created.organizationId) await admin.from("mgmail_internal_namespaces").delete().eq("organization_id", created.organizationId);
   if (created.organizationId) await admin.from("organizations").delete().eq("id", created.organizationId);
+  if (created.secondOrganizationId) await admin.from("organizations").delete().eq("id", created.secondOrganizationId);
+  if (created.secondUserId) await admin.auth.admin.deleteUser(created.secondUserId);
   if (created.userId) await admin.auth.admin.deleteUser(created.userId);
   await execFileAsync("docker", [...compose, "down"], { maxBuffer: 1024 * 1024 }).catch(() => {});
   if (generatedEnvFile) await unlink("infra/magnibox-mail/.env.local-dev").catch(() => {});
