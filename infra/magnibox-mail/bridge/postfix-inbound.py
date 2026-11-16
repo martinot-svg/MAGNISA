@@ -117,7 +117,7 @@ def forward(raw: bytes, recipient: str) -> int:
     parsed = urlparse(endpoint)
     local_http_test = (
         parsed.scheme == "http"
-        and parsed.hostname in {"127.0.0.1", "localhost"}
+        and parsed.hostname in {"127.0.0.1", "localhost", "host.docker.internal"}
         and os.environ.get("MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL") == "true"
     )
     if (parsed.scheme != "https" and not local_http_test) or not parsed.hostname or parsed.username or parsed.password:
