@@ -28,7 +28,7 @@ chmod +x "$TMP/bin/docker"
 
 run_ok() {
   local output
-  if ! output="$(PATH="$TMP/bin:$PATH" sh "$SCRIPT" 2>&1)"; then
+  if ! output="$(PATH="$TMP/bin:$PATH" /bin/sh "$SCRIPT" 2>&1)"; then
     printf 'Expected success, got failure:\n%s\n' "$output" >&2
     exit 1
   fi
@@ -40,7 +40,7 @@ run_fail() {
   local expected="$1"
   shift
   local output
-  if output="$(env PATH="$TMP/bin:$PATH" "$@" sh "$SCRIPT" 2>&1)"; then
+  if output="$(env PATH="$TMP/bin:$PATH" "$@" /bin/sh "$SCRIPT" 2>&1)"; then
     printf 'Expected failure containing "%s", but command succeeded.\n' "$expected" >&2
     exit 1
   fi
@@ -54,7 +54,7 @@ run_ok
 run_fail "n'est pas démarré" MOCK_CONTAINER_RUNNING=false
 run_fail "ENABLE_CLAMAV n'est pas égal à 1" MOCK_CLAMAV_ENABLED=0
 run_fail "clamdscan est absent ou le démon ClamAV ne répond pas" MOCK_SCAN_EXIT=1
-if output="$(PATH="$TMP/no-docker" sh "$SCRIPT" 2>&1)"; then
+if output="$(PATH="$TMP/no-docker" /bin/sh "$SCRIPT" 2>&1)"; then
   printf 'Expected missing-Docker failure, but command succeeded.\n' >&2
   exit 1
 fi
