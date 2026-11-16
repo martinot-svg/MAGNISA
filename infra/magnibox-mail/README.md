@@ -8,9 +8,14 @@ This directory contains an **un-deployed infrastructure scaffold** for a dedicat
 
 ## Local email capture with Mailpit (development only)
 
-Mailpit is provided as a **separate, local-only Compose service**. It does not replace Postfix, Rspamd or ClamAV, and it is not part of the production MTA stack. It captures messages sent directly by a local MAGNISA development instance; it does not currently reroute Postfix traffic through Mailpit.
+Mailpit has two local development modes:
 
-From the repository root, start it with:
+1. **Direct application capture** with `compose.mailpit.yaml`: a local app can submit directly to `127.0.0.1:1025`. This mode tests the application SMTP client against Mailpit, not Postfix.
+2. **Postfix relay capture** with `compose.yaml` plus `compose.mailpit-relay.yaml`: Postfix uses `DEFAULT_RELAY_HOST=[mailpit]:1025` on the private Compose network. The overlay is local-only and must never be used for production.
+
+For the full MAGNIBOX path, follow [LOCAL-SMTP-LAB.md](./LOCAL-SMTP-LAB.md). It configures authenticated application submission to Postfix on port 587 with STARTTLS, then verifies Postfix relays the message to Mailpit. The test destination uses the reserved `.invalid` domain and cannot be a real recipient.
+
+The direct Mailpit-only mode remains available from the repository root:
 
 ```sh
 docker compose -f infra/magnibox-mail/compose.mailpit.yaml up -d
@@ -18,12 +23,12 @@ docker compose -f infra/magnibox-mail/compose.mailpit.yaml ps
 ```
 
 - Web inbox: http://127.0.0.1:8025
-- SMTP endpoint for an application running on the host: `127.0.0.1:1025`
+- Direct SMTP endpoint for local-only tests: `127.0.0.1:1025`
 - Stop it with: `docker compose -f infra/magnibox-mail/compose.mailpit.yaml down`
 
-Both published ports are explicitly bound to loopback; do not change them to public interfaces. Configure only a local development environment to use this SMTP endpoint. Do not put these settings in production secrets or enable customer mail through Mailpit. Mailpit captures test messages and does not deliver them to external recipients. Its container is separate from the production MTA Compose file.
+Both published ports are explicitly bound to loopback. Mailpit captures messages and does not deliver them to external recipients. Never put local test settings in production secrets or enable customer mail through Mailpit.
 
-Validate the configuration with:
+Validate the direct Mailpit configuration with:
 
 ```sh
 bash scripts/ci/check-magnibox-mailpit.sh
