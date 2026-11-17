@@ -12,6 +12,21 @@ const viewportSet = [[390,844],[800,1280],[1366,768]];
 const errors = [];
 const failures = [];
 const checked = [];
+async function gotoWithRetry(page, url, options = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      return await page.goto(url, { ...options, waitUntil:"domcontentloaded", timeout:60000 });
+    } catch (error) {
+      lastError = error;
+      if (attempt === 2) break;
+      // Next.js may restart its dev server after compiling the full ERP route set.
+      // Give the local server a moment to become ready, then retry the same route.
+      await new Promise(resolve => setTimeout(resolve, 2500));
+    }
+  }
+  throw lastError;
+}
 const browser = await chromium.launch({ headless:true, args:["--no-sandbox"] });
 mkdirSync("test-results/modules-responsive",{recursive:true});
 
@@ -36,7 +51,7 @@ try {
   for (const [width,height] of viewportSet) {
     await page.setViewportSize({width,height});
     for (const module of unique) {
-      const response = await page.goto(base+module.path,{waitUntil:"domcontentloaded",timeout:45000});
+      const response = await gotoWithRetry(page, base+module.path);
       await page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:20000});
       const state = await page.evaluate(()=>{
         const root = document.documentElement;
