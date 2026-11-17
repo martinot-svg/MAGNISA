@@ -81,7 +81,7 @@ BEGIN
     WHERE oid=to_regprocedure('public.mgmail_send_internal_message(uuid,uuid,uuid,text,text,uuid)')
       AND prosecdef
   ) THEN
-    RAISE EXCEPTION 'MGMail: idempotent send RPC must exist and be SECURITY INVOKER';
+    RAISE EXCEPTION 'MGMail: idempotent send RPC must exist and be SECURITY DEFINER';
   END IF;
   IF has_function_privilege('anon',
        'public.mgmail_send_internal_message(uuid,uuid,uuid,text,text,uuid)', 'EXECUTE')
@@ -114,7 +114,12 @@ BEGIN
     RAISE EXCEPTION 'MGMail: execution grants for anonymous or authenticated role are incorrect';
   END IF;
 
-  IF has_table_privilege('authenticated','public.mgmail_internal_messages','INSERT') THEN
+  IF has_table_privilege('authenticated','public.mgmail_internal_messages','INSERT')
+     OR has_column_privilege('authenticated','public.mgmail_internal_messages','organization_id','INSERT')
+     OR has_column_privilege('authenticated','public.mgmail_internal_messages','sender_mailbox_id','INSERT')
+     OR has_column_privilege('authenticated','public.mgmail_internal_messages','recipient_mailbox_id','INSERT')
+     OR has_column_privilege('authenticated','public.mgmail_internal_messages','subject','INSERT')
+     OR has_column_privilege('authenticated','public.mgmail_internal_messages','body_text','INSERT') THEN
     RAISE EXCEPTION 'MGMail: authenticated users must send through guarded RPCs, not direct table INSERT';
   END IF;
 
