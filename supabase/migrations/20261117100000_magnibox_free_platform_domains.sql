@@ -97,15 +97,23 @@ set search_path=pg_catalog,public,private
 as $allocation_guard$
 declare v_root text;
 begin
-  select root_domain into v_root
-  from public.magnibox_platform_domain_catalog
-  where id=new.catalog_domain_id
-    and is_active
-    and ownership_status='verified'
-    and mail_status='ready'
-    and mx_verified and spf_verified and dkim_verified and dmarc_verified;
-  if not found or new.root_domain<>v_root then
-    raise exception 'Domaine MAGNIBOX indisponible ou non prêt';
+  -- A new allocation or a change of its domain must point to a currently
+  -- selectable MAGNISA root. A later release/suspension must still be possible
+  -- if the root is taken offline, so status-only cleanup does not depend on it.
+  if tg_op='INSERT'
+    or new.catalog_domain_id is distinct from old.catalog_domain_id
+    or new.root_domain is distinct from old.root_domain
+    or new.status in ('provisioning','active') then
+    select root_domain into v_root
+    from public.magnibox_platform_domain_catalog
+    where id=new.catalog_domain_id
+      and is_active
+      and ownership_status='verified'
+      and mail_status='ready'
+      and mx_verified and spf_verified and dkim_verified and dmarc_verified;
+    if not found or new.root_domain<>v_root then
+      raise exception 'Domaine MAGNIBOX indisponible ou non prêt';
+    end if;
   end if;
   if new.status='active' and
     (new.dns_verified_at is null or nullif(btrim(new.provisioning_reference),'') is null) then
