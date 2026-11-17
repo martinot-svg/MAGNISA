@@ -74,9 +74,7 @@ const reserve=async(account,organizationId,label)=>
   unwrap(await account.rpc("magnibox_reserve_free_domain",{
     p_organization_id:organizationId,p_catalog_domain_id:catalog.id,p_tenant_label:label,
   }),"reserve free domain");
-const first=reserveResult(reserve);
-function reserveResult(promise){return promise;}
-const firstRows=await first(owner.account,org,`company-${token}`);
+const firstRows=await reserve(owner.account,org,`company-${token}`);
 const firstRow=Array.isArray(firstRows)?firstRows[0]:firstRows;
 if(!firstRow||firstRow.assigned_domain!==`company-${token}.${rootDomain}`||firstRow.allocation_status!=="reserved")
   throw Error("Free domain reservation did not create the expected reserved subdomain");
