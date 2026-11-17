@@ -300,10 +300,10 @@ try {
     "( set -C; : > \"$marker\" ) 2>/dev/null && exit 75",
     "exec /usr/bin/python3 /opt/magnibox-bridge/postfix-inbound.py \"$@\"",
     "",
-  ].join("\\n");
+  ].join("\n");
+  const retryWrapperBase64 = Buffer.from(retryWrapper).toString("base64");
   execFileSync("docker", ["exec", "magnibox-mailserver", "sh", "-ec",
-    "rm -f /tmp/magnibox-postfix-retry-first-attempt; printf '%s' " +
-    "'" + retryWrapper.replaceAll("'", "'\\''") + "' > /tmp/magnibox-postfix-retry-wrapper.sh; chmod 755 /tmp/magnibox-postfix-retry-wrapper.sh"]);
+    "rm -f /tmp/magnibox-postfix-retry-first-attempt; printf %s " + retryWrapperBase64 + " | base64 -d > /tmp/magnibox-postfix-retry-wrapper.sh; chmod 755 /tmp/magnibox-postfix-retry-wrapper.sh"]);
   execFileSync("docker", ["exec", "magnibox-mailserver", "postconf", "-e", "minimal_backoff_time=300s"]);
   execFileSync("docker", ["exec", "magnibox-mailserver", "sh", "-ec",
     "sed -i 's#argv=/usr/bin/python3 /opt/magnibox-bridge/postfix-inbound.py#argv=/tmp/magnibox-postfix-retry-wrapper.sh#' /etc/postfix/master.cf && postfix reload"]);
