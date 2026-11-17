@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     // Only previously received, malware-scanned files in this exact mailbox
     // may be forwarded. Browser-supplied paths, names and MIME types are ignored.
     const outgoingAttachments: Array<{filename:string;content:Buffer;contentType:string}> = [];
-    const attachmentFingerprint: Array<{id:string;sha256:string;byteSize:number;contentType:string}> = [];
+    const attachmentFingerprint: Array<{id:string;sha256:string;byteSize:number;contentType:string;filename:string}> = [];
     if (attachmentIds.length) {
       const visible = await ctx.supabase.from("orbit_external_message_attachments")
         .select("id,message_id,storage_path,display_name,byte_size,detected_mime_type,sha256")
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
         if (content.length !== item.byte_size || createHash("sha256").update(content).digest("hex") !== item.sha256) return reply("Intégrité d'une pièce jointe non vérifiée.",400);
         const filename = item.display_name.replace(/[^\\w .()\\-]/g, "_").slice(0,120) || "attachment.bin";
         outgoingAttachments.push({filename,content,contentType:item.detected_mime_type});
-        attachmentFingerprint.push({id:item.id,sha256:item.sha256,byteSize:item.byte_size,contentType:item.detected_mime_type});
+        attachmentFingerprint.push({id:item.id,sha256:item.sha256,byteSize:item.byte_size,contentType:item.detected_mime_type,filename});
       }
     }
 
