@@ -14,8 +14,13 @@ export function assertMagniboxPostfixTransport(mainConfig, masterConfig) {
       throw new Error("Postfix active main.cf is missing " + key + " = " + value);
     }
   }
+  const bridgeVariables = ["MAGNIBOX_INBOUND_URL", "MAGNIBOX_INBOUND_WEBHOOK_SECRET", "MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"];
+  const importedEnvironment = new Set((settings.get("import_environment") || "").split(/\s+/));
   const exportedEnvironment = new Set((settings.get("export_environment") || "").split(/\s+/));
-  for (const name of ["MAGNIBOX_INBOUND_URL", "MAGNIBOX_INBOUND_WEBHOOK_SECRET", "MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"]) {
+  for (const name of bridgeVariables) {
+    if (!importedEnvironment.has(name)) {
+      throw new Error("Postfix master does not import " + name + " from the container environment");
+    }
     if (!exportedEnvironment.has(name)) {
       throw new Error("Postfix pipe transport does not export " + name + " to the bridge process");
     }
