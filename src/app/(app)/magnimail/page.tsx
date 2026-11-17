@@ -3,9 +3,10 @@ import { requireOrganization } from "@/lib/current-org";
 import { MagniboxInternalContent } from "@/components/magnimail-internal-workspace";
 import { MagniboxInternetWorkspace } from "@/components/magnibox-internet-workspace";
 
-export default async function MagniboxPage({ searchParams }: { searchParams?: Promise<{ q?: string | string[] }> }) {
+export default async function MagniboxPage({ searchParams }: { searchParams?: Promise<{ q?: string | string[]; folder?: string | string[] }> }) {
   const params = searchParams ? await searchParams : {};
   const searchQuery = Array.isArray(params.q) ? (params.q[0] || "") : (params.q || "");
+  const selectedFolderId = Array.isArray(params.folder) ? (params.folder[0] || "") : (params.folder || "");
   const ctx = await requireOrganization();
   const canManageDomains = await hasPermission(ctx, "users.manage");
 
@@ -19,7 +20,7 @@ export default async function MagniboxPage({ searchParams }: { searchParams?: Pr
         </div>
       </div>
 
-      <MagniboxInternalContent embedded searchQuery={searchQuery} />
+      <MagniboxInternalContent embedded searchQuery={searchQuery} selectedFolderId={selectedFolderId} />
       <MagniboxInternetWorkspace />
 
       <div className="card section">
