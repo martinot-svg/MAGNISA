@@ -220,11 +220,19 @@ try {
   await a.page.getByRole("button",{name:"Créer un dossier"}).click();
   const folderLink=a.page.getByRole("link",{name:folderName,exact:true});
   await folderLink.waitFor({timeout:20000});
-  const sentCard=a.page.locator('div[style*="border-bottom"]')
+  const sentCard=a.page.getByTestId("magnibox-message-card")
     .filter({has:a.page.getByText(subject,{exact:true})}).first();
+  await sentCard.waitFor({state:"visible",timeout:15000});
   await sentCard.locator('select[name="folderId"]').selectOption({label:folderName});
   await sentCard.getByRole("button",{name:"Classer"}).click();
-  await sentCard.getByText(folderName,{exact:true}).waitFor({timeout:20000});
+  // Server Actions revalidate the route; reload once to assert the persisted
+  // assignment from a fresh server render rather than matching a hidden option.
+  await a.page.reload({waitUntil:"domcontentloaded"});
+  await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
+  const refreshedCard=a.page.getByTestId("magnibox-message-card")
+    .filter({has:a.page.getByText(subject,{exact:true})}).first();
+  await refreshedCard.getByTestId("magnibox-message-folders")
+    .getByText(folderName,{exact:false}).waitFor({state:"visible",timeout:20000});
   await folderLink.click();
   await a.page.getByText(subject,{exact:true}).waitFor({timeout:20000});
   await a.page.getByText("Dossiers personnels",{exact:true}).waitFor({timeout:15000});
