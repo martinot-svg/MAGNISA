@@ -202,5 +202,47 @@ class InboundBridgeTests(unittest.TestCase):
             os.environ.update(previous)
 
 
+
+    def test_real_local_http_503_returns_postfix_temporary_failure(self):
+        import os
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        from threading import Thread
+
+        class UnavailableHandler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                self.send_response(503)
+                self.end_headers()
+                self.wfile.write(b"temporary outage")
+
+            def log_message(self, *_args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), UnavailableHandler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        previous = dict(os.environ)
+        try:
+            thread.start()
+            os.environ["MAGNIBOX_INBOUND_URL"] = (
+                "http://127.0.0.1:" + str(server.server_port) + "/hook"
+            )
+            os.environ["MAGNIBOX_INBOUND_WEBHOOK_SECRET"] = "x" * 40
+            os.environ["MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"] = "true"
+            raw = (
+                b"From: sender@example.org\\r\\n"
+                b"Message-ID: <temporary-outage@example.org>\\r\\n"
+                b"Content-Type: text/plain; charset=utf-8\\r\\n\\r\\n"
+                b"Retain this message until the API recovers."
+            )
+            # Postfix pipe(8) interprets EX_TEMPFAIL (75) as a deferred
+            # delivery: the queue manager retains the message for retry.
+            self.assertEqual(bridge.forward(raw, "inbox@example.org"), 75)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            os.environ.clear()
+            os.environ.update(previous)
+
+
 if __name__ == "__main__":
     unittest.main()
