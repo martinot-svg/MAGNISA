@@ -79,7 +79,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_catalog.pg_proc
     WHERE oid=to_regprocedure('public.mgmail_send_internal_message(uuid,uuid,uuid,text,text,uuid)')
-      AND NOT prosecdef
+      AND prosecdef
   ) THEN
     RAISE EXCEPTION 'MGMail: idempotent send RPC must exist and be SECURITY INVOKER';
   END IF;
@@ -101,9 +101,9 @@ BEGIN
   ) OR NOT EXISTS (
     SELECT 1 FROM pg_catalog.pg_proc
     WHERE oid=to_regprocedure('public.mgmail_send_internal_draft(uuid)')
-      AND NOT prosecdef
+      AND prosecdef
   ) THEN
-    RAISE EXCEPTION 'MGMail: permission and draft RPCs must exist and be SECURITY INVOKER';
+    RAISE EXCEPTION 'MGMail: permission RPCs must be invoker and guarded send RPCs must be definer';
   END IF;
   IF has_function_privilege('anon', 'public.mgmail_can_send_internal(uuid,uuid,uuid)', 'EXECUTE')
      OR has_function_privilege('anon', 'public.mgmail_has_internal_access(uuid,uuid,text)', 'EXECUTE')
@@ -112,6 +112,10 @@ BEGIN
      OR has_function_privilege('anon', 'public.mgmail_send_internal_draft(uuid)', 'EXECUTE')
      OR NOT has_function_privilege('authenticated', 'public.mgmail_send_internal_draft(uuid)', 'EXECUTE') THEN
     RAISE EXCEPTION 'MGMail: execution grants for anonymous or authenticated role are incorrect';
+  END IF;
+
+  IF has_table_privilege('authenticated','public.mgmail_internal_messages','INSERT') THEN
+    RAISE EXCEPTION 'MGMail: authenticated users must send through guarded RPCs, not direct table INSERT';
   END IF;
 
   IF EXISTS (
@@ -146,6 +150,6 @@ BEGIN
     RAISE EXCEPTION 'MGMail: essential notifications or access-revocation triggers missing: %', v_missing;
   END IF;
 
-  RAISE NOTICE 'PASS MGMail: six versions, eight RLS tables including private drafts and personal folders, idempotent send RPC, required policies, invoker RPCs and access/notification triggers';
+  RAISE NOTICE 'PASS MGMail: six versions, eight RLS tables including private drafts and personal folders, idempotent send RPC, required policies, invoker permission RPCs, guarded definer send RPCs and access/notification triggers';
 END
 $mgmail_check$;
