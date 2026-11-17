@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       const identity = await lookupIdentity(recipient);
       if (!identity || !identity.provider_verified_at || !identity.provider_domain_ref?.trim())
         return NextResponse.json({ error: "Destinataire non disponible." }, { status: 422 });
-      const [domain, address, mailbox] = await Promise.all([
+      const [mailbox, domain, address] = await Promise.all([
         admin.from("mgmail_internal_mailboxes").select("id,is_active")
           .eq("id", identity.mailbox_id)
           .eq("organization_id", identity.organization_id).maybeSingle(),
