@@ -6,7 +6,7 @@ export type SenderRecord = {
 };
 export type PublicMailReadyFlags = {
   enabled: boolean; hasCredentials: boolean; domainVerified: boolean;
-  addressApproved: boolean; recipientAuthorized: boolean;
+  addressApproved: boolean; mailboxActive: boolean; recipientAuthorized: boolean;
 };
 export function validExternalRequestId(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -14,7 +14,7 @@ export function validExternalRequestId(value: unknown): value is string {
 export function allowPublicSend(identity: SenderRecord | null, organizationId: string, flags: PublicMailReadyFlags): boolean {
   return Boolean(identity && identity.organization_id === organizationId && identity.status === "active"
     && identity.provider === "smtp" && identity.provider_verified_at && identity.provider_domain_ref?.trim()
-    && flags.enabled && flags.hasCredentials && flags.domainVerified && flags.addressApproved && flags.recipientAuthorized);
+    && flags.enabled && flags.hasCredentials && flags.domainVerified && flags.addressApproved && flags.mailboxActive && flags.recipientAuthorized);
 }
 export function normalizeOutgoingMessage(value: unknown): { identityId: string; requestId: string; to: string[]; subject: string; text: string } {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Message professionnel invalide.");
