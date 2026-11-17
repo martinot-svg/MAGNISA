@@ -115,6 +115,11 @@ const allowedSend = required(await a.userClient.rpc("mgmail_can_send_internal", 
   p_recipient_mailbox_id: direction,
 }), "Permission interne d'envoi");
 assert(allowedSend === true, "La permission MGMail doit autoriser l'envoi d'un collaborateur actif.");
+denied(await a.userClient.from("mgmail_internal_messages").insert({
+  organization_id: organizationId, sender_mailbox_id: finance,
+  recipient_mailbox_id: direction, subject: "Contournement RPC",
+  body_text: "Un envoi authentifié doit passer par le RPC idempotent.",
+}).select("id"), "Interdiction de contourner le RPC d'envoi");
 
 const forbiddenSend = required(await a.userClient.rpc("mgmail_can_send_internal", {
   p_organization_id: organizationId,
