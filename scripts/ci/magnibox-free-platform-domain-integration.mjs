@@ -57,7 +57,8 @@ const hiddenProbe=await owner.account.from("magnibox_platform_domain_catalog")
 if(hiddenProbe.error||hiddenProbe.data.length!==0)
   throw Error("Unverified platform domain leaked into the selectable catalogue");
 
-const denied=async(result,label)=>{
+const denied=async(resultPromise,label)=>{
+  const result=await resultPromise;
   if(result.error)return;
   if(Array.isArray(result.data)&&result.data.length===0)return;
   throw Error(label+": unauthorized operation succeeded");
