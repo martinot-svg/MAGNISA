@@ -28,7 +28,7 @@ const attachment = {
   contentType: "text/plain",
   contentBase64: attachmentBytes.toString("base64"),
 };
-const created = { userId: null, organizationId: null, mailboxId: null, domainId: null, addressId: null, identityId: null, messageIds: [], storagePaths: [] };
+const created = { userId: null, unauthorizedUserId: null, organizationId: null, mailboxId: null, domainId: null, addressId: null, identityId: null, messageIds: [], storagePaths: [] };
 function assert(condition, message) { if (!condition) throw new Error(message); }
 function unwrap(result, label) {
   if (result.error || result.data == null) throw new Error(label + ": " + (result.error?.message ?? "no data"));
@@ -119,6 +119,22 @@ try {
   "inbound attachment must be stored with SHA-256 metadata in quarantine");
   const storedObject = await admin.storage.from("magnibox-attachments").download(metadata.storage_path);
   assert(!storedObject.error && storedObject.data, "quarantined attachment object must exist in private storage");
+
+  // A separately authenticated user with no organization membership must not
+  // be able to read the quarantined object from the private Storage bucket.
+  const unauthorizedEmail = "magnibox-outsider-" + stamp + "@magnisa.test";
+  const unauthorizedPassword = "Outsider-" + randomBytes(24).toString("hex") + "!9";
+  const outsiderUser = unwrap(await admin.auth.admin.createUser({
+    email: unauthorizedEmail, password: unauthorizedPassword, email_confirm: true,
+  }), "create unauthorized attachment test user");
+  created.unauthorizedUserId = outsiderUser.user.id;
+  const outsider = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
+  unwrap(await outsider.auth.signInWithPassword({ email: unauthorizedEmail, password: unauthorizedPassword }),
+    "sign in unauthorized attachment test user");
+  const forbiddenDownload = await outsider.storage.from("magnibox-attachments").download(metadata.storage_path);
+  assert(!!forbiddenDownload.error || !forbiddenDownload.data,
+    "an authenticated user outside the organization must not download a quarantined attachment");
+  console.log("Inbound E2E: authenticated non-member denied access to quarantined attachment");
 
   const replay = await signedRequest(payload);
   const replayText = await replay.text();
@@ -275,6 +291,70 @@ try {
     "replayed Postfix SMTP delivery must not duplicate quarantined attachments");
   console.log("Inbound E2E: duplicate SMTP Message-ID is idempotent, with one quarantined attachment");
 
+  // Reconfigure only the CI container for a deterministic one-shot EX_TEMPFAIL.
+  // Postfix must retain the queued message; after recovery, a forced retry must
+  // deliver it exactly once through the real bridge and then remove it from queue.
+  const retryWrapper = [
+    "#!/bin/sh",
+    "marker=/tmp/magnibox-postfix-retry-first-attempt",
+    "( set -C; : > \"$marker\" ) 2>/dev/null && exit 75",
+    "exec /usr/bin/python3 /opt/magnibox-bridge/postfix-inbound.py \"$@\"",
+    "",
+  ].join("\\n");
+  execFileSync("docker", ["exec", "magnibox-mailserver", "sh", "-ec",
+    "rm -f /tmp/magnibox-postfix-retry-first-attempt; printf '%s' " +
+    "'" + retryWrapper.replaceAll("'", "'\\''") + "' > /tmp/magnibox-postfix-retry-wrapper.sh; chmod 755 /tmp/magnibox-postfix-retry-wrapper.sh"]);
+  execFileSync("docker", ["exec", "magnibox-mailserver", "postconf", "-e", "minimal_backoff_time=300s"]);
+  execFileSync("docker", ["exec", "magnibox-mailserver", "sh", "-ec",
+    "sed -i 's#argv=/usr/bin/python3 /opt/magnibox-bridge/postfix-inbound.py#argv=/tmp/magnibox-postfix-retry-wrapper.sh#' /etc/postfix/master.cf && postfix reload"]);
+  const retryMessageId = "postfix-retry-" + stamp + "@magnisa.test";
+  await smtp.sendMail({
+    ...postfixMail,
+    messageId: "<" + retryMessageId + ">",
+    subject: "MAGNIBOX Postfix retry E2E " + stamp,
+    text: "This message must remain queued after a temporary bridge failure and deliver after recovery.",
+  });
+  const queueDeadline = Date.now() + 30000;
+  let queuedId = null;
+  let queueSnapshot = "";
+  while (Date.now() < queueDeadline) {
+    const marker = spawnSync("docker", ["exec", "magnibox-mailserver", "test", "-f",
+      "/tmp/magnibox-postfix-retry-first-attempt"]);
+    queueSnapshot = execFileSync("docker", ["exec", "magnibox-mailserver", "postqueue", "-p"], { encoding: "utf8" });
+    const match = queueSnapshot.match(/^([A-F0-9]{5,})[*!]?/m);
+    if (marker.status === 0 && match && queueSnapshot.includes(recipient)) {
+      queuedId = match[1];
+      break;
+    }
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  assert(queuedId, "Postfix must retain the SMTP message in its queue after the bridge returns EX_TEMPFAIL; queue=" + queueSnapshot);
+  console.log("Inbound E2E: Postfix retained transiently failed message in queue " + queuedId);
+  execFileSync("docker", ["exec", "magnibox-mailserver", "postqueue", "-i", queuedId]);
+  let retriedMessage = null;
+  const retryDeadline = Date.now() + 45000;
+  while (Date.now() < retryDeadline) {
+    const lookup = await admin.from("orbit_external_messages")
+      .select("id,subject,body_text,provider_email_id")
+      .eq("identity_id", identity.id).eq("direction", "incoming").eq("provider_email_id", retryMessageId).maybeSingle();
+    if (lookup.error) throw lookup.error;
+    if (lookup.data) { retriedMessage = lookup.data; break; }
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  assert(retriedMessage, "Postfix queue retry after bridge recovery must persist the message");
+  created.messageIds.push(retriedMessage.id);
+  assert(retriedMessage.subject === "MAGNIBOX Postfix retry E2E " + stamp
+    && retriedMessage.body_text.includes("after recovery"),
+  "retried Postfix message content must be preserved");
+  const remainingQueue = execFileSync("docker", ["exec", "magnibox-mailserver", "postqueue", "-p"], { encoding: "utf8" });
+  assert(!remainingQueue.includes(queuedId),
+    "successfully delivered Postfix retry must leave no queued copy; queue=" + remainingQueue);
+  const retryCount = await admin.from("orbit_external_messages").select("id", { count: "exact", head: true })
+    .eq("identity_id", identity.id).eq("direction", "incoming").eq("provider_email_id", retryMessageId);
+  if (retryCount.error) throw retryCount.error;
+  assert(retryCount.count === 1, "Postfix retry must persist exactly one message; got " + retryCount.count);
+  console.log("Inbound E2E: queued message redelivered after recovery exactly once; queue cleared");
+
   // Unknown recipients must be refused by Postfix at SMTP RCPT time, before DATA.
   let unknownRejected = false;
   try {
@@ -286,7 +366,7 @@ try {
   console.log("Inbound E2E: Postfix rejected an unknown recipient at SMTP RCPT");
   await smtp.close();
 
-  console.log("PASS MAGNIBOX inbound: signed API, replay/conflict protection, MIME bridge, real Postfix SMTP pipe delivery, unknown RCPT rejection, and private attachment quarantine.");
+  console.log("PASS MAGNIBOX inbound: signed API, replay/conflict protection, MIME bridge, real Postfix SMTP delivery, transient queue retention and recovery, unauthorized attachment denial, unknown RCPT rejection, and private quarantine.");
 } catch (error) {
   console.error("Inbound E2E failure diagnostics:", error);
   for (const args of [
@@ -308,5 +388,6 @@ try {
   if (created.domainId) await admin.from("mgmail_domain_requests").delete().eq("id", created.domainId);
   if (created.mailboxId) await admin.from("mgmail_internal_mailboxes").delete().eq("id", created.mailboxId);
   if (created.organizationId) await admin.from("mgmail_internal_namespaces").delete().eq("organization_id", created.organizationId);
+  if (created.unauthorizedUserId) await admin.auth.admin.deleteUser(created.unauthorizedUserId);
   if (created.userId) await admin.auth.admin.deleteUser(created.userId);
 }
