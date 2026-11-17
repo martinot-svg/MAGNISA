@@ -228,9 +228,9 @@ class InboundBridgeTests(unittest.TestCase):
             os.environ["MAGNIBOX_INBOUND_WEBHOOK_SECRET"] = "x" * 40
             os.environ["MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"] = "true"
             raw = (
-                b"From: sender@example.org\\r\\n"
-                b"Message-ID: <temporary-outage@example.org>\\r\\n"
-                b"Content-Type: text/plain; charset=utf-8\\r\\n\\r\\n"
+                b"From: sender@example.org\r\n"
+                b"Message-ID: <temporary-outage@example.org>\r\n"
+                b"Content-Type: text/plain; charset=utf-8\r\n\r\n"
                 b"Retain this message until the API recovers."
             )
             # Postfix pipe(8) interprets EX_TEMPFAIL (75) as a deferred
