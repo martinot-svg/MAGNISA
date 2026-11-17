@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
         if (downloaded.error || !downloaded.data) return reply("Lecture sécurisée des pièces jointes impossible.",503);
         const content = Buffer.from(await downloaded.data.arrayBuffer());
         if (content.length !== item.byte_size || createHash("sha256").update(content).digest("hex") !== item.sha256) return reply("Intégrité d'une pièce jointe non vérifiée.",400);
-        const filename = item.display_name.replace(/[^\\w .()\\-]/g, "_").slice(0,120) || "attachment.bin";
+        const filename = item.display_name.replace(/[^\w .()-]/g, "_").slice(0,120) || "attachment.bin";
         outgoingAttachments.push({filename,content,contentType:item.detected_mime_type});
         attachmentFingerprint.push({id:item.id,sha256:item.sha256,byteSize:item.byte_size,contentType:item.detected_mime_type,filename});
       }
