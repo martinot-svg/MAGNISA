@@ -10,6 +10,7 @@ const checks = [
   ["fingerprint includes normalized recipients and body", /to:\s*input\.to,\s*subject:\s*input\.subject,\s*text:\s*input\.text/.test(route)],
   ["fingerprint includes verified attachment digests and transmitted filename", /attachmentFingerprint\.push\(\{id:item\.id,sha256:item\.sha256,byteSize:item\.byte_size,contentType:item\.detected_mime_type,filename\}\)/.test(route)],
   ["attachment order follows caller order", /attachmentIds\.map\(id => \(visible\.data \?\? \[\]\)\.find\(item => item\.id === id\)!\)/.test(route)],
+  ["attachment filenames are restricted to safe characters", /display_name\.replace\(\/\[\^\\w \.\(\)-\]\/g, "_"/.test(route)],
   ["existing key compares fingerprint", /prior\.data\.request_fingerprint===requestFingerprint/.test(route)],
   ["concurrent duplicate compares fingerprint", /existing\.data\.request_fingerprint!==requestFingerprint/.test(route)],
   ["SQL reservation requires 64-char fingerprint", /p_request_fingerprint !~ '\^\[0-9a-f\]\{64\}\$'/.test(migration)],
