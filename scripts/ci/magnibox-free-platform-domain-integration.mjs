@@ -79,6 +79,13 @@ const firstRows=await reserve(owner.account,org,`company-${token}`);
 const firstRow=Array.isArray(firstRows)?firstRows[0]:firstRows;
 if(!firstRow||firstRow.assigned_domain!==`company-${token}.${rootDomain}`||firstRow.allocation_status!=="reserved")
   throw Error("Free domain reservation did not create the expected reserved subdomain");
+const linkedRequest=unwrap(await owner.account.from("mgmail_domain_requests")
+  .select("id,domain_name,status,platform_allocation_id")
+  .eq("organization_id",org).eq("platform_allocation_id",firstRow.allocation_id).single(),
+  "read linked pending domain request");
+if(linkedRequest.domain_name!==firstRow.assigned_domain||linkedRequest.status!=="pending")
+  throw Error("Free reservation must create a linked pending domain request, never a verified domain");
+
 const repeatRows=await reserve(owner.account,org,`company-${token}`);
 const repeat=Array.isArray(repeatRows)?repeatRows[0]:repeatRows;
 if(repeat?.allocation_id!==firstRow.allocation_id)
