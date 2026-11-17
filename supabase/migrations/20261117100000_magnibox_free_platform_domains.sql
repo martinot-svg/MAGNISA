@@ -95,15 +95,19 @@ language plpgsql
 security definer
 set search_path=pg_catalog,public,private
 as $allocation_guard$
-declare v_root text;
+declare
+  v_root text;
+  v_check_root boolean:=tg_op='INSERT';
 begin
   -- A new allocation or a change of its domain must point to a currently
   -- selectable MAGNISA root. A later release/suspension must still be possible
   -- if the root is taken offline, so status-only cleanup does not depend on it.
-  if tg_op='INSERT'
-    or new.catalog_domain_id is distinct from old.catalog_domain_id
-    or new.root_domain is distinct from old.root_domain
-    or new.status in ('provisioning','active') then
+  if tg_op='UPDATE' then
+    v_check_root:=new.catalog_domain_id is distinct from old.catalog_domain_id
+      or new.root_domain is distinct from old.root_domain
+      or new.status in ('provisioning','active');
+  end if;
+  if v_check_root then
     select root_domain into v_root
     from public.magnibox_platform_domain_catalog
     where id=new.catalog_domain_id
