@@ -230,17 +230,18 @@ const permissionB=required(await b.userClient.rpc("mgmail_has_internal_access",{
 }),"Permission lecteur seul");
 assert(permissionA===true && permissionB===false,
   "Les droits de lecture et d'envoi doivent être indépendants.");
-required(await a.userClient.from("mgmail_internal_messages").insert({
-  organization_id:organizationId,sender_mailbox_id:ownerBox,recipient_mailbox_id:direction,
-  subject:"Envoi délégué MGMail",body_text:"Message envoyé avec droit explicite.",
+required(await a.userClient.rpc("mgmail_send_internal_message", {
+  p_organization_id:organizationId,p_sender_mailbox_id:ownerBox,p_recipient_mailbox_id:direction,
+  p_subject:"Envoi délégué MGMail",p_body_text:"Message envoyé avec droit explicite.",p_request_id:randomUUID(),
 }),"Envoi partagé autorisé");
 denied(await b.userClient.from("mgmail_internal_messages").insert({
   organization_id:organizationId,sender_mailbox_id:ownerBox,recipient_mailbox_id:finance,
   subject:"Envoi interdit",body_text:"L'accès lecture ne donne pas le droit d'envoyer.",
 }).select("id"),"Envoi refusé à un lecteur seul");
-required(await b.userClient.from("mgmail_internal_messages").insert({
-  organization_id:organizationId,sender_mailbox_id:direction,recipient_mailbox_id:ownerBox,
-  subject:"Réponse à la boîte commune",body_text:"Notification et état de lecture individuel.",
+required(await b.userClient.rpc("mgmail_send_internal_message", {
+  p_organization_id:organizationId,p_sender_mailbox_id:direction,p_recipient_mailbox_id:ownerBox,
+  p_subject:"Réponse à la boîte commune",p_body_text:"Notification et état de lecture individuel.",
+  p_request_id:randomUUID(),
 }),"Message reçu dans la boîte commune");
 const shared=required(await owner.from("mgmail_internal_messages").select("id")
   .eq("organization_id",organizationId).eq("subject","Réponse à la boîte commune"),
