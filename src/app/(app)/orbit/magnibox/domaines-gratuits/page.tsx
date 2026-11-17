@@ -68,6 +68,8 @@ export default async function MagniboxFreeDomainsPage(){
           :allocation.status==="suspended"?"Domaine suspendu par la plateforme."
           :"Domaine réservé."}</p>
         <p className="muted">La réservation du domaine ne crée pas encore une boîte mail opérationnelle.</p>
+        <p className="muted">La demande de domaine associée a été créée automatiquement. Vous pouvez maintenant choisir une boîte interne active et demander l'adresse professionnelle correspondante.</p>
+        <Link className="button primary" href="/orbit/magnibox/domaines">Créer une adresse professionnelle</Link>
       </>:!canManage?<p className="muted">La réservation est réservée à un administrateur autorisé de l'entreprise.</p>
       :options.length===0?<p className="muted">Aucun domaine n'est actuellement publiable. Le catalogue sera alimenté après validation de domaines contrôlés par MAGNISA et de leurs enregistrements MX, SPF, DKIM et DMARC.</p>
       :<FormDialog title="Réserver un domaine professionnel gratuit" buttonLabel="Choisir gratuitement ce domaine">
