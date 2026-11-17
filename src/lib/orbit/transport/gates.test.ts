@@ -3,9 +3,9 @@ import { allowPublicSend, eligiblePublicRecipient, enabledMagniboxInternetMail, 
 const org="19f9440d-776b-470e-ae73-f9277f5b74e8";
 const key="aeeb4255-0860-45d8-9c92-72488919ee51";
 const sender={id:key,organization_id:org,domain_request_id:key,address_request_id:key,email_address:"finance@entreprise.mg",provider:"smtp",status:"active",provider_verified_at:"2026-11-14T08:00:00Z",provider_domain_ref:"magnibox-domain-1"};
-const flags={enabled:true,hasCredentials:true,domainVerified:true,addressApproved:true,recipientAuthorized:true};
+const flags={enabled:true,hasCredentials:true,domainVerified:true,addressApproved:true,mailboxActive:true,recipientAuthorized:true};
 describe("Magnibox native Internet mail: fail-closed gates",()=>{
- it("requires verified domain, approved address, authorizations and native SMTP",()=>{
+ it("requires verified domain, approved address, active mailbox, authorizations and native SMTP",()=>{
   expect(allowPublicSend(sender,org,flags)).toBe(true);
   for(const k of Object.keys(flags) as Array<keyof typeof flags>) expect(allowPublicSend(sender,org,{...flags,[k]:false})).toBe(false);
   expect(allowPublicSend({...sender,organization_id:key},org,flags)).toBe(false);
