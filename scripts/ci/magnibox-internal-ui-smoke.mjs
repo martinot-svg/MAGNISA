@@ -180,7 +180,7 @@ try {
   await a.page.locator('input[name="localPart"]').fill("finance");
   await a.page.getByRole("button",{name:"Enregistrer la demande"}).click();
   await a.page.getByRole("cell",{name:"finance@"+requestedDomain}).waitFor({timeout:20000});
-  console.log("Magnibox: public address request remains pending, not activated");
+  console.log("SCENARIO 3/7: demandes de domaine et d’adresse avec validation DNS");
   // Domain administration is a separate route; return to the inbox and wait for hydration.
   await a.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
   await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
