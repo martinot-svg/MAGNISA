@@ -67,10 +67,21 @@ if(proof.error)throw proof.error;
 const approval=await admin.from("mgmail_public_address_requests")
   .update({status:"approved"}).eq("id",a.id);
 if(approval.error)throw approval.error;
-const identity=ok(await admin.from("orbit_public_identities").insert(prototype)
-  .select("id,email_address,status").single(),"verified identity");
+const pending=ok(await admin.from("orbit_public_identities")
+  .select("id,email_address,status,provider,receive_enabled")
+  .eq("address_request_id",a.id).eq("organization_id",org).single(),
+  "automatically provisioned pending identity");
+if(pending.email_address!==`finance@${domain}`||pending.status!=="pending"
+  ||pending.provider!=="smtp"||pending.receive_enabled!==false)
+  throw Error("Address approval must create a pending, non-routable SMTP identity");
+const identity=ok(await admin.from("orbit_public_identities").update({
+  provider_domain_ref:`provider-${stamp}`,
+  provider_verified_at:new Date().toISOString(),
+  status:"active",receive_enabled:true,
+}).eq("id",pending.id).eq("organization_id",org)
+  .select("id,email_address,status").single(),"activate verified identity");
 if(identity.email_address!==`finance@${domain}`||identity.status!=="active")
-  throw Error("Generated identity should be active only after two approvals");
+  throw Error("Identity should activate only after explicit provider verification");
 
 deny(await owner.account.from("orbit_public_identities").insert({
   ...prototype,local_part:"invented",
