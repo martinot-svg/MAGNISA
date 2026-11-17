@@ -8,7 +8,7 @@ const checks = [
   ["fingerprint uses SHA-256", /createHash\("sha256"\)\.update\(JSON\.stringify\(\{/.test(route)],
   ["fingerprint includes identity and sender", /identityId:\s*identity\.id,\s*from:\s*identity\.email_address/.test(route)],
   ["fingerprint includes normalized recipients and body", /to:\s*input\.to,\s*subject:\s*input\.subject,\s*text:\s*input\.text/.test(route)],
-  ["fingerprint includes verified attachment digests", /attachmentFingerprint\.push\(\{id:item\.id,sha256:item\.sha256,byteSize:item\.byte_size,contentType:item\.detected_mime_type\}\)/.test(route)],
+  ["fingerprint includes verified attachment digests and transmitted filename", /attachmentFingerprint\.push\(\{id:item\.id,sha256:item\.sha256,byteSize:item\.byte_size,contentType:item\.detected_mime_type,filename\}\)/.test(route)],
   ["attachment order follows caller order", /attachmentIds\.map\(id => \(visible\.data \?\? \[\]\)\.find\(item => item\.id === id\)!\)/.test(route)],
   ["existing key compares fingerprint", /prior\.data\.request_fingerprint===requestFingerprint/.test(route)],
   ["concurrent duplicate compares fingerprint", /existing\.data\.request_fingerprint!==requestFingerprint/.test(route)],
