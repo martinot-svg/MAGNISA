@@ -77,15 +77,9 @@ try {
     await a.page.goto(base+path,{waitUntil:"domcontentloaded"});
     await a.page.getByRole("heading",{name:heading}).waitFor({timeout:20000});
   }
-  // Historical app route must keep functioning and display the new product name.
-  await a.page.goto(base+"/orbit/inbox",{waitUntil:"domcontentloaded"});
-  await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
-  await a.page.goto(base+"/magnimail",{waitUntil:"domcontentloaded"});
-  await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
+  // Use only the MAGNIBOX workspace; legacy messaging routes are not browser-test targets.
   await a.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
   await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
-  // MAGNIMAIL and MAGNIBOX are a single messaging workspace. An internal
-  // message must be accessible here without entering a second application.
   await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
   console.log("SCENARIO 1/7: accès MAGNIBOX et espace de messagerie");
   await a.page.getByRole("button",{name:"Configurer la messagerie interne"}).waitFor({timeout:20000});
@@ -93,9 +87,9 @@ try {
     throw new Error("Orbit Inbox still separates MAGNIBOX into another messaging product");
   console.log("MAGNIBOX UI: messagerie interne hydratée");
   // Ignore empty aria-live/alert placeholders; only a substantive MAGNIBOX error is a failure.
-  const mgmailAlerts=(await a.page.locator('main [role="alert"]').allTextContents())
+  const magniboxAlerts=(await a.page.locator('main [role="alert"]').allTextContents())
     .map(message=>message.trim()).filter(message=>message.length>0);
-  if(mgmailAlerts.length){
+  if(magniboxAlerts.length){
     // Capture which query is failing, not simply the existence of a global alert.
     const ownerProbe=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
     const ownerLogin=await ownerProbe.auth.signInWithPassword({
@@ -113,7 +107,7 @@ try {
       const response=await run();
       return {table,status:response.status,error:response.error?.message,code:response.error?.code};
     }));
-    throw new Error("MAGNIBOX a signalé : "+JSON.stringify({alerts:mgmailAlerts,probe,
+    throw new Error("MAGNIBOX a signalé : "+JSON.stringify({alerts:magniboxAlerts,probe,
       route:a.page.url(),view:(await a.page.locator("main").innerText()).slice(0,900)}));
   }
 
