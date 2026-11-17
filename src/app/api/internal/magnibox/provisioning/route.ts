@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       const batch = identities.slice(start, start + 50);
       const checked = await Promise.all(batch.map(async identity => {
         if (!identity.provider_domain_ref?.trim() || !identity.email_address?.trim()) return null;
-        const [domain, address, mailbox] = await Promise.all([
+        const [mailbox, domain, address] = await Promise.all([
           admin.from("mgmail_internal_mailboxes").select("id,is_active")
             .eq("id", identity.mailbox_id)
             .eq("organization_id", identity.organization_id).maybeSingle(),
