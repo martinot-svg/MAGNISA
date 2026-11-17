@@ -403,6 +403,32 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
             {" · "}{new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(message.created_at))}
           </p>
           <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.body_text}</p>
+          {!!(folderIdsByMessage.get(message.id) || []).length && (
+            <p className="muted" style={{ fontSize: 12 }}>
+              Dossiers : {(folderIdsByMessage.get(message.id) || []).map((id) => folderNameById.get(id)).filter(Boolean).join(" · ")}
+            </p>
+          )}
+          {folders.length > 0 && (
+            <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+              <form action={assignInternalMessageFolder} className="row" style={{ gap: 6, alignItems: "center" }}>
+                <input type="hidden" name="messageId" value={message.id} />
+                <select name="folderId" aria-label="Classer dans un dossier" defaultValue="" required>
+                  <option value="" disabled>Classer dans…</option>
+                  {folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+                </select>
+                <button className="button" type="submit">Classer</button>
+              </form>
+              {(folderIdsByMessage.get(message.id) || []).map((folderId) => (
+                <form key={folderId} action={removeInternalMessageFolder}>
+                  <input type="hidden" name="messageId" value={message.id} />
+                  <input type="hidden" name="folderId" value={folderId} />
+                  <button className="button ghost" type="submit" title="Retirer du dossier">
+                    Retirer {folderNameById.get(folderId)}
+                  </button>
+                </form>
+              ))}
+            </div>
+          )}
           {kind === "inbox" && mine.length > 0 && mailboxById.get(message.sender_mailbox_id)?.is_active && (
             <FormDialog title={`Répondre : ${message.subject}`} buttonLabel="Répondre" buttonClassName="button">
               <form action={sendInternal} className="form">
@@ -603,6 +629,24 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
               </div>
             </form>
             {searchTerm && <p className="muted">Recherche « {searchTerm} » : {messages.length} message(s), {drafts.length} brouillon(s).</p>}
+            <div className="card" style={{ padding: 12, marginBottom: 16 }}>
+              <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <strong>Dossiers personnels</strong>
+                <Link className={selectedFolderId ? "button" : "button primary"} href={searchTerm ? `${searchAction}?q=${encodeURIComponent(searchTerm)}` : searchAction}>Tous les messages</Link>
+                {folders.map((folder) => (
+                  <Link key={folder.id}
+                    className={selectedFolderId === folder.id ? "button primary" : "button"}
+                    href={`${searchAction}?folder=${encodeURIComponent(folder.id)}${searchTerm ? `&q=${encodeURIComponent(searchTerm)}` : ""}`}>
+                    {folder.name}
+                  </Link>
+                ))}
+              </div>
+              {selectedFolder && <p className="muted">Dossier affiché : {selectedFolder.name}</p>}
+              <form action={createInternalFolder} className="row" style={{ gap: 8, alignItems: "center", marginTop: 10 }}>
+                <input name="name" maxLength={60} placeholder="Nom du nouveau dossier" aria-label="Nom du nouveau dossier" required />
+                <button className="button" type="submit">Créer un dossier</button>
+              </form>
+            </div>
             {mine.length > 0 && (
               <FormDialog title="Nouveau message interne" buttonLabel="+ Nouveau message">
                 <form action={sendInternal} className="form">
