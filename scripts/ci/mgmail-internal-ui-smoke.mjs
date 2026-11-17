@@ -214,6 +214,22 @@ try {
   await a.page.getByRole("heading",{name:"Brouillons (0)"}).waitFor({timeout:20000});
   console.log("MGMail UI: brouillon enregistré, modifié puis envoyé atomiquement");
 
+  // Personal folders are private to each collaborator and support filing/unfiling.
+  const folderName="Factures "+fixture;
+  await a.page.getByRole("textbox",{name:"Nom du nouveau dossier"}).fill(folderName);
+  await a.page.getByRole("button",{name:"Créer un dossier"}).click();
+  const folderLink=a.page.getByRole("link",{name:folderName,exact:true});
+  await folderLink.waitFor({timeout:20000});
+  const sentCard=a.page.locator('div[style*="border-bottom"]')
+    .filter({has:a.page.getByText(subject,{exact:true})}).first();
+  await sentCard.locator('select[name="folderId"]').selectOption({label:folderName});
+  await sentCard.getByRole("button",{name:"Classer"}).click();
+  await sentCard.getByText(folderName,{exact:true}).waitFor({timeout:20000});
+  await folderLink.click();
+  await a.page.getByText(subject,{exact:true}).waitFor({timeout:20000});
+  await a.page.getByRole("heading",{name:"Dossiers personnels"}).waitFor({timeout:15000});
+  console.log("MGMail UI: dossier personnel créé, message classé et filtré");
+
   // A second unsent draft must remain private to its author.
   await openDialog(a.page,/Nouveau message/);
   await a.page.locator('select[name="senderId"]').selectOption(sender);
