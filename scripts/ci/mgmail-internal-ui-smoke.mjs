@@ -227,7 +227,7 @@ try {
   await sentCard.getByText(folderName,{exact:true}).waitFor({timeout:20000});
   await folderLink.click();
   await a.page.getByText(subject,{exact:true}).waitFor({timeout:20000});
-  await a.page.getByRole("heading",{name:"Dossiers personnels"}).waitFor({timeout:15000});
+  await a.page.getByText("Dossiers personnels",{exact:true}).waitFor({timeout:15000});
   console.log("MGMail UI: dossier personnel créé, message classé et filtré");
 
   // A second unsent draft must remain private to its author.
