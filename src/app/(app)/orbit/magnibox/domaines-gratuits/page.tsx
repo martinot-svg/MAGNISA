@@ -2,6 +2,7 @@ import Link from "next/link";
 import {revalidatePath} from "next/cache";
 import {requireOrganization} from "@/lib/current-org";
 import {assertPermission,hasPermission} from "@/lib/permissions";
+import {FormDialog} from "@/components/form-dialog";
 import {normalizeMagniboxTenantLabel,suggestMagniboxTenantLabel} from "@/lib/orbit/platform-domains";
 
 const PATH="/orbit/magnibox/domaines-gratuits";
@@ -69,7 +70,8 @@ export default async function MagniboxFreeDomainsPage(){
         <p className="muted">La réservation du domaine ne crée pas encore une boîte mail opérationnelle.</p>
       </>:!canManage?<p className="muted">La réservation est réservée à un administrateur autorisé de l'entreprise.</p>
       :options.length===0?<p className="muted">Aucun domaine n'est actuellement publiable. Le catalogue sera alimenté après validation de domaines contrôlés par MAGNISA et de leurs enregistrements MX, SPF, DKIM et DMARC.</p>
-      :<form action={reserveFreeDomain} className="form">
+      :<FormDialog title="Réserver un domaine professionnel gratuit" buttonLabel="Choisir gratuitement ce domaine">
+        <form action={reserveFreeDomain} className="form">
         <div className="field">
           <label htmlFor="magnibox-free-domain">Domaine proposé par MAGNISA</label>
           <select id="magnibox-free-domain" name="catalogDomainId" required defaultValue="">
@@ -87,7 +89,8 @@ export default async function MagniboxFreeDomainsPage(){
         </div>
         <p className="muted">Exemple de format : identifiant.domaine-MAGNISA. Le nom exact est construit à partir de l'option sélectionnée.</p>
         <button className="button primary" type="submit">Réserver gratuitement ce domaine</button>
-      </form>}
+        </form>
+      </FormDialog>}
     </div>
 
     <div className="card section">
