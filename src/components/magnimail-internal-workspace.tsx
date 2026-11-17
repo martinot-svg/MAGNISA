@@ -124,7 +124,7 @@ async function shareMailbox(form: FormData) {
 async function createInternalFolder(form: FormData) {
   "use server";
   const ctx = await requireOrganization();
-  const name = String(form.get("name") || "").trim().replace(/\\s+/g, " ").slice(0, 60);
+  const name = String(form.get("name") || "").trim().replace(/\s+/g, " ").slice(0, 60);
   if (!name) throw new Error("Le nom du dossier est obligatoire.");
   const { error } = await ctx.supabase.from("mgmail_internal_folders").insert({
     organization_id: ctx.organizationId, name,
