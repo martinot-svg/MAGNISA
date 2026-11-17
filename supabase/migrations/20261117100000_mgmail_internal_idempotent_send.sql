@@ -69,6 +69,9 @@ grant execute on function public.mgmail_send_internal_message(uuid,uuid,uuid,tex
 -- the idempotency key with direct table inserts. The definer function checks
 -- the caller's JWT membership and explicit mailbox send grant before writing.
 revoke insert on public.mgmail_internal_messages from authenticated;
+revoke insert (
+  organization_id, sender_mailbox_id, recipient_mailbox_id, subject, body_text
+) on public.mgmail_internal_messages from authenticated;
 
 -- Draft submission must use the same guarded privileged path because direct
 -- INSERT permission on the messages table is intentionally removed.
