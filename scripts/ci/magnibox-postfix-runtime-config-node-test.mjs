@@ -14,6 +14,7 @@ test("rejects a virtual transport name without a registered pipe service", () =>
     "virtual_mailbox_domains = hash:/tmp/docker-mailserver/magnibox-test-domains",
     "virtual_mailbox_maps = hash:/tmp/docker-mailserver/magnibox-test-recipients",
     "virtual_transport = magnibox-inbound",
+    "import_environment = MAIL_CONFIG MAIL_DEBUG MAIL_LOGTAG TZ XAUTHORITY DISPLAY MAGNIBOX_INBOUND_URL MAGNIBOX_INBOUND_WEBHOOK_SECRET MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL",
     "export_environment = MAIL_CONFIG MAIL_DEBUG MAIL_LOGTAG TZ XAUTHORITY DISPLAY MAGNIBOX_INBOUND_URL MAGNIBOX_INBOUND_WEBHOOK_SECRET MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL",
   ].join("\n");
   assert.throws(
@@ -27,6 +28,7 @@ test("accepts only the active Postfix configuration that routes recipients to th
     "virtual_mailbox_domains = hash:/tmp/docker-mailserver/magnibox-test-domains",
     "virtual_mailbox_maps = hash:/tmp/docker-mailserver/magnibox-test-recipients",
     "virtual_transport = magnibox-inbound",
+    "import_environment = MAIL_CONFIG MAIL_DEBUG MAIL_LOGTAG TZ XAUTHORITY DISPLAY MAGNIBOX_INBOUND_URL MAGNIBOX_INBOUND_WEBHOOK_SECRET MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL",
     "export_environment = MAIL_CONFIG MAIL_DEBUG MAIL_LOGTAG TZ XAUTHORITY DISPLAY MAGNIBOX_INBOUND_URL MAGNIBOX_INBOUND_WEBHOOK_SECRET MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL",
   ].join("\n");
   const master = [
