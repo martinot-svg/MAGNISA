@@ -3,7 +3,9 @@ import { requireOrganization } from "@/lib/current-org";
 import { MagniboxInternalContent } from "@/components/magnimail-internal-workspace";
 import { MagniboxInternetWorkspace } from "@/components/magnibox-internet-workspace";
 
-export default async function MagniboxPage() {
+export default async function MagniboxPage({ searchParams }: { searchParams?: Promise<{ q?: string | string[] }> }) {
+  const params = searchParams ? await searchParams : {};
+  const searchQuery = Array.isArray(params.q) ? (params.q[0] || "") : (params.q || "");
   const ctx = await requireOrganization();
   const canManageDomains = await hasPermission(ctx, "users.manage");
 
@@ -17,7 +19,7 @@ export default async function MagniboxPage() {
         </div>
       </div>
 
-      <MagniboxInternalContent embedded />
+      <MagniboxInternalContent embedded searchQuery={searchQuery} />
       <MagniboxInternetWorkspace />
 
       <div className="card section">

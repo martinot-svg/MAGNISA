@@ -121,9 +121,83 @@ async function shareMailbox(form: FormData) {
   revalidatePath("/magnimail");
 }
 
+async function saveInternalDraft(form: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  const draftId = String(form.get("draftId") || "").trim();
+  let senderId = String(form.get("senderId") || "").trim();
+  const recipientId = String(form.get("recipientId") || "").trim();
+  const subject = String(form.get("subject") || "");
+  const body = String(form.get("body") || "");
+  const uuid = /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i;
+  if (!uuid.test(senderId) || (draftId && !uuid.test(draftId))
+    || subject.length > 180 || body.length > 50000) {
+    throw new Error("Brouillon invalide.");
+  }
+  if (draftId) {
+    const { data: existing, error } = await ctx.supabase.from("mgmail_internal_drafts")
+      .select("sender_mailbox_id").eq("id", draftId).eq("organization_id", ctx.organizationId).maybeSingle();
+    if (error || !existing) throw new Error("Brouillon introuvable ou accès révoqué.");
+    senderId = existing.sender_mailbox_id;
+  }
+  const { data: canSend, error: permissionError } = await ctx.supabase.rpc("mgmail_has_internal_access", {
+    p_org: ctx.organizationId, p_mailbox: senderId, p_action: "send",
+  });
+  if (permissionError || canSend !== true) throw new Error("Vous ne pouvez plus enregistrer depuis cette boîte.");
+  if (recipientId) {
+    const { data: canAddress, error: recipientError } = await ctx.supabase.rpc("mgmail_can_send_internal", {
+      p_organization_id: ctx.organizationId,
+      p_sender_mailbox_id: senderId,
+      p_recipient_mailbox_id: recipientId,
+    });
+    if (recipientError || canAddress !== true) throw new Error("La boîte destinataire est indisponible.");
+  }
+  const values = { recipient_mailbox_id: recipientId || null, subject, body_text: body };
+  const result = draftId
+    ? await ctx.supabase.from("mgmail_internal_drafts").update(values)
+        .eq("id", draftId).eq("organization_id", ctx.organizationId)
+        .select("id,subject,body_text").maybeSingle()
+    : await ctx.supabase.from("mgmail_internal_drafts").insert({
+        organization_id: ctx.organizationId, sender_mailbox_id: senderId, ...values,
+      }).select("id,subject,body_text").single();
+  if (result.error || !result.data
+    || result.data.subject !== subject || result.data.body_text !== body) {
+    throw new Error("Le brouillon n'a pas été enregistré. Vérifie les droits et réessaie.");
+  }
+  revalidatePath(PATH);
+  revalidatePath("/orbit/inbox");
+  revalidatePath("/orbit/magnibox");
+  revalidatePath("/magnimail");
+}
+
+async function deleteInternalDraft(form: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  const draftId = String(form.get("draftId") || "").trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(draftId)) throw new Error("Brouillon invalide.");
+  const { data: deleted, error } = await ctx.supabase.from("mgmail_internal_drafts")
+    .delete().eq("id", draftId).eq("organization_id", ctx.organizationId).select("id").maybeSingle();
+  if (error || !deleted) throw new Error("Brouillon introuvable ou suppression non autorisée.");
+  revalidatePath(PATH);
+  revalidatePath("/orbit/inbox");
+  revalidatePath("/orbit/magnibox");
+  revalidatePath("/magnimail");
+}
+
 async function sendInternal(form: FormData) {
   "use server";
   const ctx = await requireOrganization();
+  const draftId = String(form.get("draftId") || "").trim();
+  if (draftId) {
+    if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(draftId)) throw new Error("Brouillon invalide.");
+    const { data: sent, error } = await ctx.supabase.rpc("mgmail_send_internal_draft", { p_draft_id: draftId });
+    if (error || sent !== true) throw new Error("Le brouillon ne peut pas être envoyé : vérifiez ses champs et les droits des boîtes.");
+    revalidatePath(PATH);
+    revalidatePath("/orbit/inbox");
+    revalidatePath("/orbit/magnibox");
+    revalidatePath("/magnimail");
+    return;
+  }
   const senderId = String(form.get("senderId") || "");
   const recipientId = String(form.get("recipientId") || "");
   const subject = String(form.get("subject") || "").trim();
@@ -195,29 +269,42 @@ async function markInternalRead(form: FormData) {
 }
 
 /** Shared internal mail capability, embedded in the single Magnibox workspace. */
-export async function MagniboxInternalContent({ embedded = false }: { embedded?: boolean } = {}) {
+export async function MagniboxInternalContent({ embedded = false, searchQuery = "" }: { embedded?: boolean; searchQuery?: string } = {}) {
   const ctx = await requireOrganization();
+  const searchTerm = String(searchQuery).replace(/[^\p{L}\p{N}\s-]/gu, "").trim().slice(0, 80);
+  const searchAction = embedded ? "/orbit/magnibox" : PATH;
   const canManage = await hasPermission(ctx, "users.manage");
-  const [namespaceResult, mailboxesResult, messagesResult, grantsResult, readsResult] = await Promise.all([
+  let messagesQuery = ctx.supabase.from("mgmail_internal_messages")
+    .select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,created_at")
+    .eq("organization_id", ctx.organizationId)
+    .order("created_at", { ascending: false }).limit(80);
+  let draftsQuery = ctx.supabase.from("mgmail_internal_drafts")
+    .select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,updated_at")
+    .eq("organization_id", ctx.organizationId).order("updated_at", { ascending: false }).limit(50);
+  if (searchTerm) {
+    const pattern = "%" + searchTerm + "%";
+    messagesQuery = messagesQuery.or("subject.ilike." + pattern + ",body_text.ilike." + pattern);
+    draftsQuery = draftsQuery.or("subject.ilike." + pattern + ",body_text.ilike." + pattern);
+  }
+  const [namespaceResult, mailboxesResult, messagesResult, grantsResult, readsResult, draftsResult] = await Promise.all([
     ctx.supabase.from("mgmail_internal_namespaces")
       .select("slug").eq("organization_id", ctx.organizationId).maybeSingle(),
     ctx.supabase.from("mgmail_internal_mailboxes")
       .select("id,local_part,owner_user_id,display_name,is_active,can_read,can_send")
       .eq("organization_id", ctx.organizationId).order("local_part"),
-    ctx.supabase.from("mgmail_internal_messages")
-      .select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,created_at")
-      .eq("organization_id", ctx.organizationId)
-      .order("created_at", { ascending: false }).limit(80),
+    messagesQuery,
     ctx.supabase.from("mgmail_internal_mailbox_grants")
       .select("mailbox_id,user_id,can_read,can_send,is_active")
       .eq("organization_id", ctx.organizationId),
     ctx.supabase.from("mgmail_internal_message_reads")
       .select("message_id").eq("organization_id", ctx.organizationId).eq("user_id", ctx.user.id),
+    draftsQuery,
   ]);
   const namespace = namespaceResult.data?.slug || "";
   const mailboxes = mailboxesResult.data || [];
   const messages = messagesResult.data || [];
   const grants = grantsResult.data || [];
+  const drafts = draftsResult.data || [];
   const myGrants = grants.filter((grant) => grant.user_id === ctx.user.id && grant.is_active);
   const canUseMailbox = (mailbox: (typeof mailboxes)[number], action: "read" | "send") =>
     mailbox.is_active && (
@@ -244,7 +331,7 @@ export async function MagniboxInternalContent({ embedded = false }: { embedded?:
   const sent = messages.filter((message) => readableMailboxIds.has(message.sender_mailbox_id));
   const unreadCount = inbox.filter((message) => !readIds.has(message.id)).length;
   const renderMessages = (items: typeof messages, kind: "inbox" | "sent") => items.length === 0 ? (
-    <p className="muted">Aucun message dans cette boîte.</p>
+    <p className="muted">{searchTerm ? "Aucun message ne correspond à la recherche." : "Aucun message dans cette boîte."}</p>
   ) : (
     <div>
       {items.map((message) => (
@@ -444,6 +531,18 @@ export async function MagniboxInternalContent({ embedded = false }: { embedded?:
           )}
           <div className="card section">
             <h2>Messages internes</h2>
+            <form method="get" action={searchAction} className="form" style={{ marginBottom: 16 }}>
+              <div className="field">
+                <label htmlFor="magnibox-internal-search">Rechercher dans les messages et brouillons</label>
+                <input id="magnibox-internal-search" type="search" name="q" maxLength={80}
+                  defaultValue={searchTerm} placeholder="Objet ou contenu du message" />
+              </div>
+              <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                <button className="button primary" type="submit">Rechercher</button>
+                {searchTerm && <a className="button" href={searchAction}>Effacer</a>}
+              </div>
+            </form>
+            {searchTerm && <p className="muted">Recherche « {searchTerm} » : {messages.length} message(s), {drafts.length} brouillon(s).</p>}
             {mine.length > 0 && (
               <FormDialog title="Nouveau message interne" buttonLabel="+ Nouveau message">
                 <form action={sendInternal} className="form">
@@ -467,10 +566,46 @@ export async function MagniboxInternalContent({ embedded = false }: { embedded?:
                   <div className="field"><label>Objet</label><input name="subject" maxLength={180} required /></div>
                   <div className="field"><label>Message</label><textarea name="body" maxLength={50000} rows={8} required /></div>
                   <button className="button primary">Envoyer dans MAGNISA</button>
+                  <button className="button" formAction={saveInternalDraft} formNoValidate>Enregistrer le brouillon</button>
                 </form>
               </FormDialog>
             )}
             {mine.length === 0 && <p className="muted">Aucune boîte active autorisée à envoyer ne vous est attribuée.</p>}
+            <h3>Brouillons ({drafts.length})</h3>
+            {drafts.length === 0 ? <p className="muted">{searchTerm ? "Aucun brouillon ne correspond à la recherche." : "Aucun brouillon enregistré."}</p> : (
+              <div>
+                {drafts.map((draft) => (
+                  <div key={draft.id} data-testid="magnibox-internal-draft" style={{ borderBottom: "1px solid #e5e7eb", padding: "10px 0" }}>
+                    <strong>{draft.subject || "(Sans objet)"}</strong>
+                    <p className="muted">Modifié le {new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(draft.updated_at))}</p>
+                    <FormDialog title="Modifier le brouillon" buttonLabel="Ouvrir" buttonClassName="button">
+                      <form action={sendInternal} className="form">
+                        <input type="hidden" name="draftId" value={draft.id} />
+                        <input type="hidden" name="senderId" value={draft.sender_mailbox_id} />
+                        <p className="muted">Expéditeur : {address(draft.sender_mailbox_id)}</p>
+                        <div className="field">
+                          <label>Destinataire dans l'entreprise</label>
+                          <select name="recipientId" defaultValue={draft.recipient_mailbox_id || ""}>
+                            <option value="">Choisir une boîte active</option>
+                            {mailboxes.filter((mailbox) => mailbox.is_active).map((mailbox) => (
+                              <option key={mailbox.id} value={mailbox.id}>{address(mailbox.id)}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="field"><label>Objet</label><input name="subject" maxLength={180} defaultValue={draft.subject} /></div>
+                        <div className="field"><label>Message</label><textarea name="body" maxLength={50000} rows={8} defaultValue={draft.body_text} /></div>
+                        <button className="button primary" type="submit">Envoyer dans MAGNISA</button>
+                        <button className="button" formAction={saveInternalDraft} formNoValidate>Enregistrer les modifications</button>
+                      </form>
+                    </FormDialog>
+                    <form action={deleteInternalDraft} className="form">
+                      <input type="hidden" name="draftId" value={draft.id} />
+                      <button className="button" type="submit">Supprimer le brouillon</button>
+                    </form>
+                  </div>
+                ))}
+              </div>
+            )}
             <h3>Boîte de réception interne ({unreadCount} non lus affichés)</h3>
             {renderMessages(inbox, "inbox")}
             <h3>Envoyés internes</h3>

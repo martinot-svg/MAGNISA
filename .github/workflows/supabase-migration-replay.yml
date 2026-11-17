@@ -50,7 +50,14 @@ jobs:
         run: |
           # Avoid collisions with PostgreSQL already bound to the runner's default 54322.
           sed -i '/^\[db\]/,/^\[/ s/^port = 54322$/port = 55432/' supabase/config.toml
-          supabase start -x studio,edge-runtime,logflare,vector,analytics
+          # The v3 CLI replaced Inbucket with local_smtp. These tests do not
+          # use SMTP capture, so disable its default listener (host port 54324).
+          if grep -q '^\[local_smtp\]' supabase/config.toml; then
+            sed -i '/^\[local_smtp\]/,/^\[/ s/^enabled = true$/enabled = false/' supabase/config.toml
+          else
+            printf '%s\n' '' '[local_smtp]' 'enabled = false' >> supabase/config.toml
+          fi
+          supabase start -x studio,edge-runtime,logflare,vector
       - name: Replay every migration from a clean database
         run: supabase db reset --yes
       - name: Verify MGMail production schema contract (read-only)

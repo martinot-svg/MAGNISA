@@ -8,8 +8,8 @@ BEGIN
   IF (
     SELECT count(*)
     FROM supabase_migrations.schema_migrations
-    WHERE version IN ('20261114103000', '20261114103100', '20261114103200')
-  ) <> 3 THEN
+    WHERE version IN ('20261114103000', '20261114103100', '20261114103200', '20261116160000', '20261116161000')
+  ) <> 5 THEN
     RAISE EXCEPTION 'MGMail: one or more approved migration versions are missing';
   END IF;
 
@@ -18,7 +18,8 @@ BEGIN
   FROM (
     VALUES ('mgmail_internal_namespaces'), ('mgmail_internal_mailboxes'),
            ('mgmail_internal_messages'), ('mgmail_internal_mailbox_grants'),
-           ('mgmail_internal_message_reads')
+           ('mgmail_internal_message_reads'), ('mgmail_internal_drafts'),
+           ('mgmail_internal_folders'), ('mgmail_internal_message_folders')
   ) AS expected(name)
   LEFT JOIN pg_catalog.pg_class c
     ON c.oid = to_regclass('public.' || expected.name)
@@ -43,7 +44,18 @@ BEGIN
       ('mgmail_internal_mailbox_grants','mgmail_grants_create'),
       ('mgmail_internal_mailbox_grants','mgmail_grants_change'),
       ('mgmail_internal_message_reads','mgmail_reads_own'),
-      ('mgmail_internal_message_reads','mgmail_reads_insert_own')
+      ('mgmail_internal_message_reads','mgmail_reads_insert_own'),
+      ('mgmail_internal_drafts','mgmail_internal_drafts_select'),
+      ('mgmail_internal_drafts','mgmail_internal_drafts_insert'),
+      ('mgmail_internal_drafts','mgmail_internal_drafts_update'),
+      ('mgmail_internal_drafts','mgmail_internal_drafts_delete'),
+      ('mgmail_internal_folders','mgmail_internal_folders_select'),
+      ('mgmail_internal_folders','mgmail_internal_folders_insert'),
+      ('mgmail_internal_folders','mgmail_internal_folders_update'),
+      ('mgmail_internal_folders','mgmail_internal_folders_delete'),
+      ('mgmail_internal_message_folders','mgmail_internal_message_folders_select'),
+      ('mgmail_internal_message_folders','mgmail_internal_message_folders_insert'),
+      ('mgmail_internal_message_folders','mgmail_internal_message_folders_delete')
   ) AS expected(tablename,policyname)
   LEFT JOIN pg_catalog.pg_policies p ON p.schemaname='public'
     AND p.tablename=expected.tablename AND p.policyname=expected.policyname
@@ -60,13 +72,19 @@ BEGIN
     SELECT 1 FROM pg_catalog.pg_proc
     WHERE oid=to_regprocedure('public.mgmail_has_internal_access(uuid,uuid,text)')
       AND NOT prosecdef
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_proc
+    WHERE oid=to_regprocedure('public.mgmail_send_internal_draft(uuid)')
+      AND NOT prosecdef
   ) THEN
-    RAISE EXCEPTION 'MGMail: permissions RPCs must exist and be SECURITY INVOKER';
+    RAISE EXCEPTION 'MGMail: permission and draft RPCs must exist and be SECURITY INVOKER';
   END IF;
   IF has_function_privilege('anon', 'public.mgmail_can_send_internal(uuid,uuid,uuid)', 'EXECUTE')
      OR has_function_privilege('anon', 'public.mgmail_has_internal_access(uuid,uuid,text)', 'EXECUTE')
      OR NOT has_function_privilege('authenticated', 'public.mgmail_can_send_internal(uuid,uuid,uuid)', 'EXECUTE')
-     OR NOT has_function_privilege('authenticated', 'public.mgmail_has_internal_access(uuid,uuid,text)', 'EXECUTE') THEN
+     OR NOT has_function_privilege('authenticated', 'public.mgmail_has_internal_access(uuid,uuid,text)', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.mgmail_send_internal_draft(uuid)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.mgmail_send_internal_draft(uuid)', 'EXECUTE') THEN
     RAISE EXCEPTION 'MGMail: execution grants for anonymous or authenticated role are incorrect';
   END IF;
 
@@ -75,7 +93,8 @@ BEGIN
     FROM (
       VALUES ('mgmail_internal_namespaces'),('mgmail_internal_mailboxes'),
              ('mgmail_internal_messages'),('mgmail_internal_mailbox_grants'),
-             ('mgmail_internal_message_reads')
+             ('mgmail_internal_message_reads'),('mgmail_internal_drafts'),
+             ('mgmail_internal_folders'),('mgmail_internal_message_folders')
     ) AS expected(name)
     WHERE has_table_privilege('anon','public.' || expected.name,'SELECT')
        OR has_table_privilege('anon','public.' || expected.name,'INSERT')
@@ -89,7 +108,8 @@ BEGIN
     VALUES
       ('organization_members','trg_mgmail_suspend_departed_member'),
       ('organization_members','trg_mgmail_suspend_shared_grants'),
-      ('mgmail_internal_messages','trg_mgmail_notify_internal_message')
+      ('mgmail_internal_messages','trg_mgmail_notify_internal_message'),
+      ('mgmail_internal_drafts','trg_mgmail_touch_internal_draft')
   ) AS expected(table_name,trigger_name)
   LEFT JOIN pg_catalog.pg_trigger t
     ON t.tgrelid=to_regclass('public.' || expected.table_name)
@@ -100,6 +120,6 @@ BEGIN
     RAISE EXCEPTION 'MGMail: essential notifications or access-revocation triggers missing: %', v_missing;
   END IF;
 
-  RAISE NOTICE 'PASS MGMail: three versions, five RLS tables, required policies, invoker RPCs and revocation/notification triggers';
+  RAISE NOTICE 'PASS MGMail: five versions, eight RLS tables including private drafts and personal folders, required policies, invoker RPCs and access/notification triggers';
 END
 $mgmail_check$;
