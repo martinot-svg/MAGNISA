@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
     if(pending.error||!pending.data) {
       if(pending.error?.code==="23505") {
         const existing=await admin.from("orbit_external_messages")
-          .select("id,status,provider_email_id,created_by,to_emails,subject,body_text")
+          .select("id,status,provider_email_id,created_by,to_emails,subject,body_text,request_fingerprint")
           .eq("organization_id",ctx.organizationId)
           .eq("identity_id",identity.id)
           .eq("request_key",input.requestId).maybeSingle();
