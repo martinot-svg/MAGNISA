@@ -16,7 +16,7 @@ create or replace function public.mgmail_send_internal_message(
   p_request_id uuid
 ) returns uuid
 language plpgsql
-security invoker
+security definer
 set search_path = pg_catalog, public
 as $send_internal$
 declare
@@ -65,7 +65,7 @@ revoke all on function public.mgmail_send_internal_message(uuid,uuid,uuid,text,t
 grant execute on function public.mgmail_send_internal_message(uuid,uuid,uuid,text,text,uuid)
   to authenticated;
 
+-- All authenticated sends must use the guarded RPC; this prevents bypassing
+-- the idempotency key with direct table inserts. The definer function checks
+-- the caller's JWT membership and explicit mailbox send grant before writing.
 revoke insert on public.mgmail_internal_messages from authenticated;
-grant insert (
-  organization_id, sender_mailbox_id, recipient_mailbox_id, subject, body_text
-) on public.mgmail_internal_messages to authenticated;
