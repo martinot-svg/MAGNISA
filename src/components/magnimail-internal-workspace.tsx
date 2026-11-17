@@ -198,32 +198,30 @@ async function sendInternal(form: FormData) {
     revalidatePath("/magnimail");
     return;
   }
-  const senderId = String(form.get("senderId") || "");
-  const recipientId = String(form.get("recipientId") || "");
+  const senderId = String(form.get("senderId") || "").trim();
+  const recipientId = String(form.get("recipientId") || "").trim();
+  const requestId = String(form.get("requestId") || "").trim();
   const subject = String(form.get("subject") || "").trim();
   const body = String(form.get("body") || "").trim();
-  if (!subject || subject.length > 180 || !body || body.length > 50000) {
-    throw new Error("Objet ou contenu du message invalide.");
+  const uuid = /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i;
+  if (!uuid.test(senderId) || !uuid.test(recipientId) || !uuid.test(requestId)
+    || !subject || subject.length > 180 || !body || body.length > 50000) {
+    throw new Error("Objet, contenu ou identifiant de requête invalide.");
   }
 
-  const { data: allowed, error: permissionError } = await ctx.supabase
-    .rpc("mgmail_can_send_internal", {
-      p_organization_id: ctx.organizationId,
-      p_sender_mailbox_id: senderId,
-      p_recipient_mailbox_id: recipientId,
-    });
-  if (permissionError || allowed !== true) {
-    throw new Error("Vous n'êtes pas autorisé à envoyer depuis cette boîte ou vers ce destinataire.");
-  }
-
-  const { error } = await ctx.supabase.from("mgmail_internal_messages").insert({
-    organization_id: ctx.organizationId,
-    sender_mailbox_id: senderId,
-    recipient_mailbox_id: recipientId,
-    subject,
-    body_text: body,
+  // The database enforces permissions and idempotency in one transaction.
+  // A browser retry with the same requestId resolves to the original message.
+  const { data: messageId, error } = await ctx.supabase.rpc("mgmail_send_internal_message", {
+    p_organization_id: ctx.organizationId,
+    p_sender_mailbox_id: senderId,
+    p_recipient_mailbox_id: recipientId,
+    p_subject: subject,
+    p_body_text: body,
+    p_request_id: requestId,
   });
-  if (error) throw new Error("Envoi interne impossible : permissions ou boîte indisponible.");
+  if (error || !messageId) {
+    throw new Error("Envoi interne impossible : permissions ou boîte indisponible.");
+  }
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
   revalidatePath("/orbit/magnibox");
@@ -348,6 +346,7 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
           {kind === "inbox" && mine.length > 0 && mailboxById.get(message.sender_mailbox_id)?.is_active && (
             <FormDialog title={`Répondre : ${message.subject}`} buttonLabel="Répondre" buttonClassName="button">
               <form action={sendInternal} className="form">
+              <input type="hidden" name="requestId" value={crypto.randomUUID()} />
                 <input type="hidden" name="senderId" value={(mine.find((mailbox) => mailbox.id === message.recipient_mailbox_id) ?? mine[0]).id} />
                 <input type="hidden" name="recipientId" value={message.sender_mailbox_id} />
                 <div className="field">
@@ -366,6 +365,7 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
           {mine.length > 0 && (
             <FormDialog title={`Transférer : ${message.subject}`} buttonLabel="Transférer" buttonClassName="button">
               <form action={sendInternal} className="form">
+              <input type="hidden" name="requestId" value={crypto.randomUUID()} />
                 <div className="field">
                   <label>Expéditeur</label>
                   <select name="senderId" required defaultValue={mine[0].id}>
@@ -546,6 +546,7 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
             {mine.length > 0 && (
               <FormDialog title="Nouveau message interne" buttonLabel="+ Nouveau message">
                 <form action={sendInternal} className="form">
+              <input type="hidden" name="requestId" value={crypto.randomUUID()} />
                   <div className="field">
                     <label>Expéditeur</label>
                     <select name="senderId" required>
@@ -580,6 +581,7 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
                     <p className="muted">Modifié le {new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(draft.updated_at))}</p>
                     <FormDialog title="Modifier le brouillon" buttonLabel="Ouvrir" buttonClassName="button">
                       <form action={sendInternal} className="form">
+              <input type="hidden" name="requestId" value={crypto.randomUUID()} />
                         <input type="hidden" name="draftId" value={draft.id} />
                         <input type="hidden" name="senderId" value={draft.sender_mailbox_id} />
                         <p className="muted">Expéditeur : {address(draft.sender_mailbox_id)}</p>
