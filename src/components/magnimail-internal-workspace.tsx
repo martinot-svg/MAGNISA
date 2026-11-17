@@ -121,6 +121,48 @@ async function shareMailbox(form: FormData) {
   revalidatePath("/magnimail");
 }
 
+async function createInternalFolder(form: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  const name = String(form.get("name") || "").trim().replace(/\\s+/g, " ").slice(0, 60);
+  if (!name) throw new Error("Le nom du dossier est obligatoire.");
+  const { error } = await ctx.supabase.from("mgmail_internal_folders").insert({
+    organization_id: ctx.organizationId, name,
+  });
+  if (error) throw new Error("Ce dossier existe déjà ou ne peut pas être créé.");
+  revalidatePath(PATH);
+  revalidatePath("/orbit/magnibox");
+}
+
+async function assignInternalMessageFolder(form: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  const messageId = String(form.get("messageId") || "").trim();
+  const folderId = String(form.get("folderId") || "").trim();
+  const uuid = /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i;
+  if (!uuid.test(messageId) || !uuid.test(folderId)) throw new Error("Message ou dossier invalide.");
+  const { error } = await ctx.supabase.from("mgmail_internal_message_folders").upsert({
+    organization_id: ctx.organizationId, message_id: messageId, folder_id: folderId,
+  }, { onConflict: "folder_id,message_id,user_id", ignoreDuplicates: true });
+  if (error) throw new Error("Impossible de classer ce message dans le dossier.");
+  revalidatePath(PATH);
+  revalidatePath("/orbit/magnibox");
+}
+
+async function removeInternalMessageFolder(form: FormData) {
+  "use server";
+  const ctx = await requireOrganization();
+  const messageId = String(form.get("messageId") || "").trim();
+  const folderId = String(form.get("folderId") || "").trim();
+  const uuid = /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i;
+  if (!uuid.test(messageId) || !uuid.test(folderId)) throw new Error("Message ou dossier invalide.");
+  const { error } = await ctx.supabase.from("mgmail_internal_message_folders").delete()
+    .eq("organization_id", ctx.organizationId).eq("message_id", messageId).eq("folder_id", folderId);
+  if (error) throw new Error("Impossible de retirer ce message du dossier.");
+  revalidatePath(PATH);
+  revalidatePath("/orbit/magnibox");
+}
+
 async function saveInternalDraft(form: FormData) {
   "use server";
   const ctx = await requireOrganization();
@@ -267,7 +309,7 @@ async function markInternalRead(form: FormData) {
 }
 
 /** Shared internal mail capability, embedded in the single Magnibox workspace. */
-export async function MagniboxInternalContent({ embedded = false, searchQuery = "" }: { embedded?: boolean; searchQuery?: string } = {}) {
+export async function MagniboxInternalContent({ embedded = false, searchQuery = "", selectedFolderId = "" }: { embedded?: boolean; searchQuery?: string; selectedFolderId?: string } = {}) {
   const ctx = await requireOrganization();
   const searchTerm = String(searchQuery).replace(/[^\p{L}\p{N}\s-]/gu, "").trim().slice(0, 80);
   const searchAction = embedded ? "/orbit/magnibox" : PATH;
@@ -284,7 +326,7 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
     messagesQuery = messagesQuery.or("subject.ilike." + pattern + ",body_text.ilike." + pattern);
     draftsQuery = draftsQuery.or("subject.ilike." + pattern + ",body_text.ilike." + pattern);
   }
-  const [namespaceResult, mailboxesResult, messagesResult, grantsResult, readsResult, draftsResult] = await Promise.all([
+  const [namespaceResult, mailboxesResult, messagesResult, grantsResult, readsResult, draftsResult, foldersResult] = await Promise.all([
     ctx.supabase.from("mgmail_internal_namespaces")
       .select("slug").eq("organization_id", ctx.organizationId).maybeSingle(),
     ctx.supabase.from("mgmail_internal_mailboxes")
@@ -297,12 +339,27 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
     ctx.supabase.from("mgmail_internal_message_reads")
       .select("message_id").eq("organization_id", ctx.organizationId).eq("user_id", ctx.user.id),
     draftsQuery,
+    ctx.supabase.from("mgmail_internal_folders")
+      .select("id,name,created_at").eq("organization_id", ctx.organizationId)
+      .order("name", { ascending: true }),
   ]);
   const namespace = namespaceResult.data?.slug || "";
   const mailboxes = mailboxesResult.data || [];
   const messages = messagesResult.data || [];
   const grants = grantsResult.data || [];
   const drafts = draftsResult.data || [];
+  const folders = foldersResult.data || [];
+  const folderLinksResult = await ctx.supabase.from("mgmail_internal_message_folders")
+    .select("folder_id,message_id").eq("organization_id", ctx.organizationId)
+    .eq("user_id", ctx.user.id);
+  const folderLinks = folderLinksResult.data || [];
+  const folderNameById = new Map(folders.map((folder) => [folder.id, folder.name]));
+  const folderIdsByMessage = new Map<string, string[]>();
+  for (const link of folderLinks) {
+    const current = folderIdsByMessage.get(link.message_id) || [];
+    current.push(link.folder_id);
+    folderIdsByMessage.set(link.message_id, current);
+  }
   const myGrants = grants.filter((grant) => grant.user_id === ctx.user.id && grant.is_active);
   const canUseMailbox = (mailbox: (typeof mailboxes)[number], action: "read" | "send") =>
     mailbox.is_active && (
@@ -325,8 +382,11 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
   const readableMailboxIds = new Set(
     mailboxes.filter((mailbox) => canUseMailbox(mailbox, "read")).map((mailbox) => mailbox.id),
   );
-  const inbox = messages.filter((message) => readableMailboxIds.has(message.recipient_mailbox_id));
-  const sent = messages.filter((message) => readableMailboxIds.has(message.sender_mailbox_id));
+  const selectedFolder = folders.find((folder) => folder.id === selectedFolderId);
+  const folderMatches = (messageId: string) => !selectedFolderId
+    || (folderIdsByMessage.get(messageId) || []).includes(selectedFolderId);
+  const inbox = messages.filter((message) => readableMailboxIds.has(message.recipient_mailbox_id) && folderMatches(message.id));
+  const sent = messages.filter((message) => readableMailboxIds.has(message.sender_mailbox_id) && folderMatches(message.id));
   const unreadCount = inbox.filter((message) => !readIds.has(message.id)).length;
   const renderMessages = (items: typeof messages, kind: "inbox" | "sent") => items.length === 0 ? (
     <p className="muted">{searchTerm ? "Aucun message ne correspond à la recherche." : "Aucun message dans cette boîte."}</p>
@@ -431,7 +491,7 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
           </div>
         </>
       )}
-      {namespaceResult.error || mailboxesResult.error || messagesResult.error || grantsResult.error || readsResult.error ? (
+      {namespaceResult.error || mailboxesResult.error || messagesResult.error || grantsResult.error || readsResult.error || draftsResult.error || foldersResult.error || folderLinksResult.error ? (
         <div className="card section" role="alert">
           Impossible de charger les boîtes Magnibox. La migration interne et les permissions
           doivent être validées avant utilisation.
