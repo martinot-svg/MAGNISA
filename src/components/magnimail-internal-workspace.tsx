@@ -393,7 +393,7 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
   ) : (
     <div>
       {items.map((message) => (
-        <div key={message.id} style={{ borderBottom: "1px solid #e5e7eb", padding: "14px 0" }}>
+        <div key={message.id} data-testid="magnibox-message-card" data-message-id={message.id} style={{ borderBottom: "1px solid #e5e7eb", padding: "14px 0" }}>
           <strong>{message.subject}</strong>
           {kind === "inbox" && !readIds.has(message.id) && (
             <span className="badge" style={{ marginLeft: 10 }}>Non lu</span>
@@ -404,7 +404,7 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
           </p>
           <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.body_text}</p>
           {!!(folderIdsByMessage.get(message.id) || []).length && (
-            <p className="muted" style={{ fontSize: 12 }}>
+            <p className="muted" data-testid="magnibox-message-folders" style={{ fontSize: 12 }}>
               Dossiers : {(folderIdsByMessage.get(message.id) || []).map((id) => folderNameById.get(id)).filter(Boolean).join(" · ")}
             </p>
           )}
