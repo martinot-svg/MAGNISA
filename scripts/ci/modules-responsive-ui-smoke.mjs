@@ -14,15 +14,34 @@ const failures = [];
 const checked = [];
 async function gotoWithRetry(page, url, options = {}) {
   let lastError;
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       return await page.goto(url, { ...options, waitUntil:"domcontentloaded", timeout:60000 });
     } catch (error) {
       lastError = error;
-      if (attempt === 2) break;
+      if (attempt === 3) break;
       // Next.js may restart its dev server after compiling the full ERP route set.
       // Give the local server a moment to become ready, then retry the same route.
-      await new Promise(resolve => setTimeout(resolve, 2500));
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+  }
+  throw lastError;
+}
+async function gotoHydratedModuleWithRetry(page, url) {
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await gotoWithRetry(page, url);
+      // A Next.js memory-threshold restart can happen after domcontentloaded:
+      // the document exists, but the application shell has not hydrated yet.
+      await page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({
+        state:"visible", timeout:30000
+      });
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt === 3) break;
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }
   }
   throw lastError;
@@ -51,8 +70,7 @@ try {
   for (const [width,height] of viewportSet) {
     await page.setViewportSize({width,height});
     for (const module of unique) {
-      const response = await gotoWithRetry(page, base+module.path);
-      await page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:20000});
+      const response = await gotoHydratedModuleWithRetry(page, base+module.path);
       const state = await page.evaluate(()=>{
         const root = document.documentElement;
         const shell = document.querySelector(".mg-app");
