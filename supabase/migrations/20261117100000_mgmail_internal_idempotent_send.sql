@@ -69,3 +69,43 @@ grant execute on function public.mgmail_send_internal_message(uuid,uuid,uuid,tex
 -- the idempotency key with direct table inserts. The definer function checks
 -- the caller's JWT membership and explicit mailbox send grant before writing.
 revoke insert on public.mgmail_internal_messages from authenticated;
+
+-- Draft submission must use the same guarded privileged path because direct
+-- INSERT permission on the messages table is intentionally removed.
+create or replace function public.mgmail_send_internal_draft(p_draft_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $send_draft$
+declare
+  v_draft public.mgmail_internal_drafts%rowtype;
+begin
+  select * into v_draft
+  from public.mgmail_internal_drafts
+  where id = p_draft_id and created_by = (select auth.uid())
+  for update;
+
+  if not found
+    or v_draft.recipient_mailbox_id is null
+    or char_length(btrim(v_draft.subject)) < 1
+    or char_length(btrim(v_draft.body_text)) < 1
+    or not public.mgmail_can_send_internal(
+      v_draft.organization_id, v_draft.sender_mailbox_id, v_draft.recipient_mailbox_id
+    ) then
+    return false;
+  end if;
+
+  insert into public.mgmail_internal_messages (
+    organization_id, sender_mailbox_id, recipient_mailbox_id, subject, body_text
+  ) values (
+    v_draft.organization_id, v_draft.sender_mailbox_id, v_draft.recipient_mailbox_id,
+    btrim(v_draft.subject), btrim(v_draft.body_text)
+  );
+
+  delete from public.mgmail_internal_drafts where id = v_draft.id;
+  return true;
+end;
+$send_draft$;
+revoke all on function public.mgmail_send_internal_draft(uuid) from public, anon;
+grant execute on function public.mgmail_send_internal_draft(uuid) to authenticated;
