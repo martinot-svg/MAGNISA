@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
     // Only previously received, malware-scanned files in this exact mailbox
     // may be forwarded. Browser-supplied paths, names and MIME types are ignored.
     const outgoingAttachments: Array<{filename:string;content:Buffer;contentType:string}> = [];
+    const attachmentFingerprint: Array<{id:string;sha256:string;byteSize:number;contentType:string}> = [];
     if (attachmentIds.length) {
       const visible = await ctx.supabase.from("orbit_external_message_attachments")
         .select("id,message_id,storage_path,display_name,byte_size,detected_mime_type,sha256")
@@ -106,8 +107,9 @@ export async function POST(request: NextRequest) {
       if (sourceMessages.error || (sourceMessages.data ?? []).length !== new Set((visible.data ?? []).map(item => item.message_id)).size)
         return reply("Les pièces jointes ne proviennent pas de cette boîte.",403);
       const adminForFiles = createAdminClient();
+      const orderedItems = attachmentIds.map(id => (visible.data ?? []).find(item => item.id === id)!);
       let totalBytes = 0;
-      for (const item of visible.data ?? []) {
+      for (const item of orderedItems) {
         if (item.byte_size < 1 || item.byte_size > 30 * 1024 * 1024) return reply("Taille de pièce jointe invalide.",400);
         totalBytes += item.byte_size;
         if (totalBytes > 150 * 1024 * 1024) return reply("Taille totale des pièces jointes dépassée.",400);
@@ -117,14 +119,23 @@ export async function POST(request: NextRequest) {
         if (content.length !== item.byte_size || createHash("sha256").update(content).digest("hex") !== item.sha256) return reply("Intégrité d'une pièce jointe non vérifiée.",400);
         const filename = item.display_name.replace(/[^\\w .()\\-]/g, "_").slice(0,120) || "attachment.bin";
         outgoingAttachments.push({filename,content,contentType:item.detected_mime_type});
+        attachmentFingerprint.push({id:item.id,sha256:item.sha256,byteSize:item.byte_size,contentType:item.detected_mime_type});
       }
     }
+
+    // Fingerprint the full normalized request, including the verified bytes of every
+    // attachment. The same idempotency key can never silently refer to changed files.
+    const requestFingerprint = createHash("sha256").update(JSON.stringify({
+      version: 1, identityId: identity.id, from: identity.email_address,
+      to: input.to, subject: input.subject, text: input.text,
+      attachments: attachmentFingerprint,
+    })).digest("hex");
 
     // Repeated requests return the existing result, before evaluating quotas.
     // A reused key with a different payload or author is a conflict, never
     // permission to overwrite a previously requested message.
     const prior=await admin.from("orbit_external_messages")
-      .select("id,status,provider_email_id,created_by,to_emails,subject,body_text")
+      .select("id,status,provider_email_id,created_by,to_emails,subject,body_text,request_fingerprint")
       .eq("organization_id",ctx.organizationId).eq("identity_id",identity.id)
       .eq("request_key",input.requestId).maybeSingle();
     if(prior.error)return reply("Impossible de consulter l'historique d'envoi.",503);
@@ -132,7 +143,8 @@ export async function POST(request: NextRequest) {
       const same=prior.data.created_by===ctx.user.id
         && prior.data.subject===input.subject
         && prior.data.body_text===input.text
-        && JSON.stringify(prior.data.to_emails)===JSON.stringify(input.to);
+        && JSON.stringify(prior.data.to_emails)===JSON.stringify(input.to)
+        && prior.data.request_fingerprint===requestFingerprint;
       if(!same)return reply("Cette référence de demande correspond déjà à un autre message.",409);
       return NextResponse.json({
         ok:prior.data.status!=="uncertain",
@@ -154,6 +166,7 @@ export async function POST(request: NextRequest) {
       p_to_emails:input.to,
       p_subject:input.subject,
       p_body_text:input.text,
+      p_request_fingerprint:requestFingerprint,
       p_request_key:input.requestId,
       p_created_by:ctx.user.id,
       p_daily_limit:dailyLimit,
@@ -169,7 +182,8 @@ export async function POST(request: NextRequest) {
           if(existing.data.created_by!==ctx.user.id
             ||existing.data.subject!==input.subject
             ||existing.data.body_text!==input.text
-            ||JSON.stringify(existing.data.to_emails)!==JSON.stringify(input.to))
+            ||JSON.stringify(existing.data.to_emails)!==JSON.stringify(input.to)
+            ||existing.data.request_fingerprint!==requestFingerprint)
             return reply("La référence d'envoi existe déjà pour un autre message.",409);
           return NextResponse.json({
             ok:existing.data.status!=="uncertain",alreadySubmitted:true,
