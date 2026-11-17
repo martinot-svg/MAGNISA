@@ -8,8 +8,8 @@ BEGIN
   IF (
     SELECT count(*)
     FROM supabase_migrations.schema_migrations
-    WHERE version IN ('20261114103000', '20261114103100', '20261114103200', '20261116160000', '20261116161000')
-  ) <> 5 THEN
+    WHERE version IN ('20261114103000', '20261114103100', '20261114103200', '20261116160000', '20261116161000', '20261117100000')
+  ) <> 6 THEN
     RAISE EXCEPTION 'MGMail: one or more approved migration versions are missing';
   END IF;
 
@@ -62,6 +62,32 @@ BEGIN
   WHERE p.policyname IS NULL;
   IF v_missing IS NOT NULL THEN
     RAISE EXCEPTION 'MGMail: required policies missing: %', v_missing;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_attribute
+    WHERE attrelid='public.mgmail_internal_messages'::regclass
+      AND attname='client_request_id' AND NOT attisdropped
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_index
+    WHERE indexrelid=to_regclass('public.mgmail_internal_messages_send_idempotency_uidx')
+      AND indisunique
+  ) THEN
+    RAISE EXCEPTION 'MGMail: internal send idempotency column or unique index missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_proc
+    WHERE oid=to_regprocedure('public.mgmail_send_internal_message(uuid,uuid,uuid,text,text,uuid)')
+      AND NOT prosecdef
+  ) THEN
+    RAISE EXCEPTION 'MGMail: idempotent send RPC must exist and be SECURITY INVOKER';
+  END IF;
+  IF has_function_privilege('anon',
+       'public.mgmail_send_internal_message(uuid,uuid,uuid,text,text,uuid)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated',
+       'public.mgmail_send_internal_message(uuid,uuid,uuid,text,text,uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'MGMail: idempotent send RPC grants are incorrect';
   END IF;
 
   IF NOT EXISTS (
@@ -120,6 +146,6 @@ BEGIN
     RAISE EXCEPTION 'MGMail: essential notifications or access-revocation triggers missing: %', v_missing;
   END IF;
 
-  RAISE NOTICE 'PASS MGMail: five versions, eight RLS tables including private drafts and personal folders, required policies, invoker RPCs and access/notification triggers';
+  RAISE NOTICE 'PASS MGMail: six versions, eight RLS tables including private drafts and personal folders, idempotent send RPC, required policies, invoker RPCs and access/notification triggers';
 END
 $mgmail_check$;
