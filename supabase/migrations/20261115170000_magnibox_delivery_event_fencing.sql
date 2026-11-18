@@ -15,7 +15,7 @@ begin
   if p_queue_id is null
     or upper(p_queue_id) !~ '^[A-F0-9]{5,20}$'
     or p_event_state is null
-    or p_event_state not in ('accepted','bounced','failed','uncertain') then
+    or p_event_state not in ('delivered','bounced','failed','uncertain') then
     raise exception 'Invalid MAGNIBOX delivery event' using errcode = '22023';
   end if;
 
