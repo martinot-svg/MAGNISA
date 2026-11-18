@@ -41,5 +41,7 @@ class PostfixDeliveryEventTests(unittest.TestCase):
             cursor=Path(directory)/"cursor.json"; forwarder.save_cursor(cursor,1234,56)
             self.assertEqual(forwarder.load_cursor(cursor,1234,100),56)
             self.assertEqual(forwarder.load_cursor(cursor,5678,100),0)
+            # Same inode with a smaller size means copytruncate; replay from start.
+            self.assertEqual(forwarder.load_cursor(cursor,1234,10),0)
 
 if __name__=="__main__": unittest.main()
