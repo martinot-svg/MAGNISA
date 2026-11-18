@@ -90,6 +90,54 @@ class InboundBridgeTests(unittest.TestCase):
             os.environ.clear()
             os.environ.update(previous)
 
+    def test_allows_http_only_for_explicit_loopback_integration_tests(self):
+        import os
+        previous = dict(os.environ)
+        try:
+            os.environ["MAGNIBOX_INBOUND_URL"] = "http://127.0.0.1:1/hook"
+            os.environ["MAGNIBOX_INBOUND_WEBHOOK_SECRET"] = "x" * 40
+            os.environ["MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"] = "true"
+            # The endpoint passes transport validation; the local test server
+            # is intentionally absent, so urllib reports a retryable outage.
+            self.assertEqual(bridge.forward(b"From: a@example.org\n\nhello", "b@example.org"), 75)
+        finally:
+            os.environ.clear()
+            os.environ.update(previous)
+
+    def test_http_loopback_flag_never_allows_remote_hosts(self):
+        import os
+        previous = dict(os.environ)
+        try:
+            os.environ["MAGNIBOX_INBOUND_URL"] = "http://example.org/hook"
+            os.environ["MAGNIBOX_INBOUND_WEBHOOK_SECRET"] = "x" * 40
+            os.environ["MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"] = "true"
+            self.assertEqual(bridge.forward(b"From: a@example.org\n\nhello", "b@example.org"), 75)
+        finally:
+            os.environ.clear()
+            os.environ.update(previous)
+
+    def test_allows_explicit_host_gateway_http_only_in_local_mode(self):
+        import os
+        from unittest.mock import patch
+
+        class Response:
+            status = 202
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+
+        class Opener:
+            def open(self, request, timeout): return Response()
+
+        previous = dict(os.environ)
+        try:
+            os.environ["MAGNIBOX_INBOUND_URL"] = "http://host.docker.internal:3000/hook"
+            os.environ["MAGNIBOX_INBOUND_WEBHOOK_SECRET"] = "x" * 40
+            os.environ["MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"] = "true"
+            with patch.object(bridge.urllib.request, "build_opener", return_value=Opener()):
+                self.assertEqual(bridge.forward(b"From: a@example.org\n\nhello", "b@example.org"), 0)
+        finally:
+            os.environ.clear()
+            os.environ.update(previous)
 
     def test_extracts_attachment_as_bounded_base64_payload(self):
         msg = BytesParser(policy=policy.default).parsebytes(
@@ -150,6 +198,48 @@ class InboundBridgeTests(unittest.TestCase):
                 with patch.object(bridge.urllib.request, "build_opener", return_value=opener):
                     self.assertEqual(bridge.forward(raw, "inbox@example.org"), 75, status)
         finally:
+            os.environ.clear()
+            os.environ.update(previous)
+
+
+
+    def test_real_local_http_503_returns_postfix_temporary_failure(self):
+        import os
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        from threading import Thread
+
+        class UnavailableHandler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                self.send_response(503)
+                self.end_headers()
+                self.wfile.write(b"temporary outage")
+
+            def log_message(self, *_args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), UnavailableHandler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        previous = dict(os.environ)
+        try:
+            thread.start()
+            os.environ["MAGNIBOX_INBOUND_URL"] = (
+                "http://127.0.0.1:" + str(server.server_port) + "/hook"
+            )
+            os.environ["MAGNIBOX_INBOUND_WEBHOOK_SECRET"] = "x" * 40
+            os.environ["MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL"] = "true"
+            raw = (
+                b"From: sender@example.org\r\n"
+                b"Message-ID: <temporary-outage@example.org>\r\n"
+                b"Content-Type: text/plain; charset=utf-8\r\n\r\n"
+                b"Retain this message until the API recovers."
+            )
+            # Postfix pipe(8) interprets EX_TEMPFAIL (75) as a deferred
+            # delivery: the queue manager retains the message for retry.
+            self.assertEqual(bridge.forward(raw, "inbox@example.org"), 75)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
             os.environ.clear()
             os.environ.update(previous)
 

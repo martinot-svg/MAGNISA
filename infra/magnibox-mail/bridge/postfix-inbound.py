@@ -115,7 +115,12 @@ def forward(raw: bytes, recipient: str) -> int:
     endpoint = os.environ.get("MAGNIBOX_INBOUND_URL", "").strip()
     secret = os.environ.get("MAGNIBOX_INBOUND_WEBHOOK_SECRET", "")
     parsed = urlparse(endpoint)
-    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+    local_http_test = (
+        parsed.scheme == "http"
+        and parsed.hostname in {"127.0.0.1", "localhost", "host.docker.internal"}
+        and os.environ.get("MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL") == "true"
+    )
+    if (parsed.scheme != "https" and not local_http_test) or not parsed.hostname or parsed.username or parsed.password:
         return 75
     if len(secret) < 32:
         return 75

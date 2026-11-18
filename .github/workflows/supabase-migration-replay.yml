@@ -226,7 +226,16 @@ jobs:
       - name: Start MAGNISA locally
         id: app_server
         run: |
-          npm run dev -- --hostname 127.0.0.1 > /tmp/magnisa-next.log 2>&1 &
+          # These credentials and the inbound endpoint exist only in this isolated CI runner.
+          export MAGNIBOX_EXTERNAL_MAIL_ENABLED=true
+          export MAGNIBOX_INBOUND_WEBHOOK_SECRET="$(openssl rand -hex 32)"
+          export MAGNIBOX_INBOUND_TEST_DOMAIN="magnibox-inbound.example.test"
+          echo "::add-mask::$MAGNIBOX_INBOUND_WEBHOOK_SECRET"
+          echo "MAGNIBOX_EXTERNAL_MAIL_ENABLED=$MAGNIBOX_EXTERNAL_MAIL_ENABLED" >> "$GITHUB_ENV"
+          echo "MAGNIBOX_INBOUND_WEBHOOK_SECRET=$MAGNIBOX_INBOUND_WEBHOOK_SECRET" >> "$GITHUB_ENV"
+          echo "MAGNIBOX_INBOUND_TEST_DOMAIN=$MAGNIBOX_INBOUND_TEST_DOMAIN" >> "$GITHUB_ENV"
+          # Docker Mailserver reaches the ephemeral runner through host-gateway; SMTP remains loopback-bound.
+          npm run dev -- --hostname 0.0.0.0 > /tmp/magnisa-next.log 2>&1 &
           echo $! > /tmp/magnisa-next.pid
           for i in {1..60}; do
             if curl -fsS http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
@@ -240,6 +249,90 @@ jobs:
         run: node scripts/ci/username-login-ui-smoke.mjs
       - name: Verify five-step company onboarding in an isolated browser
         run: node scripts/ci/company-onboarding-browser-smoke.mjs
+      - name: Prepare isolated local Postfix inbound bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          export MAGNIBOX_MTA_HOSTNAME=mail.example.test
+          export MAGNIBOX_DMS_IMAGE=ghcr.io/docker-mailserver/docker-mailserver:15.0.2
+          export MAGNIBOX_BIND_ADDRESS=127.0.0.1
+          export MAGNIBOX_TLS_DIR="$GITHUB_WORKSPACE/.ci-tls"
+          export MAGNIBOX_WORKER_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL"
+          export MAGNIBOX_WORKER_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY"
+          export MAGNIBOX_DELIVERY_EVENT_URL=https://example.invalid/delivery-event
+          export MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET="ci-delivery-event-secret-unused"
+          export MAGNIBOX_INBOUND_URL=http://host.docker.internal:3000/api/internal/magnibox/inbound
+          export MAGNIBOX_INBOUND_WEBHOOK_SECRET
+          export MAGNIBOX_INBOUND_TEST_DOMAIN
+          mkdir -p .ci-tls infra/magnibox-mail/docker-data/{mail-data,mail-state,logs,config,provisioning}
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
+            -keyout .ci-tls/privkey.pem -out .ci-tls/fullchain.pem \
+            -subj "/CN=mail.example.test" \
+            -addext "subjectAltName=DNS:mail.example.test"
+          chmod 600 .ci-tls/privkey.pem
+          cat > infra/magnibox-mail/mailserver.env <<'EOF'
+          ACCOUNT_PROVISIONER=FILE
+          POSTMASTER_ADDRESS=postmaster@example.test
+          ENABLE_IMAP=0
+          ENABLE_POP3=0
+          ENABLE_CLAMAV=0
+          ENABLE_RSPAMD=0
+          ENABLE_RSPAMD_VALKEY=0
+          ENABLE_FAIL2BAN=0
+          ENABLE_OPENDKIM=0
+          ENABLE_OPENDMARC=0
+          ENABLE_POLICYD_SPF=0
+          ENABLE_AMAVIS=0
+          ENABLE_SPAMASSASSIN=0
+          PERMIT_DOCKER=none
+          TLS_LEVEL=modern
+          SSL_TYPE=manual
+          SSL_CERT_PATH=/run/magnibox-tls/fullchain.pem
+          SSL_KEY_PATH=/run/magnibox-tls/privkey.pem
+          ENABLE_UPDATE_CHECK=0
+          EOF
+          SMTP_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$SMTP_PASSWORD"
+          docker run --rm --entrypoint /bin/bash \
+            -e MAIL_USER=sender@example.test -e MAIL_PASS="$SMTP_PASSWORD" \
+            "$MAGNIBOX_DMS_IMAGE" -lc \
+            'printf "%s|%s\\n" "$MAIL_USER" "$(doveadm pw -s SHA512-CRYPT -u "$MAIL_USER" -p "$MAIL_PASS")"' \
+            > infra/magnibox-mail/docker-data/config/postfix-accounts.cf
+          chmod 600 infra/magnibox-mail/docker-data/config/postfix-accounts.cf
+          cat > infra/magnibox-mail/docker-data/config/postfix-main.cf <<'EOF'
+          virtual_mailbox_domains = hash:/tmp/docker-mailserver/magnibox-test-domains
+          virtual_mailbox_maps = hash:/tmp/docker-mailserver/magnibox-test-recipients
+          virtual_transport = magnibox-inbound
+          import_environment = MAIL_CONFIG MAIL_DEBUG MAIL_LOGTAG TZ XAUTHORITY DISPLAY MAGNIBOX_INBOUND_URL MAGNIBOX_INBOUND_WEBHOOK_SECRET MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL
+          export_environment = MAIL_CONFIG MAIL_DEBUG MAIL_LOGTAG TZ XAUTHORITY DISPLAY MAGNIBOX_INBOUND_URL MAGNIBOX_INBOUND_WEBHOOK_SECRET MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL
+          EOF
+          cat > infra/magnibox-mail/docker-data/config/postfix-master.cf <<'EOF'
+          magnibox-inbound unix - n n - - pipe
+            flags=Rq user=nobody argv=/usr/bin/python3 /opt/magnibox-bridge/postfix-inbound.py ${sender} ${recipient}
+          EOF
+          printf '%s OK\\n' "$MAGNIBOX_INBOUND_TEST_DOMAIN" > infra/magnibox-mail/docker-data/config/magnibox-test-domains
+          printf 'receiver@%s OK\\n' "$MAGNIBOX_INBOUND_TEST_DOMAIN" > infra/magnibox-mail/docker-data/config/magnibox-test-recipients
+          docker run --rm -v "$GITHUB_WORKSPACE/infra/magnibox-mail/docker-data/config:/tmp/docker-mailserver" \
+            --entrypoint /bin/bash "$MAGNIBOX_DMS_IMAGE" -lc \
+            'postmap /tmp/docker-mailserver/magnibox-test-domains && postmap /tmp/docker-mailserver/magnibox-test-recipients'
+          echo "127.0.0.1 mail.example.test" | sudo tee -a /etc/hosts
+          docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.inbound-e2e.yaml up -d mailserver
+          ready=0
+          for attempt in $(seq 1 120); do
+            if timeout 4 bash -c 'exec 3<>/dev/tcp/127.0.0.1/25; IFS= read -r -t 2 banner <&3; [[ "$banner" == 220* ]]' 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 5
+          done
+          if [ "$ready" -ne 1 ]; then
+            docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.inbound-e2e.yaml logs --tail=200
+            exit 1
+          fi
+      - name: Unit-test active Postfix inbound transport configuration
+        run: node --test scripts/ci/magnibox-postfix-runtime-config-node-test.mjs
+      - name: Verify MAGNIBOX signed inbound API, replay protection and attachment quarantine
+        run: node scripts/ci/magnibox-inbound-api-integration.mjs
       - name: Verify Orbit Action task, status, comment and subtask UI
         if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
         run: node scripts/ci/orbit-action-ui-smoke.mjs
@@ -271,6 +364,23 @@ jobs:
           name: magnisa-all-modules-responsive
           path: test-results/modules-responsive/
           if-no-files-found: ignore
+      - name: Stop isolated Postfix inbound bridge
+        if: always()
+        env:
+          MAGNIBOX_MTA_HOSTNAME: mail.example.test
+          MAGNIBOX_DMS_IMAGE: ghcr.io/docker-mailserver/docker-mailserver:15.0.2
+          MAGNIBOX_BIND_ADDRESS: 127.0.0.1
+          MAGNIBOX_TLS_DIR: ${{ github.workspace }}/.ci-tls
+          MAGNIBOX_WORKER_SUPABASE_URL: http://127.0.0.1:54321
+          MAGNIBOX_WORKER_SERVICE_ROLE_KEY: ci-cleanup-placeholder-not-used
+          MAGNIBOX_DELIVERY_EVENT_URL: https://example.invalid/delivery-event
+          MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET: ci-delivery-event-secret-unused
+          MAGNIBOX_INBOUND_URL: http://host.docker.internal:3000/api/internal/magnibox/inbound
+          MAGNIBOX_INBOUND_WEBHOOK_SECRET: ci-cleanup-placeholder-not-used
+        run: |
+          docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.inbound-e2e.yaml down --remove-orphans || true
+          rm -f infra/magnibox-mail/mailserver.env
+          sudo rm -rf .ci-tls infra/magnibox-mail/docker-data
       - name: Stop MAGNISA local server
         if: always()
         run: |
