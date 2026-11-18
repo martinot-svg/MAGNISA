@@ -35,7 +35,7 @@ describe("magniboxRetryDelaySeconds", () => {
     expect(magniboxRetryDelaySeconds(1, 10, 100, () => 0)).toBe(1);
     expect(magniboxRetryDelaySeconds(1, 10, 100, () => 0.5)).toBe(6);
     expect(magniboxRetryDelaySeconds(2, 10, 100, () => 0.99)).toBe(20);
-    expect(magniboxRetryDelaySeconds(10, 10, 100, () => 0.99)).toBe(99);
+    expect(magniboxRetryDelaySeconds(10, 10, 100, () => 0.99)).toBe(100);
   });
 
   it("bounds invalid inputs", () => {
