@@ -53,7 +53,7 @@ def read_complete_line(log)->str|None:
     """Return only newline-terminated records; retain partial writes for the next poll."""
     start=log.tell()
     line=log.readline()
-    if not line or not line.endswith("\\n"):
+    if not line or not line.endswith("\n"):
         log.seek(start)
         return None
     return line
