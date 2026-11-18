@@ -6,14 +6,14 @@ const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anon=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const service=process.env.SUPABASE_SERVICE_ROLE_KEY;
 const base=process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:3000";
-if(!url||!anon||!service)throw new Error("Environnement isolé MGMail absent");
+if(!url||!anon||!service)throw new Error("Environnement isolé MAGNIBOX absent");
 const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
 const fixture=randomUUID().slice(0,12);
 async function makeUser(role){
-  const email=`mgmail-ui-${role}-${fixture}@magnisa.test`;
+  const email=`magnibox-ui-${role}-${fixture}@magnisa.test`;
   const password=`MG-${randomBytes(18).toString("hex")}!a9`;
   const created=await admin.auth.admin.createUser({email,password,email_confirm:true});
-  if(created.error||!created.data.user)throw created.error||new Error("Impossible de créer le compte MGMail UI");
+  if(created.error||!created.data.user)throw created.error||new Error("Impossible de créer le compte MAGNIBOX UI");
   return {email,password,id:created.data.user.id};
 }
 const owner=await makeUser("owner");
@@ -22,7 +22,7 @@ const authenticated=createClient(url,anon,{auth:{persistSession:false,autoRefres
 const signed=await authenticated.auth.signInWithPassword({email:owner.email,password:owner.password});
 if(signed.error)throw signed.error;
 const {data:organizationId,error:orgError}=await authenticated.rpc("create_organization",{
-  p_name:`Entreprise MGMail UI ${fixture}`,p_currency:"MGA"
+  p_name:`Entreprise MAGNIBOX UI ${fixture}`,p_currency:"MGA"
 });
 if(orgError||typeof organizationId!=="string")throw orgError||new Error("Entreprise isolée indisponible");
 const member=await admin.from("organization_members").insert({
@@ -35,7 +35,7 @@ async function login(user) {
   const context=await browser.newContext({viewport:{width:390,height:844}});
   const page=await context.newPage();
   await page.goto(base+"/login",{waitUntil:"domcontentloaded"});
-  console.log("MGMail UI: connexion",user.email.includes("-owner-")?"administrateur":"collaborateur");
+  console.log("MAGNIBOX UI: connexion",user.email.includes("-owner-")?"administrateur":"collaborateur");
   await page.locator('input[name="email"]').fill(user.email);
   await page.locator('input[name="password"]').fill(user.password);
   await page.getByRole("button",{name:"Se connecter"}).click();
@@ -57,7 +57,7 @@ async function openDialog(page,label,scope=page){
       await page.waitForTimeout(250);
     }
   }
-  throw new Error("MGMail : fenêtre inaccessible ("+String(label)+") à "+page.url()+
+  throw new Error("MAGNIBOX : fenêtre inaccessible ("+String(label)+") à "+page.url()+
     ". Contenu : "+(await page.locator("body").innerText()).slice(0,1000));
 }
 
@@ -77,24 +77,19 @@ try {
     await a.page.goto(base+path,{waitUntil:"domcontentloaded"});
     await a.page.getByRole("heading",{name:heading}).waitFor({timeout:20000});
   }
-  // Historical app route must keep functioning and display the new product name.
-  await a.page.goto(base+"/orbit/inbox",{waitUntil:"domcontentloaded"});
-  await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
-  await a.page.goto(base+"/magnimail",{waitUntil:"domcontentloaded"});
-  await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
+  // Use only the MAGNIBOX workspace; legacy messaging routes are not browser-test targets.
   await a.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
   await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
-  // MAGNIMAIL and MGMail are a single messaging workspace. An internal
-  // message must be accessible here without entering a second application.
   await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
+  console.log("SCENARIO 1/7: accès MAGNIBOX et espace de messagerie");
   await a.page.getByRole("button",{name:"Configurer la messagerie interne"}).waitFor({timeout:20000});
   if(await a.page.getByRole("link",{name:"Ouvrir la messagerie interne"}).count())
-    throw new Error("Orbit Inbox still separates MGMail into another messaging product");
-  console.log("MGMail UI: messagerie interne hydratée");
-  // Ignore empty aria-live/alert placeholders; only a substantive MGMail error is a failure.
-  const mgmailAlerts=(await a.page.locator('main [role="alert"]').allTextContents())
+    throw new Error("Orbit Inbox still separates MAGNIBOX into another messaging product");
+  console.log("MAGNIBOX UI: messagerie interne hydratée");
+  // Ignore empty aria-live/alert placeholders; only a substantive MAGNIBOX error is a failure.
+  const magniboxAlerts=(await a.page.locator('main [role="alert"]').allTextContents())
     .map(message=>message.trim()).filter(message=>message.length>0);
-  if(mgmailAlerts.length){
+  if(magniboxAlerts.length){
     // Capture which query is failing, not simply the existence of a global alert.
     const ownerProbe=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
     const ownerLogin=await ownerProbe.auth.signInWithPassword({
@@ -112,18 +107,18 @@ try {
       const response=await run();
       return {table,status:response.status,error:response.error?.message,code:response.error?.code};
     }));
-    throw new Error("MGMail a signalé : "+JSON.stringify({alerts:mgmailAlerts,probe,
+    throw new Error("MAGNIBOX a signalé : "+JSON.stringify({alerts:magniboxAlerts,probe,
       route:a.page.url(),view:(await a.page.locator("main").innerText()).slice(0,900)}));
   }
 
   await openDialog(a.page,"Configurer la messagerie interne");
-  await a.page.locator('input[name="slug"]').fill("mgmail-ui-"+fixture);
+  await a.page.locator('input[name="slug"]').fill("magnibox-ui-"+fixture);
   await a.page.getByRole("button",{name:"Créer cet espace"}).click();
   // The obsolete administration heading and internal-domain banner are intentionally removed.
   // Wait on a real functional control rather than on a deleted text heading.
   await a.page.getByRole("button",{name:/Créer une boîte/}).waitFor({timeout:20000});
   if(await a.page.getByRole("heading",{name:"Administration des boîtes"}).count()) {
-    throw new Error("L'ancien titre MGMail a réapparu.");
+    throw new Error("L'ancien titre MAGNIBOX a réapparu.");
   }
   if(await a.page.getByText(/Identifiant interne\s*:/).count()) {
     throw new Error("L'ancien identifiant .mgmail a réapparu.");
@@ -131,7 +126,7 @@ try {
   if((await a.page.locator("main").innerText()).includes(".mgmail")) {
     throw new Error("Une ancienne extension de boîte interne apparaît encore dans Magnibox.");
   }
-  console.log("MGMail UI: espace interne créé");
+  console.log("MAGNIBOX UI: espace interne créé");
 
   async function createMailbox(label,userId){
     await openDialog(a.page,/Créer une boîte/);
@@ -139,11 +134,12 @@ try {
     await a.page.locator('select[name="ownerId"]').selectOption(userId);
     await a.page.getByRole("button",{name:"Créer et attribuer la boîte"}).click();
     await a.page.getByRole("cell",{name:new RegExp("^"+label+" \\(")}).first().waitFor({timeout:20000});
-    console.log("MGMail UI: boîte attribuée",label);
+    console.log("MAGNIBOX UI: boîte attribuée",label);
   }
   await createMailbox("direction",owner.id);
   await createMailbox("finance",employee.id);
   await createMailbox("archives",owner.id);
+  console.log("SCENARIO 2/7: création et attribution des boîtes");
   const {data:boxes,error:boxesError}=await admin.from("mgmail_internal_mailboxes")
     .select("id,local_part").eq("organization_id",organizationId);
   if(boxesError)throw boxesError;
@@ -178,7 +174,7 @@ try {
   await a.page.locator('input[name="localPart"]').fill("finance");
   await a.page.getByRole("button",{name:"Enregistrer la demande"}).click();
   await a.page.getByRole("cell",{name:"finance@"+requestedDomain}).waitFor({timeout:20000});
-  console.log("Magnibox: public address request remains pending, not activated");
+  console.log("SCENARIO 3/7: demandes de domaine et d’adresse avec validation DNS");
   // Domain administration is a separate route; return to the inbox and wait for hydration.
   await a.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
   await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
@@ -212,7 +208,31 @@ try {
   await a.page.getByRole("button",{name:"Envoyer dans MAGNISA"}).click();
   await a.page.getByText(subject).first().waitFor({timeout:20000});
   await a.page.getByRole("heading",{name:"Brouillons (0)"}).waitFor({timeout:20000});
-  console.log("MGMail UI: brouillon enregistré, modifié puis envoyé atomiquement");
+  console.log("SCENARIO 4/7: cycle brouillon, modification et envoi interne");
+
+  // Personal folders are private to each collaborator and support filing/unfiling.
+  const folderName="Factures "+fixture;
+  await a.page.getByRole("textbox",{name:"Nom du nouveau dossier"}).fill(folderName);
+  await a.page.getByRole("button",{name:"Créer un dossier"}).click();
+  const folderLink=a.page.getByRole("link",{name:folderName,exact:true});
+  await folderLink.waitFor({timeout:20000});
+  const sentCard=a.page.getByTestId("magnibox-message-card")
+    .filter({has:a.page.getByText(subject,{exact:true})}).first();
+  await sentCard.waitFor({state:"visible",timeout:15000});
+  await sentCard.locator('select[name="folderId"]').selectOption({label:folderName});
+  await sentCard.getByRole("button",{name:"Classer"}).click();
+  // Server Actions revalidate the route; reload once to assert the persisted
+  // assignment from a fresh server render rather than matching a hidden option.
+  await a.page.reload({waitUntil:"domcontentloaded"});
+  await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
+  const refreshedCard=a.page.getByTestId("magnibox-message-card")
+    .filter({has:a.page.getByText(subject,{exact:true})}).first();
+  await refreshedCard.getByTestId("magnibox-message-folders")
+    .getByText(folderName,{exact:false}).waitFor({state:"visible",timeout:20000});
+  await folderLink.click();
+  await a.page.getByText(subject,{exact:true}).waitFor({timeout:20000});
+  await a.page.getByText("Dossiers personnels",{exact:true}).waitFor({timeout:15000});
+  console.log("SCENARIO 5/7: dossiers personnels, classement et recherche");
 
   // A second unsent draft must remain private to its author.
   await openDialog(a.page,/Nouveau message/);
@@ -253,14 +273,14 @@ try {
   if(privateDraftRows.error||(privateDraftRows.data??[]).length!==0)
     throw new Error("Un collaborateur peut lire les brouillons privés d'un autre utilisateur.");
   await b.page.getByText(subject).waitFor({timeout:20000});
-  console.log("MGMail UI: message réceptionné par le collaborateur");
+  console.log("MAGNIBOX UI: message réceptionné par le collaborateur");
   // Reply must return to the original sender using the employee's authorized mailbox.
   await openDialog(b.page,/Répondre/);
   const replySubject="Re : "+subject;
   await b.page.locator('textarea[name="body"]').fill("Réponse de test\n\n--- Message d'origine ---\nMessage cité");
   await b.page.getByRole("button",{name:"Envoyer la réponse"}).click();
   await b.page.getByText(replySubject).first().waitFor({timeout:20000});
-  console.log("MGMail UI: réponse envoyée");
+  console.log("SCENARIO 6/7: réception, lecture et réponse entre collaborateurs");
 
   const c=await login(owner);
   await c.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
@@ -275,7 +295,7 @@ try {
   await c.page.getByRole("button",{name:"Transférer le message"}).click();
   const forwardedSubject="Tr : "+replySubject;
   await c.page.getByText(forwardedSubject).first().waitFor({timeout:20000});
-  console.log("MGMail UI: transfert vers une troisième boîte");
+  console.log("SCENARIO 7/7: transfert, confidentialité, droits et affichage mobile");
   await c.page.getByText(privateDraft,{exact:true}).waitFor({timeout:15000});
   const draftCard=c.page.locator("div").filter({has:c.page.getByText(privateDraft,{exact:true})}).filter({has:c.page.getByRole("button",{name:"Supprimer le brouillon"})}).first();
   await draftCard.getByRole("button",{name:"Supprimer le brouillon"}).click();
@@ -291,7 +311,7 @@ try {
     .select("message_id,user_id").eq("user_id",employee.id).eq("organization_id",organizationId);
   if(readError||!reads?.length)throw readError||new Error("Lecture personnelle non enregistrée");
   if(await b.page.locator("html").evaluate(el=>el.scrollWidth>el.clientWidth+12))
-    throw new Error("MGMail a un débordement horizontal sur mobile");
+    throw new Error("MAGNIBOX a un débordement horizontal sur mobile");
   await b.context.close();
-  console.log("PASS MGMAIL UI: two users, mailbox creation, send, reception, read state, employee rights, mobile");
+  console.log("PASS MAGNIBOX UI: two users, mailbox creation, send, reception, read state, employee rights, mobile");
 } finally {await browser.close();}

@@ -115,6 +115,11 @@ const allowedSend = required(await a.userClient.rpc("mgmail_can_send_internal", 
   p_recipient_mailbox_id: direction,
 }), "Permission interne d'envoi");
 assert(allowedSend === true, "La permission MGMail doit autoriser l'envoi d'un collaborateur actif.");
+denied(await a.userClient.from("mgmail_internal_messages").insert({
+  organization_id: organizationId, sender_mailbox_id: finance,
+  recipient_mailbox_id: direction, subject: "Contournement RPC",
+  body_text: "Un envoi authentifié doit passer par le RPC idempotent.",
+}).select("id"), "Interdiction de contourner le RPC d'envoi");
 
 const forbiddenSend = required(await a.userClient.rpc("mgmail_can_send_internal", {
   p_organization_id: organizationId,
@@ -122,14 +127,23 @@ const forbiddenSend = required(await a.userClient.rpc("mgmail_can_send_internal"
   p_recipient_mailbox_id: finance,
 }), "Permission d'usurpation");
 assert(forbiddenSend === false, "Un collaborateur ne peut pas utiliser l'adresse d'un collègue.");
-// Échanges internes entre deux collaborateurs de la même entreprise.
-// Le parcours applicatif utilise INSERT sans RETURNING : vérifier cette voie
-// puis récupérer le message par SELECT authentifié et RLS.
-required(await a.userClient.from("mgmail_internal_messages").insert({
-  organization_id: organizationId, sender_mailbox_id: finance,
-  recipient_mailbox_id: direction, subject: "Facture interne MGMail",
-  body_text: "Message interne de contrôle, sans fournisseur Google.",
-}), "Envoi interne");
+// Envoi transactionnel idempotent : deux tentatives avec la même clé
+// doivent retourner le même message et ne créer qu'une notification.
+const sendRequestId = randomUUID();
+const sendPayload = {
+  p_organization_id: organizationId,
+  p_sender_mailbox_id: finance,
+  p_recipient_mailbox_id: direction,
+  p_subject: "Facture interne MGMail",
+  p_body_text: "Message interne de contrôle, sans fournisseur Google.",
+  p_request_id: sendRequestId,
+};
+const firstSend = required(await a.userClient.rpc("mgmail_send_internal_message", sendPayload),
+  "Premier envoi interne");
+const retrySend = required(await a.userClient.rpc("mgmail_send_internal_message", sendPayload),
+  "Rejeu idempotent de l'envoi");
+assert(firstSend === retrySend, "Le rejeu d'un envoi doit retourner le même identifiant.");
+
 const sentMessageRows = required(await a.userClient.from("mgmail_internal_messages")
   .select("id").eq("organization_id", organizationId)
   .eq("sender_mailbox_id", finance).eq("recipient_mailbox_id", direction)
@@ -221,17 +235,18 @@ const permissionB=required(await b.userClient.rpc("mgmail_has_internal_access",{
 }),"Permission lecteur seul");
 assert(permissionA===true && permissionB===false,
   "Les droits de lecture et d'envoi doivent être indépendants.");
-required(await a.userClient.from("mgmail_internal_messages").insert({
-  organization_id:organizationId,sender_mailbox_id:ownerBox,recipient_mailbox_id:direction,
-  subject:"Envoi délégué MGMail",body_text:"Message envoyé avec droit explicite.",
+required(await a.userClient.rpc("mgmail_send_internal_message", {
+  p_organization_id:organizationId,p_sender_mailbox_id:ownerBox,p_recipient_mailbox_id:direction,
+  p_subject:"Envoi délégué MGMail",p_body_text:"Message envoyé avec droit explicite.",p_request_id:randomUUID(),
 }),"Envoi partagé autorisé");
 denied(await b.userClient.from("mgmail_internal_messages").insert({
   organization_id:organizationId,sender_mailbox_id:ownerBox,recipient_mailbox_id:finance,
   subject:"Envoi interdit",body_text:"L'accès lecture ne donne pas le droit d'envoyer.",
 }).select("id"),"Envoi refusé à un lecteur seul");
-required(await b.userClient.from("mgmail_internal_messages").insert({
-  organization_id:organizationId,sender_mailbox_id:direction,recipient_mailbox_id:ownerBox,
-  subject:"Réponse à la boîte commune",body_text:"Notification et état de lecture individuel.",
+required(await b.userClient.rpc("mgmail_send_internal_message", {
+  p_organization_id:organizationId,p_sender_mailbox_id:direction,p_recipient_mailbox_id:ownerBox,
+  p_subject:"Réponse à la boîte commune",p_body_text:"Notification et état de lecture individuel.",
+  p_request_id:randomUUID(),
 }),"Message reçu dans la boîte commune");
 const shared=required(await owner.from("mgmail_internal_messages").select("id")
   .eq("organization_id",organizationId).eq("subject","Réponse à la boîte commune"),

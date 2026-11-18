@@ -72,6 +72,11 @@ jobs:
       - name: Replay every migration from a clean database
         run: supabase db reset --yes
 
+      - name: Verify MAGNIBOX production schema contract (read-only)
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/mgmail-internal-schema-contract.sql
+
       - name: Verify Orbit Action task/comment RLS contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
@@ -231,6 +236,9 @@ jobs:
         id: ui_user
         run: node scripts/ci/create-payroll-ui-user.mjs
 
+      - name: Verify MAGNIBOX internal collaboration, access isolation and notifications
+        run: node scripts/ci/mgmail-internal-mail-integration.mjs
+
       - name: Verify Orbit Action task lifecycle, assignments and tenant isolation
         run: node scripts/ci/orbit-action-tasks-integration.mjs
 
@@ -308,6 +316,9 @@ jobs:
 
       - name: Verify five-step company onboarding in an isolated browser
         run: node scripts/ci/company-onboarding-browser-smoke.mjs
+
+      - name: Verify MAGNIBOX browser workflows between authenticated collaborators
+        run: node scripts/ci/magnibox-internal-ui-smoke.mjs
 
       - name: Prepare isolated local Postfix inbound bridge
         shell: bash
