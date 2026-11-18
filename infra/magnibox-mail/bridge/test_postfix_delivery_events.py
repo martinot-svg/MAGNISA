@@ -33,7 +33,7 @@ class PostfixDeliveryEventTests(unittest.TestCase):
         self.assertEqual(stream.tell(),0)
         stream.seek(0,2); stream.write(" (250 queued)\n")
         stream.seek(0)
-        self.assertEqual(forwarder.read_complete_line(stream),"postfix/smtp[12]: ABC123: status=sent (250 queued)\\n")
+        self.assertEqual(forwarder.read_complete_line(stream),"postfix/smtp[12]: ABC123: status=sent (250 queued)\n")
 
     def test_cursor_round_trip_and_rotation(self):
         import tempfile
