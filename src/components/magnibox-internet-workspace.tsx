@@ -143,7 +143,7 @@ export function MagniboxInternetWorkspace() {
           <a className="button" href="/orbit/magnibox/domaines">Gérer les domaines</a>
         </div>
       ) : (
-        <div style={{display:"grid",gridTemplateColumns:"minmax(220px,.8fr) minmax(0,1.8fr)",gap:16}}>
+        <div className="magnibox-internet-grid">
           <div>
             <label htmlFor="magnibox-internet-identity">Adresse professionnelle</label>
             <select id="magnibox-internet-identity" className="input" value={identityId} onChange={e=>setIdentityId(e.target.value)} style={{width:"100%"}}>

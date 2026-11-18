@@ -1,0 +1,10 @@
+services:
+  mailserver:
+    # The local CI-only bridge talks to the host's loopback-bound Next.js API.
+    # This host-gateway mapping is not enabled in the production Compose file.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      MAGNIBOX_INBOUND_URL: ${MAGNIBOX_INBOUND_URL:?Set the local inbound API URL}
+      MAGNIBOX_INBOUND_WEBHOOK_SECRET: ${MAGNIBOX_INBOUND_WEBHOOK_SECRET:?Set the ephemeral CI HMAC secret}
+      MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL: "true"

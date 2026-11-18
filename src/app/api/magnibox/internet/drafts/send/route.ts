@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     if (!draft) return reply("Brouillon introuvable.", 404);
 
     const identityResult = await ctx.supabase.from("orbit_public_identities")
-      .select("id,organization_id,domain_request_id,address_request_id,email_address,provider,status,provider_verified_at,provider_domain_ref")
+      .select("id,organization_id,domain_request_id,address_request_id,mailbox_id,email_address,provider,status,provider_verified_at,provider_domain_ref")
       .eq("id", draft.identity_id).eq("organization_id", ctx.organizationId).maybeSingle();
     if (identityResult.error) return reply("Identité expéditrice indisponible.", 503);
     const identity = identityResult.data;
@@ -46,17 +46,20 @@ export async function POST(request: NextRequest) {
     });
     if (access.error || access.data !== true) return reply("Vous n'avez pas le droit d'envoyer depuis cette adresse.", 403);
 
-    const [domain, address] = await Promise.all([
+    const [domain, address, mailbox] = await Promise.all([
       admin.from("mgmail_domain_requests").select("status")
         .eq("id", identity.domain_request_id).eq("organization_id", ctx.organizationId).maybeSingle(),
       admin.from("mgmail_public_address_requests").select("status")
         .eq("id", identity.address_request_id).eq("organization_id", ctx.organizationId).maybeSingle(),
+      admin.from("mgmail_internal_mailboxes").select("id,is_active")
+        .eq("id", identity.mailbox_id).eq("organization_id", ctx.organizationId).maybeSingle(),
     ]);
     const allowed = allowPublicSend(identity, ctx.organizationId, {
       enabled: enabledMagniboxInternetMail(),
       hasCredentials: !!magniboxSmtpConfig(),
       domainVerified: !domain.error && domain.data?.status === "verified",
       addressApproved: !address.error && address.data?.status === "approved",
+      mailboxActive: !mailbox.error && mailbox.data?.is_active === true,
       recipientAuthorized: access.data === true,
     });
     if (!allowed) return reply("Domaine ou adresse non validés pour l'envoi Internet.", 403);

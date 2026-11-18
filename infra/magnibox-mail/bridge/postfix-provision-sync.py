@@ -72,7 +72,16 @@ def publish_maps(snapshot: dict, output: Path, postmap: str = "postmap") -> Path
     output.mkdir(parents=True,exist_ok=True)
     revision=snapshot["revision"]
     generation=output/revision
-    if not generation.exists():
+    if generation.exists():
+        # A revision directory is immutable. Never silently reuse a partial or
+        # damaged generation left by an interrupted/older synchronizer.
+        required = ("domains", "domains.db", "recipients", "recipients.db", "manifest.json")
+        if not generation.is_dir() or any(not (generation / name).is_file() for name in required):
+            raise ValueError("existing provisioning generation is incomplete")
+        manifest = json.loads((generation / "manifest.json").read_text(encoding="utf-8"))
+        if manifest.get("revision") != revision:
+            raise ValueError("existing provisioning generation revision mismatch")
+    else:
         stage=Path(tempfile.mkdtemp(prefix=".magnibox-stage-",dir=output))
         try:
             domains,recipients=render_maps(snapshot)
@@ -84,7 +93,20 @@ def publish_maps(snapshot: dict, output: Path, postmap: str = "postmap") -> Path
             },separators=(",",":")),encoding="utf-8")
             subprocess.run([postmap,"hash:"+str(stage/"domains")],check=True,timeout=30)
             subprocess.run([postmap,"hash:"+str(stage/"recipients")],check=True,timeout=30)
-            os.replace(stage,generation)
+            if not (stage/"domains.db").is_file() or not (stage/"recipients.db").is_file():
+                raise ValueError("postmap did not produce both indexed maps")
+            # Directory rename is atomic on this filesystem. If another
+            # synchronizer won the same revision race, accept only its complete
+            # immutable generation; never overwrite it.
+            try:
+                os.rename(stage,generation)
+            except FileExistsError:
+                required = ("domains", "domains.db", "recipients", "recipients.db", "manifest.json")
+                if not generation.is_dir() or any(not (generation / name).is_file() for name in required):
+                    raise ValueError("concurrent provisioning generation is incomplete")
+                manifest = json.loads((generation / "manifest.json").read_text(encoding="utf-8"))
+                if manifest.get("revision") != revision:
+                    raise ValueError("concurrent provisioning generation revision mismatch")
         except Exception:
             import shutil
             shutil.rmtree(stage,ignore_errors=True)

@@ -31,9 +31,10 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Install Supabase CLI
-        uses: supabase/setup-cli@v1
+        id: supabase_cli
+        uses: supabase/setup-cli@v3
         with:
-          version: latest
+          version: 3.0.0
 
       - name: Start isolated Supabase and apply migrations
         shell: bash
@@ -52,7 +53,7 @@ jobs:
         run: npm run test:magnibox:integration
 
       - name: Stop isolated Supabase
-        if: always()
+        if: always() && steps.supabase_cli.outcome == 'success'
         run: supabase stop
 
   build:
@@ -150,6 +151,9 @@ jobs:
 
       - name: Validate Magnibox recipient provisioning sync
         run: bash scripts/ci/check-magnibox-provision-sync.sh
+
+      - name: Validate MAGNIBOX outbound attachment-bound idempotency
+        run: node scripts/ci/check-magnibox-outbound-idempotency.mjs
 
       - name: Validate Magnibox delivery event forwarding
         run: bash scripts/ci/check-magnibox-delivery-events.sh

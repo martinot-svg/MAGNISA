@@ -1,11 +1,12 @@
 "use client";
 
-import { Children, cloneElement, createContext, Fragment, isValidElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { Children, cloneElement, createContext, Fragment, isValidElement, useCallback, useContext, useEffect, useMemo, useRef, useState, useTransition, type ReactElement, type ReactNode } from "react";
 import { ModalFrame } from "@/components/modal-frame";
+import { useRouter } from "next/navigation";
 import { executeFormDialogAction, type FormDialogServerAction } from "@/lib/form-dialog-action";
 
 type ServerAction = FormDialogServerAction;
-type ActionElementProps = { action?: string | ServerAction; children?: ReactNode };
+type ActionElementProps = { action?: string | ServerAction; formAction?: string | ServerAction; children?: ReactNode };
 type FormControlSnapshot = {
   index: number;
   value: string;
@@ -27,16 +28,21 @@ function replaceServerActions(node: ReactNode, wrapAction: (action: ServerAction
   let found = false;
   const children = nodes.map((child) => {
     if (!isValidElement<ActionElementProps>(child)) return child;
+    const actionProps: Partial<ActionElementProps> = {};
     if (typeof child.props.action === "function") {
+      actionProps.action = wrapAction(child.props.action);
       found = true;
-      return cloneElement(child, { action: wrapAction(child.props.action) });
+    }
+    if (typeof child.props.formAction === "function") {
+      actionProps.formAction = wrapAction(child.props.formAction);
+      found = true;
     }
     const nested = replaceServerActions(child.props.children, wrapAction);
-    if (nested.found) {
-      found = true;
-      return cloneElement(child, undefined, ...nested.children);
+    if (nested.found) found = true;
+    if (found && (Object.keys(actionProps).length > 0 || nested.found)) {
+      return cloneElement(child, actionProps, ...nested.children);
     }
-    return child;
+    return Object.keys(actionProps).length > 0 ? cloneElement(child, actionProps) : child;
   });
   return { children, found };
 }
@@ -54,7 +60,9 @@ export function FormDialog({
   buttonClassName?: string;
   isBusy?: boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [refreshPending, startRefresh] = useTransition();
   const [hydrated, setHydrated] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,9 +89,13 @@ export function FormDialog({
     await executeFormDialogAction(action, formData, pendingRef, {
       setPending,
       setError,
-      onSuccess: () => { setSuccess(true); setOpen(false); },
+      onSuccess: () => {
+        setSuccess(true);
+        setOpen(false);
+        startRefresh(() => router.refresh());
+      },
     }, propagateErrors);
-  }, []);
+  }, [router, startRefresh]);
   const dialogContextValue = useMemo(() => ({ wrapAction }), [wrapAction]);
   const wrappedChildren = replaceServerActions(children, wrapAction);
   const content = <>
@@ -159,6 +171,7 @@ export function FormDialog({
     <>
       <button
         ref={openerRef}
+        disabled={refreshPending}
         type="button"
         className={buttonClassName}
         data-form-dialog-hydrated={hydrated ? "true" : "false"}

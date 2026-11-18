@@ -75,12 +75,17 @@ try {
   }).eq("id", created.domainId).select("id").single(), "approve local test domain");
   unwrap(await admin.from("mgmail_public_address_requests").update({ status: "approved" })
     .eq("id", created.addressId).select("id").single(), "approve local test address");
-  const identity = unwrap(await admin.from("orbit_public_identities").insert({
-    organization_id: org, domain_request_id: created.domainId, address_request_id: created.addressId,
-    mailbox_id: mailbox.id, domain_name: domain, local_part: "scanner", provider: "smtp",
-    provider_domain_ref: "local-e2e-no-transport", provider_verified_at: new Date().toISOString(),
+  const pendingIdentity = unwrap(await admin.from("orbit_public_identities").select("id,status,receive_enabled")
+    .eq("organization_id", org).eq("address_request_id", created.addressId).single(),
+    "load trigger-created pending identity");
+  assert(pendingIdentity.status === "pending" && pendingIdentity.receive_enabled === false,
+    "approved address must create a pending, non-routable identity");
+  const identity = unwrap(await admin.from("orbit_public_identities").update({
+    provider_domain_ref: "local-e2e-no-transport",
+    provider_verified_at: new Date().toISOString(),
     status: "active", receive_enabled: true,
-  }).select("id").single(), "create local-only identity");
+  }).eq("id", pendingIdentity.id).eq("organization_id", org).select("id").single(),
+  "activate local-only identity after explicit test transport proof");
   created.identityId = identity.id;
   const message = unwrap(await admin.from("orbit_external_messages").insert({
     organization_id: org, identity_id: identity.id, direction: "incoming", status: "received",

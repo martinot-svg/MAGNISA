@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     // Explicitly page through every row and fail closed above the MTA's 10k limit.
     const identities = await collectMagniboxProvisioningRows(async (from, to) => {
       const page = await admin.from("orbit_public_identities")
-        .select("organization_id,domain_request_id,address_request_id,email_address,provider,status,receive_enabled,provider_verified_at,provider_domain_ref")
+        .select("organization_id,domain_request_id,address_request_id,mailbox_id,email_address,provider,status,receive_enabled,provider_verified_at,provider_domain_ref")
         .eq("provider", "smtp")
         .eq("status", "active")
         .eq("receive_enabled", true)
@@ -72,7 +72,10 @@ export async function POST(request: NextRequest) {
       const batch = identities.slice(start, start + 50);
       const checked = await Promise.all(batch.map(async identity => {
         if (!identity.provider_domain_ref?.trim() || !identity.email_address?.trim()) return null;
-        const [domain, address] = await Promise.all([
+        const [mailbox, domain, address] = await Promise.all([
+          admin.from("mgmail_internal_mailboxes").select("id,is_active")
+            .eq("id", identity.mailbox_id)
+            .eq("organization_id", identity.organization_id).maybeSingle(),
           admin.from("mgmail_domain_requests").select("domain_name,status")
             .eq("id", identity.domain_request_id)
             .eq("organization_id", identity.organization_id).maybeSingle(),
@@ -80,8 +83,8 @@ export async function POST(request: NextRequest) {
             .eq("id", identity.address_request_id)
             .eq("organization_id", identity.organization_id).maybeSingle(),
         ]);
-        if (domain.error || address.error) throw new Error("mailbox_validation_failed");
-        if (domain.data?.status !== "verified" || address.data?.status !== "approved") return null;
+        if (domain.error || address.error || mailbox.error) throw new Error("mailbox_validation_failed");
+        if (!mailbox.data?.is_active || domain.data?.status !== "verified" || address.data?.status !== "approved") return null;
         const email = identity.email_address.trim().toLowerCase();
         const domainName = domain.data.domain_name?.trim().toLowerCase();
         if (!domainName || email.split("@").length !== 2 || email.split("@")[1] !== domainName) return null;
