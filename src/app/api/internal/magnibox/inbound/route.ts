@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { eligibleApprovedInboundRecipient } from "@/lib/orbit/transport/gates";
+import { eligibleApprovedMailboxAddress } from "@/lib/orbit/transport/gates";
 import { isMagniboxInboundContentLengthTooLarge, MagniboxInboundBodyTooLargeError, parseMagniboxInboundPayload, readMagniboxInboundBody, verifyMagniboxInboundSignature, MAGNIBOX_INBOUND_MAX_REQUEST_BYTES } from "@/lib/orbit/transport/inbound";
 
 export const runtime = "nodejs";
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       ]);
       if (domain.error || address.error || mailbox.error) return unavailable();
       const normalizedRecipient = recipient.trim().toLowerCase();
-      if (!eligibleApprovedInboundRecipient({
+      if (!eligibleApprovedMailboxAddress({
         recipient: normalizedRecipient,
         identityEmail: identity.email_address,
         approvedEmail: address.data?.email_address,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowPublicSend, eligibleApprovedInboundRecipient, eligiblePublicRecipient, enabledMagniboxInternetMail, normalizeOutgoingMessage, validExternalRequestId } from "./gates";
+import { allowPublicSend, eligibleApprovedMailboxAddress, eligiblePublicRecipient, enabledMagniboxInternetMail, normalizeOutgoingMessage, validExternalRequestId } from "./gates";
 const org="19f9440d-776b-470e-ae73-f9277f5b74e8";
 const key="aeeb4255-0860-45d8-9c92-72488919ee51";
 const sender={id:key,organization_id:org,domain_request_id:key,address_request_id:key,email_address:"finance@entreprise.mg",provider:"smtp",status:"active",provider_verified_at:"2026-11-14T08:00:00Z",provider_domain_ref:"magnibox-domain-1"};
@@ -38,13 +38,13 @@ describe("Magnibox native Internet mail: fail-closed gates",()=>{
   const approved={recipient:"FINANCE@entreprise.mg",identityEmail:"finance@entreprise.mg",
    approvedEmail:"finance@entreprise.mg",verifiedDomain:"entreprise.mg",
    mailboxActive:true,domainVerified:true,addressApproved:true};
-  expect(eligibleApprovedInboundRecipient(approved)).toBe(true);
-  expect(eligibleApprovedInboundRecipient({...approved,approvedEmail:"other@entreprise.mg"})).toBe(false);
-  expect(eligibleApprovedInboundRecipient({...approved,identityEmail:"other@entreprise.mg"})).toBe(false);
-  expect(eligibleApprovedInboundRecipient({...approved,verifiedDomain:"attacker.example"})).toBe(false);
-  expect(eligibleApprovedInboundRecipient({...approved,mailboxActive:false})).toBe(false);
-  expect(eligibleApprovedInboundRecipient({...approved,domainVerified:false})).toBe(false);
-  expect(eligibleApprovedInboundRecipient({...approved,addressApproved:false})).toBe(false);
-  expect(eligibleApprovedInboundRecipient({...approved,recipient:"finance@entreprise.mg.evil"})).toBe(false);
+  expect(eligibleApprovedMailboxAddress(approved)).toBe(true);
+  expect(eligibleApprovedMailboxAddress({...approved,approvedEmail:"other@entreprise.mg"})).toBe(false);
+  expect(eligibleApprovedMailboxAddress({...approved,identityEmail:"other@entreprise.mg"})).toBe(false);
+  expect(eligibleApprovedMailboxAddress({...approved,verifiedDomain:"attacker.example"})).toBe(false);
+  expect(eligibleApprovedMailboxAddress({...approved,mailboxActive:false})).toBe(false);
+  expect(eligibleApprovedMailboxAddress({...approved,domainVerified:false})).toBe(false);
+  expect(eligibleApprovedMailboxAddress({...approved,addressApproved:false})).toBe(false);
+  expect(eligibleApprovedMailboxAddress({...approved,recipient:"finance@entreprise.mg.evil"})).toBe(false);
  });
 });

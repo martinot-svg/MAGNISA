@@ -36,7 +36,7 @@ export function eligiblePublicRecipient(
     && normalizePublicEmail(sender.email_address)===normalizePublicEmail(recipient);
 }
 /** Fail-closed check that an inbound envelope RCPT is the exact approved address on its verified domain. */
-export function eligibleApprovedInboundRecipient(input: {
+export function eligibleApprovedMailboxAddress(input: {
   recipient: string;
   identityEmail: string | null | undefined;
   approvedEmail: string | null | undefined;

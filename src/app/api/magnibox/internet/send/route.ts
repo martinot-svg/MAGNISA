@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { requireOrganization } from "@/lib/current-org";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MagniboxSmtpTransport, magniboxSmtpConfig } from "@/lib/orbit/transport/smtp";
-import { allowPublicSend, enabledMagniboxInternetMail, normalizeOutgoingMessage } from "@/lib/orbit/transport/gates";
+import { allowPublicSend, eligibleApprovedMailboxAddress, enabledMagniboxInternetMail, normalizeOutgoingMessage } from "@/lib/orbit/transport/gates";
 import { isMagniboxInboundContentLengthTooLarge, MagniboxInboundBodyTooLargeError, readMagniboxBoundedBody } from "@/lib/orbit/transport/inbound";
 
 export const runtime = "nodejs";
@@ -68,17 +68,26 @@ export async function POST(request: NextRequest) {
     // checking the user, organization, sender identity and send permission.
     const admin=createAdminClient();
     const [domain,address,mailbox]=await Promise.all([
-      admin.from("mgmail_domain_requests").select("status")
+      admin.from("mgmail_domain_requests").select("domain_name,status")
         .eq("id",identity.domain_request_id)
         .eq("organization_id",ctx.organizationId).maybeSingle(),
-      admin.from("mgmail_public_address_requests").select("status")
+      admin.from("mgmail_public_address_requests").select("email_address,status")
         .eq("id",identity.address_request_id)
         .eq("organization_id",ctx.organizationId).maybeSingle(),
       admin.from("mgmail_internal_mailboxes").select("id,is_active")
         .eq("id",identity.mailbox_id)
         .eq("organization_id",ctx.organizationId).maybeSingle(),
     ]);
-    const allowed=allowPublicSend(identity,ctx.organizationId,{
+    const mailboxAddressApproved = eligibleApprovedMailboxAddress({
+      recipient: identity.email_address,
+      identityEmail: identity.email_address,
+      approvedEmail: address.data?.email_address,
+      verifiedDomain: domain.data?.domain_name,
+      mailboxActive: mailbox.data?.is_active === true,
+      domainVerified: !domain.error && domain.data?.status === "verified",
+      addressApproved: !address.error && address.data?.status === "approved",
+    });
+    const allowed=mailboxAddressApproved && allowPublicSend(identity,ctx.organizationId,{
       enabled:enabledMagniboxInternetMail(),
       hasCredentials:!!magniboxSmtpConfig(),
       domainVerified:!domain.error&&domain.data?.status==="verified",
