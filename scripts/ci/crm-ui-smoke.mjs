@@ -70,7 +70,7 @@ try {
   // clicking the FormDialog trigger, otherwise the server-rendered button is inert.
   await waitForWorkspace(page);
   // The editable catalog is intentionally inside the shared FormDialog.
-  const interventionTrigger = page.getByRole("button", { name: "Enregistrer la configuration" });
+  const interventionTrigger = page.locator('button[aria-haspopup="dialog"]').filter({ hasText: "Enregistrer la configuration" });
   await interventionTrigger.waitFor({ state: "visible", timeout: 20000 });
   await page.waitForFunction(
     (element) => element instanceof HTMLButtonElement && element.dataset.formDialogHydrated === "true",
