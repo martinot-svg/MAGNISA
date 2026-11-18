@@ -76,4 +76,8 @@ The adapter contract explicitly requires idempotency by outbox event ID and reco
 
 Unit tests are in `imap-sync-core.test.ts` and are picked up by the repository's Vitest suite.
 
+`imap-sync-supabase-repository.ts` now binds the worker repository contract to the three lease-fenced RPCs (`magnibox_claim_sync_events`, `magnibox_complete_sync_event`, `magnibox_fail_sync_event`). It validates returned rows and scalar results, passes the original lease token on acknowledgements, and treats Supabase RPC errors as retryable infrastructure failures. Its contract tests are in `imap-sync-supabase-repository.test.ts`.
+
+This is an adapter implementation only: the corresponding SQL is still a proposal, so the RPCs are not yet available in the live schema. Do not start the worker against production until the migration baseline is reconciled and the proposal is reviewed, migrated and tested in an isolated database.
+
 **Not implemented yet:** the Supabase RPC repository binding, the concrete IMAPFlow/Dovecot adapter, message MIME serialization, per-mailbox credential provisioning, and the reconciliation loop. The SQL proposal lives at `infra/magnibox-mail/sql/IMAP-SYNC-ENGINE-PROPOSAL.sql`; it is not a migration and has not been applied. Do not describe the sync worker as operational until these pieces and the end-to-end tests are complete.
