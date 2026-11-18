@@ -35,6 +35,31 @@ export function eligiblePublicRecipient(
     && !!sender.provider_verified_at && !!sender.provider_domain_ref?.trim()
     && normalizePublicEmail(sender.email_address)===normalizePublicEmail(recipient);
 }
+/** Fail-closed check that an inbound envelope RCPT is the exact approved address on its verified domain. */
+export function eligibleApprovedInboundRecipient(input: {
+  recipient: string;
+  identityEmail: string | null | undefined;
+  approvedEmail: string | null | undefined;
+  verifiedDomain: string | null | undefined;
+  mailboxActive: boolean;
+  domainVerified: boolean;
+  addressApproved: boolean;
+}): boolean {
+  if (!input.mailboxActive || !input.domainVerified || !input.addressApproved
+    || !input.identityEmail || !input.approvedEmail || !input.verifiedDomain) return false;
+  try {
+    const recipient = normalizePublicEmail(input.recipient);
+    const identityEmail = normalizePublicEmail(input.identityEmail);
+    const approvedEmail = normalizePublicEmail(input.approvedEmail);
+    const domain = input.verifiedDomain.trim().toLowerCase();
+    const parts = recipient.split("@");
+    return parts.length === 2 && parts[1] === domain
+      && identityEmail === recipient && approvedEmail === recipient;
+  } catch {
+    return false;
+  }
+}
+
 export function enabledMagniboxInternetMail(environment: NodeJS.ProcessEnv=process.env): boolean {
   return environment.MAGNIBOX_EXTERNAL_MAIL_ENABLED==="true";
 }
