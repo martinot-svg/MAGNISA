@@ -1,0 +1,20 @@
+# Local-only Postfix -> Mailpit relay overlay.
+# Combine with compose.yaml; never use this overlay for a public MTA deployment.
+services:
+  mailserver:
+    environment:
+      # Override the MTA's outbound route: Postfix hands every outbound message
+      # to Mailpit on the shared Compose network. Mailpit stores messages and
+      # does not forward them to the public Internet.
+      DEFAULT_RELAY_HOST: "[mailpit]:1025"
+
+  mailpit:
+    image: axllent/mailpit:v1.33.1
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

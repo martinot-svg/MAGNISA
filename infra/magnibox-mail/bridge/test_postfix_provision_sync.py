@@ -27,12 +27,37 @@ class ProvisioningSyncTests(unittest.TestCase):
     def test_publishes_versioned_maps_and_atomically_updates_current_symlink(self):
         value=snapshot(["example.net"],["info@example.net"])
         with tempfile.TemporaryDirectory() as directory:
-            with patch.object(sync.subprocess,"run") as postmap:
+            def fake_postmap(command, **kwargs):
+                Path(command[1].removeprefix("hash:") + ".db").write_bytes(b"indexed")
+            with patch.object(sync.subprocess,"run",side_effect=fake_postmap) as postmap:
                 generation=sync.publish_maps(value,Path(directory))
+                # Replaying the exact same snapshot is idempotent and does not
+                # regenerate or mutate the immutable revision directory.
+                again=sync.publish_maps(value,Path(directory))
             self.assertEqual(generation.name,value["revision"])
+            self.assertEqual(again,generation)
             self.assertTrue((Path(directory)/"current").is_symlink())
             self.assertEqual((Path(directory)/"current").resolve(),generation)
             self.assertEqual(postmap.call_count,2)
+            self.assertTrue((generation/"domains.db").is_file())
+            self.assertTrue((generation/"recipients.db").is_file())
+
+    def test_refuses_partial_existing_generation(self):
+        value=snapshot(["example.net"],["info@example.net"])
+        with tempfile.TemporaryDirectory() as directory:
+            generation=Path(directory)/value["revision"]
+            generation.mkdir()
+            (generation/"domains").write_text("example.net OK\\n")
+            with self.assertRaisesRegex(ValueError,"incomplete"):
+                sync.publish_maps(value,Path(directory))
+
+    def test_refuses_postmap_success_without_index_files(self):
+        value=snapshot(["example.net"],["info@example.net"])
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(sync.subprocess,"run"):
+                with self.assertRaisesRegex(ValueError,"did not produce"):
+                    sync.publish_maps(value,Path(directory))
+            self.assertFalse((Path(directory)/value["revision"]).exists())
     def test_hmac_response_verification(self):
         body=b'{"domains":[],"recipients":[],"revision":"' + b"a"*64 + b'"}'
         timestamp="1800000000"; secret="s"*40

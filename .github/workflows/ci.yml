@@ -40,7 +40,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          supabase start
+          # MAGNIBOX integration tests do not use Supabase Inbucket; skip it to avoid
+          # binding the runner's commonly occupied host port 54324.
+          supabase start -x inbucket
           supabase db reset
           eval "$(supabase status -o env)"
           echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
@@ -109,6 +111,8 @@ jobs:
         run: |
           bash -n scripts/ci/check-magnibox-mailpit.sh
           bash scripts/ci/check-magnibox-mailpit.sh
+          bash -n scripts/ci/check-magnibox-mailpit-relay.sh
+          bash scripts/ci/check-magnibox-mailpit-relay.sh
 
       - name: Validate isolated Magnibox local development stack
         run: bash scripts/ci/check-magnibox-local-dev.sh
@@ -147,6 +151,9 @@ jobs:
 
       - name: Validate Magnibox recipient provisioning sync
         run: bash scripts/ci/check-magnibox-provision-sync.sh
+
+      - name: Validate MAGNIBOX outbound attachment-bound idempotency
+        run: node scripts/ci/check-magnibox-outbound-idempotency.mjs
 
       - name: Validate Magnibox delivery event forwarding
         run: bash scripts/ci/check-magnibox-delivery-events.sh
