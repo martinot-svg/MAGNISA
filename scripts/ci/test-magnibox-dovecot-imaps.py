@@ -69,7 +69,7 @@ def main() -> int:
         if typ != "OK":
             raise RuntimeError("Dovecot APPEND did not persist the test message")
 
-        typ, data = client.search(None, "HEADER", "Subject", f'"{subject}"')
+        typ, data = client.search(None, "HEADER", "Subject", subject)
         if typ != "OK" or not data or not data[0]:
             raise RuntimeError("Dovecot SEARCH could not find the persisted test message")
 
