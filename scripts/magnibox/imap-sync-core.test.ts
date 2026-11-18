@@ -22,7 +22,7 @@ function event(overrides: Partial<MagniboxSyncOutboxEvent> = {}): MagniboxSyncOu
   };
 }
 
-function repository(events: MagniboxSyncOutboxEvent[] = []) {
+function repository(events: MagniboxSyncOutboxEvent[] = []): MagniboxSyncOutboxRepository {
   return {
     claim: vi.fn(async () => events),
     complete: vi.fn(async () => true),
