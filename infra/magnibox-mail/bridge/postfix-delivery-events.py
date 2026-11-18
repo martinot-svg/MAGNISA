@@ -34,7 +34,8 @@ def load_cursor(path:Path,inode:int,size:int)->int:
     try:
         saved=json.loads(path.read_text(encoding="utf-8"))
         if saved.get("inode")==inode and isinstance(saved.get("offset"),int):
-            return min(max(0,saved["offset"]),size)
+            offset=saved["offset"]
+            return offset if 0 <= offset <= size else 0
     except (OSError,ValueError,AttributeError): pass
     return 0
 
