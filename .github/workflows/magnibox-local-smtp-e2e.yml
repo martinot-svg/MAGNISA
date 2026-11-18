@@ -108,7 +108,7 @@ jobs:
           ready=0
           for attempt in $(seq 1 120); do
             if timeout 4 bash -c 'exec 3<>/dev/tcp/mail.example.test/587; IFS= read -r -t 2 banner <&3; [[ "$banner" == 220* ]]' 2>/dev/null \
-              && curl --fail --silent http://127.0.0.1:8025/api/v1/messages >/dev/null \\
+              && curl --fail --silent http://127.0.0.1:8025/api/v1/messages >/dev/null \
               && timeout 4 bash -c 'exec 3<>/dev/tcp/127.0.0.1/993'; then
               ready=1
               break
