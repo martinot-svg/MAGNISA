@@ -6,7 +6,7 @@ export type SenderRecord = {
 };
 export type PublicMailReadyFlags = {
   enabled: boolean; hasCredentials: boolean; domainVerified: boolean;
-  addressApproved: boolean; recipientAuthorized: boolean;
+  addressApproved: boolean; mailboxActive: boolean; recipientAuthorized: boolean;
 };
 export function validExternalRequestId(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -14,7 +14,7 @@ export function validExternalRequestId(value: unknown): value is string {
 export function allowPublicSend(identity: SenderRecord | null, organizationId: string, flags: PublicMailReadyFlags): boolean {
   return Boolean(identity && identity.organization_id === organizationId && identity.status === "active"
     && identity.provider === "smtp" && identity.provider_verified_at && identity.provider_domain_ref?.trim()
-    && flags.enabled && flags.hasCredentials && flags.domainVerified && flags.addressApproved && flags.recipientAuthorized);
+    && flags.enabled && flags.hasCredentials && flags.domainVerified && flags.addressApproved && flags.mailboxActive && flags.recipientAuthorized);
 }
 export function normalizeOutgoingMessage(value: unknown): { identityId: string; requestId: string; to: string[]; subject: string; text: string } {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Message professionnel invalide.");
@@ -35,6 +35,31 @@ export function eligiblePublicRecipient(
     && !!sender.provider_verified_at && !!sender.provider_domain_ref?.trim()
     && normalizePublicEmail(sender.email_address)===normalizePublicEmail(recipient);
 }
+/** Fail-closed check that an inbound envelope RCPT is the exact approved address on its verified domain. */
+export function eligibleApprovedMailboxAddress(input: {
+  recipient: string;
+  identityEmail: string | null | undefined;
+  approvedEmail: string | null | undefined;
+  verifiedDomain: string | null | undefined;
+  mailboxActive: boolean;
+  domainVerified: boolean;
+  addressApproved: boolean;
+}): boolean {
+  if (!input.mailboxActive || !input.domainVerified || !input.addressApproved
+    || !input.identityEmail || !input.approvedEmail || !input.verifiedDomain) return false;
+  try {
+    const recipient = normalizePublicEmail(input.recipient);
+    const identityEmail = normalizePublicEmail(input.identityEmail);
+    const approvedEmail = normalizePublicEmail(input.approvedEmail);
+    const domain = input.verifiedDomain.trim().toLowerCase();
+    const parts = recipient.split("@");
+    return parts.length === 2 && parts[1] === domain
+      && identityEmail === recipient && approvedEmail === recipient;
+  } catch {
+    return false;
+  }
+}
+
 export function enabledMagniboxInternetMail(environment: NodeJS.ProcessEnv=process.env): boolean {
   return environment.MAGNIBOX_EXTERNAL_MAIL_ENABLED==="true";
 }

@@ -67,10 +67,21 @@ if(proof.error)throw proof.error;
 const approval=await admin.from("mgmail_public_address_requests")
   .update({status:"approved"}).eq("id",a.id);
 if(approval.error)throw approval.error;
-const identity=ok(await admin.from("orbit_public_identities").insert(prototype)
-  .select("id,email_address,status").single(),"verified identity");
+const pending=ok(await admin.from("orbit_public_identities")
+  .select("id,email_address,status,provider,receive_enabled")
+  .eq("address_request_id",a.id).eq("organization_id",org).single(),
+  "automatically provisioned pending identity");
+if(pending.email_address!==`finance@${domain}`||pending.status!=="pending"
+  ||pending.provider!=="smtp"||pending.receive_enabled!==false)
+  throw Error("Address approval must create a pending, non-routable SMTP identity");
+const identity=ok(await admin.from("orbit_public_identities").update({
+  provider_domain_ref:`provider-${stamp}`,
+  provider_verified_at:new Date().toISOString(),
+  status:"active",receive_enabled:true,
+}).eq("id",pending.id).eq("organization_id",org)
+  .select("id,email_address,status").single(),"activate verified identity");
 if(identity.email_address!==`finance@${domain}`||identity.status!=="active")
-  throw Error("Generated identity should be active only after two approvals");
+  throw Error("Identity should activate only after explicit provider verification");
 
 deny(await owner.account.from("orbit_public_identities").insert({
   ...prototype,local_part:"invented",
@@ -137,6 +148,13 @@ if(revoke.error)throw revoke.error;
 const readAfter=await employee.account.from("orbit_external_messages").select("id")
   .eq("organization_id",org);
 if(readAfter.error||readAfter.data.length!==0)throw Error("Revoked employee still sees mail");
+const disableMailbox=await admin.from("mgmail_internal_mailboxes")
+  .update({is_active:false}).eq("id",mailbox.id).eq("organization_id",org);
+if(disableMailbox.error)throw disableMailbox.error;
+const mailboxSuspended=ok(await admin.from("orbit_public_identities")
+  .select("status,receive_enabled").eq("id",identity.id).single(),"mailbox suspension");
+if(mailboxSuspended.status!=="suspended"||mailboxSuspended.receive_enabled!==false)
+  throw Error("Disabling the linked company mailbox must suspend public MAGNIBOX identity immediately");
 const removeDomain=await admin.from("mgmail_domain_requests").update({
   status:"rejected",verified_at:null,
 }).eq("id",d.id);
@@ -149,4 +167,4 @@ const stillSent=await admin.from("orbit_external_messages").select("id")
   .eq("id",outgoing.id).single();
 if(stillSent.error||!stillSent.data)throw Error("Suspension must preserve historical sent mail");
 if(org===foreignOrg||incoming.id===outgoing.id)throw Error("Test fixtures not isolated");
-console.log("PASS Orbit public identities: verified domain+address, RLS, read/send separation, revocation, history, no browser writes.");
+console.log("PASS MAGNIBOX public identities: verified domain+address, RLS, read/send separation, mailbox/domain revocation, history, no browser writes.");
