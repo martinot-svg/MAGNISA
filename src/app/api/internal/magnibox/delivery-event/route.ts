@@ -36,11 +36,11 @@ export async function POST(request: NextRequest) {
   }
   const data = payload as Record<string, unknown>;
   if (typeof data.queueId !== "string" || !/^[A-F0-9]{5,20}$/i.test(data.queueId)
-    || !["delivered", "bounced", "failed", "deferred"].includes(String(data.event))) {
+    || !["accepted", "bounced", "failed", "deferred"].includes(String(data.event))) {
     return NextResponse.json({ error: "Référence de livraison invalide." }, { status: 400 });
   }
 
-  const state = data.event === "delivered" ? "delivered"
+  const state = data.event === "accepted" ? "accepted"
     : data.event === "bounced" ? "bounced"
     : data.event === "failed" ? "failed" : "uncertain";
   const admin = createAdminClient();

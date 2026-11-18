@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 LINE_RE = re.compile(r"postfix/smtp\[\d+\]:\s+(?P<queue>[A-F0-9]{5,20}):\s+to=<[^>\r\n]+>,.*?\bstatus=(?P<status>sent|bounced|deferred|expired)\b", re.IGNORECASE)
-EVENTS = {"sent":"delivered","bounced":"bounced","deferred":"deferred","expired":"failed"}
+EVENTS = {"sent":"accepted","bounced":"bounced","deferred":"deferred","expired":"failed"}
 STOP = False
 
 def parse_log_line(line: str):

@@ -1,4 +1,5 @@
 name: Supabase migration replay
+
 on:
   pull_request:
     paths:
@@ -14,6 +15,7 @@ on:
       - "tsconfig.json"
       - "vitest.config.ts"
       - "public/**"
+
   push:
     branches:
       - main
@@ -31,25 +33,32 @@ on:
       - "tsconfig.json"
       - "vitest.config.ts"
       - "public/**"
+
 permissions:
   contents: read
+
 concurrency:
   group: supabase-replay-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
 jobs:
   replay:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: supabase/setup-cli@v3
         id: supabase_cli
         with:
           version: 3.0.0
+
       - name: Start local Supabase stack on PostgreSQL 17
         run: |
           # Avoid collisions with PostgreSQL already bound to the runner's default 54322.
           sed -i '/^\[db\]/,/^\[/ s/^port = 54322$/port = 55433/' supabase/config.toml
+
           # The v3 CLI replaced Inbucket with local_smtp. These tests do not
           # use SMTP capture, so disable its default listener (host port 54324).
           if grep -q '^\[local_smtp\]' supabase/config.toml; then
@@ -57,112 +66,140 @@ jobs:
           else
             printf '%s\n' '' '[local_smtp]' 'enabled = false' >> supabase/config.toml
           fi
+
           supabase start -x studio,edge-runtime,logflare,vector
+
       - name: Replay every migration from a clean database
         run: supabase db reset --yes
+
       - name: Verify Orbit Action task/comment RLS contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/orbit-action-schema-contract.sql
+
       - name: Verify Orbit domain request RLS and DNS challenge contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/orbit-public-domain-requests-contract.sql
+
       - name: Verify Magnibox public identity RLS and revocation triggers
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/orbit-public-identity-contract.sql
+
       - name: Verify Magnibox agenda RLS, time zones and reminder contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/mgmail-agenda-schema-contract.sql
+
       - name: Verify Magnibox TLD catalogue security contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-tld-catalog-contract.sql
+
       - name: Verify MAGNIBOX free platform domain catalogue contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-platform-domain-catalog-contract.sql
+
       - name: Verify MAGNIBOX platform approval MFA and private audit contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-platform-request-console-contract.sql
+
       - name: Verify MAGNIBOX attachment quarantine and scan fencing contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-attachment-quarantine-contract.sql
+
       - name: Verify MAGNIBOX outbound attachment-bound idempotency contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-outbound-request-fingerprint-contract.sql
+
       - name: Verify MAGNIBOX atomic draft submission contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-draft-submission-contract.sql
+
       - name: Verify supplier invoice matching, VAT, multi-order and customer mandate accounting
         run: |
-          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\"')
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\\"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/supplier-invoice-matching-invariants.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/procurement-ledger-invariants.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/customer-credit-notes.sql
+
       - name: Verify public RPC execution grants
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/default-rpc-execution.sql
+
       - name: Verify stock reservation, delivery and transfer invariants
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/stock-operations-invariants.sql
+
       - name: Verify anonymous table and sequence privileges
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/anon-privileges.sql
+
       - name: Verify private legal archive access
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/private-payroll-archive.sql
+
       - name: Verify payroll activation rejects identical start dates
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/payroll-rule-activation-date-conflicts.sql
+
       - name: Verify payroll accounting posting and supplementary pension
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/payroll-accounting-posting.sql
+
       - name: Verify payroll rule archival behavior
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/payroll-rule-archival.sql
+
       - name: Verify fiscal-year opening, carry-forward and close guards
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/accounting-fiscal-year-opening-closing.sql
+
       - name: Verify fixed-asset PCG, posting, component and RLS invariants
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/fixed-assets-accounting.sql
+
       - name: Verify automatic PCG 581 mapping for internal transfer clearing
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/pcg-internal-transfer-581.sql
+
       - name: Verify safe legacy PCG mapping and transit classification
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/pcg-mapping-view-integrity.sql
+
       - name: Verify PCG 4456 and 4457 balance-sheet classification
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/pcg-vat-balance-sheet-rules.sql
+
       - name: Verify collaborative prospect contribution security and automation
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/prospect-collaboration.sql
+
       - name: Node 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+
       - name: Install app and browser test dependencies
         run: |
           npm ci --no-audit --no-fund
@@ -170,11 +207,13 @@ jobs:
           # GitHub-hosted Ubuntu runners already include Chromium system libraries.
           # Avoid apt repository dependency here; install only the pinned browser binary.
           npx playwright install chromium
+
       - name: Syntax-check encrypted backup and Storage restore scripts
         run: |
           node --check scripts/backup/export-supabase-storage.mjs
           node --check scripts/backup/restore-supabase-storage.mjs
           node --check scripts/backup/verify-supabase-storage.mjs
+
       - name: Export isolated local Supabase credentials
         run: |
           eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY|DB_URL)=')"
@@ -187,42 +226,59 @@ jobs:
           TEST_PASSWORD="$(openssl rand -hex 24)"
           echo "::add-mask::$TEST_PASSWORD"
           echo "TEST_PASSWORD=$TEST_PASSWORD" >> "$GITHUB_ENV"
+
       - name: Create authenticated local test user
         id: ui_user
         run: node scripts/ci/create-payroll-ui-user.mjs
+
       - name: Verify Orbit Action task lifecycle, assignments and tenant isolation
         run: node scripts/ci/orbit-action-tasks-integration.mjs
+
       - name: Verify Orbit domain requests and cross-tenant security
         run: node scripts/ci/orbit-domain-requests-integration.mjs
+
       - name: Verify Magnibox public identity permissions and multi-tenant isolation
         run: node scripts/ci/orbit-inbox-public-identity-integration.mjs
+
       - name: Verify MAGNIBOX free platform domain allocation and tenant isolation
         run: node scripts/ci/magnibox-free-platform-domain-integration.mjs
+
       - name: Verify Magnibox agenda multi-tenant isolation and idempotent reminders
         run: node scripts/ci/mgmail-agenda-integration.mjs
+
       - name: Verify MAGNISA identity privacy, username and opaque IDs
         run: node scripts/ci/magnisa-identity-integration.mjs
+
       - name: Seed isolated payroll test organization
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/payroll-ui-seed.sql
+
       - name: Exercise authenticated stock reservation, delivery, transfer and tenant isolation
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/stock-operations-integration.sql
+
       - name: Seed isolated stock data for concurrent reservation test
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/stock-reservation-concurrency-seed.sql
+
       - name: Exercise two concurrent authenticated PostgreSQL reservations
         run: node scripts/ci/stock-reservation-concurrency.mjs
+
       - name: Exercise fixed-asset accounting workflows with authenticated user
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v user_id="${{ steps.ui_user.outputs.user_id }}" -f supabase/tests/fixed-assets-integration.sql
+
       - name: Test fixed-asset register and reconciliation RLS
         run: node scripts/ci/fixed-assets-rls-integration.mjs
+
       - name: Test collaborative CRM RPCs, commission splits and tenant isolation
         run: node scripts/ci/crm-collaboration-integration.mjs
+
       - name: Verify snapshot-aware payslip RPC privileges
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/payroll-snapshot-security.sql
+
       - name: Test payroll payment lifecycle and idempotency
         run: node scripts/ci/payroll-payment-integration.mjs
+
       - name: Start MAGNISA locally
         id: app_server
         run: |
@@ -243,12 +299,16 @@ jobs:
           done
           cat /tmp/magnisa-next.log
           exit 1
+
       - name: Verify automatic ten-letter usernames and uniqueness
         run: node scripts/ci/automatic-username-integration.mjs
+
       - name: Verify username sign-in, public ID and private origin directory in browser
         run: node scripts/ci/username-login-ui-smoke.mjs
+
       - name: Verify five-step company onboarding in an isolated browser
         run: node scripts/ci/company-onboarding-browser-smoke.mjs
+
       - name: Prepare isolated local Postfix inbound bridge
         shell: bash
         run: |
@@ -264,12 +324,16 @@ jobs:
           export MAGNIBOX_INBOUND_URL=http://host.docker.internal:3000/api/internal/magnibox/inbound
           export MAGNIBOX_INBOUND_WEBHOOK_SECRET
           export MAGNIBOX_INBOUND_TEST_DOMAIN
+
           mkdir -p .ci-tls infra/magnibox-mail/docker-data/{mail-data,mail-state,logs,config,provisioning}
+
           openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
             -keyout .ci-tls/privkey.pem -out .ci-tls/fullchain.pem \
             -subj "/CN=mail.example.test" \
             -addext "subjectAltName=DNS:mail.example.test"
+
           chmod 600 .ci-tls/privkey.pem
+
           cat > infra/magnibox-mail/mailserver.env <<'EOF'
           ACCOUNT_PROVISIONER=FILE
           POSTMASTER_ADDRESS=postmaster@example.test
@@ -291,14 +355,18 @@ jobs:
           SSL_KEY_PATH=/run/magnibox-tls/privkey.pem
           ENABLE_UPDATE_CHECK=0
           EOF
+
           SMTP_PASSWORD="$(openssl rand -hex 24)"
           echo "::add-mask::$SMTP_PASSWORD"
+
           docker run --rm --entrypoint /bin/bash \
             -e MAIL_USER=sender@example.test -e MAIL_PASS="$SMTP_PASSWORD" \
             "$MAGNIBOX_DMS_IMAGE" -lc \
             'printf "%s|%s\\n" "$MAIL_USER" "$(doveadm pw -s SHA512-CRYPT -u "$MAIL_USER" -p "$MAIL_PASS")"' \
             > infra/magnibox-mail/docker-data/config/postfix-accounts.cf
+
           chmod 600 infra/magnibox-mail/docker-data/config/postfix-accounts.cf
+
           cat > infra/magnibox-mail/docker-data/config/postfix-main.cf <<'EOF'
           virtual_mailbox_domains = hash:/tmp/docker-mailserver/magnibox-test-domains
           virtual_mailbox_maps = hash:/tmp/docker-mailserver/magnibox-test-recipients
@@ -306,17 +374,23 @@ jobs:
           import_environment = MAIL_CONFIG MAIL_DEBUG MAIL_LOGTAG TZ XAUTHORITY DISPLAY MAGNIBOX_INBOUND_URL MAGNIBOX_INBOUND_WEBHOOK_SECRET MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL
           export_environment = MAIL_CONFIG MAIL_DEBUG MAIL_LOGTAG TZ XAUTHORITY DISPLAY MAGNIBOX_INBOUND_URL MAGNIBOX_INBOUND_WEBHOOK_SECRET MAGNIBOX_INBOUND_ALLOW_HTTP_LOCAL
           EOF
+
           cat > infra/magnibox-mail/docker-data/config/postfix-master.cf <<'EOF'
           magnibox-inbound unix - n n - - pipe
             flags=Rq user=nobody argv=/usr/bin/python3 /opt/magnibox-bridge/postfix-inbound.py ${sender} ${recipient}
           EOF
+
           printf '%s OK\\n' "$MAGNIBOX_INBOUND_TEST_DOMAIN" > infra/magnibox-mail/docker-data/config/magnibox-test-domains
           printf 'receiver@%s OK\\n' "$MAGNIBOX_INBOUND_TEST_DOMAIN" > infra/magnibox-mail/docker-data/config/magnibox-test-recipients
+
           docker run --rm -v "$GITHUB_WORKSPACE/infra/magnibox-mail/docker-data/config:/tmp/docker-mailserver" \
             --entrypoint /bin/bash "$MAGNIBOX_DMS_IMAGE" -lc \
             'postmap /tmp/docker-mailserver/magnibox-test-domains && postmap /tmp/docker-mailserver/magnibox-test-recipients'
+
           echo "127.0.0.1 mail.example.test" | sudo tee -a /etc/hosts
+
           docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.inbound-e2e.yaml up -d mailserver
+
           ready=0
           for attempt in $(seq 1 120); do
             if timeout 4 bash -c 'exec 3<>/dev/tcp/127.0.0.1/25; IFS= read -r -t 2 banner <&3; [[ "$banner" == 220* ]]' 2>/dev/null; then
@@ -325,28 +399,37 @@ jobs:
             fi
             sleep 5
           done
+
           if [ "$ready" -ne 1 ]; then
             docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.inbound-e2e.yaml logs --tail=200
             exit 1
           fi
+
       - name: Unit-test active Postfix inbound transport configuration
         run: node --test scripts/ci/magnibox-postfix-runtime-config-node-test.mjs
+
       - name: Verify MAGNIBOX signed inbound API, replay protection and attachment quarantine
         run: node scripts/ci/magnibox-inbound-api-integration.mjs
+
       - name: Verify Orbit Action task, status, comment and subtask UI
         if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
         run: node scripts/ci/orbit-action-ui-smoke.mjs
+
       - name: Test authenticated payroll and fixed-asset UI actions
         run: node scripts/ci/payroll-ui-smoke.mjs
+
       - name: Test authenticated CRM UI actions
         if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
         run: node scripts/ci/crm-ui-smoke.mjs
+
       - name: Test authenticated stock reservation and delivery UI actions
         if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
         run: node scripts/ci/stock-ui-smoke.mjs
+
       - name: Test Neumorphism responsive at 13 desktop, tablet and mobile sizes
         if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
         run: node scripts/ci/responsive-ui-smoke.mjs
+
       - name: Upload responsive screenshots from synthetic test data
         if: always()
         uses: actions/upload-artifact@v4
@@ -354,9 +437,11 @@ jobs:
           name: magnisa-responsive-viewports
           path: test-results/responsive/*.png
           if-no-files-found: ignore
+
       - name: Audit responsive of all accessible ERP modules at three screen classes
         if: always() && steps.ui_user.outcome == 'success' && steps.app_server.outcome == 'success'
         run: node scripts/ci/modules-responsive-ui-smoke.mjs
+
       - name: Upload module-by-module responsive evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -364,6 +449,7 @@ jobs:
           name: magnisa-all-modules-responsive
           path: test-results/modules-responsive/
           if-no-files-found: ignore
+
       - name: Stop isolated Postfix inbound bridge
         if: always()
         env:
@@ -381,13 +467,16 @@ jobs:
           docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.inbound-e2e.yaml down --remove-orphans || true
           rm -f infra/magnibox-mail/mailserver.env
           sudo rm -rf .ci-tls infra/magnibox-mail/docker-data
+
       - name: Stop MAGNISA local server
         if: always()
         run: |
           if [ -f /tmp/magnisa-next.pid ]; then kill "$(cat /tmp/magnisa-next.pid)" || true; fi
+
       - name: Show local app logs after UI smoke failure
         if: failure()
         run: cat /tmp/magnisa-next.log || true
+
       - name: Stop local Supabase
         if: always() && steps.supabase_cli.outcome == 'success'
         run: supabase stop --no-backup
