@@ -57,15 +57,22 @@ export async function POST(request: NextRequest) {
         admin.from("mgmail_internal_mailboxes").select("id,is_active")
           .eq("id", identity.mailbox_id)
           .eq("organization_id", identity.organization_id).maybeSingle(),
-        admin.from("mgmail_domain_requests").select("status")
+        admin.from("mgmail_domain_requests").select("domain_name,status")
           .eq("id", identity.domain_request_id).eq("organization_id", identity.organization_id).maybeSingle(),
-        admin.from("mgmail_public_address_requests").select("status")
+        admin.from("mgmail_public_address_requests").select("email_address,status")
           .eq("id", identity.address_request_id).eq("organization_id", identity.organization_id).maybeSingle(),
       ]);
       if (domain.error || address.error || mailbox.error) return unavailable();
-      if (!mailbox.data?.is_active || domain.data?.status !== "verified" || address.data?.status !== "approved")
+      const normalizedRecipient = recipient.trim().toLowerCase();
+      const recipientParts = normalizedRecipient.split("@");
+      const verifiedDomain = domain.data?.domain_name?.trim().toLowerCase();
+      const approvedAddress = address.data?.email_address?.trim().toLowerCase();
+      if (!mailbox.data?.is_active || domain.data?.status !== "verified" || address.data?.status !== "approved"
+        || recipientParts.length !== 2 || !verifiedDomain || recipientParts[1] !== verifiedDomain
+        || approvedAddress !== normalizedRecipient
+        || identity.email_address?.trim().toLowerCase() !== normalizedRecipient)
         return NextResponse.json({ error: "Destinataire non disponible." }, { status: 422 });
-      deliveries.push({ identity, recipient });
+      deliveries.push({ identity, recipient: normalizedRecipient });
     }
   } catch { return unavailable(); }
 
