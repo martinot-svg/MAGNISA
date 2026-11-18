@@ -49,6 +49,15 @@ def save_cursor(path:Path,inode:int,offset:int)->None:
         try: os.unlink(temp)
         except FileNotFoundError: pass
 
+def read_complete_line(log)->str|None:
+    """Return only newline-terminated records; retain partial writes for the next poll."""
+    start=log.tell()
+    line=log.readline()
+    if not line or not line.endswith("\\n"):
+        log.seek(start)
+        return None
+    return line
+
 def follow(log_path:Path,cursor_path:Path,endpoint:str,secret:str)->int:
     global STOP
     parsed=urlparse(endpoint)
@@ -60,8 +69,8 @@ def follow(log_path:Path,cursor_path:Path,endpoint:str,secret:str)->int:
                 stat=os.fstat(log.fileno()); offset=load_cursor(cursor_path,stat.st_ino,stat.st_size); log.seek(offset)
                 while not STOP:
                     line_start=log.tell()
-                    line=log.readline()
-                    if not line:
+                    line=read_complete_line(log)
+                    if line is None:
                         time.sleep(0.5)
                         try:
                             current=log_path.stat()
