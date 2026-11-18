@@ -85,6 +85,31 @@ const finance = await mailbox(`finance-${suffix}`, a.userId);
 const direction = await mailbox(`direction-${suffix}`, b.userId);
 const ownerBox = await mailbox(`direction-admin-${suffix}`, ownerId);
 
+ 
+// Régression FK : supprimer une boîte destinataire d'un brouillon doit
+// uniquement nullifier recipient_mailbox_id, jamais organization_id.
+const disposableDraftRecipient = await mailbox(`draft-recipient-${suffix}`, b.userId);
+const draft = required(await admin.from("mgmail_internal_drafts").insert({
+  organization_id: organizationId,
+  sender_mailbox_id: finance,
+  recipient_mailbox_id: disposableDraftRecipient,
+  created_by: ownerId,
+  subject: "Brouillon avant suppression du destinataire",
+  body_text: "Le brouillon doit rester dans son entreprise.",
+}).select("id").single(), "Création du brouillon de régression");
+required(await admin.from("mgmail_internal_mailboxes").delete()
+  .eq("id", disposableDraftRecipient).eq("organization_id", organizationId)
+  .select("id").single(), "Suppression de la boîte destinataire");
+const preservedDraft = required(await admin.from("mgmail_internal_drafts")
+  .select("id,organization_id,recipient_mailbox_id")
+  .eq("id", draft.id).single(), "Vérification du brouillon après suppression");
+assert(preservedDraft.organization_id === organizationId,
+  "La suppression du destinataire ne doit jamais supprimer le tenant du brouillon.");
+assert(preservedDraft.recipient_mailbox_id === null,
+  "La référence vers le destinataire supprimé doit devenir NULL.");
+required(await admin.from("mgmail_internal_drafts").delete().eq("id", draft.id),
+  "Nettoyage du brouillon de régression");
+
 // L'employé ne peut pas attribuer une nouvelle boîte à un collègue.
 denied(await a.userClient.from("mgmail_internal_mailboxes").insert({
   organization_id: organizationId, local_part: `usurpation-${suffix}`, owner_user_id: a.userId,

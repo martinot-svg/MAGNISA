@@ -76,13 +76,23 @@ try {
   }).eq("id", domainRow.id).select("id").single(), "verify local test domain");
   unwrap(await admin.from("mgmail_public_address_requests").update({ status: "approved" })
     .eq("id", addressRow.id).select("id").single(), "approve local test address");
-  const identity = unwrap(await admin.from("orbit_public_identities").insert({
-    organization_id: org, domain_request_id: domainRow.id, address_request_id: addressRow.id,
-    mailbox_id: mailbox.id, domain_name: domain, local_part: "receiver", provider: "smtp",
-    provider_domain_ref: "local-inbound-e2e-no-provider", provider_verified_at: new Date().toISOString(),
-    status: "active", receive_enabled: true,
-  }).select("id").single(), "create local inbound identity");
-  created.identityId = identity.id;
+  // Address approval creates the pending, non-routable identity automatically.
+  // Reuse that row instead of inserting a duplicate email_address.
+  const pendingIdentity = unwrap(await admin.from("orbit_public_identities")
+    .select("id,status,receive_enabled")
+    .eq("address_request_id", addressRow.id)
+    .eq("organization_id", org)
+    .single(), "read automatically provisioned pending identity");
+  assert(pendingIdentity.status === "pending" && pendingIdentity.receive_enabled === false,
+    "approved address must first create a pending, non-routable identity");
+  created.identityId = pendingIdentity.id;
+  const identity = unwrap(await admin.from("orbit_public_identities").update({
+    provider_domain_ref: "local-inbound-e2e-no-provider",
+    provider_verified_at: new Date().toISOString(),
+    status: "active",
+    receive_enabled: true,
+  }).eq("id", pendingIdentity.id).eq("organization_id", org)
+    .select("id").single(), "activate locally verified inbound identity");
   console.log("Inbound E2E: synthetic organization, approved domain, mailbox and SMTP identity ready");
 
   const payload = {
