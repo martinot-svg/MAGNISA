@@ -78,12 +78,40 @@ create table public.magnibox_imap_folder_state (
     (namespace = 'internal' and identity_id is null)
     or (namespace = 'internet' and identity_id is not null)
   ),
-  constraint magnibox_imap_folder_identity_mailbox_ck check (
-    identity_id is null or mailbox_id is not null
-  ),
   unique (mailbox_id, namespace, folder_key),
   unique (id, organization_id)
 );
+
+-- Enforce that an Internet identity is projected only into its own
+-- underlying MAGNIBOX mailbox (same tenant + mailbox binding).
+create or replace function private.magnibox_validate_imap_folder_identity()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $validate_identity$
+begin
+  if new.namespace = 'internet' and not exists (
+    select 1
+    from public.orbit_public_identities i
+    where i.id = new.identity_id
+      and i.organization_id = new.organization_id
+      and i.mailbox_id = new.mailbox_id
+  ) then
+    raise exception 'MAGNIBOX IMAP identity/mailbox mismatch'
+      using errcode = '23503';
+  end if;
+  return new;
+end;
+$validate_identity$;
+
+revoke all on function private.magnibox_validate_imap_folder_identity()
+  from public, anon, authenticated;
+
+create trigger magnibox_imap_folder_identity_guard
+before insert or update of namespace, identity_id, mailbox_id, organization_id
+on public.magnibox_imap_folder_state
+for each row execute function private.magnibox_validate_imap_folder_identity();
 
 create table public.magnibox_imap_message_map (
   id uuid primary key default gen_random_uuid(),
