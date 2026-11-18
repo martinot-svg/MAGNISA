@@ -148,6 +148,9 @@ jobs:
       - name: Validate Magnibox recipient provisioning sync
         run: bash scripts/ci/check-magnibox-provision-sync.sh
 
+      - name: Validate MAGNIBOX outbound attachment-bound idempotency
+        run: node scripts/ci/check-magnibox-outbound-idempotency.mjs
+
       - name: Validate Magnibox delivery event forwarding
         run: bash scripts/ci/check-magnibox-delivery-events.sh
 

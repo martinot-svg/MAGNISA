@@ -161,3 +161,9 @@
   html{scroll-behavior:auto}
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+
+/* MAGNIBOX mailbox workspace: collapse the composer and inbox on narrow screens. */
+.magnibox-internet-grid{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(0,1.8fr);gap:16px;min-width:0}
+.magnibox-internet-grid>*{min-width:0}
+@media(max-width:760px){.magnibox-internet-grid{grid-template-columns:minmax(0,1fr);gap:14px}}

@@ -37,6 +37,31 @@ BEGIN
     OR has_table_privilege('anon','private.magnibox_platform_mail_audit','SELECT') THEN
     RAISE EXCEPTION 'Platform audit must not be directly accessible to browser roles';
   END IF;
-  RAISE NOTICE 'PASS Magnibox platform review: restricted RPCs, SECURITY DEFINER, private audit';
+
+  IF to_regprocedure('private.magnibox_create_pending_identity_after_address_approval()') IS NULL THEN
+    RAISE EXCEPTION 'Pending identity approval trigger function missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid='public.mgmail_public_address_requests'::regclass
+      AND tgname='trg_magnibox_create_pending_identity_after_address_approval'
+      AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'Address approval must create the pending identity trigger';
+  END IF;
+  IF NOT (SELECT prosecdef FROM pg_proc
+    WHERE oid='private.magnibox_create_pending_identity_after_address_approval()'::regprocedure) THEN
+    RAISE EXCEPTION 'Pending identity trigger must execute with restricted definer privileges';
+  END IF;
+  IF position('pending' in pg_get_functiondef(
+      'private.magnibox_create_pending_identity_after_address_approval()'::regprocedure
+    )) = 0
+    OR position('receive_enabled' in pg_get_functiondef(
+      'private.magnibox_create_pending_identity_after_address_approval()'::regprocedure
+    )) = 0 THEN
+    RAISE EXCEPTION 'Approval trigger must create a non-routable pending identity';
+  END IF;
+
+  RAISE NOTICE 'PASS Magnibox platform review: restricted RPCs, private audit, pending identity automation';
 END
 $magnibox_platform$;

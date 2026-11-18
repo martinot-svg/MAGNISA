@@ -31,6 +31,14 @@ export default async function MagniboxPage({ searchParams }: { searchParams?: Pr
       {canManageDomains && (
         <>
           <div className="card section">
+            <h2>Obtenir un domaine professionnel gratuit</h2>
+            <p className="muted">
+              Choisissez un domaine complet administré par MAGNISA. La réservation est gratuite
+              et indépendante de l'achat d'un domaine par votre entreprise.
+            </p>
+            <a className="button primary" href="/orbit/magnibox/domaines-gratuits">Choisir un domaine gratuit</a>
+          </div>
+          <div className="card section">
             <h2>Domaines et adresses professionnelles</h2>
             <p className="muted">
               Gérez les domaines, les preuves DNS et les adresses de votre entreprise.

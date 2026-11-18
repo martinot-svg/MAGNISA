@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { eligibleApprovedMailboxAddress } from "@/lib/orbit/transport/gates";
 import { isMagniboxInboundContentLengthTooLarge, MagniboxInboundBodyTooLargeError, parseMagniboxInboundPayload, readMagniboxInboundBody, verifyMagniboxInboundSignature, MAGNIBOX_INBOUND_MAX_REQUEST_BYTES } from "@/lib/orbit/transport/inbound";
 
 export const runtime = "nodejs";
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
   const deliveries: Array<{ identity: NonNullable<Awaited<ReturnType<typeof lookupIdentity>>>; recipient: string }> = [];
   async function lookupIdentity(recipient: string) {
     const lookup = await admin.from("orbit_public_identities")
-      .select("id,organization_id,domain_request_id,address_request_id,email_address,provider,status,receive_enabled,provider_verified_at,provider_domain_ref")
+      .select("id,organization_id,domain_request_id,address_request_id,mailbox_id,email_address,provider,status,receive_enabled,provider_verified_at,provider_domain_ref")
       .eq("email_address", recipient).eq("provider", "smtp")
       .eq("status", "active").eq("receive_enabled", true).maybeSingle();
     if (lookup.error) throw new Error("identity_lookup_failed");
@@ -53,16 +54,27 @@ export async function POST(request: NextRequest) {
       const identity = await lookupIdentity(recipient);
       if (!identity || !identity.provider_verified_at || !identity.provider_domain_ref?.trim())
         return NextResponse.json({ error: "Destinataire non disponible." }, { status: 422 });
-      const [domain, address] = await Promise.all([
-        admin.from("mgmail_domain_requests").select("status")
+      const [mailbox, domain, address] = await Promise.all([
+        admin.from("mgmail_internal_mailboxes").select("id,is_active")
+          .eq("id", identity.mailbox_id)
+          .eq("organization_id", identity.organization_id).maybeSingle(),
+        admin.from("mgmail_domain_requests").select("domain_name,status")
           .eq("id", identity.domain_request_id).eq("organization_id", identity.organization_id).maybeSingle(),
-        admin.from("mgmail_public_address_requests").select("status")
+        admin.from("mgmail_public_address_requests").select("email_address,status")
           .eq("id", identity.address_request_id).eq("organization_id", identity.organization_id).maybeSingle(),
       ]);
-      if (domain.error || address.error) return unavailable();
-      if (domain.data?.status !== "verified" || address.data?.status !== "approved")
-        return NextResponse.json({ error: "Destinataire non disponible." }, { status: 422 });
-      deliveries.push({ identity, recipient });
+      if (domain.error || address.error || mailbox.error) return unavailable();
+      const normalizedRecipient = recipient.trim().toLowerCase();
+      if (!eligibleApprovedMailboxAddress({
+        recipient: normalizedRecipient,
+        identityEmail: identity.email_address,
+        approvedEmail: address.data?.email_address,
+        verifiedDomain: domain.data?.domain_name,
+        mailboxActive: mailbox.data?.is_active === true,
+        domainVerified: domain.data?.status === "verified",
+        addressApproved: address.data?.status === "approved",
+      })) return NextResponse.json({ error: "Destinataire non disponible." }, { status: 422 });
+      deliveries.push({ identity, recipient: normalizedRecipient });
     }
   } catch { return unavailable(); }
 
