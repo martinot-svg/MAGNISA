@@ -39,6 +39,19 @@ BEGIN
     WHERE tgrelid=v_table AND tgname='magnibox_imap_credentials_immutable' AND NOT tgisinternal) THEN
     RAISE EXCEPTION 'MAGNIBOX credential vault immutability trigger missing';
   END IF;
-  RAISE NOTICE 'PASS MAGNIBOX credential vault: encrypted-envelope schema, tenant mailbox FK, no browser access, single active version and immutable envelope';
+  IF has_function_privilege('anon','public.magnibox_store_imap_credential(uuid,uuid,smallint,text,text,text,text,text,text)','EXECUTE')
+    OR has_function_privilege('authenticated','public.magnibox_store_imap_credential(uuid,uuid,smallint,text,text,text,text,text,text)','EXECUTE')
+    OR has_function_privilege('anon','public.magnibox_get_active_imap_credential(uuid,uuid)','EXECUTE')
+    OR has_function_privilege('authenticated','public.magnibox_get_active_imap_credential(uuid,uuid)','EXECUTE')
+    OR has_function_privilege('anon','public.magnibox_revoke_active_imap_credential(uuid,uuid)','EXECUTE')
+    OR has_function_privilege('authenticated','public.magnibox_revoke_active_imap_credential(uuid,uuid)','EXECUTE') THEN
+    RAISE EXCEPTION 'MAGNIBOX credential vault RPCs are executable by browser roles';
+  END IF;
+  IF NOT has_function_privilege('service_role','public.magnibox_store_imap_credential(uuid,uuid,smallint,text,text,text,text,text,text)','EXECUTE')
+    OR NOT has_function_privilege('service_role','public.magnibox_get_active_imap_credential(uuid,uuid)','EXECUTE')
+    OR NOT has_function_privilege('service_role','public.magnibox_revoke_active_imap_credential(uuid,uuid)','EXECUTE') THEN
+    RAISE EXCEPTION 'MAGNIBOX credential vault service_role RPC grants incomplete';
+  END IF;
+    RAISE NOTICE 'PASS MAGNIBOX credential vault: encrypted-envelope schema, tenant mailbox FK, no browser access, single active version and immutable envelope';
 END;
 $credential_vault_contract$;
