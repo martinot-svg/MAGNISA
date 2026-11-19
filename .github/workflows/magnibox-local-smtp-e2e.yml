@@ -6,6 +6,7 @@ on:
       - "infra/magnibox-mail/**"
       - "src/lib/orbit/transport/**"
       - "scripts/ci/test-magnibox-postfix-mailpit-e2e.ts"
+      - "scripts/ci/test-magnibox-dovecot-imaps.py"
       - ".github/workflows/magnibox-local-smtp-e2e.yml"
       - "package.json"
       - "package-lock.json"
@@ -15,6 +16,7 @@ on:
       - "infra/magnibox-mail/**"
       - "src/lib/orbit/transport/**"
       - "scripts/ci/test-magnibox-postfix-mailpit-e2e.ts"
+      - "scripts/ci/test-magnibox-dovecot-imaps.py"
       - ".github/workflows/magnibox-local-smtp-e2e.yml"
       - "package.json"
       - "package-lock.json"
@@ -65,7 +67,7 @@ jobs:
           cat > infra/magnibox-mail/mailserver.env <<'EOF'
           ACCOUNT_PROVISIONER=FILE
           POSTMASTER_ADDRESS=postmaster@example.test
-          ENABLE_IMAP=0
+          ENABLE_IMAP=1
           ENABLE_POP3=0
           ENABLE_CLAMAV=0
           ENABLE_RSPAMD=0
@@ -108,7 +110,8 @@ jobs:
           ready=0
           for attempt in $(seq 1 120); do
             if timeout 4 bash -c 'exec 3<>/dev/tcp/mail.example.test/587; IFS= read -r -t 2 banner <&3; [[ "$banner" == 220* ]]' 2>/dev/null \
-              && curl --fail --silent http://127.0.0.1:8025/api/v1/messages >/dev/null; then
+              && curl --fail --silent http://127.0.0.1:8025/api/v1/messages >/dev/null \
+              && timeout 4 bash -c 'exec 3<>/dev/tcp/127.0.0.1/993'; then
               ready=1
               break
             fi
@@ -130,6 +133,15 @@ jobs:
           MAGNIBOX_SMTP_HELO: mail.example.test
           MAILPIT_API_URL: http://127.0.0.1:8025
         run: npx tsx scripts/ci/test-magnibox-postfix-mailpit-e2e.ts
+
+      - name: Verify Dovecot IMAPS login, mailbox storage and retrieval
+        env:
+          MAGNIBOX_IMAP_HOST: mail.example.test
+          MAGNIBOX_IMAP_PORT: "993"
+          MAGNIBOX_IMAP_USER: sender@example.test
+          MAGNIBOX_IMAP_PASSWORD: ${{ env.MAGNIBOX_SMTP_PASSWORD }}
+          MAGNIBOX_IMAP_CA_FILE: ${{ github.workspace }}/.ci-tls/fullchain.pem
+        run: python3 scripts/ci/test-magnibox-dovecot-imaps.py
 
       - name: Upload Postfix and Mailpit diagnostic logs on failure
         if: failure()

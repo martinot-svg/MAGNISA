@@ -70,7 +70,7 @@ try {
   // clicking the FormDialog trigger, otherwise the server-rendered button is inert.
   await waitForWorkspace(page);
   // The editable catalog is intentionally inside the shared FormDialog.
-  const interventionTrigger = page.getByRole("button", { name: "Enregistrer la configuration" });
+  const interventionTrigger = page.locator('button[aria-haspopup="dialog"]').filter({ hasText: "Enregistrer la configuration" });
   await interventionTrigger.waitFor({ state: "visible", timeout: 20000 });
   await page.waitForFunction(
     (element) => element instanceof HTMLButtonElement && element.dataset.formDialogHydrated === "true",
@@ -78,8 +78,33 @@ try {
     { timeout: 20000 },
   );
   await interventionTrigger.click();
+  await page.waitForFunction(
+    (element) => element instanceof HTMLButtonElement && element.getAttribute("aria-expanded") === "true",
+    await interventionTrigger.elementHandle(),
+    { timeout: 5000 },
+  ).catch(async () => {
+    const state = await interventionTrigger.evaluate((element) => ({
+      expanded: element.getAttribute("aria-expanded"),
+      hydrated: element.getAttribute("data-form-dialog-hydrated"),
+      disabled: element.disabled,
+      connected: element.isConnected,
+    }));
+    throw new Error(`CRM intervention FormDialog trigger did not open: ${JSON.stringify(state)}; page errors: ${pageErrors.join(" | ") || "none"}`);
+  });
   const interventionDialog = page.getByRole("dialog");
-  await interventionDialog.waitFor({ state: "visible", timeout: 10000 });
+  await interventionDialog.waitFor({ state: "visible", timeout: 10000 }).catch(async () => {
+    const state = await page.evaluate(() => ({
+      dialogs: Array.from(document.querySelectorAll('[role="dialog"]')).map((element) => ({
+        text: element.textContent?.slice(0, 180),
+        hidden: element.getAttribute("aria-hidden"),
+        display: getComputedStyle(element).display,
+        visibility: getComputedStyle(element).visibility,
+      })),
+      modalBackdrops: document.querySelectorAll(".magnisa-modal-backdrop").length,
+      bodyText: document.body.innerText.slice(-1200),
+    }));
+    throw new Error(`CRM intervention FormDialog expanded but dialog was not visible: ${JSON.stringify(state)}; page errors: ${pageErrors.join(" | ") || "none"}`);
+  });
   assert(await interventionDialog.locator("tbody tr").count() === 11, "The configurable intervention catalog must show 11 types.");
   // React may re-render the modal immediately after opening. A detached close
   // button is not a business failure if the dialog has already closed.

@@ -59,3 +59,24 @@ Before enabling the Postfix inbound transport or customer-facing attachment acce
 6. Authenticated downloads succeed only for metadata rows visible through the user's RLS access.
 
 Until those tests and the operator approval gates pass, keep the public MTA transport and customer MX changes disabled. No MX record is modified automatically by this worker.
+
+## IMAP synchronization core (new, not yet connected to Dovecot)
+
+`imap-sync-core.ts` provides the transport-independent batch engine for the future IMAP sync worker:
+
+- claims a bounded batch with a worker identity and lease duration;
+- applies each event through an injected IMAP adapter;
+- acknowledges only with the original lease token;
+- schedules transient errors using capped exponential backoff with full jitter;
+- routes explicitly permanent errors to the dead-letter state;
+- records lease loss rather than acknowledging a newer worker's claim.
+
+The adapter contract explicitly requires idempotency by outbox event ID and reconciliation against the canonical Supabase row and mapping. This is necessary because an IMAP operation may succeed just before the worker loses its lease or process.
+
+Unit tests are in `imap-sync-core.test.ts` and are picked up by the repository's Vitest suite.
+
+`imap-sync-supabase-repository.ts` implements the worker repository contract against the three lease-fenced RPCs (`magnibox_claim_sync_events`, `magnibox_complete_sync_event`, `magnibox_fail_sync_event`). It validates returned rows and scalar results, passes the original lease token on acknowledgements, and treats Supabase RPC errors as retryable infrastructure failures. Its contract tests are in `imap-sync-supabase-repository.test.ts`.
+
+This is a tested client-side repository adapter only: the corresponding SQL is still a proposal, so the RPCs are not yet available in the live schema. Do not start the worker against production until the migration baseline is reconciled and the proposal is reviewed, migrated and tested in an isolated database.
+
+**Not implemented yet:** the concrete IMAPFlow/Dovecot adapter, MIME serialization and parsing policy, per-mailbox credential provisioning, mailbox/folder reconciliation loop, and live Dovecot integration tests covering UIDVALIDITY changes, UID mapping, flags, reconnects, duplicate events, lease expiry, and crash/replay behavior. The SQL proposal lives at `infra/magnibox-mail/sql/IMAP-SYNC-ENGINE-PROPOSAL.sql`; it is not a migration and has not been applied. Do not describe the sync worker as operational until these pieces and the end-to-end tests are complete.

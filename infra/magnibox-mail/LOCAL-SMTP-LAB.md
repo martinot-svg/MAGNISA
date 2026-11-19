@@ -64,6 +64,18 @@ Le port SMTP Mailpit publié sur l'hôte est `127.0.0.1:1025`. Postfix ne l'util
 
 Le résultat attendu est une capture locale. N'utilisez pas d'adresse réelle comme destinataire de test.
 
+## Contrôle IMAPS / Dovecot en CI
+
+Le workflow `.github/workflows/magnibox-local-smtp-e2e.yml` active IMAP uniquement dans son environnement CI isolé et conserve le port 993 lié à loopback. Après le démarrage du MTA, le script `scripts/ci/test-magnibox-dovecot-imaps.py` :
+
+- vérifie la chaîne TLS et le nom d'hôte du certificat ;
+- ouvre une session IMAPS avec le compte de test pré-provisionné ;
+- liste les boîtes et sélectionne INBOX ;
+- ajoute un message synthétique avec IMAP APPEND ;
+- retrouve le message avec SEARCH et vérifie son contenu avec FETCH.
+
+Ce test valide Dovecot et le stockage IMAP du laboratoire. Il ne prouve pas que les messages reçus par la passerelle MAGNIBOX sont synchronisés dans le Maildir Dovecot : l'inbox applicative MAGNIBOX reste stockée dans Supabase. Aucun port IMAPS public n'est activé.
+
 ## Limites et preuves
 
 Ce laboratoire valide :
