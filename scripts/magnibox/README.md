@@ -107,3 +107,11 @@ Server runtime configuration:
 Keep both variables out of browser-prefixed names, source control, logs, and client bundles. Provision them as Vercel Secret environment variables or equivalent host secrets. Never paste key material into chat or GitHub.
 
 This is the encryption primitive and key-loading contract only. It does not yet persist envelopes, implement a Supabase repository, or prove live key provisioning/rotation. A service-role-only store and audit controls are still required before creating credential records.
+
+## Supabase encrypted IMAP credential vault (implementation scaffold)
+
+`imap-credential-supabase-provider.ts` binds the credential-provider contract to the dedicated vault RPCs. It encrypts credentials before persistence, checks the returned organization/mailbox scope before decryption, and returns generic errors without database details. It must be constructed only with a server-side service-role Supabase client and a server-loaded AES-256-GCM keyring. The browser client must never call these RPCs.
+
+The migrations `20261119130000_magnibox_imap_credential_vault.sql` and `20261119140000_magnibox_imap_credential_vault_rpc.sql` create the ciphertext-only store and service-role-only RPC boundary. Rotation is serialized per organization/mailbox, revokes the previous active version, and assigns a monotonically increasing version. Repeated idempotency keys return the original operation result. `magnibox-imap-credential-vault-contract.sql` is executed during clean-database CI replay.
+
+This is not yet a provisioned production vault: no service-role client, encryption key, Dovecot account mapping, or live IMAP credentials have been configured. Do not apply these migrations to production until the full replay and security contracts pass and an operator explicitly approves the migration.
