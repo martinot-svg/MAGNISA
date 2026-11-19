@@ -21,6 +21,9 @@ begin
   insert into public.organizations (id, name)
   values (v_org, 'MAGNIBOX isolated outbox runtime test');
 
+  insert into public.mgmail_internal_namespaces (organization_id, slug)
+  values (v_org, 'sync-test-' || left(replace(v_org::text, '-', ''), 12));
+
   -- Prove source mutations and outbox events share the same transaction.
   insert into public.mgmail_internal_mailboxes (
     id, organization_id, local_part, display_name
