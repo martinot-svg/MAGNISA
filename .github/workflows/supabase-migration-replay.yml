@@ -77,6 +77,11 @@ jobs:
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/mgmail-internal-schema-contract.sql
 
+      - name: Verify MAGNIBOX IMAP sync schema and worker access contract
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-imap-sync-schema-contract.sql
+
       - name: Verify Orbit Action task/comment RLS contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
