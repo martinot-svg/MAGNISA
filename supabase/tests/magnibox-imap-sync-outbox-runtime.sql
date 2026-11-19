@@ -1,161 +1,257 @@
+
 -- Runtime contract for the MAGNIBOX lease-fenced outbox.
 -- Creates only synthetic rows inside a transaction and rolls everything back.
-begin;
 
-do $outbox_runtime$
-declare
-  v_org uuid := gen_random_uuid();
-  v_first_id uuid := gen_random_uuid();
-  v_second_id uuid := gen_random_uuid();
-  v_claim record;
-  v_count integer;
-  v_old_token uuid;
-  v_new_token uuid;
-  v_state text;
-  v_sender_mailbox uuid := gen_random_uuid();
-  v_recipient_mailbox uuid := gen_random_uuid();
-  v_message_id uuid := gen_random_uuid();
-  v_insert_events integer;
-  v_delete_events integer;
-begin
-  insert into public.organizations (id, name)
-  values (v_org, 'MAGNIBOX isolated outbox runtime test');
+BEGIN;
 
-  insert into public.mgmail_internal_namespaces (organization_id, slug)
-  values (v_org, 'sync-test-' || left(replace(v_org::text, '-', ''), 12));
+DO $outbox_runtime$
+DECLARE
+  v_org UUID := gen_random_uuid();
+  v_first_id UUID := gen_random_uuid();
+  v_second_id UUID := gen_random_uuid();
+  v_claim RECORD;
+  v_count INTEGER;
+  v_old_token UUID;
+  v_new_token UUID;
+  v_state TEXT;
+  v_sender_mailbox UUID := gen_random_uuid();
+  v_recipient_mailbox UUID := gen_random_uuid();
+  v_message_id UUID := gen_random_uuid();
+  v_insert_events INTEGER;
+  v_delete_events INTEGER;
+BEGIN
+  INSERT INTO public.organizations (id, name)
+  VALUES (v_org, 'MAGNIBOX isolated outbox runtime test');
 
-  -- Prove source mutations and outbox events share the same transaction.
-  insert into public.mgmail_internal_mailboxes (
-    id, organization_id, local_part, display_name
-  ) values
-    (v_sender_mailbox, v_org, 'sync-sender-' || left(v_sender_mailbox::text, 8), 'Sync sender'),
-    (v_recipient_mailbox, v_org, 'sync-recipient-' || left(v_recipient_mailbox::text, 8), 'Sync recipient');
-
-  insert into public.mgmail_internal_messages (
-    id, organization_id, sender_mailbox_id, recipient_mailbox_id, subject, body_text
-  ) values (
-    v_message_id, v_org, v_sender_mailbox, v_recipient_mailbox,
-    'Synthetic outbox trigger test', 'No real message content'
+  INSERT INTO public.mgmail_internal_namespaces (organization_id, slug)
+  VALUES (
+    v_org,
+    'sync-test-' || LEFT(REPLACE(v_org::TEXT, '-', ''), 12)
   );
 
-  select count(*) into v_insert_events
-  from public.magnibox_sync_outbox
-  where organization_id = v_org
-    and aggregate_type = 'internal_message'
-    and aggregate_id = v_message_id
-    and event_type = 'message.created';
-  if v_insert_events <> 1 then
-    raise exception 'Outbox runtime: internal message insert did not enqueue exactly one event';
-  end if;
+  -- Prove source mutations and outbox events share the same transaction.
+  INSERT INTO public.mgmail_internal_mailboxes (
+    id, organization_id, local_part, display_name
+  )
+  VALUES
+    (
+      v_sender_mailbox,
+      v_org,
+      'sync-sender-' || LEFT(v_sender_mailbox::TEXT, 8),
+      'Sync sender'
+    ),
+    (
+      v_recipient_mailbox,
+      v_org,
+      'sync-recipient-' || LEFT(v_recipient_mailbox::TEXT, 8),
+      'Sync recipient'
+    );
 
-  delete from public.mgmail_internal_messages where id = v_message_id;
+  INSERT INTO public.mgmail_internal_messages (
+    id,
+    organization_id,
+    sender_mailbox_id,
+    recipient_mailbox_id,
+    subject,
+    body_text
+  )
+  VALUES (
+    v_message_id,
+    v_org,
+    v_sender_mailbox,
+    v_recipient_mailbox,
+    'Synthetic outbox trigger test',
+    'No real message content'
+  );
 
-  select count(*) into v_delete_events
-  from public.magnibox_sync_outbox
-  where organization_id = v_org
-    and aggregate_type = 'internal_message'
-    and aggregate_id = v_message_id
-    and event_type = 'message.deleted';
-  if v_delete_events <> 1 then
-    raise exception 'Outbox runtime: internal message delete did not enqueue exactly one event';
-  end if;
+  SELECT COUNT(*)
+  INTO v_insert_events
+  FROM public.magnibox_sync_outbox
+  WHERE organization_id = v_org
+    AND aggregate_type = 'internal_message'
+    AND aggregate_id = v_message_id
+    AND event_type = 'message.created';
 
-  -- Remove the already-asserted trigger events so they cannot be mistaken
-  -- for a duplicate claim in the independent lease state-machine scenario.
-  delete from public.magnibox_sync_outbox
-  where organization_id = v_org
-    and aggregate_type = 'internal_message'
-    and aggregate_id = v_message_id;
+  IF v_insert_events <> 1 THEN
+    RAISE EXCEPTION
+      'Outbox runtime: internal message insert did not enqueue exactly one event';
+  END IF;
+
+  DELETE FROM public.mgmail_internal_messages
+  WHERE id = v_message_id;
+
+  SELECT COUNT(*)
+  INTO v_delete_events
+  FROM public.magnibox_sync_outbox
+  WHERE organization_id = v_org
+    AND aggregate_type = 'internal_message'
+    AND aggregate_id = v_message_id
+    AND event_type = 'message.deleted';
+
+  IF v_delete_events <> 1 THEN
+    RAISE EXCEPTION
+      'Outbox runtime: internal message delete did not enqueue exactly one event';
+  END IF;
+
+  -- Remove the already-asserted trigger events so they cannot interfere
+  -- with the independent lease state-machine scenario.
+  DELETE FROM public.magnibox_sync_outbox
+  WHERE organization_id = v_org
+    AND aggregate_type = 'internal_message'
+    AND aggregate_id = v_message_id;
 
   -- Continue with isolated lease/retry state-machine tests.
-  insert into public.magnibox_sync_outbox (
-    id, organization_id, aggregate_type, aggregate_id,
-    event_type, dedupe_key, payload
-  ) values (
-    v_first_id, v_org, 'internal_message', gen_random_uuid(),
-    'message.created', 'runtime:' || v_first_id::text,
-    jsonb_build_object('synthetic', true)
+  INSERT INTO public.magnibox_sync_outbox (
+    id,
+    organization_id,
+    aggregate_type,
+    aggregate_id,
+    event_type,
+    dedupe_key,
+    payload
+  )
+  VALUES (
+    v_first_id,
+    v_org,
+    'internal_message',
+    gen_random_uuid(),
+    'message.created',
+    'runtime:' || v_first_id::TEXT,
+    jsonb_build_object('synthetic', TRUE)
   );
 
   -- First worker claims the event and receives a fencing token.
-  select * into v_claim
-  from public.magnibox_claim_sync_events('runtime-worker-a', 1, 60);
-  if v_claim.id is distinct from v_first_id
-    or v_claim.status is distinct from 'processing'
-    or v_claim.attempts <> 1
-    or v_claim.lease_token is null then
-    raise exception 'Outbox runtime: first claim did not issue a valid lease';
-  end if;
+  SELECT *
+  INTO v_claim
+  FROM public.magnibox_claim_sync_events('runtime-worker-a', 1, 60);
+
+  IF v_claim.id IS DISTINCT FROM v_first_id
+    OR v_claim.status IS DISTINCT FROM 'processing'
+    OR v_claim.attempts <> 1
+    OR v_claim.lease_token IS NULL THEN
+    RAISE EXCEPTION
+      'Outbox runtime: first claim did not issue a valid lease';
+  END IF;
+
   v_old_token := v_claim.lease_token;
 
   -- A second worker cannot claim an event while the first lease is active.
-  select count(*) into v_count
-  from public.magnibox_claim_sync_events('runtime-worker-b', 1, 60);
-  if v_count <> 0 then
-    raise exception 'Outbox runtime: active lease was claimed twice';
-  end if;
+  SELECT COUNT(*)
+  INTO v_count
+  FROM public.magnibox_claim_sync_events('runtime-worker-b', 1, 60);
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION
+      'Outbox runtime: active lease was claimed twice';
+  END IF;
 
   -- Simulate expiry and verify that a new worker fences the stale token.
-  update public.magnibox_sync_outbox
-  set available_at = clock_timestamp() - interval '1 second'
-  where id = v_first_id;
-  select * into v_claim
-  from public.magnibox_claim_sync_events('runtime-worker-b', 1, 60);
-  if v_claim.id is distinct from v_first_id or v_claim.attempts <> 2 then
-    raise exception 'Outbox runtime: expired lease was not reclaimed';
-  end if;
+  UPDATE public.magnibox_sync_outbox
+  SET available_at = clock_timestamp() - INTERVAL '1 second'
+  WHERE id = v_first_id;
+
+  SELECT *
+  INTO v_claim
+  FROM public.magnibox_claim_sync_events('runtime-worker-b', 1, 60);
+
+  IF v_claim.id IS DISTINCT FROM v_first_id
+    OR v_claim.attempts <> 2 THEN
+    RAISE EXCEPTION
+      'Outbox runtime: expired lease was not reclaimed';
+  END IF;
+
   v_new_token := v_claim.lease_token;
-  if v_new_token is null or v_new_token = v_old_token then
-    raise exception 'Outbox runtime: reclaim did not rotate the lease token';
-  end if;
-  if public.magnibox_complete_sync_event(v_first_id, v_old_token) then
-    raise exception 'Outbox runtime: stale worker acknowledged a newer lease';
-  end if;
-  if not public.magnibox_complete_sync_event(v_first_id, v_new_token) then
-    raise exception 'Outbox runtime: current worker could not acknowledge event';
-  end if;
+
+  IF v_new_token IS NULL OR v_new_token = v_old_token THEN
+    RAISE EXCEPTION
+      'Outbox runtime: reclaim did not rotate the lease token';
+  END IF;
+
+  IF public.magnibox_complete_sync_event(v_first_id, v_old_token) THEN
+    RAISE EXCEPTION
+      'Outbox runtime: stale worker acknowledged a newer lease';
+  END IF;
+
+  IF NOT public.magnibox_complete_sync_event(v_first_id, v_new_token) THEN
+    RAISE EXCEPTION
+      'Outbox runtime: current worker could not acknowledge event';
+  END IF;
 
   -- Retry path: failure releases the lease and makes the event retryable.
-  insert into public.magnibox_sync_outbox (
-    id, organization_id, aggregate_type, aggregate_id,
-    event_type, dedupe_key, payload
-  ) values (
-    v_second_id, v_org, 'external_message', gen_random_uuid(),
-    'message.created', 'runtime:' || v_second_id::text,
-    jsonb_build_object('synthetic', true)
+  INSERT INTO public.magnibox_sync_outbox (
+    id,
+    organization_id,
+    aggregate_type,
+    aggregate_id,
+    event_type,
+    dedupe_key,
+    payload
+  )
+  VALUES (
+    v_second_id,
+    v_org,
+    'external_message',
+    gen_random_uuid(),
+    'message.created',
+    'runtime:' || v_second_id::TEXT,
+    jsonb_build_object('synthetic', TRUE)
   );
-  select * into v_claim
-  from public.magnibox_claim_sync_events('runtime-worker-c', 1, 60);
-  if v_claim.id is distinct from v_second_id then
-    raise exception 'Outbox runtime: second event was not claimed';
-  end if;
-  v_state := public.magnibox_fail_sync_event(
-    v_second_id, v_claim.lease_token, 'synthetic transient error',
-    true, 1, 3
-  );
-  if v_state is distinct from 'pending' then
-    raise exception 'Outbox runtime: retryable failure did not return to pending';
-  end if;
 
-  update public.magnibox_sync_outbox
-  set available_at = clock_timestamp() - interval '1 second'
-  where id = v_second_id;
-  select * into v_claim
-  from public.magnibox_claim_sync_events('runtime-worker-d', 1, 60);
-  if v_claim.id is distinct from v_second_id or v_claim.attempts <> 2 then
-    raise exception 'Outbox runtime: retry was not claimable with incremented attempts';
-  end if;
+  SELECT *
+  INTO v_claim
+  FROM public.magnibox_claim_sync_events('runtime-worker-c', 1, 60);
+
+  IF v_claim.id IS DISTINCT FROM v_second_id THEN
+    RAISE EXCEPTION
+      'Outbox runtime: second event was not claimed';
+  END IF;
 
   v_state := public.magnibox_fail_sync_event(
-    v_second_id, v_claim.lease_token, 'synthetic permanent error',
-    false, 1, 3
+    v_second_id,
+    v_claim.lease_token,
+    'synthetic transient error',
+    TRUE,
+    1,
+    3
   );
-  if v_state is distinct from 'dead' then
-    raise exception 'Outbox runtime: permanent failure did not enter dead-letter state';
-  end if;
 
-  raise notice 'PASS MAGNIBOX outbox runtime: single claim, lease exclusion, expiry fencing, stale ACK rejection, retry and dead-letter transition';
-end
+  IF v_state IS DISTINCT FROM 'pending' THEN
+    RAISE EXCEPTION
+      'Outbox runtime: retryable failure did not return to pending';
+  END IF;
+
+  UPDATE public.magnibox_sync_outbox
+  SET available_at = clock_timestamp() - INTERVAL '1 second'
+  WHERE id = v_second_id;
+
+  SELECT *
+  INTO v_claim
+  FROM public.magnibox_claim_sync_events('runtime-worker-d', 1, 60);
+
+  IF v_claim.id IS DISTINCT FROM v_second_id
+    OR v_claim.attempts <> 2 THEN
+    RAISE EXCEPTION
+      'Outbox runtime: retry was not claimable with incremented attempts';
+  END IF;
+
+  v_state := public.magnibox_fail_sync_event(
+    v_second_id,
+    v_claim.lease_token,
+    'synthetic permanent error',
+    FALSE,
+    1,
+    3
+  );
+
+  IF v_state IS DISTINCT FROM 'dead' THEN
+    RAISE EXCEPTION
+      'Outbox runtime: permanent failure did not enter dead-letter state';
+  END IF;
+
+  RAISE NOTICE
+    'PASS MAGNIBOX outbox runtime: single claim, lease exclusion, expiry fencing, stale ACK rejection, retry and dead-letter transition';
+
+END;
 $outbox_runtime$;
 
-rollback;
+ROLLBACK;
