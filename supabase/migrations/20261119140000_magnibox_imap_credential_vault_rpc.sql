@@ -69,6 +69,9 @@ set search_path = pg_catalog, public
 as $revoke$
 declare v_count integer;
 begin
+  -- Serialize revocation with rotation so a concurrent store cannot race
+  -- the single-active-version invariant or leave a newly stored secret active.
+  perform pg_advisory_xact_lock(hashtextextended(p_organization_id::text || ':' || p_mailbox_id::text, 0));
   update public.magnibox_imap_credentials c set status='revoked',revoked_at=now()
   where c.organization_id=p_organization_id and c.mailbox_id=p_mailbox_id and c.status='active';
   get diagnostics v_count = row_count;
