@@ -41,6 +41,17 @@ BEGIN
     FROM public.magnibox_get_active_imap_credential(v_org, v_mailbox);
   IF v_count <> 1 THEN RAISE EXCEPTION 'Active credential lookup failed'; END IF;
 
+  -- A disabled or read-disabled application mailbox must not authenticate to IMAP.
+  UPDATE public.mgmail_internal_mailboxes SET is_active=false WHERE id=v_mailbox;
+  SELECT count(*) INTO v_count
+    FROM public.magnibox_get_active_imap_credential(v_org, v_mailbox);
+  IF v_count <> 0 THEN RAISE EXCEPTION 'Disabled mailbox still exposes an active IMAP credential'; END IF;
+  UPDATE public.mgmail_internal_mailboxes SET is_active=true, can_read=false WHERE id=v_mailbox;
+  SELECT count(*) INTO v_count
+    FROM public.magnibox_get_active_imap_credential(v_org, v_mailbox);
+  IF v_count <> 0 THEN RAISE EXCEPTION 'Read-disabled mailbox still exposes an active IMAP credential'; END IF;
+  UPDATE public.mgmail_internal_mailboxes SET can_read=true WHERE id=v_mailbox;
+
   SELECT s.credential_id, s.credential_version, s.credential_status
     INTO v_second_id, v_version, v_status
     FROM public.magnibox_store_imap_credential(
