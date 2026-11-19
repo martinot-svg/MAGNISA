@@ -5,8 +5,9 @@ Branche: feat/magnibox-mail-core-architecture-20261118
 
 ## Statut
 
-Conception préparatoire basée sur une inspection en lecture seule du projet Supabase connecté `pmlzirobpdlzsrvtkvir`.
-Aucune migration, écriture de données, modification de DNS ou déploiement n'a été effectué.
+La migration `supabase/migrations/20261119120000_magnibox_imap_sync_engine.sql` est maintenant créée dans la branche de travail. Elle ajoute l'outbox transactionnelle, l'état des dossiers IMAP, les mappings UID/tombstones, les RPC de lease et les déclencheurs d'événements. Le contrat SQL `supabase/tests/magnibox-imap-sync-schema-contract.sql` est intégré au replay CI.
+
+Validation en cours : replay Supabase local isolé et CI. La migration n'a pas été appliquée au projet Supabase connecté `pmlzirobpdlzsrvtkvir`. Aucun DNS, MX, secret ou déploiement n'a été modifié.
 
 ## Constat de la base connectée
 
