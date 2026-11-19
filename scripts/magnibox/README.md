@@ -88,3 +88,10 @@ The current MTA scaffold uses Docker Mailserver's file-based account provisioner
 Do not put mailbox passwords in the outbox payload, ordinary application rows, source control, browser variables, or worker logs. Before implementing the concrete adapter, define and test a server-only credential provider with encrypted-at-rest storage or a dedicated secrets manager, tenant/mailbox binding, rotation/revocation, and least-privilege access. Then implement a pilot-only IMAP adapter against a dedicated test mailbox and prove APPEND/UID mapping/replay before enabling any general mailbox synchronization.
 
 Until that credential boundary and the live Dovecot tests exist, the core worker and Supabase repository are tested building blocks—not an operational IMAP synchronization service.
+
+
+## IMAP credential provider boundary (contract only)
+
+`imap-credential-provider.ts` defines the server-side contract for tenant/mailbox-scoped Dovecot credentials, rotation, revocation, and connection-setting validation. The contract deliberately has no Supabase-table or plaintext-storage implementation. A production provider must be backed by an encrypted secret store/KMS, enforce exact organization/mailbox scope, and prevent revoked credentials from being returned. Its tests verify validation and that errors do not echo password values.
+
+This is **not yet a live credential vault**: no credential is stored or provisioned by this change, and no IMAP connection is enabled. The next implementation gate is to select and provision the secret-store backend, then implement and integration-test this interface before adding IMAPFlow.
