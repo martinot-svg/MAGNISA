@@ -12,10 +12,52 @@ declare
   v_old_token uuid;
   v_new_token uuid;
   v_state text;
+  v_sender_mailbox uuid := gen_random_uuid();
+  v_recipient_mailbox uuid := gen_random_uuid();
+  v_message_id uuid := gen_random_uuid();
+  v_insert_events integer;
+  v_delete_events integer;
 begin
   insert into public.organizations (id, name)
   values (v_org, 'MAGNIBOX isolated outbox runtime test');
 
+  -- Prove source mutations and outbox events share the same transaction.
+  insert into public.mgmail_internal_mailboxes (
+    id, organization_id, local_part, display_name
+  ) values
+    (v_sender_mailbox, v_org, 'sync-sender-' || left(v_sender_mailbox::text, 8), 'Sync sender'),
+    (v_recipient_mailbox, v_org, 'sync-recipient-' || left(v_recipient_mailbox::text, 8), 'Sync recipient');
+
+  insert into public.mgmail_internal_messages (
+    id, organization_id, sender_mailbox_id, recipient_mailbox_id, subject, body_text
+  ) values (
+    v_message_id, v_org, v_sender_mailbox, v_recipient_mailbox,
+    'Synthetic outbox trigger test', 'No real message content'
+  );
+
+  select count(*) into v_insert_events
+  from public.magnibox_sync_outbox
+  where organization_id = v_org
+    and aggregate_type = 'internal_message'
+    and aggregate_id = v_message_id
+    and event_type = 'message.created';
+  if v_insert_events <> 1 then
+    raise exception 'Outbox runtime: internal message insert did not enqueue exactly one event';
+  end if;
+
+  delete from public.mgmail_internal_messages where id = v_message_id;
+
+  select count(*) into v_delete_events
+  from public.magnibox_sync_outbox
+  where organization_id = v_org
+    and aggregate_type = 'internal_message'
+    and aggregate_id = v_message_id
+    and event_type = 'message.deleted';
+  if v_delete_events <> 1 then
+    raise exception 'Outbox runtime: internal message delete did not enqueue exactly one event';
+  end if;
+
+  -- Continue with isolated lease/retry state-machine tests.
   insert into public.magnibox_sync_outbox (
     id, organization_id, aggregate_type, aggregate_id,
     event_type, dedupe_key, payload
