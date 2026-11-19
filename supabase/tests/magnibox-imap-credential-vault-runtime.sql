@@ -29,7 +29,7 @@ BEGIN
   SELECT s.credential_id, s.credential_version, s.credential_status
     INTO v_first_id, v_version, v_status
     FROM public.magnibox_store_imap_credential(
-      v_org, v_mailbox, 1, 'aes-256-gcm', 'ci-key',
+      v_org, v_mailbox, 1::smallint, 'aes-256-gcm', 'ci-key',
       'MDEyMzQ1Njc4OWFiY2RlZg==', 'synthetic-ciphertext-v1',
       'MDEyMzQ1Njc4OWFiY2RlZg==', 'runtime-create-v1'
     ) s;
@@ -44,7 +44,7 @@ BEGIN
   SELECT s.credential_id, s.credential_version, s.credential_status
     INTO v_second_id, v_version, v_status
     FROM public.magnibox_store_imap_credential(
-      v_org, v_mailbox, 1, 'aes-256-gcm', 'ci-key',
+      v_org, v_mailbox, 1::smallint, 'aes-256-gcm', 'ci-key',
       'MDEyMzQ1Njc4OWFiY2RlZg==', 'synthetic-ciphertext-v2',
       'MDEyMzQ1Njc4OWFiY2RlZg==', 'runtime-rotate-v2'
     ) s;
@@ -61,7 +61,7 @@ BEGIN
   SELECT s.credential_id, s.credential_version, s.credential_status
     INTO v_first_id, v_version, v_status
     FROM public.magnibox_store_imap_credential(
-      v_org, v_mailbox, 1, 'aes-256-gcm', 'ci-key',
+      v_org, v_mailbox, 1::smallint, 'aes-256-gcm', 'ci-key',
       'MDEyMzQ1Njc4OWFiY2RlZg==', 'different-retry-payload',
       'MDEyMzQ1Njc4OWFiY2RlZg==', 'runtime-rotate-v2'
     ) s;
