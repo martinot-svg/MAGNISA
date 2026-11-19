@@ -95,3 +95,15 @@ Until that credential boundary and the live Dovecot tests exist, the core worker
 `imap-credential-provider.ts` defines the server-side contract for tenant/mailbox-scoped Dovecot credentials, rotation, revocation, and connection-setting validation. The contract deliberately has no Supabase-table or plaintext-storage implementation. A production provider must be backed by an encrypted secret store/KMS, enforce exact organization/mailbox scope, and prevent revoked credentials from being returned. Its tests verify validation and that errors do not echo password values.
 
 This is **not yet a live credential vault**: no credential is stored or provisioned by this change, and no IMAP connection is enabled. The next implementation gate is to select and provision the secret-store backend, then implement and integration-test this interface before adding IMAPFlow.
+
+### Encrypted credential envelope (cryptographic primitive)
+
+`imap-credential-crypto.ts` provides AES-256-GCM authenticated encryption for IMAP credentials. Organization and mailbox IDs are authenticated as associated data, so ciphertext copied between tenants or mailboxes cannot be decrypted under another scope. Each encryption uses a fresh 96-bit nonce. Decryption fails closed and returns generic errors that do not include secret values.
+
+Server runtime configuration:
+- `MAGNIBOX_IMAP_ACTIVE_KEY_ID`: identifier for the key used for new encryptions.
+- `MAGNIBOX_IMAP_CREDENTIALS_KEYS`: server-only JSON object mapping key IDs to Base64-encoded 32-byte keys. Retain old keys while ciphertext encrypted with them exists; changing the active key supports staged rotation.
+
+Keep both variables out of browser-prefixed names, source control, logs, and client bundles. Provision them as Vercel Secret environment variables or equivalent host secrets. Never paste key material into chat or GitHub.
+
+This is the encryption primitive and key-loading contract only. It does not yet persist envelopes, implement a Supabase repository, or prove live key provisioning/rotation. A service-role-only store and audit controls are still required before creating credential records.
