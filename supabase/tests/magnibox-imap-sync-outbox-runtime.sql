@@ -60,6 +60,12 @@ begin
     raise exception 'Outbox runtime: internal message delete did not enqueue exactly one event';
   end if;
 
+  -- The trigger assertions above intentionally leave their own outbox rows
+  -- behind. Remove those synthetic rows before testing the worker state
+  -- machine so a worker cannot claim an unrelated event from this fixture.
+  delete from public.magnibox_sync_outbox
+  where organization_id = v_org;
+
   -- Continue with isolated lease/retry state-machine tests.
   insert into public.magnibox_sync_outbox (
     id, organization_id, aggregate_type, aggregate_id,
