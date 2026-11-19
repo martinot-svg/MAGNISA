@@ -1,4 +1,6 @@
--- MAGNIBOX IMAP sync engine — proposal only.
+-- SUPERSEDED DESIGN RECORD — DO NOT APPLY THIS FILE.
+-- The reviewed implementation is supabase/migrations/20261119120000_magnibox_imap_sync_engine.sql.
+-- This file is retained only as the original proposal for historical context.
 -- DO NOT APPLY DIRECTLY TO PRODUCTION.
 -- This is deliberately stored under infra/, not supabase/migrations/, until
 -- production migration history and prerequisite migrations are reconciled.
