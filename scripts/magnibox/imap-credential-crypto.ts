@@ -1,4 +1,3 @@
-import "server-only";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { MagniboxCredentialError, validateMagniboxCredentialScope, validateMagniboxImapCredentials, type MagniboxImapConnectionCredentials, type MagniboxImapCredentialScope } from "./imap-credential-provider";
 
