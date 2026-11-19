@@ -87,6 +87,11 @@ jobs:
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"' )
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-imap-credential-vault-contract.sql
 
+      - name: Exercise MAGNIBOX IMAP credential vault RPC lifecycle
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"' )
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-imap-credential-vault-runtime.sql
+
       - name: Exercise MAGNIBOX outbox leases, retries and dead-letter transitions
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
