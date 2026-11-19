@@ -60,6 +60,13 @@ begin
     raise exception 'Outbox runtime: internal message delete did not enqueue exactly one event';
   end if;
 
+  -- Remove the already-asserted trigger events so they cannot be mistaken
+  -- for a duplicate claim in the independent lease state-machine scenario.
+  delete from public.magnibox_sync_outbox
+  where organization_id = v_org
+    and aggregate_type = 'internal_message'
+    and aggregate_id = v_message_id;
+
   -- Continue with isolated lease/retry state-machine tests.
   insert into public.magnibox_sync_outbox (
     id, organization_id, aggregate_type, aggregate_id,
