@@ -31,7 +31,7 @@ BEGIN
     FROM public.magnibox_store_imap_credential(
       v_org, v_mailbox, 1::smallint, 'aes-256-gcm', 'ci-key',
       'MDEyMzQ1Njc4OWFi', 'synthetic-ciphertext-v1',
-      'MDEyMzQ1Njc4OWFi', 'runtime-create-v1'
+      'MDEyMzQ1Njc4OWFiY2RlZg==', 'runtime-create-v1'
     ) s;
   IF v_version <> 1 OR v_status <> 'active' THEN
     RAISE EXCEPTION 'First credential creation did not produce active version 1';
@@ -46,7 +46,7 @@ BEGIN
     FROM public.magnibox_store_imap_credential(
       v_org, v_mailbox, 1::smallint, 'aes-256-gcm', 'ci-key',
       'MDEyMzQ1Njc4OWFi', 'synthetic-ciphertext-v2',
-      'MDEyMzQ1Njc4OWFi', 'runtime-rotate-v2'
+      'MDEyMzQ1Njc4OWFiY2RlZg==', 'runtime-rotate-v2'
     ) s;
   IF v_version <> 2 OR v_status <> 'active' OR v_second_id = v_first_id THEN
     RAISE EXCEPTION 'Credential rotation did not produce active version 2';
@@ -63,7 +63,7 @@ BEGIN
     FROM public.magnibox_store_imap_credential(
       v_org, v_mailbox, 1::smallint, 'aes-256-gcm', 'ci-key',
       'MDEyMzQ1Njc4OWFi', 'different-retry-payload',
-      'MDEyMzQ1Njc4OWFi', 'runtime-rotate-v2'
+      'MDEyMzQ1Njc4OWFiY2RlZg==', 'runtime-rotate-v2'
     ) s;
   IF v_version <> 2 OR v_first_id <> v_second_id OR v_status <> 'active' THEN
     RAISE EXCEPTION 'Idempotent retry did not return the original version 2';
