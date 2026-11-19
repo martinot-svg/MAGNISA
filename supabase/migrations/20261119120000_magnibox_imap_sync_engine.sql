@@ -152,11 +152,12 @@ security definer
 set search_path = ''
 as $validate_map$
 begin
-  if tg_op = 'UPDATE'
-    and (old.source_type, old.source_message_id, old.folder_state_id, old.organization_id)
+  if tg_op = 'UPDATE' then
+    if (old.source_type, old.source_message_id, old.folder_state_id, old.organization_id)
       is not distinct from
         (new.source_type, new.source_message_id, new.folder_state_id, new.organization_id) then
-    return new;
+      return new;
+    end if;
   end if;
 
   if new.source_type = 'internal_message' then
