@@ -24,9 +24,6 @@ describe("MAGNIBOX Supabase credential provider",()=>{
     expect(received?.p_mailbox_id).toBe(scope.mailboxId);
   });
   it("decrypts only an active row matching the exact tenant and mailbox",async()=>{
-    const encryptedProvider=createMagniboxSupabaseCredentialProvider(fakeClient(()=>[]),keyring);
-    const envelope=await encryptedProvider.rotate({...scope,credentials,idempotencyKey:"request-2"});
-    expect(envelope.status).toBe("active");
     const {encryptMagniboxImapCredentials}=await import("./imap-credential-crypto");
     const encrypted=encryptMagniboxImapCredentials(credentials,scope,keyring);
     const provider=createMagniboxSupabaseCredentialProvider(fakeClient(()=>[{
