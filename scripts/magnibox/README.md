@@ -140,3 +140,12 @@ Its adapter contract tests verify query scoping, active-grant detection, missing
 A single internal-message outbox event represents the canonical message, while IMAP projection is mailbox-specific. `resolveMagniboxInternalMessageForParticipants` therefore reloads the canonical row and resolves one projection for each distinct sender/recipient mailbox ID. The participant IDs are taken only from the organization-scoped canonical row, never from the outbox payload. Self-addressed messages are deduplicated to one mailbox projection.
 
 This is still a resolver-level fan-out contract: it does not yet write to IMAP, claim per-mailbox credentials, or establish delivery semantics for a multi-mailbox event. The worker adapter must treat the event as complete only after every required participant projection has been applied idempotently, or after a durable per-mailbox child-work model is introduced.
+
+
+### Internal-message worker adapter seam
+
+`internal-message-imap-sync-adapter.ts` now connects the outbox adapter contract to canonical internal-message resolution. One event resolves the sender and recipient mailbox projections and passes them sequentially to an injected projection sink. The sink receives an idempotency key scoped to the outbox event and target mailbox.
+
+The adapter does not acknowledge events itself: any participant failure propagates to `runMagniboxSyncBatch`, which retries the event under its lease. Therefore the sink must be idempotent across retries: if mailbox A succeeds and mailbox B fails, the next attempt must recognize mailbox A's already-applied projection and safely continue. External-message events fail permanently in this internal-only pilot adapter rather than being silently marked delivered.
+
+Tests cover two-mailbox fan-out, canonical content usage, partial failure propagation, and fail-closed handling of external events. **This remains an integration seam, not a live IMAP transport**: the injected sink has not been implemented with IMAPFlow/Dovecot, and MIME serialization, folder mapping, UID persistence and real connection tests remain outstanding.
