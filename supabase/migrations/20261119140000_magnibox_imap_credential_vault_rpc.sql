@@ -59,7 +59,7 @@ as $get$
   where c.organization_id=p_organization_id and c.mailbox_id=p_mailbox_id
     and c.status='active'
     and exists (
-      select 1 from public.mgmail_internal_mailboxes m
+      select 1 from public.magnibox_internal_mailboxes m
       where m.id=c.mailbox_id and m.organization_id=c.organization_id
         and m.is_active and m.can_read
     )
