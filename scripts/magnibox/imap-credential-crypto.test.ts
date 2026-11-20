@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   decryptMagniboxImapCredentials,
   encryptMagniboxImapCredentials,
+  loadMagniboxCredentialKeyring,
   type MagniboxCredentialKeyring,
 } from "./imap-credential-crypto";
 import { MagniboxCredentialError } from "./imap-credential-provider";
@@ -45,6 +46,36 @@ describe("MAGNIBOX IMAP credential encryption", () => {
       { organizationId: "org-a", mailboxId: "box-b" },
       keyring,
     )).toThrow(MagniboxCredentialError);
+  });
+
+  it("rejects non-canonical Base64 envelope fields", () => {
+    const envelope = encryptMagniboxImapCredentials(credentials, scope, keyring);
+    expect(() => decryptMagniboxImapCredentials(
+      { ...envelope, nonce: `${envelope.nonce.slice(0, -2)}==` },
+      scope,
+      keyring,
+    )).toThrow(MagniboxCredentialError);
+    expect(() => decryptMagniboxImapCredentials(
+      { ...envelope, ciphertext: `${envelope.ciphertext}\\n` },
+      scope,
+      keyring,
+    )).toThrow(MagniboxCredentialError);
+  });
+
+  it("loads only canonical 32-byte keys and rejects unsafe key identifiers", () => {
+    const encoded = Buffer.alloc(32, 4).toString("base64");
+    expect(loadMagniboxCredentialKeyring({
+      MAGNIBOX_IMAP_ACTIVE_KEY_ID: "valid-v1",
+      MAGNIBOX_IMAP_CREDENTIALS_KEYS: JSON.stringify({ "valid-v1": encoded }),
+    }).keys["valid-v1"]).toEqual(Buffer.alloc(32, 4));
+    expect(() => loadMagniboxCredentialKeyring({
+      MAGNIBOX_IMAP_ACTIVE_KEY_ID: "valid-v1",
+      MAGNIBOX_IMAP_CREDENTIALS_KEYS: JSON.stringify({ "valid-v1": `${encoded}!!` }),
+    })).toThrow(MagniboxCredentialError);
+    expect(() => loadMagniboxCredentialKeyring({
+      MAGNIBOX_IMAP_ACTIVE_KEY_ID: "__proto__",
+      MAGNIBOX_IMAP_CREDENTIALS_KEYS: JSON.stringify({ "__proto__": encoded }),
+    })).toThrow(MagniboxCredentialError);
   });
 
   it("rejects tampering and missing keys without exposing the password", () => {
