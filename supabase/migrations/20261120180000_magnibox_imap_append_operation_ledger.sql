@@ -289,7 +289,7 @@ create function public.magnibox_confirm_imap_append(
   p_operation_id uuid,
   p_uidvalidity bigint,
   p_imap_uid bigint
-) returns table (operation_id uuid, operation_state text, uidvalidity text, imap_uid text)
+) returns table (operation_id uuid, marker text, operation_state text, uidvalidity text, imap_uid text)
 language plpgsql
 security definer
 set search_path = pg_catalog, public
@@ -325,7 +325,7 @@ begin
     if v_operation.imap_uid <> p_imap_uid then
       raise exception 'Conflicting MAGNIBOX APPEND UID confirmation' using errcode='23505';
     end if;
-    return query select v_operation.id, v_operation.state,
+    return query select v_operation.id, v_operation.marker, v_operation.state,
       v_operation.uidvalidity::text, v_operation.imap_uid::text;
     return;
   end if;
@@ -339,8 +339,8 @@ begin
       append_started_at=coalesce(a.append_started_at, pg_catalog.clock_timestamp()),
       confirmed_at=pg_catalog.clock_timestamp()
   where a.id=v_operation.id
-  returning a.id,a.state,a.uidvalidity::text,a.imap_uid::text
-  into operation_id,operation_state,uidvalidity,imap_uid;
+  returning a.id,a.marker,a.state,a.uidvalidity::text,a.imap_uid::text
+  into operation_id,marker,operation_state,uidvalidity,imap_uid;
   return next;
 end;
 $confirm_append$;
