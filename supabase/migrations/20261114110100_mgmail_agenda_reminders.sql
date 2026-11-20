@@ -1,6 +1,6 @@
--- MGMail Agenda : rappels dans le centre de notifications MAGNISA.
+-- magnibox Agenda : rappels dans le centre de notifications MAGNISA.
 -- Envoi e-mail Internet NON activé : aucun fournisseur ni domaine externe simulé.
-create or replace function private.mgmail_validate_agenda_time_zone()
+create or replace function private.magnibox_validate_agenda_time_zone()
 returns trigger language plpgsql security definer
 set search_path=pg_catalog,public,private
 as $zone$
@@ -11,13 +11,13 @@ begin
   return new;
 end;
 $zone$;
-revoke all on function private.mgmail_validate_agenda_time_zone() from public,anon,authenticated;
-drop trigger if exists trg_mgmail_agenda_validate_zone on public.mgmail_agenda_events;
-create trigger trg_mgmail_agenda_validate_zone
-  before insert or update of time_zone on public.mgmail_agenda_events
-  for each row execute function private.mgmail_validate_agenda_time_zone();
+revoke all on function private.magnibox_validate_agenda_time_zone() from public,anon,authenticated;
+drop trigger if exists trg_magnibox_agenda_validate_zone on public.magnibox_agenda_events;
+create trigger trg_magnibox_agenda_validate_zone
+  before insert or update of time_zone on public.magnibox_agenda_events
+  for each row execute function private.magnibox_validate_agenda_time_zone();
 
-create or replace function public.run_mgmail_agenda_reminders(
+create or replace function public.run_magnibox_agenda_reminders(
   p_run_at timestamptz default now()
 ) returns integer
 language plpgsql security definer
@@ -35,7 +35,7 @@ begin
     raise exception 'La date de traitement est obligatoire' using errcode='22023';
   end if;
   for e in
-    select ev.* from public.mgmail_agenda_events ev
+    select ev.* from public.magnibox_agenda_events ev
     where ev.status='scheduled' and cardinality(ev.reminder_days)>0
       and ev.start_day>=((p_run_at at time zone ev.time_zone)::date)
       and ev.start_day<=((p_run_at at time zone ev.time_zone)::date)+365
@@ -55,16 +55,16 @@ begin
       case when v_offset=0 then 'urgent'
            when v_offset<=1 then 'attention'
            else 'info' end,
-      'Rappel MGMail : '||left(e.title,155),
+      'Rappel magnibox : '||left(e.title,155),
       'Événement prévu le '||to_char(e.start_day,'DD/MM/YYYY')
         ||' à '||to_char(e.start_time,'HH24:MI')||'.',
       '/magnimail/agenda?month='||to_char(e.start_day,'YYYY-MM'),
-      'mgmail_agenda_event',e.id,
+      'magnibox_agenda_event',e.id,
       jsonb_build_object(
         'scope',e.scope,'offset_days',v_offset,
         'start_day',e.start_day,'channel','in_app'
       ),
-      'mgmail-agenda:'||e.id::text||':j'||v_offset::text||':'||e.start_day::text
+      'magnibox-agenda:'||e.id::text||':j'||v_offset::text||':'||e.start_day::text
     from (
       select e.created_by as user_id where e.scope='personal'
       union
@@ -91,6 +91,6 @@ begin
   return v_total;
 end;
 $agenda$;
-revoke all on function public.run_mgmail_agenda_reminders(timestamptz)
+revoke all on function public.run_magnibox_agenda_reminders(timestamptz)
   from public,anon,authenticated;
-grant execute on function public.run_mgmail_agenda_reminders(timestamptz) to service_role;
+grant execute on function public.run_magnibox_agenda_reminders(timestamptz) to service_role;
