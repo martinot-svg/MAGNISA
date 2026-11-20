@@ -99,3 +99,16 @@ describe("MAGNIBOX APPEND idempotency policy", () => {
     })).toThrow(MagniboxSyncError);
   });
 });
+
+  it("requires mapping reconciliation when a previously confirmed UIDVALIDITY changes", () => {
+    expect(decideMagniboxAppendAction({
+      marker,
+      operationState: "confirmed",
+      currentUidValidity: "43",
+      searchMatches: [],
+      confirmedUid: "7",
+      confirmedUidValidity: "42",
+    })).toEqual({ action: "reconcile_mapping", reason: "uidvalidity_mismatch" });
+  });
+
+
