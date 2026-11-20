@@ -1,6 +1,6 @@
 # MAGNISA — Décision de promotion en production (bloquée jusqu'à recette)
 Date : 2026-10-16
-Périmètre : lots 1-7, 9 et 10 ; **MAGNIMAIL exclu**.
+Périmètre : lots 1-7, 9 et 10 ; **MAGNIBOX exclu**.
 Source normative : Plan Comptable Général 2005 (Madagascar), décret n°2004-272. Revue légale 2026 non présumée.
 
 ## État constaté (lecture seule)
@@ -34,7 +34,7 @@ Source normative : Plan Comptable Général 2005 (Madagascar), décret n°2004-2
 4. Migrer **les différences de schéma approuvées**, pas les données fictives du test ; identifier les risques de GRANT, FK, index et droits sur les RPC.
 5. Préparer PR branche dev → main seulement après tous les contrôles ; ne pas fusionner automatiquement.
 6. Ne déployer et ne pointer le domaine de production qu'après succès post-migration des smoke tests.
-7. MAGNIMAIL n'est pas modifié dans ce lot ; tester l'absence de régression de ses configurations existantes sans étendre son périmètre.
+7. MAGNIBOX n'est pas modifié dans ce lot ; tester l'absence de régression de ses configurations existantes sans étendre son périmètre.
 
 ## Traçabilité PCG 2005
 - Art. 121-3 : comptabilité d'exercice.
