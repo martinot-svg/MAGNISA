@@ -125,7 +125,7 @@ The resolver deliberately ignores `event.payload` for message content and mailbo
 
 Contract tests in `canonical-internal-message-resolver.test.ts` cover canonical-content reload, untrusted outbox payloads, cross-organization rows, non-participant mailbox IDs, inactive/unreadable targets, shared-grant exclusion, unsupported events and cross-organization peer mailboxes.
 
-This is the pure resolver core and its test contract, **not yet the concrete Supabase query adapter**. The next implementation step is to bind its repository interface to a server-only Supabase service client and add isolated database integration tests. No MIME address convention is invented here; the internal namespace/domain policy and full MIME serialization remain separate decisions. No production data or IMAP service was changed by this addition.
+This is the pure resolver core and its test contract, **not yet the concrete Supabase query adapter**. The next implementation step is to bind its repository interface to a server-only Supabase service client and add isolated database integration tests. The private internal address convention is `<local_part>@<organization-slug>.magnibox`; full MIME serialization remains a separate implementation step. No production data or IMAP service was changed by this addition.
 
 
 ### Supabase repository binding
