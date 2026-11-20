@@ -13,6 +13,15 @@ describe("MAGNIBOX internal address convention", () => {
     })).toBe("finance.team@acme-finance.mgmail");
   });
 
+  it("accepts the maximum address length allowed by the schema", () => {
+    const address = formatMagniboxInternalAddress({
+      localPart: "a" + "b".repeat(63),
+      namespaceSlug: "a" + "b".repeat(44),
+    });
+    expect(address).toHaveLength(117);
+    expect(isMagniboxInternalAddress(address)).toBe(true);
+  });
+
   it("recognizes only addresses in the private .mgmail namespace", () => {
     expect(isMagniboxInternalAddress("alice@acme.mgmail")).toBe(true);
     expect(isMagniboxInternalAddress("alice@gmail.com")).toBe(false);
