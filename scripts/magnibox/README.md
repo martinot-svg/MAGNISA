@@ -115,3 +115,14 @@ This is the encryption primitive and key-loading contract only. It does not yet 
 The migrations `20261119130000_magnibox_imap_credential_vault.sql` and `20261119140000_magnibox_imap_credential_vault_rpc.sql` create the ciphertext-only store and service-role-only RPC boundary. Rotation is serialized per organization/mailbox, revokes the previous active version, and assigns a monotonically increasing version. Repeated idempotency keys return the original operation result. `magnibox-imap-credential-vault-contract.sql` is executed during clean-database CI replay.
 
 This is not yet a provisioned production vault: no service-role client, encryption key, Dovecot account mapping, or live IMAP credentials have been configured. Do not apply these migrations to production until the full replay and security contracts pass and an operator explicitly approves the migration.
+
+
+## Canonical internal message resolver (first pilot slice)
+
+`canonical-internal-message-resolver.ts` now implements a transport-independent resolver core for **individual, active MGMail mailboxes only**. It reloads the canonical internal message using organization + message ID, verifies that the requested target mailbox is a participant, checks that the target mailbox is active/readable and individually owned, rejects active shared-mailbox grants, and resolves peer mailbox metadata within the same organization.
+
+The resolver deliberately ignores `event.payload` for message content and mailbox scope. It supports create/update events only. Deletes must be processed from the durable IMAP mapping/tombstone, because the canonical source row may already have been deleted. Unsupported source/event types fail permanently rather than being acknowledged as successful no-ops.
+
+Contract tests in `canonical-internal-message-resolver.test.ts` cover canonical-content reload, untrusted outbox payloads, cross-organization rows, non-participant mailbox IDs, inactive/unreadable targets, shared-grant exclusion, unsupported events and cross-organization peer mailboxes.
+
+This is the pure resolver core and its test contract, **not yet the concrete Supabase query adapter**. The next implementation step is to bind its repository interface to a server-only Supabase service client and add isolated database integration tests. No MIME address convention is invented here; the internal namespace/domain policy and full MIME serialization remain separate decisions. No production data or IMAP service was changed by this addition.
