@@ -165,6 +165,26 @@ begin
     raise exception 'MAGNIBOX APPEND folder/mailbox scope mismatch' using errcode = '23503';
   end if;
 
+  -- Recheck the pilot mailbox policy at the persistence boundary, not only
+  -- in the earlier resolver: active, readable, individually owned, unshared.
+  if not exists (
+    select 1
+    from public.mgmail_internal_mailboxes b
+    where b.id = p_target_mailbox_id
+      and b.organization_id = p_organization_id
+      and b.is_active = true
+      and b.can_read = true
+      and b.owner_user_id is not null
+  ) or exists (
+    select 1
+    from public.mgmail_internal_mailbox_grants g
+    where g.organization_id = p_organization_id
+      and g.mailbox_id = p_target_mailbox_id
+      and g.is_active = true
+  ) then
+    raise exception 'MAGNIBOX APPEND target mailbox is not eligible' using errcode = '23514';
+  end if;
+
   if not exists (
     select 1
     from public.mgmail_internal_messages m
