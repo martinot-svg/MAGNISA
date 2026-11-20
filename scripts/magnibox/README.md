@@ -220,3 +220,10 @@ All RPCs require the current Outbox lease token. A worker whose lease has expire
 The state machine is deliberately fail-closed: only `ready` may be advanced to `append_started`; `append_started` and `ambiguous` must be searched/reconciled and can never authorize another APPEND. A process crash after the durable start marker but before the actual socket write may require manual reconciliation. This favors duplicate prevention over automatic progress.
 
 **Integration still outstanding:** this ledger is not yet connected to an IMAP transport. MIME marker serialization, IMAP SEARCH by exact header, APPEND/APPENDUID handling, duplicate-match quarantine, UID mapping write-through and live Dovecot crash/replay tests must be implemented before claiming end-to-end idempotency or enabling synchronization.
+
+
+### Internal MGMail address convention
+
+The internal address format is derived from the canonical schema: `<local_part>@<organization-slug>.mgmail`. The organization slug comes from `mgmail_internal_namespaces.slug`; the mailbox local part comes from `mgmail_internal_mailboxes.local_part`. The `.mgmail` suffix is a private MAGNISA namespace, not a public Internet domain and must not be routed to external SMTP recipients.
+
+`internal-address.ts` formats and validates this convention and rejects invalid components (including header-injection characters). It is a pure formatter; a worker must still load the namespace slug from the organization-scoped canonical namespace row. The formatter does not invent a public domain or enable external delivery.
