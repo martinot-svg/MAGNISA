@@ -12,17 +12,42 @@ function aad(scope: MagniboxImapCredentialScope): Buffer {
   return Buffer.from(`magnibox-imap-credential:v1:org:${scope.organizationId}:mailbox:${scope.mailboxId}`, "utf8");
 }
 function assertKey(key: Buffer, keyId: string): void {
-  if (!keyId || !/^[a-zA-Z0-9._-]{1,80}$/.test(keyId) || !Buffer.isBuffer(key) || key.length !== 32) {
+  if (!keyId || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/.test(keyId)
+    || !Buffer.isBuffer(key) || key.length !== 32) {
     throw new MagniboxCredentialError("Invalid IMAP credential encryption key configuration");
   }
+}
+
+function decodeCanonicalBase64(value: unknown): Buffer {
+  if (typeof value !== "string" || value.length === 0
+    || value.length % 4 !== 0
+    || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
+    throw new MagniboxCredentialError("Invalid Base64 credential material");
+  }
+  const decoded = Buffer.from(value, "base64");
+  if (decoded.toString("base64") !== value) {
+    throw new MagniboxCredentialError("Invalid Base64 credential material");
+  }
+  return decoded;
+}
+
+function getKey(keyring: MagniboxCredentialKeyring, keyId: string): Buffer {
+  if (!keyring || typeof keyring !== "object" || !keyring.keys
+    || typeof keyring.keys !== "object" || !Object.hasOwn(keyring.keys, keyId)) {
+    throw new MagniboxCredentialError("IMAP credential encryption key is unavailable");
+  }
+  const key = keyring.keys[keyId];
+  assertKey(key, keyId);
+  return key;
 }
 
 export function encryptMagniboxImapCredentials(credentials: MagniboxImapConnectionCredentials, scope: MagniboxImapCredentialScope, keyring: MagniboxCredentialKeyring): MagniboxEncryptedCredentialEnvelope {
   validateMagniboxCredentialScope(scope);
   validateMagniboxImapCredentials(credentials);
-  const key = keyring.keys[keyring.activeKeyId];
-  if (!key) throw new MagniboxCredentialError("Active IMAP credential encryption key is unavailable");
-  assertKey(key, keyring.activeKeyId);
+  if (!keyring || typeof keyring.activeKeyId !== "string") {
+    throw new MagniboxCredentialError("Active IMAP credential encryption key is unavailable");
+  }
+  const key = getKey(keyring, keyring.activeKeyId);
   const nonce = randomBytes(NONCE_BYTES);
   const cipher = createCipheriv(ALGORITHM, key, nonce, { authTagLength: TAG_BYTES });
   cipher.setAAD(aad(scope));
@@ -33,13 +58,11 @@ export function encryptMagniboxImapCredentials(credentials: MagniboxImapConnecti
 export function decryptMagniboxImapCredentials(envelope: MagniboxEncryptedCredentialEnvelope, scope: MagniboxImapCredentialScope, keyring: MagniboxCredentialKeyring): MagniboxImapConnectionCredentials {
   validateMagniboxCredentialScope(scope);
   if (!envelope || envelope.version !== 1 || envelope.algorithm !== ALGORITHM) throw new MagniboxCredentialError("Unsupported IMAP credential envelope");
-  const key = keyring.keys[envelope.keyId];
-  if (!key) throw new MagniboxCredentialError("IMAP credential decryption key is unavailable");
-  assertKey(key, envelope.keyId);
+  const key = getKey(keyring, envelope.keyId);
   try {
-    const nonce = Buffer.from(envelope.nonce, "base64");
-    const tag = Buffer.from(envelope.tag, "base64");
-    const ciphertext = Buffer.from(envelope.ciphertext, "base64");
+    const nonce = decodeCanonicalBase64(envelope.nonce);
+    const tag = decodeCanonicalBase64(envelope.tag);
+    const ciphertext = decodeCanonicalBase64(envelope.ciphertext);
     if (nonce.length !== NONCE_BYTES || tag.length !== TAG_BYTES || ciphertext.length === 0) throw new Error("invalid envelope");
     const decipher = createDecipheriv(ALGORITHM, key, nonce, { authTagLength: TAG_BYTES });
     decipher.setAAD(aad(scope));
@@ -62,14 +85,14 @@ export function loadMagniboxCredentialKeyring(env: NodeJS.ProcessEnv = process.e
   try {
     const parsed: unknown = JSON.parse(encodedKeys);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("invalid keyring");
-    const keys: Record<string, Buffer> = {};
+    const keys: Record<string, Buffer> = Object.create(null) as Record<string, Buffer>;
     for (const [keyId, value] of Object.entries(parsed)) {
       if (typeof value !== "string") throw new Error("invalid key");
-      const key = Buffer.from(value, "base64");
+      const key = decodeCanonicalBase64(value);
       assertKey(key, keyId);
       keys[keyId] = key;
     }
-    if (!keys[activeKeyId]) throw new Error("active key missing");
+    if (!Object.hasOwn(keys, activeKeyId)) throw new Error("active key missing");
     return { activeKeyId, keys };
   } catch {
     throw new MagniboxCredentialError("Invalid MAGNIBOX IMAP credential keyring configuration");
