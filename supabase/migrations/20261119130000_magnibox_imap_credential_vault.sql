@@ -18,7 +18,7 @@ create table public.magnibox_imap_credentials (
   revoked_at timestamptz,
   constraint magnibox_imap_credentials_mailbox_org_fk
     foreign key (mailbox_id, organization_id)
-    references public.mgmail_internal_mailboxes(id, organization_id) on delete cascade,
+    references public.magnibox_internal_mailboxes(id, organization_id) on delete cascade,
   constraint magnibox_imap_credentials_revocation_ck check (
     (status = 'active' and revoked_at is null) or
     (status = 'revoked' and revoked_at is not null)
