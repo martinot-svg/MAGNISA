@@ -17,8 +17,8 @@ begin
 
   select d.status, m.is_active
     into v_domain_status, v_mailbox_active
-    from public.mgmail_domain_requests d
-    join public.mgmail_internal_mailboxes m
+    from public.magnibox_domain_requests d
+    join public.magnibox_internal_mailboxes m
       on m.id=new.mailbox_id and m.organization_id=new.organization_id
     where d.id=new.domain_request_id
       and d.organization_id=new.organization_id
@@ -53,9 +53,9 @@ revoke all on function private.magnibox_create_pending_identity_after_address_ap
   from public,anon,authenticated;
 
 drop trigger if exists trg_magnibox_create_pending_identity_after_address_approval
-  on public.mgmail_public_address_requests;
+  on public.magnibox_public_address_requests;
 create trigger trg_magnibox_create_pending_identity_after_address_approval
-  after update of status on public.mgmail_public_address_requests
+  after update of status on public.magnibox_public_address_requests
   for each row execute function private.magnibox_create_pending_identity_after_address_approval();
 
 comment on function private.magnibox_create_pending_identity_after_address_approval() is
