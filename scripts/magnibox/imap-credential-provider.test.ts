@@ -24,6 +24,7 @@ describe("MAGNIBOX IMAP credential boundary", () => {
       { ...valid, host: "imap.internal/path" },
       { ...valid, port: 70000 },
       { ...valid, secure: "yes" },
+      { ...valid, secure: false },
       { ...valid, username: " " },
       { ...valid, password: "" },
     ]) {
