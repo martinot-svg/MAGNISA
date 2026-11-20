@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
     const [domain, address] = await Promise.all([
-      admin.from("mgmail_domain_requests").select("status").eq("id", identity.data.domain_request_id)
+      admin.from("magnibox_domain_requests").select("status").eq("id", identity.data.domain_request_id)
         .eq("organization_id", ctx.organizationId).maybeSingle(),
-      admin.from("mgmail_public_address_requests").select("status").eq("id", identity.data.address_request_id)
+      admin.from("magnibox_public_address_requests").select("status").eq("id", identity.data.address_request_id)
         .eq("organization_id", ctx.organizationId).maybeSingle(),
     ]);
     if (domain.error || address.error) return NextResponse.json({ ok: false, error: "Validation de boîte indisponible." }, { status: 503 });
