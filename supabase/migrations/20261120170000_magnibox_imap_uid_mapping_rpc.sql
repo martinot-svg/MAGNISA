@@ -12,11 +12,11 @@ create or replace function public.magnibox_get_imap_message_mapping(
   source_type text,
   source_message_id uuid,
   folder_state_id uuid,
-  uidvalidity bigint,
-  imap_uid bigint,
-  imap_modseq bigint,
+  uidvalidity text,
+  imap_uid text,
+  imap_modseq text,
   imap_flags jsonb,
-  sync_version bigint,
+  sync_version text,
   deleted_at timestamptz,
   delete_event_id uuid,
   delete_confirmed_at timestamptz
@@ -25,8 +25,8 @@ language sql stable security definer
 set search_path = pg_catalog, public
 as $get_mapping$
   select m.id,m.organization_id,m.source_type,m.source_message_id,
-    m.folder_state_id,m.uidvalidity,m.imap_uid,m.imap_modseq,m.imap_flags,
-    m.sync_version,m.deleted_at,m.delete_event_id,m.delete_confirmed_at
+    m.folder_state_id,m.uidvalidity::text,m.imap_uid::text,m.imap_modseq::text,m.imap_flags,
+    m.sync_version::text,m.deleted_at,m.delete_event_id,m.delete_confirmed_at
   from public.magnibox_imap_message_map m
   where m.organization_id=p_organization_id
     and m.source_type=p_source_type
@@ -48,7 +48,7 @@ create or replace function public.magnibox_record_imap_message_uid(
   p_expected_previous_uidvalidity bigint default null,
   p_imap_modseq bigint default null,
   p_imap_flags jsonb default '[]'::jsonb
-) returns table (mapping_id uuid, sync_version bigint, result text)
+) returns table (mapping_id uuid, sync_version text, result text)
 language plpgsql security definer
 set search_path = pg_catalog, public
 as $record_uid$
@@ -92,7 +92,7 @@ begin
 
     if v_mapping.uidvalidity=p_uidvalidity then
       if v_mapping.imap_uid=p_imap_uid then
-        return query select v_mapping.id,v_mapping.sync_version,'already_recorded'::text;
+        return query select v_mapping.id,v_mapping.sync_version::text,'already_recorded'::text;
         return;
       end if;
       raise exception 'Conflicting UID for existing MAGNIBOX IMAP mapping' using errcode='23505';
@@ -109,7 +109,7 @@ begin
         imap_flags=coalesce(p_imap_flags,'[]'::jsonb),
         sync_version=m.sync_version+1
     where m.id=v_mapping.id
-    returning m.id,m.sync_version into mapping_id,sync_version;
+    returning m.id,m.sync_version::text into mapping_id,sync_version;
     result := 'reconciled';
     return next;
     return;
@@ -122,7 +122,7 @@ begin
     p_organization_id,p_source_type,p_source_message_id,p_folder_state_id,
     p_uidvalidity,p_imap_uid,p_imap_modseq,coalesce(p_imap_flags,'[]'::jsonb)
   )
-  returning id,magnibox_imap_message_map.sync_version
+  returning id,magnibox_imap_message_map.sync_version::text
   into mapping_id,sync_version;
   result := 'inserted';
   return next;
