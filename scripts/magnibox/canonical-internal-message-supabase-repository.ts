@@ -20,7 +20,7 @@ interface ResolverQueryBuilder {
  * service-role client type into browser-facing modules.
  */
 export interface MagniboxResolverSupabaseClient {
-  from(table: "mgmail_internal_messages" | "mgmail_internal_mailboxes" | "mgmail_internal_mailbox_grants"): ResolverQueryBuilder;
+  from(table: "magnibox_internal_messages" | "magnibox_internal_mailboxes" | "magnibox_internal_mailbox_grants"): ResolverQueryBuilder;
 }
 
 function asRow(value: unknown, label: string): Record<string, unknown> | null {
@@ -101,7 +101,7 @@ export function createMagniboxSupabaseInternalMessageResolverRepository(
   return {
     async getMessage({ organizationId, messageId }) {
       const row = await single(
-        client.from("mgmail_internal_messages")
+        client.from("magnibox_internal_messages")
           .select("id,organization_id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,created_at")
           .eq("organization_id", organizationId)
           .eq("id", messageId)
@@ -113,7 +113,7 @@ export function createMagniboxSupabaseInternalMessageResolverRepository(
 
     async getMailbox({ organizationId, mailboxId }) {
       const row = await single(
-        client.from("mgmail_internal_mailboxes")
+        client.from("magnibox_internal_mailboxes")
           .select("id,organization_id,local_part,owner_user_id,display_name,is_active,can_read")
           .eq("organization_id", organizationId)
           .eq("id", mailboxId)
@@ -125,7 +125,7 @@ export function createMagniboxSupabaseInternalMessageResolverRepository(
 
     async hasActiveGrants({ organizationId, mailboxId }) {
       const row = await single(
-        client.from("mgmail_internal_mailbox_grants")
+        client.from("magnibox_internal_mailbox_grants")
           .select("mailbox_id")
           .eq("organization_id", organizationId)
           .eq("mailbox_id", mailboxId)
