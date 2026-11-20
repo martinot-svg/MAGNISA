@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     // have been verified and the explicit feature flag is enabled.
     let agendaReminders: unknown = null;
     if (process.env.MAGNIBOX_AGENDA_REMINDERS_ENABLED === "true") {
-      const agenda = await supabase.rpc("run_mgmail_agenda_reminders", {
+      const agenda = await supabase.rpc("run_magnibox_agenda_reminders", {
         p_run_at: new Date().toISOString(),
       });
       if (agenda.error) {
