@@ -55,7 +55,7 @@ export function validateMagniboxImapCredentials(
     throw new MagniboxCredentialError("Invalid IMAP credential configuration");
   }
   if (typeof value.host !== "string" || !value.host || value.host !== value.host.trim()
-    || value.host.length > 253 || /[\\s\\x00-\\x1f\\x7f/@?#\\\\]/.test(value.host)
+    || value.host.length > 253 || /[\s\x00-\x1f\x7f\/@?#\\]/.test(value.host)
     || value.host.startsWith("[") || value.host.endsWith("]")) {
     throw new MagniboxCredentialError("Invalid IMAP host");
   }
