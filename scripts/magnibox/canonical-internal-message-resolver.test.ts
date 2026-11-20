@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { MagniboxSyncError, type MagniboxSyncOutboxEvent } from "./imap-sync-core";
+import type { MagniboxSyncOutboxEvent } from "./imap-sync-core";
 import {
   resolveMagniboxInternalMessage,
   type MagniboxInternalMessageResolverRepository,
@@ -64,7 +64,7 @@ async function expectPermanentFailure(promise: Promise<unknown>, messagePart: st
     name: "MagniboxSyncError",
     retryable: false,
     message: expect.stringContaining(messagePart),
-  } satisfies Partial<MagniboxSyncError>);
+  });
 }
 
 describe("resolveMagniboxInternalMessage", () => {
@@ -127,7 +127,7 @@ describe("resolveMagniboxInternalMessage", () => {
 
   it("rejects inactive or unreadable mailboxes", async () => {
     const repo = repository({
-      getMailbox: vi.fn(async ({ mailboxId }) =>
+      getMailbox: vi.fn(async ({ mailboxId }: { organizationId: string; mailboxId: string }) =>
         mailboxId === recipient.id ? { ...recipient, is_active: false } : sender
       ),
     });
@@ -173,7 +173,7 @@ describe("resolveMagniboxInternalMessage", () => {
 
   it("rejects a peer mailbox outside the organization", async () => {
     const repo = repository({
-      getMailbox: vi.fn(async ({ mailboxId }) =>
+      getMailbox: vi.fn(async ({ mailboxId }: { organizationId: string; mailboxId: string }) =>
         mailboxId === recipient.id
           ? recipient
           : { ...sender, organization_id: "org-2" }
