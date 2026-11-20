@@ -181,3 +181,48 @@ export async function resolveMagniboxInternalMessage(
     createdAt: message.created_at,
   };
 }
+
+
+/**
+ * One internal-message outbox event represents one canonical message, not one
+ * mailbox delivery. Resolve a projection for each distinct participant using
+ * IDs reloaded from the canonical row; payload mailbox IDs are never trusted.
+ */
+export async function resolveMagniboxInternalMessageForParticipants(
+  repository: MagniboxInternalMessageResolverRepository,
+  event: MagniboxSyncOutboxEvent,
+): Promise<MagniboxResolvedInternalMessage[]> {
+  if (
+    event.aggregate_type !== "internal_message" ||
+    (event.event_type !== "message.created" && event.event_type !== "message.updated") ||
+    !nonEmpty(event.organization_id) ||
+    !nonEmpty(event.aggregate_id)
+  ) {
+    throw new MagniboxSyncError("Unsupported event for internal participant resolution", false);
+  }
+
+  const message = await repository.getMessage({
+    organizationId: event.organization_id,
+    messageId: event.aggregate_id,
+  });
+  if (
+    !message ||
+    message.id !== event.aggregate_id ||
+    message.organization_id !== event.organization_id ||
+    !nonEmpty(message.sender_mailbox_id) ||
+    !nonEmpty(message.recipient_mailbox_id)
+  ) {
+    throw new MagniboxSyncError("Canonical internal message participants are unavailable", false);
+  }
+
+  const mailboxIds = [...new Set([
+    message.sender_mailbox_id,
+    message.recipient_mailbox_id,
+  ])];
+
+  return Promise.all(
+    mailboxIds.map((targetMailboxId) =>
+      resolveMagniboxInternalMessage(repository, { event, targetMailboxId })
+    ),
+  );
+}
