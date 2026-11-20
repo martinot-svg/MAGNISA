@@ -5,7 +5,7 @@ import { assertPermission, hasPermission } from "@/lib/permissions";
 import { FormDialog } from "@/components/form-dialog";
 import { internalMailboxLabel, normalizemagniboxLocalPart, normalizemagniboxNamespace } from "@/lib/magnibox/internal-address";
 
-const PATH = "/magnibox/interne";
+const PATH = "/orbit/magnibox";
 
 async function createNamespace(form: FormData) {
   "use server";
@@ -20,7 +20,7 @@ async function createNamespace(form: FormData) {
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
   revalidatePath("/orbit/magnibox");
-  revalidatePath("/magnibox");
+  revalidatePath("/orbit/magnibox");
 }
 
 async function createMailbox(form: FormData) {
@@ -51,7 +51,7 @@ async function createMailbox(form: FormData) {
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
   revalidatePath("/orbit/magnibox");
-  revalidatePath("/magnibox");
+  revalidatePath("/orbit/magnibox");
 }
 
 async function setMailboxPermissions(form: FormData) {
@@ -73,7 +73,7 @@ async function setMailboxPermissions(form: FormData) {
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
   revalidatePath("/orbit/magnibox");
-  revalidatePath("/magnibox");
+  revalidatePath("/orbit/magnibox");
 }
 
 async function shareMailbox(form: FormData) {
@@ -118,7 +118,7 @@ async function shareMailbox(form: FormData) {
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
   revalidatePath("/orbit/magnibox");
-  revalidatePath("/magnibox");
+  revalidatePath("/orbit/magnibox");
 }
 
 async function createInternalFolder(form: FormData) {
@@ -209,7 +209,7 @@ async function saveInternalDraft(form: FormData) {
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
   revalidatePath("/orbit/magnibox");
-  revalidatePath("/magnibox");
+  revalidatePath("/orbit/magnibox");
 }
 
 async function deleteInternalDraft(form: FormData) {
@@ -223,7 +223,7 @@ async function deleteInternalDraft(form: FormData) {
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
   revalidatePath("/orbit/magnibox");
-  revalidatePath("/magnibox");
+  revalidatePath("/orbit/magnibox");
 }
 
 async function sendInternal(form: FormData) {
@@ -237,7 +237,7 @@ async function sendInternal(form: FormData) {
     revalidatePath(PATH);
     revalidatePath("/orbit/inbox");
     revalidatePath("/orbit/magnibox");
-    revalidatePath("/magnibox");
+    revalidatePath("/orbit/magnibox");
     return;
   }
   const senderId = String(form.get("senderId") || "").trim();
@@ -267,7 +267,7 @@ async function sendInternal(form: FormData) {
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
   revalidatePath("/orbit/magnibox");
-  revalidatePath("/magnibox");
+  revalidatePath("/orbit/magnibox");
 }
 
 async function markInternalRead(form: FormData) {
@@ -305,7 +305,7 @@ async function markInternalRead(form: FormData) {
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
   revalidatePath("/orbit/magnibox");
-  revalidatePath("/magnibox");
+  revalidatePath("/orbit/magnibox");
 }
 
 /** Shared internal mail capability, embedded in the single Magnibox workspace. */
