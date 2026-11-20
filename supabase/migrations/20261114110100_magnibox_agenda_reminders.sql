@@ -58,7 +58,7 @@ begin
       'Rappel magnibox : '||left(e.title,155),
       'Événement prévu le '||to_char(e.start_day,'DD/MM/YYYY')
         ||' à '||to_char(e.start_time,'HH24:MI')||'.',
-      '/magnimail/agenda?month='||to_char(e.start_day,'YYYY-MM'),
+      '/orbit/magnibox/agenda?month='||to_char(e.start_day,'YYYY-MM'),
       'magnibox_agenda_event',e.id,
       jsonb_build_object(
         'scope',e.scope,'offset_days',v_offset,
