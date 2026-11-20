@@ -8,7 +8,7 @@ import {
 type QueryError = { message?: string } | null;
 type QueryResult = { data: unknown; error: QueryError };
 
-interface ResolverQueryBuilder extends PromiseLike<QueryResult> {
+interface ResolverQueryBuilder {
   select(columns: string): ResolverQueryBuilder;
   eq(column: string, value: string | boolean): ResolverQueryBuilder;
   limit(count: number): ResolverQueryBuilder;
