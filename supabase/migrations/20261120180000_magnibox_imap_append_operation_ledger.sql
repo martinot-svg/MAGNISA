@@ -75,7 +75,7 @@ begin
 
   if not exists (
     select 1
-    from public.mgmail_internal_messages m
+    from public.magnibox_internal_messages m
     where m.id = v_event.aggregate_id
       and m.organization_id = new.organization_id
       and new.target_mailbox_id in (m.sender_mailbox_id, m.recipient_mailbox_id)
@@ -169,7 +169,7 @@ begin
   -- in the earlier resolver: active, readable, individually owned, unshared.
   if not exists (
     select 1
-    from public.mgmail_internal_mailboxes b
+    from public.magnibox_internal_mailboxes b
     where b.id = p_target_mailbox_id
       and b.organization_id = p_organization_id
       and b.is_active = true
@@ -177,7 +177,7 @@ begin
       and b.owner_user_id is not null
   ) or exists (
     select 1
-    from public.mgmail_internal_mailbox_grants g
+    from public.magnibox_internal_mailbox_grants g
     where g.organization_id = p_organization_id
       and g.mailbox_id = p_target_mailbox_id
       and g.is_active = true
@@ -187,7 +187,7 @@ begin
 
   if not exists (
     select 1
-    from public.mgmail_internal_messages m
+    from public.magnibox_internal_messages m
     where m.id = v_event.aggregate_id
       and m.organization_id = p_organization_id
       and p_target_mailbox_id in (m.sender_mailbox_id, m.recipient_mailbox_id)
