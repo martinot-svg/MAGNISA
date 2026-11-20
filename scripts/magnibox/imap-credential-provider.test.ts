@@ -38,6 +38,27 @@ describe("MAGNIBOX IMAP credential boundary", () => {
     }
   });
 
+  it("accepts valid DNS names and IP literals", () => {
+    for (const host of ["imap.example.com", "imap.internal.", "192.0.2.10", "2001:db8::10"]) {
+      expect(() => validateMagniboxImapCredentials({ ...valid, host })).not.toThrow();
+    }
+  });
+
+  it("rejects URL syntax, control characters, malformed labels and invalid numeric IPs", () => {
+    for (const host of [
+      "https://imap.example.com",
+      "imap.example.com\\n",
+      "imap..example.com",
+      "-imap.example.com",
+      "imap-.example.com",
+      "999.1.1.1",
+      "[2001:db8::1]",
+      "imap.example.com:993",
+    ]) {
+      expect(() => validateMagniboxImapCredentials({ ...valid, host })).toThrow(MagniboxCredentialError);
+    }
+  });
+
   it("requires both tenant and mailbox scope", () => {
     expect(() => validateMagniboxCredentialScope({
       organizationId: "org-1",
