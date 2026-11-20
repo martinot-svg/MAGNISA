@@ -1,7 +1,7 @@
-export type MGMailAgendaScope = "personal" | "service" | "company";
+export type magniboxAgendaScope = "personal" | "service" | "company";
 
-export type MGMailAgendaInput = {
-  scope: MGMailAgendaScope;
+export type magniboxAgendaInput = {
+  scope: magniboxAgendaScope;
   department: string | null;
   title: string;
   description: string;
@@ -38,8 +38,8 @@ export function parseAgendaReminderOffsets(text: string): number[] {
   return result.sort((a, b) => b - a);
 }
 
-export function parseMGMailAgendaInput(input: Record<string, string>): MGMailAgendaInput {
-  const scope = input.scope as MGMailAgendaScope;
+export function parsemagniboxAgendaInput(input: Record<string, string>): magniboxAgendaInput {
+  const scope = input.scope as magniboxAgendaScope;
   if (!["personal", "service", "company"].includes(scope)) {
     throw new Error("Type d'agenda inconnu.");
   }
