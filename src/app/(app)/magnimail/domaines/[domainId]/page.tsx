@@ -18,7 +18,7 @@ async function verifyDomainOwnership(form: FormData) {
   const id = String(form.get("id") || "");
   if (!UUID.test(id)) throw Error("Domaine demandé invalide.");
 
-  const { data: domain, error } = await ctx.supabase.from("mgmail_domain_requests")
+  const { data: domain, error } = await ctx.supabase.from("magnibox_domain_requests")
     .select("id,domain_name,status,verification_token,platform_allocation_id")
     .eq("id", id).eq("organization_id", ctx.organizationId).maybeSingle();
   if (error || !domain || !["pending", "reviewing", "verified"].includes(domain.status)) {
@@ -78,7 +78,7 @@ async function verifyDomainOwnership(form: FormData) {
   }
 
   if (domain.status !== "verified") {
-    const result = await admin.from("mgmail_domain_requests")
+    const result = await admin.from("magnibox_domain_requests")
       .update({
         status: "verified",
         verified_at: new Date().toISOString(),
@@ -120,7 +120,7 @@ export default async function OrbitDomainDNSPage({
   if (!UUID.test(domainId)) {
     return <div className="card section" role="alert">Identifiant de domaine invalide.</div>;
   }
-  const { data: domain, error } = await ctx.supabase.from("mgmail_domain_requests")
+  const { data: domain, error } = await ctx.supabase.from("magnibox_domain_requests")
     .select("id,domain_name,verification_token,status,verified_at,platform_allocation_id")
     .eq("id", domainId).eq("organization_id", ctx.organizationId).maybeSingle();
   if (error || !domain) {
