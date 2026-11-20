@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, hasPermission } from "@/lib/permissions";
 import { FormDialog } from "@/components/form-dialog";
-import { internalMailboxLabel, normalizeMGMailLocalPart, normalizeMGMailNamespace } from "@/lib/magnimail/internal-address";
+import { internalMailboxLabel, normalizemagniboxLocalPart, normalizemagniboxNamespace } from "@/lib/magnimail/internal-address";
 
 const PATH = "/magnimail/interne";
 
@@ -11,8 +11,8 @@ async function createNamespace(form: FormData) {
   "use server";
   const ctx = await requireOrganization();
   await assertPermission(ctx, "users.manage");
-  const slug = normalizeMGMailNamespace(String(form.get("slug") || ""));
-  const { error } = await ctx.supabase.from("mgmail_internal_namespaces").insert({
+  const slug = normalizemagniboxNamespace(String(form.get("slug") || ""));
+  const { error } = await ctx.supabase.from("magnibox_internal_namespaces").insert({
     organization_id: ctx.organizationId,
     slug,
   });
@@ -27,7 +27,7 @@ async function createMailbox(form: FormData) {
   "use server";
   const ctx = await requireOrganization();
   await assertPermission(ctx, "users.manage");
-  const localPart = normalizeMGMailLocalPart(String(form.get("localPart") || ""));
+  const localPart = normalizemagniboxLocalPart(String(form.get("localPart") || ""));
   const ownerId = String(form.get("ownerId") || "").trim();
   const displayName = String(form.get("displayName") || "").trim().slice(0, 120);
    if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(ownerId)) {
@@ -41,7 +41,7 @@ async function createMailbox(form: FormData) {
     .eq("status", "active")
     .maybeSingle();
   if (memberError || !member) throw new Error("Le destinataire doit être un collaborateur actif.");
-  const { error } = await ctx.supabase.from("mgmail_internal_mailboxes").insert({
+  const { error } = await ctx.supabase.from("magnibox_internal_mailboxes").insert({
     organization_id: ctx.organizationId,
     local_part: localPart,
     owner_user_id: ownerId,
@@ -61,7 +61,7 @@ async function setMailboxPermissions(form: FormData) {
   const id = String(form.get("mailboxId") || "");
   if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id)) throw new Error("Boîte invalide.");
   const { error } = await ctx.supabase
-    .from("mgmail_internal_mailboxes")
+    .from("magnibox_internal_mailboxes")
     .update({
       can_read: form.get("canRead") === "on",
       can_send: form.get("canSend") === "on",
@@ -87,7 +87,7 @@ async function shareMailbox(form: FormData) {
     throw new Error("Boîte ou collaborateur invalide.");
   }
   const [mailboxResult, memberResult] = await Promise.all([
-    ctx.supabase.from("mgmail_internal_mailboxes").select("id")
+    ctx.supabase.from("magnibox_internal_mailboxes").select("id")
       .eq("id", mailboxId).eq("organization_id", ctx.organizationId).maybeSingle(),
     ctx.supabase.from("organization_members").select("user_id")
       .eq("organization_id", ctx.organizationId).eq("user_id", userId)
@@ -99,7 +99,7 @@ async function shareMailbox(form: FormData) {
   const canRead = form.get("canRead") === "on";
   const canSend = form.get("canSend") === "on";
   const active = canRead || canSend;
-  const query = ctx.supabase.from("mgmail_internal_mailbox_grants");
+  const query = ctx.supabase.from("magnibox_internal_mailbox_grants");
   const { data: existing, error: lookupError } = await query.select("mailbox_id")
     .eq("organization_id", ctx.organizationId)
     .eq("mailbox_id", mailboxId).eq("user_id", userId).maybeSingle();
@@ -109,10 +109,10 @@ async function shareMailbox(form: FormData) {
     is_active: active,
   };
   const result = existing
-    ? await ctx.supabase.from("mgmail_internal_mailbox_grants")
+    ? await ctx.supabase.from("magnibox_internal_mailbox_grants")
         .update(values).eq("organization_id", ctx.organizationId)
         .eq("mailbox_id", mailboxId).eq("user_id", userId)
-    : await ctx.supabase.from("mgmail_internal_mailbox_grants")
+    : await ctx.supabase.from("magnibox_internal_mailbox_grants")
         .insert({ organization_id: ctx.organizationId, mailbox_id: mailboxId, user_id: userId, ...values });
   if (result.error) throw new Error("Impossible d'enregistrer les autorisations partagées.");
   revalidatePath(PATH);
@@ -126,7 +126,7 @@ async function createInternalFolder(form: FormData) {
   const ctx = await requireOrganization();
   const name = String(form.get("name") || "").trim().replace(/\s+/g, " ").slice(0, 60);
   if (!name) throw new Error("Le nom du dossier est obligatoire.");
-  const { error } = await ctx.supabase.from("mgmail_internal_folders").insert({
+  const { error } = await ctx.supabase.from("magnibox_internal_folders").insert({
     organization_id: ctx.organizationId, name,
   });
   if (error) throw new Error("Ce dossier existe déjà ou ne peut pas être créé.");
@@ -141,7 +141,7 @@ async function assignInternalMessageFolder(form: FormData) {
   const folderId = String(form.get("folderId") || "").trim();
   const uuid = /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i;
   if (!uuid.test(messageId) || !uuid.test(folderId)) throw new Error("Message ou dossier invalide.");
-  const { error } = await ctx.supabase.from("mgmail_internal_message_folders").upsert({
+  const { error } = await ctx.supabase.from("magnibox_internal_message_folders").upsert({
     organization_id: ctx.organizationId, message_id: messageId, folder_id: folderId,
   }, { onConflict: "folder_id,message_id,user_id", ignoreDuplicates: true });
   if (error) throw new Error("Impossible de classer ce message dans le dossier.");
@@ -156,7 +156,7 @@ async function removeInternalMessageFolder(form: FormData) {
   const folderId = String(form.get("folderId") || "").trim();
   const uuid = /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i;
   if (!uuid.test(messageId) || !uuid.test(folderId)) throw new Error("Message ou dossier invalide.");
-  const { error } = await ctx.supabase.from("mgmail_internal_message_folders").delete()
+  const { error } = await ctx.supabase.from("magnibox_internal_message_folders").delete()
     .eq("organization_id", ctx.organizationId).eq("message_id", messageId).eq("folder_id", folderId);
   if (error) throw new Error("Impossible de retirer ce message du dossier.");
   revalidatePath(PATH);
@@ -177,17 +177,17 @@ async function saveInternalDraft(form: FormData) {
     throw new Error("Brouillon invalide.");
   }
   if (draftId) {
-    const { data: existing, error } = await ctx.supabase.from("mgmail_internal_drafts")
+    const { data: existing, error } = await ctx.supabase.from("magnibox_internal_drafts")
       .select("sender_mailbox_id").eq("id", draftId).eq("organization_id", ctx.organizationId).maybeSingle();
     if (error || !existing) throw new Error("Brouillon introuvable ou accès révoqué.");
     senderId = existing.sender_mailbox_id;
   }
-  const { data: canSend, error: permissionError } = await ctx.supabase.rpc("mgmail_has_internal_access", {
+  const { data: canSend, error: permissionError } = await ctx.supabase.rpc("magnibox_has_internal_access", {
     p_org: ctx.organizationId, p_mailbox: senderId, p_action: "send",
   });
   if (permissionError || canSend !== true) throw new Error("Vous ne pouvez plus enregistrer depuis cette boîte.");
   if (recipientId) {
-    const { data: canAddress, error: recipientError } = await ctx.supabase.rpc("mgmail_can_send_internal", {
+    const { data: canAddress, error: recipientError } = await ctx.supabase.rpc("magnibox_can_send_internal", {
       p_organization_id: ctx.organizationId,
       p_sender_mailbox_id: senderId,
       p_recipient_mailbox_id: recipientId,
@@ -196,10 +196,10 @@ async function saveInternalDraft(form: FormData) {
   }
   const values = { recipient_mailbox_id: recipientId || null, subject, body_text: body };
   const result = draftId
-    ? await ctx.supabase.from("mgmail_internal_drafts").update(values)
+    ? await ctx.supabase.from("magnibox_internal_drafts").update(values)
         .eq("id", draftId).eq("organization_id", ctx.organizationId)
         .select("id,subject,body_text").maybeSingle()
-    : await ctx.supabase.from("mgmail_internal_drafts").insert({
+    : await ctx.supabase.from("magnibox_internal_drafts").insert({
         organization_id: ctx.organizationId, sender_mailbox_id: senderId, ...values,
       }).select("id,subject,body_text").single();
   if (result.error || !result.data
@@ -217,7 +217,7 @@ async function deleteInternalDraft(form: FormData) {
   const ctx = await requireOrganization();
   const draftId = String(form.get("draftId") || "").trim();
   if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(draftId)) throw new Error("Brouillon invalide.");
-  const { data: deleted, error } = await ctx.supabase.from("mgmail_internal_drafts")
+  const { data: deleted, error } = await ctx.supabase.from("magnibox_internal_drafts")
     .delete().eq("id", draftId).eq("organization_id", ctx.organizationId).select("id").maybeSingle();
   if (error || !deleted) throw new Error("Brouillon introuvable ou suppression non autorisée.");
   revalidatePath(PATH);
@@ -232,7 +232,7 @@ async function sendInternal(form: FormData) {
   const draftId = String(form.get("draftId") || "").trim();
   if (draftId) {
     if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(draftId)) throw new Error("Brouillon invalide.");
-    const { data: sent, error } = await ctx.supabase.rpc("mgmail_send_internal_draft", { p_draft_id: draftId });
+    const { data: sent, error } = await ctx.supabase.rpc("magnibox_send_internal_draft", { p_draft_id: draftId });
     if (error || sent !== true) throw new Error("Le brouillon ne peut pas être envoyé : vérifiez ses champs et les droits des boîtes.");
     revalidatePath(PATH);
     revalidatePath("/orbit/inbox");
@@ -253,7 +253,7 @@ async function sendInternal(form: FormData) {
 
   // The database enforces permissions and idempotency in one transaction.
   // A browser retry with the same requestId resolves to the original message.
-  const { data: messageId, error } = await ctx.supabase.rpc("mgmail_send_internal_message", {
+  const { data: messageId, error } = await ctx.supabase.rpc("magnibox_send_internal_message", {
     p_organization_id: ctx.organizationId,
     p_sender_mailbox_id: senderId,
     p_recipient_mailbox_id: recipientId,
@@ -278,24 +278,24 @@ async function markInternalRead(form: FormData) {
     throw new Error("Message invalide.");
   }
   const { data: message, error: messageError } = await ctx.supabase
-    .from("mgmail_internal_messages")
+    .from("magnibox_internal_messages")
     .select("id,recipient_mailbox_id")
     .eq("id", messageId).eq("organization_id", ctx.organizationId)
     .maybeSingle();
   if (messageError || !message) throw new Error("Message indisponible.");
   const { data: allowed, error: accessError } = await ctx.supabase
-    .rpc("mgmail_has_internal_access", {
+    .rpc("magnibox_has_internal_access", {
       p_org: ctx.organizationId,
       p_mailbox: message.recipient_mailbox_id,
       p_action: "read",
     });
   if (accessError || allowed !== true) throw new Error("Lecture non autorisée.");
   const { data: alreadyRead, error: checkError } = await ctx.supabase
-    .from("mgmail_internal_message_reads").select("message_id")
+    .from("magnibox_internal_message_reads").select("message_id")
     .eq("message_id", messageId).eq("user_id", ctx.user.id).maybeSingle();
   if (checkError) throw new Error("Impossible de vérifier la lecture.");
   if (!alreadyRead) {
-    const { error } = await ctx.supabase.from("mgmail_internal_message_reads").insert({
+    const { error } = await ctx.supabase.from("magnibox_internal_message_reads").insert({
       organization_id: ctx.organizationId,
       message_id: messageId,
       user_id: ctx.user.id,
@@ -314,11 +314,11 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
   const searchTerm = String(searchQuery).replace(/[^\p{L}\p{N}\s-]/gu, "").trim().slice(0, 80);
   const searchAction = embedded ? "/orbit/magnibox" : PATH;
   const canManage = await hasPermission(ctx, "users.manage");
-  let messagesQuery = ctx.supabase.from("mgmail_internal_messages")
+  let messagesQuery = ctx.supabase.from("magnibox_internal_messages")
     .select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,created_at")
     .eq("organization_id", ctx.organizationId)
     .order("created_at", { ascending: false }).limit(80);
-  let draftsQuery = ctx.supabase.from("mgmail_internal_drafts")
+  let draftsQuery = ctx.supabase.from("magnibox_internal_drafts")
     .select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,updated_at")
     .eq("organization_id", ctx.organizationId).order("updated_at", { ascending: false }).limit(50);
   if (searchTerm) {
@@ -327,19 +327,19 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
     draftsQuery = draftsQuery.or("subject.ilike." + pattern + ",body_text.ilike." + pattern);
   }
   const [namespaceResult, mailboxesResult, messagesResult, grantsResult, readsResult, draftsResult, foldersResult] = await Promise.all([
-    ctx.supabase.from("mgmail_internal_namespaces")
+    ctx.supabase.from("magnibox_internal_namespaces")
       .select("slug").eq("organization_id", ctx.organizationId).maybeSingle(),
-    ctx.supabase.from("mgmail_internal_mailboxes")
+    ctx.supabase.from("magnibox_internal_mailboxes")
       .select("id,local_part,owner_user_id,display_name,is_active,can_read,can_send")
       .eq("organization_id", ctx.organizationId).order("local_part"),
     messagesQuery,
-    ctx.supabase.from("mgmail_internal_mailbox_grants")
+    ctx.supabase.from("magnibox_internal_mailbox_grants")
       .select("mailbox_id,user_id,can_read,can_send,is_active")
       .eq("organization_id", ctx.organizationId),
-    ctx.supabase.from("mgmail_internal_message_reads")
+    ctx.supabase.from("magnibox_internal_message_reads")
       .select("message_id").eq("organization_id", ctx.organizationId).eq("user_id", ctx.user.id),
     draftsQuery,
-    ctx.supabase.from("mgmail_internal_folders")
+    ctx.supabase.from("magnibox_internal_folders")
       .select("id,name,created_at").eq("organization_id", ctx.organizationId)
       .order("name", { ascending: true }),
   ]);
@@ -349,7 +349,7 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
   const grants = grantsResult.data || [];
   const drafts = draftsResult.data || [];
   const folders = foldersResult.data || [];
-  const folderLinksResult = await ctx.supabase.from("mgmail_internal_message_folders")
+  const folderLinksResult = await ctx.supabase.from("magnibox_internal_message_folders")
     .select("folder_id,message_id").eq("organization_id", ctx.organizationId)
     .eq("user_id", ctx.user.id);
   const folderLinks = folderLinksResult.data || [];
@@ -529,8 +529,8 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
             <FormDialog title="Créer l'identifiant interne de l'entreprise" buttonLabel="Configurer la messagerie interne">
               <form action={createNamespace} className="form">
                 <div className="field">
-                  <label htmlFor="mgmail-namespace">Identifiant de l'entreprise pour les boîtes internes</label>
-                  <input id="mgmail-namespace" name="slug" minLength={2} maxLength={45}
+                  <label htmlFor="magnibox-namespace">Identifiant de l'entreprise pour les boîtes internes</label>
+                  <input id="magnibox-namespace" name="slug" minLength={2} maxLength={45}
                     placeholder="mitalia" pattern="[a-z0-9]+(-[a-z0-9]+)*" required />
                   <small>Exemple de boîte interne : finance (mitalia). Ce libellé n'est pas une adresse Internet.</small>
                 </div>
@@ -725,4 +725,4 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
 }
 
 /** Backward-compatible export for historical internal routes; the product is Magnibox. */
-export const MGMailInternalContent = MagniboxInternalContent;
+export const magniboxInternalContent = MagniboxInternalContent;
