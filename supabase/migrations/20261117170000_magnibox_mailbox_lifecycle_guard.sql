@@ -1,11 +1,11 @@
 -- MAGNIBOX mailbox lifecycle: a disabled internal mailbox must never remain
--- an externally routable identity. Historical MGMail rows are not renamed.
+-- an externally routable identity. Historical magnibox rows are not renamed.
 create or replace function private.orbit_public_identity_mailbox_activation_guard()
 returns trigger language plpgsql security definer
 set search_path=pg_catalog,public,private as $magnibox_guard$
 begin
   if new.status='active' and not exists (
-    select 1 from public.mgmail_internal_mailboxes m
+    select 1 from public.magnibox_internal_mailboxes m
     where m.id=new.mailbox_id
       and m.organization_id=new.organization_id
       and m.is_active
@@ -42,9 +42,9 @@ $magnibox_suspend$;
 revoke all on function private.orbit_suspend_public_identity_for_inactive_mailbox()
   from public,anon,authenticated;
 
-drop trigger if exists trg_orbit_mailbox_inactive on public.mgmail_internal_mailboxes;
+drop trigger if exists trg_orbit_mailbox_inactive on public.magnibox_internal_mailboxes;
 create trigger trg_orbit_mailbox_inactive
-  after update of is_active on public.mgmail_internal_mailboxes
+  after update of is_active on public.magnibox_internal_mailboxes
   for each row
   when (old.is_active and not new.is_active)
   execute function private.orbit_suspend_public_identity_for_inactive_mailbox();
