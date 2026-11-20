@@ -59,7 +59,7 @@ begin
     new.organization_id,v_recipient,'service','info',
     'Nouveau message dans magnibox',
     'Un nouveau message interne vous attend dans MAGNISA.',
-    '/magnimail/interne',
+    '/orbit/magnibox/interne',
     'magnibox_internal_message',new.id,
     jsonb_build_object('channel','internal','message_id',new.id),
     'magnibox-internal-message:' || new.id::text
