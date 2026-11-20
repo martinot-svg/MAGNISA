@@ -75,7 +75,7 @@ jobs:
       - name: Verify MAGNIBOX production schema contract (read-only)
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
-          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/mgmail-internal-schema-contract.sql
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-internal-schema-contract.sql
 
       - name: Verify MAGNIBOX IMAP sync schema and worker access contract
         run: |
@@ -125,7 +125,7 @@ jobs:
       - name: Verify Magnibox agenda RLS, time zones and reminder contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
-          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/mgmail-agenda-schema-contract.sql
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-agenda-schema-contract.sql
 
       - name: Verify Magnibox TLD catalogue security contract
         run: |
@@ -267,7 +267,7 @@ jobs:
         run: node scripts/ci/create-payroll-ui-user.mjs
 
       - name: Verify MAGNIBOX internal collaboration, access isolation and notifications
-        run: node scripts/ci/mgmail-internal-mail-integration.mjs
+        run: node scripts/ci/magnibox-internal-mail-integration.mjs
 
       - name: Verify Orbit Action task lifecycle, assignments and tenant isolation
         run: node scripts/ci/orbit-action-tasks-integration.mjs
@@ -282,7 +282,7 @@ jobs:
         run: node scripts/ci/magnibox-free-platform-domain-integration.mjs
 
       - name: Verify Magnibox agenda multi-tenant isolation and idempotent reminders
-        run: node scripts/ci/mgmail-agenda-integration.mjs
+        run: node scripts/ci/magnibox-agenda-integration.mjs
 
       - name: Verify MAGNISA identity privacy, username and opaque IDs
         run: node scripts/ci/magnisa-identity-integration.mjs
