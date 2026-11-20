@@ -18,7 +18,7 @@ A mismatch is a permanent authorization/consistency error. Do not fall back to a
 
 ## 2. Canonical source schemas verified in repository migrations
 
-### Internal MGMail
+### Internal MAGNIBOX
 
 Source: `mgmail_internal_messages`.
 
@@ -109,7 +109,7 @@ The DTO is not MIME. A separate composer must generate validated RFC 5322 header
 
 1. **Shared internal mailbox model:** does one Dovecot account represent the shared mailbox for all users, or does each user receive a separate IMAP projection? This determines `\\Seen`, personal folders, grants, and mapping cardinality. Current per-mailbox mapping alone cannot represent per-user read state.
 2. **Internet outgoing projection:** define which statuses enter IMAP Sent and when. A `queued` message is not proof that SMTP accepted it; a `failed` message should not silently appear as successfully sent.
-3. **Internal address format:** define a stable, non-public RFC address representation for internal MGMail. The namespace slug/local-part fields are available, but the product must approve the domain convention before composing headers.
+3. **Internal address format:** use the private MAGNIBOX namespace `<local_part>@<organization-slug>.magnibox` for new internal message serialization. This suffix is not a public Internet domain and must never be routed to external SMTP. The legacy database object names (`mgmail_internal_*`) remain unchanged until a separate, fully tested schema migration is prepared.
 4. **Deletion and retention:** define whether source deletion removes IMAP copies, tombstones them, or retains them under a mailbox policy. Never EXPUNGE by default.
 5. **MIME completeness:** decide whether internal messages remain text-only or gain canonical Message-ID/date/HTML/attachment fields before claiming standards-compliant round-trip fidelity.
 
