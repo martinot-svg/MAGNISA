@@ -74,7 +74,7 @@ describe("MAGNIBOX IMAP credential encryption", () => {
     })).toThrow(MagniboxCredentialError);
     expect(() => loadMagniboxCredentialKeyring({
       MAGNIBOX_IMAP_ACTIVE_KEY_ID: "__proto__",
-      MAGNIBOX_IMAP_CREDENTIALS_KEYS: JSON.stringify({ "__proto__": encoded }),
+      MAGNIBOX_IMAP_CREDENTIALS_KEYS: JSON.stringify(JSON.parse(`{"__proto__":"${encoded}"}`)),
     })).toThrow(MagniboxCredentialError);
   });
 
