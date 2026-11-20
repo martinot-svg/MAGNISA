@@ -7,7 +7,7 @@ Il ne faut **jamais** fusionner/déployer l'interface de boîtes Internet avant
 la validation de la migration, des permissions et du transport réellement branché.
 
 ## Compatibilité
-- Les boîtes privées `mgmail_internal_mailboxes`, leurs délégations,
+- Les boîtes privées `magnibox_internal_mailboxes`, leurs délégations,
   les messages, l'authentification MAGNISA et Gmail restent inchangés.
 - Un domaine peut être demandé, vérifié (propriété TXT), mais cela **n'active pas
   une boîte e-mail Internet**.
@@ -23,7 +23,7 @@ la validation de la migration, des permissions et du transport réellement branc
   sa vérification sont également nécessaires.
 - `orbit_external_mailbox_access` : autorisations `can_read` et `can_send`
   individuelles, chacune nécessitant **aussi** les droits correspondants
-  de la boîte MGMail interne et l'appartenance active à l'entreprise.
+  de la boîte magnibox interne et l'appartenance active à l'entreprise.
 - `orbit_external_messages` : stockage distinct des messages Internet,
   avec statuts d'acheminement et clés de déduplication ; aucun client
   ordinaire ne peut insérer ou modifier des messages ou des états de livraison.
