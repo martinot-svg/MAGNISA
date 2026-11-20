@@ -133,3 +133,10 @@ This is the pure resolver core and its test contract, **not yet the concrete Sup
 `canonical-internal-message-supabase-repository.ts` binds the pure resolver interface to the exact source tables. Message and mailbox lookups always include both `organization_id` and the requested row ID. The shared-grant query is scoped by organization, mailbox, and `is_active = true`. Database errors are converted to generic retryable sync errors; malformed rows fail permanently without copying row content into diagnostics.
 
 Its adapter contract tests verify query scoping, active-grant detection, missing grants, generic database errors and malformed rows. The repository must be constructed only in a server-side worker with a service-role client; it is not a browser data-access layer.
+
+
+### Internal-message participant fan-out
+
+A single internal-message outbox event represents the canonical message, while IMAP projection is mailbox-specific. `resolveMagniboxInternalMessageForParticipants` therefore reloads the canonical row and resolves one projection for each distinct sender/recipient mailbox ID. The participant IDs are taken only from the organization-scoped canonical row, never from the outbox payload. Self-addressed messages are deduplicated to one mailbox projection.
+
+This is still a resolver-level fan-out contract: it does not yet write to IMAP, claim per-mailbox credentials, or establish delivery semantics for a multi-mailbox event. The worker adapter must treat the event as complete only after every required participant projection has been applied idempotently, or after a durable per-mailbox child-work model is introduced.
