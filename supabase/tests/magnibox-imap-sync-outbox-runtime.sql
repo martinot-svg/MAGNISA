@@ -23,14 +23,14 @@ BEGIN
   INSERT INTO public.organizations (id, name)
   VALUES (v_org, 'MAGNIBOX isolated outbox runtime test');
 
-  INSERT INTO public.mgmail_internal_namespaces (organization_id, slug)
+  INSERT INTO public.magnibox_internal_namespaces (organization_id, slug)
   VALUES (
     v_org,
     'sync-test-' || LEFT(REPLACE(v_org::TEXT, '-', ''), 12)
   );
 
   -- Prove source mutations and outbox events share the same transaction.
-  INSERT INTO public.mgmail_internal_mailboxes (
+  INSERT INTO public.magnibox_internal_mailboxes (
     id, organization_id, local_part, display_name
   )
   VALUES
@@ -47,7 +47,7 @@ BEGIN
       'Sync recipient'
     );
 
-  INSERT INTO public.mgmail_internal_messages (
+  INSERT INTO public.magnibox_internal_messages (
     id,
     organization_id,
     sender_mailbox_id,
@@ -77,7 +77,7 @@ BEGIN
       'Outbox runtime: internal message insert did not enqueue exactly one event';
   END IF;
 
-  DELETE FROM public.mgmail_internal_messages
+  DELETE FROM public.magnibox_internal_messages
   WHERE id = v_message_id;
 
   SELECT COUNT(*)
