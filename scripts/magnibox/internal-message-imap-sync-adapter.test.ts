@@ -76,7 +76,7 @@ const mailbox = (id: string) => ({
       }),
       fail: vi.fn(async () => null),
     };
-    sink.applyMailboxProjection = vi.fn(async ({ projection }) => {
+    sink.applyMailboxProjection = vi.fn(async ({ projection }: Parameters<MagniboxInternalMessageProjectionSink["applyMailboxProjection"]>[0]) => {
       order.push(projection.targetMailboxId);
     });
 
