@@ -56,7 +56,7 @@ describe("MAGNIBOX IMAP credential encryption", () => {
       keyring,
     )).toThrow(MagniboxCredentialError);
     expect(() => decryptMagniboxImapCredentials(
-      { ...envelope, ciphertext: `${envelope.ciphertext}\\n` },
+      { ...envelope, ciphertext: `${envelope.ciphertext}\n` },
       scope,
       keyring,
     )).toThrow(MagniboxCredentialError);
