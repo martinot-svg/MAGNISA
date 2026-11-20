@@ -1,4 +1,4 @@
-# Magnisa Orbit — migration technique à partir de MAGNIMAIL et MGMail
+# Magnisa Orbit — migration technique à partir de MAGNIMAIL et magnibox
 
 **Produit :** Magnisa Orbit — Communication & Productivity  
 **Conteneur applicatif :** MAGNISA / Magnisa Box  
@@ -7,13 +7,13 @@
 ## Identité de la messagerie
 
 **Magnibox est le nom définitif du produit de messagerie de Magnisa Orbit.**
-Il remplace les anciennes appellations MAGNIMAIL, GMMAIL/MGMail et Magnisa Inbox.
+Il remplace les anciennes appellations MAGNIMAIL, GMMAIL/magnibox et Magnisa Inbox.
 Aucun de ces anciens noms ne désigne une autre application à présenter aux utilisateurs.
 
 Le point d'entrée canonique est `/orbit/magnibox`. Les anciennes routes
 `/orbit/inbox`, `/magnimail`, `/magnimail/interne` et les API
 `/api/magnimail/*` restent compatibles avec les intégrations et les messages
-déjà enregistrés. Leurs noms techniques et les tables `mgmail_*` ne sont pas
+déjà enregistrés. Leurs noms techniques et les tables `magnibox_*` ne sont pas
 renommés par ce rebranding.
 
 La messagerie interne et les comptes Internet facultatifs apparaissent dans
@@ -27,8 +27,8 @@ produit, sans exiger Gmail et sans prétendre qu'un domaine public est déjà ac
 - `MAGNISA` utilise Next.js 15.5.29, React 19, TypeScript, Supabase Auth/PostgreSQL/RLS et Vercel.
 - Les routes préexistantes de messagerie `/magnimail` et `/magnimail/interne` et les API `/api/magnimail/*` sont **conservées**.
 - MAGNIMAIL externe aujourd'hui sur `main` lit `email_connections` avec `provider='google'` et utilise l'intégration Gmail OAuth. Aucun adaptateur Microsoft Graph ou IMAP/SMTP général n'a été prouvé fonctionnel sur `main`.
-- MGMail interne dispose des tables `mgmail_internal_namespaces`, `mgmail_internal_mailboxes`, `mgmail_internal_messages`, `mgmail_internal_mailbox_grants`, `mgmail_internal_message_reads`. Les migrations `20261114103000`, `20261114103100` et `20261114103200` sont inscrites au ledger de production.
-- La gestion des vrais domaines Internet (DNS MX/SPF/DKIM/DMARC, émetteur/réception et vérification réelle) n'est **pas livrée** en production. Les branches historiques `feat/mgmail-verified-domains`, `feat/mgmail-internet-resend` sont divergentes de `main` et ne doivent pas être fusionnées en bloc.
+- magnibox interne dispose des tables `magnibox_internal_namespaces`, `magnibox_internal_mailboxes`, `magnibox_internal_messages`, `magnibox_internal_mailbox_grants`, `magnibox_internal_message_reads`. Les migrations `20261114103000`, `20261114103100` et `20261114103200` sont inscrites au ledger de production.
+- La gestion des vrais domaines Internet (DNS MX/SPF/DKIM/DMARC, émetteur/réception et vérification réelle) n'est **pas livrée** en production. Les branches historiques `feat/magnibox-verified-domains`, `feat/magnibox-internet-resend` sont divergentes de `main` et ne doivent pas être fusionnées en bloc.
 - Les travaux d'agenda de `#218` (UI) et `#219` (schéma) sont en PR brouillon : leurs migrations ne sont pas en production. L'interface Orbit doit donc distinguer la vue de dates des projets *existants* de l'agenda collaboratif *à venir*.
 - `projects` existe déjà, avec états `planned`, `active`, `on_hold`, `completed`, `cancelled` ; c'est une donnée commerciale et non un modèle complet de tâches.
 
@@ -68,17 +68,17 @@ Le `key='magnimail'` du catalogue fonctionnel est **conservé** : seules sa pré
 
 ## 4. Garde-fous de migration et déploiement
 
-- Pas de `DROP`, `TRUNCATE`, `supabase db reset` sur la vraie base, ni de renommage des tables `mgmail_*` ou des colonnes `email_connections`.
+- Pas de `DROP`, `TRUNCATE`, `supabase db reset` sur la vraie base, ni de renommage des tables `magnibox_*` ou des colonnes `email_connections`.
 - Les tests sur base **jetable** peuvent utiliser `supabase db reset` ; ce n'est pas la production.
 - Chaque migration passe par SQL versionné, revue du RLS, replay sur base isolée, sauvegarde chiffrée avec restauration testée, preflight et `APPLY` explicite. Toujours vérifier l'historique après application.
 - Aucune dépendance Gmail imposée, aucun domaine ou hébergement gratuit promis ; pas d'activation de transport externe sans secret fournisseur protégé côté serveur.
-- Suivi GitHub : issue #192 (multi-fournisseurs), #217 (MGMail interne livré), #218 et #219 (agenda), plus les nouveaux lots Orbit.
+- Suivi GitHub : issue #192 (multi-fournisseurs), #217 (magnibox interne livré), #218 et #219 (agenda), plus les nouveaux lots Orbit.
 - Le statut `READY` Vercel confirme la publication du code mais **pas** un essai authentifié entre deux collaborateurs en production, ni la délivrabilité externe.
 
 ## 5. Critères de recette
 
 - Vérifier le build, Vitest, les routes `/orbit/*`, la navigation mobile et l'accès par organisation.
-- Rejouer les échanges MGMail entre deux comptes de test sans perte de message et sans fuite inter-entreprises.
+- Rejouer les échanges magnibox entre deux comptes de test sans perte de message et sans fuite inter-entreprises.
 - Pour les domaines : prouver la propriété DNS, les autorisations par collaborateur et l'aller-retour d'un e-mail vers une adresse Internet réelle.
 - Pour les agendas : vérifier les dates, les fuseaux horaires, la confidentialité et l'absence de rappels en double.
 - Pour Action : vérifier tâches, sous-tâches, assignations, changements de statut et rejet des accès directs non autorisés.
