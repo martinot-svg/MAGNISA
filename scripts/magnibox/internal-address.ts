@@ -24,7 +24,7 @@ export function formatMagniboxInternalAddress(input: {
   }
 
   const address = `${localPart}@${namespaceSlug}.mgmail`;
-  if (address.length > 113) {
+  if (address.length > 117) {
     throw new MagniboxSyncError("MAGNIBOX internal address is too long", false);
   }
   return address;
@@ -32,7 +32,7 @@ export function formatMagniboxInternalAddress(input: {
 
 /** RFC 5322 addr-spec validation for addresses produced by the convention. */
 export function isMagniboxInternalAddress(value: string): boolean {
-  if (typeof value !== "string" || value.length > 113) return false;
+  if (typeof value !== "string" || value.length > 117) return false;
   const match = /^([a-z][a-z0-9._-]{1,63})@([a-z0-9]+(?:-[a-z0-9]+)*)\.mgmail$/.exec(value);
   if (!match) return false;
   return match[2]!.length >= 2 && match[2]!.length <= 45;
