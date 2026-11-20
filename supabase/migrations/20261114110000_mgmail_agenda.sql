@@ -1,6 +1,6 @@
--- Agenda MGMail : événements privés, de service et d'entreprise.
+-- Agenda magnibox : événements privés, de service et d'entreprise.
 -- Aucune programmation de courrier externe n'est activée par cette migration.
-create table if not exists public.mgmail_agenda_events (
+create table if not exists public.magnibox_agenda_events (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   created_by uuid references auth.users(id) on delete set null,
@@ -19,17 +19,17 @@ create table if not exists public.mgmail_agenda_events (
     check (status in ('scheduled','cancelled','completed')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint mgmail_agenda_department_scope check (
+  constraint magnibox_agenda_department_scope check (
     (scope='service' and department is not null and char_length(btrim(department)) between 2 and 100)
     or (scope in ('personal','company') and department is null)
   ),
-  constraint mgmail_agenda_date_range check (
+  constraint magnibox_agenda_date_range check (
     end_day > start_day or (end_day=start_day and end_time>start_time)
   ),
-  constraint mgmail_agenda_reminders_count check (cardinality(reminder_days) <= 20)
+  constraint magnibox_agenda_reminders_count check (cardinality(reminder_days) <= 20)
 );
 -- Empêcher les délais non valides même lors d'un accès API direct.
-create or replace function public.mgmail_valid_agenda_reminders(p_days integer[])
+create or replace function public.magnibox_valid_agenda_reminders(p_days integer[])
 returns boolean language sql immutable strict
 set search_path=pg_catalog,public
 as $valid$
@@ -37,25 +37,25 @@ as $valid$
     and not exists(select 1 from unnest(p_days) as v where v < 0 or v > 365)
     and cardinality(p_days) = (select count(distinct v) from unnest(p_days) as v);
 $valid$;
-revoke all on function public.mgmail_valid_agenda_reminders(integer[]) from public,anon;
-grant execute on function public.mgmail_valid_agenda_reminders(integer[]) to authenticated;
-alter table public.mgmail_agenda_events
-  add constraint mgmail_agenda_reminders_valid
-  check (public.mgmail_valid_agenda_reminders(reminder_days));
+revoke all on function public.magnibox_valid_agenda_reminders(integer[]) from public,anon;
+grant execute on function public.magnibox_valid_agenda_reminders(integer[]) to authenticated;
+alter table public.magnibox_agenda_events
+  add constraint magnibox_agenda_reminders_valid
+  check (public.magnibox_valid_agenda_reminders(reminder_days));
 
-create index if not exists mgmail_agenda_org_dates_idx
-  on public.mgmail_agenda_events(organization_id,start_day,end_day)
+create index if not exists magnibox_agenda_org_dates_idx
+  on public.magnibox_agenda_events(organization_id,start_day,end_day)
   where status <> 'cancelled';
-create index if not exists mgmail_agenda_owner_idx
-  on public.mgmail_agenda_events(organization_id,created_by,start_day);
+create index if not exists magnibox_agenda_owner_idx
+  on public.magnibox_agenda_events(organization_id,created_by,start_day);
 
-alter table public.mgmail_agenda_events enable row level security;
+alter table public.magnibox_agenda_events enable row level security;
 
 -- Les événements personnels sont réellement privés, y compris vis-à-vis
 -- de l'administrateur. Les événements de service ne sont visibles que par
 -- les membres du même département ou les responsables autorisés.
-create policy mgmail_agenda_read
-on public.mgmail_agenda_events for select to authenticated
+create policy magnibox_agenda_read
+on public.magnibox_agenda_events for select to authenticated
 using (
   public.is_org_member(organization_id)
   and (
@@ -67,17 +67,17 @@ using (
         public.has_org_permission(organization_id,'users.manage')
         or exists (
           select 1 from public.organization_members m
-          where m.organization_id=mgmail_agenda_events.organization_id
+          where m.organization_id=magnibox_agenda_events.organization_id
             and m.user_id=(select auth.uid())
-            and m.status='active' and m.department=mgmail_agenda_events.department
+            and m.status='active' and m.department=magnibox_agenda_events.department
         )
       )
     )
   )
 );
 
-create policy mgmail_agenda_create
-on public.mgmail_agenda_events for insert to authenticated
+create policy magnibox_agenda_create
+on public.magnibox_agenda_events for insert to authenticated
 with check (
   public.is_org_member(organization_id)
   and created_by=(select auth.uid())
@@ -89,9 +89,9 @@ with check (
         public.has_org_permission(organization_id,'users.manage')
         or exists (
           select 1 from public.organization_members m
-          where m.organization_id=mgmail_agenda_events.organization_id
+          where m.organization_id=magnibox_agenda_events.organization_id
             and m.user_id=(select auth.uid())
-            and m.status='active' and m.department=mgmail_agenda_events.department
+            and m.status='active' and m.department=magnibox_agenda_events.department
         )
       )
     )
@@ -102,8 +102,8 @@ with check (
   )
 );
 
-create policy mgmail_agenda_edit
-on public.mgmail_agenda_events for update to authenticated
+create policy magnibox_agenda_edit
+on public.magnibox_agenda_events for update to authenticated
 using (
   public.is_org_member(organization_id)
   and (
@@ -125,12 +125,12 @@ with check (
   )
 );
 
-revoke all on table public.mgmail_agenda_events from anon,authenticated;
+revoke all on table public.magnibox_agenda_events from anon,authenticated;
 grant select,insert (
   organization_id,created_by,scope,department,title,description,
   start_day,start_time,end_day,end_time,time_zone,reminder_days
-) on public.mgmail_agenda_events to authenticated;
+) on public.magnibox_agenda_events to authenticated;
 grant update (
   title,description,start_day,start_time,end_day,end_time,
   time_zone,reminder_days,status,updated_at
-) on public.mgmail_agenda_events to authenticated;
+) on public.magnibox_agenda_events to authenticated;
