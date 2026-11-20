@@ -191,7 +191,7 @@ begin
       new.organization_id,v_recipient,'service','info',
       'Nouveau message dans magnibox',
       'Un nouveau message interne vous attend dans MAGNISA.',
-      '/magnimail/interne','magnibox_internal_message',new.id,
+      '/orbit/magnibox/interne','magnibox_internal_message',new.id,
       jsonb_build_object('channel','internal','message_id',new.id),
       'magnibox-internal-message:' || new.id::text
     ) on conflict (organization_id,recipient_user_id,dedupe_key) do nothing;
