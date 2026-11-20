@@ -61,13 +61,14 @@ describe("createMagniboxSupabaseImapMappingRepository", () => {
       uidValidity: "43",
       uid: "91",
       expectedPreviousUidValidity: "42",
-      modseq: "7",
+      modseq: "0",
       flags: ["\\Seen"],
     })).resolves.toEqual({ mappingId: "map-1", syncVersion: "3", result: "reconciled" });
     expect(rpc.rpc).toHaveBeenCalledWith("magnibox_record_imap_message_uid", expect.objectContaining({
       p_uidvalidity: "43",
       p_imap_uid: "91",
       p_expected_previous_uidvalidity: "42",
+      p_imap_modseq: "0",
     }));
   });
 
