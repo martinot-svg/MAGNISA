@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   internalMailboxLabel,
-  normalizeMGMailLocalPart,
-  normalizeMGMailNamespace,
+  normalizemagniboxLocalPart,
+  normalizemagniboxNamespace,
 } from "./internal-address";
 
-describe("Identifiants privés de MGMail", () => {
+describe("Identifiants privés de magnibox", () => {
   it("forme une adresse interne de service et une adresse nominative", () => {
     expect(internalMailboxLabel(" Finance ", " Mitalia ")).toBe("finance (mitalia)");
     expect(internalMailboxLabel("aina", "mitalia")).toBe("aina (mitalia)");
@@ -18,20 +18,20 @@ describe("Identifiants privés de MGMail", () => {
   });
 
   it("accepte des identifiants d'entreprise avec tiret et des boîtes personnalisées", () => {
-    expect(normalizeMGMailNamespace("mitalia-digital")).toBe("mitalia-digital");
-    expect(normalizeMGMailLocalPart("service.compta")).toBe("service.compta");
+    expect(normalizemagniboxNamespace("mitalia-digital")).toBe("mitalia-digital");
+    expect(normalizemagniboxLocalPart("service.compta")).toBe("service.compta");
   });
 
   it.each([
     "mitalia.digital", "mitalia@gmail.com", "-mitalia",
     "mitalia-", "mita lia", "mitalia_1",
   ])("rejette la simulation d'un domaine Internet ou d'un espace invalide : %s", (slug) => {
-    expect(() => normalizeMGMailNamespace(slug)).toThrow(/invalide/);
+    expect(() => normalizemagniboxNamespace(slug)).toThrow(/invalide/);
   });
 
   it.each([
     "finance@mitalia.mg", "a", ".admin", " finance externe ", "s€rvice",
   ])("rejette la création d'un alias hors du format interne : %s", (alias) => {
-    expect(() => normalizeMGMailLocalPart(alias)).toThrow(/invalide/);
+    expect(() => normalizemagniboxLocalPart(alias)).toThrow(/invalide/);
   });
 });
