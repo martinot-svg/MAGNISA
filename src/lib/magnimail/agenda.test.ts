@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agendaMonth, parseAgendaReminderOffsets, parseMGMailAgendaInput } from "./agenda";
+import { agendaMonth, parseAgendaReminderOffsets, parsemagniboxAgendaInput } from "./agenda";
 
 const base = {
   scope: "personal", department: "",
@@ -9,16 +9,16 @@ const base = {
   timeZone: "Indian/Antananarivo", reminders: "15, 5, 1, 0",
 };
 
-describe("Agenda MAGNISA MGMail", () => {
+describe("Agenda MAGNISA magnibox", () => {
   it("valide les rendez-vous personnels et leurs délais", () => {
-    expect(parseMGMailAgendaInput(base)).toMatchObject({
+    expect(parsemagniboxAgendaInput(base)).toMatchObject({
       scope: "personal", title: "Rendez-vous client",
       reminderDays: [15, 5, 1, 0], department: null,
     });
   });
 
   it("valide un événement de département", () => {
-    const event = parseMGMailAgendaInput({
+    const event = parsemagniboxAgendaInput({
       ...base, scope: "service", department: "Comptabilité",
     });
     expect(event.department).toBe("Comptabilité");
@@ -33,7 +33,7 @@ describe("Agenda MAGNISA MGMail", () => {
     { scope: "company", department: "Comptabilité" },
     { scope: "service", department: "" },
   ])("rejette un événement incorrect : %o", (patch) => {
-    expect(() => parseMGMailAgendaInput({ ...base, ...patch })).toThrow();
+    expect(() => parsemagniboxAgendaInput({ ...base, ...patch })).toThrow();
   });
 
   it("refuse les doublons et les délais de rappel négatifs", () => {
