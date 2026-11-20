@@ -58,8 +58,8 @@ export function validateMagniboxImapCredentials(
   if (!Number.isInteger(value.port) || value.port < 1 || value.port > 65535) {
     throw new MagniboxCredentialError("Invalid IMAP port");
   }
-  if (typeof value.secure !== "boolean") {
-    throw new MagniboxCredentialError("Invalid IMAP TLS setting");
+  if (value.secure !== true) {
+    throw new MagniboxCredentialError("IMAP connections must use direct TLS");
   }
   if (typeof value.username !== "string" || !value.username.trim()) {
     throw new MagniboxCredentialError("Invalid IMAP username");
