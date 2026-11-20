@@ -164,3 +164,21 @@ The adapter tests also execute the real `runMagniboxSyncBatch` orchestration wit
 - Tombstoned mapping: no append or UID reuse is allowed.
 
 The pure policy tests cover values beyond JavaScript's safe-integer range, PostgreSQL BIGINT bounds, UIDVALIDITY changes, missing UIDs and tombstones. This is not yet a database repository or IMAP transport: no UID mapping is written, no APPEND is performed, and the transport must still verify server state and solve the lost-APPEND-response duplicate problem before production use.
+
+
+### Supabase durable IMAP UID mapping repository
+
+The migration `20261120170000_magnibox_imap_uid_mapping_rpc.sql` adds service-role-only RPCs to read a mapping, persist a server-confirmed UID, and create a delete tombstone. `imap-mapping-supabase-repository.ts` is the server-side RPC adapter; it scopes every lookup/write by organization, source type, source message and folder state.
+
+Important invariants:
+
+- UID, UIDVALIDITY, MODSEQ and sync versions stay decimal strings in TypeScript so PostgreSQL `BIGINT` values are not rounded by JavaScript numbers.
+- The write RPC locks the folder-state row and verifies its current UIDVALIDITY before accepting a mapping.
+- Repeating the same confirmed UID is idempotent. A conflicting UID for the same source/folder/epoch is rejected.
+- Replacing a mapping from an older UIDVALIDITY requires an explicit compare-and-swap value for the previous epoch. The RPC does not silently reuse or overwrite stale UIDs.
+- Tombstones are idempotent for the same delete event and reject a conflicting delete event. A tombstone is not proof that the IMAP server has expunged the message.
+- Raw database diagnostics are not copied into worker errors.
+
+Tests in `imap-mapping-supabase-repository.test.ts` cover scoped lookup, missing mappings, explicit epoch reconciliation, large UID values, tombstones and generic error handling.
+
+This adds a persistence boundary only. It does not implement IMAP APPEND, server SEARCH, UID verification, folder discovery, or recovery from a lost APPEND response. The worker must reconcile against the IMAP server before recording a UID, and an ambiguous APPEND result must never be treated as a confirmed append.
