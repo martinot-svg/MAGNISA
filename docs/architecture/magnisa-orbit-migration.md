@@ -1,4 +1,4 @@
-# Magnisa Orbit — migration technique à partir de MAGNIMAIL et magnibox
+# Magnisa Orbit — architecture technique de MAGNIBOX
 
 **Produit :** Magnisa Orbit — Communication & Productivity  
 **Conteneur applicatif :** MAGNISA / Magnisa Box  
@@ -7,12 +7,11 @@
 ## Identité de la messagerie
 
 **Magnibox est le nom définitif du produit de messagerie de Magnisa Orbit.**
-Il remplace les anciennes appellations MAGNIMAIL, GMMAIL/magnibox et Magnisa Inbox.
-Aucun de ces anciens noms ne désigne une autre application à présenter aux utilisateurs.
+MAGNIBOX est l'unique nom produit de la messagerie dans l'application et dans le code.
 
 Le point d'entrée canonique est `/orbit/magnibox`. Les anciennes routes
-`/orbit/inbox`, `/magnimail`, `/magnimail/interne` et les API
-`/api/magnimail/*` restent compatibles avec les intégrations et les messages
+`/orbit/inbox`, `/magnibox`, `/magnibox/interne` et les API
+`/api/magnibox/*` restent compatibles avec les intégrations et les messages
 déjà enregistrés. Leurs noms techniques et les tables `magnibox_*` ne sont pas
 renommés par ce rebranding.
 
@@ -23,11 +22,11 @@ produit, sans exiger Gmail et sans prétendre qu'un domaine public est déjà ac
 
 ## 1. Sources et inventaire vérifiés le 14/11/2026
 
-- Le compte GitHub connecté expose `martinot-svg/MAGNISA` et `martinot-svg/ZARAY`. Aucun dépôt indépendant MAGNIMAIL, GMMAIL ou MAGNISA BOX n'a été identifié parmi ses dépôts accessibles. Ne pas inventer de transfert inter-dépôts.
+- Le compte GitHub connecté expose `martinot-svg/MAGNISA` et `martinot-svg/ZARAY`. Aucun dépôt indépendant MAGNIBOX, GMMAIL ou MAGNISA BOX n'a été identifié parmi ses dépôts accessibles. Ne pas inventer de transfert inter-dépôts.
 - `MAGNISA` utilise Next.js 15.5.29, React 19, TypeScript, Supabase Auth/PostgreSQL/RLS et Vercel.
-- Les routes préexistantes de messagerie `/magnimail` et `/magnimail/interne` et les API `/api/magnimail/*` sont **conservées**.
-- MAGNIMAIL externe aujourd'hui sur `main` lit `email_connections` avec `provider='google'` et utilise l'intégration Gmail OAuth. Aucun adaptateur Microsoft Graph ou IMAP/SMTP général n'a été prouvé fonctionnel sur `main`.
-- magnibox interne dispose des tables `magnibox_internal_namespaces`, `magnibox_internal_mailboxes`, `magnibox_internal_messages`, `magnibox_internal_mailbox_grants`, `magnibox_internal_message_reads`. Les migrations `20261114103000`, `20261114103100` et `20261114103200` sont inscrites au ledger de production.
+- Les routes de messagerie sont exposées sous `/orbit/magnibox` et les API sous `/api/magnibox/*`.
+- La messagerie Internet connectée lit `email_connections` avec `provider='google'` et utilise l'intégration Gmail OAuth. Aucun adaptateur Microsoft Graph ou IMAP/SMTP général n'a été prouvé fonctionnel sur `main`.
+- MAGNIBOX interne dispose des tables `magnibox_internal_namespaces`, `magnibox_internal_mailboxes`, `magnibox_internal_messages`, `magnibox_internal_mailbox_grants`, `magnibox_internal_message_reads`. Les migrations `20261114103000`, `20261114103100` et `20261114103200` sont inscrites au ledger de production.
 - La gestion des vrais domaines Internet (DNS MX/SPF/DKIM/DMARC, émetteur/réception et vérification réelle) n'est **pas livrée** en production. Les branches historiques `feat/magnibox-verified-domains`, `feat/magnibox-internet-resend` sont divergentes de `main` et ne doivent pas être fusionnées en bloc.
 - Les travaux d'agenda de `#218` (UI) et `#219` (schéma) sont en PR brouillon : leurs migrations ne sont pas en production. L'interface Orbit doit donc distinguer la vue de dates des projets *existants* de l'agenda collaboratif *à venir*.
 - `projects` existe déjà, avec états `planned`, `active`, `on_hold`, `completed`, `cancelled` ; c'est une donnée commerciale et non un modèle complet de tâches.
@@ -37,14 +36,14 @@ produit, sans exiger Gmail et sans prétendre qu'un domaine public est déjà ac
 | Orbit | Source existante réutilisée | Statut |
 | --- | --- | --- |
 | `/orbit` | AppShell, session et organisation MAGNISA | Intégration dans la navigation, aucun login en doublon |
-| `/orbit/magnibox` (**Magnibox**) | `/magnimail` (réutilise le moteur et les données historiques) | Messagerie interne et comptes Internet connectés dans un même espace |
+| `/orbit/magnibox` (**Magnibox**) | `/orbit/magnibox` (espace unifié MAGNIBOX) | Messagerie interne et comptes Internet connectés dans un même espace |
 | `/orbit/inbox` | Alias historique vers le même composant | Compatibilité des signets existants, sans nouveau produit |
-| `/magnimail/interne` | Boîtes, messages, RLS et permissions existantes | Route et tables conservées |
+| `/orbit/magnibox/interne` | Boîtes, messages, RLS et permissions existantes | Espace interne intégré à MAGNIBOX |
 | `/orbit/planner` | Échéances `projects.end_date` | Première vue en lecture ; agenda personnel en cours |
 | `/orbit/time` | Dates `projects.start_date/end_date` | Première grille mensuelle en lecture |
 | `/orbit/action` | Dossiers `projects` existants | Tableau de suivi des projets ; Kanban de tâches à développer |
 
-Le `key='magnimail'` du catalogue fonctionnel est **conservé** : seules sa présentation et son URL de menu changent pour Orbit. Ceci évite une modification de `organization_features` ou des droits utilisateurs. Les anciens signets et API continuent de fonctionner.
+Le `key='magnibox'` du catalogue fonctionnel identifie désormais le module de messagerie. Le menu et les routes pointent vers l'espace MAGNIBOX canonique.
 
 ## 3. Livraison des fonctionnalités non encore opérationnelles
 
@@ -68,7 +67,7 @@ Le `key='magnimail'` du catalogue fonctionnel est **conservé** : seules sa pré
 
 ## 4. Garde-fous de migration et déploiement
 
-- Pas de `DROP`, `TRUNCATE`, `supabase db reset` sur la vraie base, ni de renommage des tables `magnibox_*` ou des colonnes `email_connections`.
+- Pas de `DROP`, `TRUNCATE` ni `supabase db reset` sur la vraie base. Le renommage des objets historiques est réalisé par une migration additive et doit être validé sur une base isolée avant toute application.
 - Les tests sur base **jetable** peuvent utiliser `supabase db reset` ; ce n'est pas la production.
 - Chaque migration passe par SQL versionné, revue du RLS, replay sur base isolée, sauvegarde chiffrée avec restauration testée, preflight et `APPLY` explicite. Toujours vérifier l'historique après application.
 - Aucune dépendance Gmail imposée, aucun domaine ou hébergement gratuit promis ; pas d'activation de transport externe sans secret fournisseur protégé côté serveur.
