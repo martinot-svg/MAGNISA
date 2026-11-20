@@ -1,10 +1,10 @@
 import { MagniboxSyncError } from "./imap-sync-core";
 
 /**
- * Internal MGMail address convention:
- *   <mailbox local_part>@<organization namespace slug>.mgmail
+ * MAGNIBOX internal address convention:
+ *   <mailbox local_part>@<organization namespace slug>.magnibox
  *
- * The .mgmail namespace is private to MAGNISA. It is not an Internet domain
+ * The .magnibox namespace is private to MAGNISA. It is not an Internet domain
  * and must never be used as a public SMTP destination.
  */
 export function formatMagniboxInternalAddress(input: {
@@ -23,8 +23,8 @@ export function formatMagniboxInternalAddress(input: {
     throw new MagniboxSyncError("Invalid MAGNIBOX internal address components", false);
   }
 
-  const address = `${localPart}@${namespaceSlug}.mgmail`;
-  if (address.length > 117) {
+  const address = `${localPart}@${namespaceSlug}.magnibox`;
+  if (address.length > 119) {
     throw new MagniboxSyncError("MAGNIBOX internal address is too long", false);
   }
   return address;
@@ -32,7 +32,7 @@ export function formatMagniboxInternalAddress(input: {
 
 /** RFC 5322 addr-spec validation for addresses produced by the convention. */
 export function isMagniboxInternalAddress(value: string): boolean {
-  if (typeof value !== "string" || value.length > 117) return false;
+  if (typeof value !== "string" || value.length > 119) return false;
   const match = /^([a-z][a-z0-9._-]{1,63})@([a-z0-9]+(?:-[a-z0-9]+)*)\.mgmail$/.exec(value);
   if (!match) return false;
   return match[2]!.length >= 2 && match[2]!.length <= 45;
