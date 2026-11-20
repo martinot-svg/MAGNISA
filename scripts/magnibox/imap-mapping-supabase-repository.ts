@@ -1,5 +1,5 @@
 import { MagniboxSyncError } from "./imap-sync-core";
-import { canonicalPositiveBigint } from "./imap-uid-mapping";
+import { canonicalNonNegativeBigint, canonicalPositiveBigint } from "./imap-uid-mapping";
 
 type RpcResult = { data: unknown; error: { message?: string } | null };
 export interface MagniboxImapMappingRpcClient {
@@ -79,7 +79,7 @@ function mapMapping(value: unknown): MagniboxImapMessageMappingRecord {
     folderStateId: requiredText(row, "folder_state_id"),
     uidValidity: canonicalPositiveBigint(requiredText(row, "uidvalidity"), "UIDVALIDITY"),
     uid: uid === null ? null : canonicalPositiveBigint(uid, "UID"),
-    modseq: modseq === null ? null : canonicalPositiveBigint(modseq, "MODSEQ"),
+    modseq: modseq === null ? null : canonicalNonNegativeBigint(modseq, "MODSEQ"),
     flags: flags as string[],
     syncVersion: canonicalPositiveBigint(requiredText(row, "sync_version"), "sync version"),
     deletedAt: nullableText(row, "deleted_at"),
@@ -126,7 +126,7 @@ export function createMagniboxSupabaseImapMappingRepository(
     }> {
       const uidValidity = canonicalPositiveBigint(input.uidValidity, "UIDVALIDITY");
       const uid = canonicalPositiveBigint(input.uid, "UID");
-      const modseq = input.modseq == null ? null : canonicalPositiveBigint(input.modseq, "MODSEQ");
+      const modseq = input.modseq == null ? null : canonicalNonNegativeBigint(input.modseq, "MODSEQ");
       const previous = input.expectedPreviousUidValidity == null
         ? null
         : canonicalPositiveBigint(input.expectedPreviousUidValidity, "previous UIDVALIDITY");
