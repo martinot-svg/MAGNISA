@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { MagniboxSyncOutboxEvent } from "./imap-sync-core";
 import {
   resolveMagniboxInternalMessage,
+  resolveMagniboxInternalMessageForParticipants,
   type MagniboxInternalMessageResolverRepository,
 } from "./canonical-internal-message-resolver";
 
@@ -184,4 +185,27 @@ describe("resolveMagniboxInternalMessage", () => {
       "Peer mailbox is missing",
     );
   });
+
+  it("fans one canonical outbox event out to both participant mailboxes", async () => {
+    const repo = repository();
+    const results = await resolveMagniboxInternalMessageForParticipants(repo, event);
+    expect(results.map((item) => item.targetMailboxId).sort()).toEqual([
+      sender.id,
+      recipient.id,
+    ].sort());
+    expect(results.map((item) => item.targetRole).sort()).toEqual(["recipient", "sender"]);
+    expect(results.every((item) => item.bodyText === message.body_text)).toBe(true);
+    expect(repo.getMessage).toHaveBeenCalledTimes(3);
+  });
+
+  it("deduplicates a self-addressed message to one mailbox projection", async () => {
+    const selfMessage = { ...message, recipient_mailbox_id: sender.id };
+    const repo = repository({
+      getMessage: vi.fn(async () => selfMessage),
+    });
+    const results = await resolveMagniboxInternalMessageForParticipants(repo, event);
+    expect(results).toHaveLength(1);
+    expect(results[0].targetMailboxId).toBe(sender.id);
+  });
+
 });
