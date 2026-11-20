@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { MagniboxSyncOutboxEvent } from "./imap-sync-core";
+import { runMagniboxSyncBatch, type MagniboxSyncOutboxEvent, type MagniboxSyncOutboxRepository } from "./imap-sync-core";
 import {
   createMagniboxInternalMessageImapSyncAdapter,
   type MagniboxInternalMessageProjectionSink,
@@ -34,6 +34,62 @@ const mailbox = (id: string) => ({
   display_name: id,
   is_active: true,
   can_read: true,
+
+  it("does not acknowledge the outbox event when the second mailbox projection fails", async () => {
+    const sink: MagniboxInternalMessageProjectionSink = {
+      applyMailboxProjection: vi.fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error("temporary IMAP failure")),
+    };
+    const adapter = createMagniboxInternalMessageImapSyncAdapter(makeRepository(), sink);
+    const outbox: MagniboxSyncOutboxRepository = {
+      claim: vi.fn(async () => [event]),
+      complete: vi.fn(async () => true),
+      fail: vi.fn(async () => "pending" as const),
+    };
+
+    const result = await runMagniboxSyncBatch(outbox, adapter, {
+      workerId: "worker-test",
+      random: () => 0,
+    });
+
+    expect(result).toMatchObject({ claimed: 1, delivered: 0, retried: 1, dead: 0 });
+    expect(outbox.complete).not.toHaveBeenCalled();
+    expect(outbox.fail).toHaveBeenCalledWith(expect.objectContaining({
+      eventId: event.id,
+      leaseToken: event.lease_token,
+      retryable: true,
+    }));
+  });
+
+  it("acknowledges only after both participant projections have succeeded", async () => {
+    const sink: MagniboxInternalMessageProjectionSink = {
+      applyMailboxProjection: vi.fn(async () => undefined),
+    };
+    const adapter = createMagniboxInternalMessageImapSyncAdapter(makeRepository(), sink);
+    const order: string[] = [];
+    const outbox: MagniboxSyncOutboxRepository = {
+      claim: vi.fn(async () => [event]),
+      complete: vi.fn(async () => {
+        order.push("ack");
+        return true;
+      }),
+      fail: vi.fn(async () => null),
+    };
+    sink.applyMailboxProjection = vi.fn(async ({ projection }) => {
+      order.push(projection.targetMailboxId);
+    });
+
+    const result = await runMagniboxSyncBatch(outbox, adapter, { workerId: "worker-test" });
+
+    expect(result).toMatchObject({ claimed: 1, delivered: 1, retried: 0 });
+    expect(order).toEqual(["mailbox-a", "mailbox-b", "ack"]);
+    expect(outbox.complete).toHaveBeenCalledWith({
+      eventId: event.id,
+      leaseToken: event.lease_token,
+    });
+  });
+
 });
 
 function makeRepository(): MagniboxInternalMessageResolverRepository {
