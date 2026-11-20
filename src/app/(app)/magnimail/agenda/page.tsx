@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
 import { FormDialog } from "@/components/form-dialog";
-import { agendaMonth, parseMGMailAgendaInput, type MGMailAgendaScope } from "@/lib/magnimail/agenda";
+import { agendaMonth, parsemagniboxAgendaInput, type magniboxAgendaScope } from "@/lib/magnimail/agenda";
 
 const PATH = "/magnimail/agenda";
 const ZONES = [
@@ -32,7 +32,7 @@ async function createEvent(form: FormData) {
       throw new Error("Vous ne pouvez organiser que les événements de votre service.");
     }
   }
-  const value = parseMGMailAgendaInput({
+  const value = parsemagniboxAgendaInput({
     scope, department,
     title: String(form.get("title") || ""),
     description: String(form.get("description") || ""),
@@ -43,7 +43,7 @@ async function createEvent(form: FormData) {
     timeZone: String(form.get("timeZone") || ""),
     reminders: String(form.get("reminders") || ""),
   });
-  const { error } = await ctx.supabase.from("mgmail_agenda_events").insert({
+  const { error } = await ctx.supabase.from("magnibox_agenda_events").insert({
     organization_id: ctx.organizationId,
     created_by: ctx.user.id,
     scope: value.scope,
@@ -68,7 +68,7 @@ async function updateEvent(form: FormData) {
   const id = String(form.get("eventId") || "");
   if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id))
     throw new Error("Événement invalide.");
-  const {data: original, error: findError} = await ctx.supabase.from("mgmail_agenda_events")
+  const {data: original, error: findError} = await ctx.supabase.from("magnibox_agenda_events")
     .select("id,scope,department,status,created_by")
     .eq("organization_id",ctx.organizationId).eq("id",id).maybeSingle();
   if (findError || !original || original.status!=="scheduled")
@@ -76,7 +76,7 @@ async function updateEvent(form: FormData) {
   const isManager=["owner","admin","director"].includes(ctx.role);
   if (original.created_by!==ctx.user.id && (original.scope==="personal" || !isManager))
     throw new Error("Vous n'êtes pas autorisé à modifier cet événement.");
-  const value = parseMGMailAgendaInput({
+  const value = parsemagniboxAgendaInput({
     scope:original.scope,department:original.department||"",
     title:String(form.get("title")||""),
     description:String(form.get("description")||""),
@@ -87,7 +87,7 @@ async function updateEvent(form: FormData) {
     timeZone:String(form.get("timeZone")||""),
     reminders:String(form.get("reminders")||""),
   });
-  const {data,error}=await ctx.supabase.from("mgmail_agenda_events").update({
+  const {data,error}=await ctx.supabase.from("magnibox_agenda_events").update({
     title:value.title,description:value.description,
     start_day:value.startDay,start_time:value.startTime,
     end_day:value.endDay,end_time:value.endTime,time_zone:value.timeZone,
@@ -106,7 +106,7 @@ async function cancelEvent(form: FormData) {
   if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id)) {
     throw new Error("Identifiant d'événement invalide.");
   }
-  const { data, error } = await ctx.supabase.from("mgmail_agenda_events")
+  const { data, error } = await ctx.supabase.from("magnibox_agenda_events")
     .update({ status: "cancelled", updated_at: new Date().toISOString() })
     .eq("id", id).eq("organization_id", ctx.organizationId)
     .eq("status", "scheduled").select("id").maybeSingle();
@@ -117,11 +117,11 @@ async function cancelEvent(form: FormData) {
 function NewEvent({
   scope, department, buttonLabel,
 }: {
-  scope: MGMailAgendaScope;
+  scope: magniboxAgendaScope;
   department?: string;
   buttonLabel: string;
 }) {
-  const kinds: Record<MGMailAgendaScope, string> = {
+  const kinds: Record<magniboxAgendaScope, string> = {
     personal: "personnel",
     service: "de service",
     company: "d'entreprise",
@@ -183,13 +183,13 @@ function NewEvent({
   );
 }
 
-const scopeLabels: Record<MGMailAgendaScope, string> = {
+const scopeLabels: Record<magniboxAgendaScope, string> = {
   personal: "Personnel",
   service: "Service",
   company: "Entreprise",
 };
 
-export default async function MGMailAgenda({
+export default async function magniboxAgenda({
   searchParams,
 }: {
   searchParams: Promise<{ month?: string }>;
@@ -203,7 +203,7 @@ export default async function MGMailAgenda({
     ctx.supabase.from("organization_members").select("department")
       .eq("organization_id", ctx.organizationId)
       .eq("user_id", ctx.user.id).eq("status", "active").maybeSingle(),
-    ctx.supabase.from("mgmail_agenda_events")
+    ctx.supabase.from("magnibox_agenda_events")
       .select("id,created_by,scope,department,title,description,start_day,start_time,end_day,end_time,time_zone,reminder_days,status")
       .eq("organization_id", ctx.organizationId)
       .lte("start_day", month.end).gte("end_day", month.start)
@@ -304,7 +304,7 @@ export default async function MGMailAgenda({
                             <small>Rappels prévus : {event.reminder_days.map((d: number) => `J−${d}`).join(", ")} (notification interne selon programmation)</small>
                           )}
                         </td>
-                        <td>{scopeLabels[event.scope as MGMailAgendaScope]}{event.department ? ` — ${event.department}` : ""}</td>
+                        <td>{scopeLabels[event.scope as magniboxAgendaScope]}{event.department ? ` — ${event.department}` : ""}</td>
                         <td>
 
                           {canCancel(event) && (
