@@ -62,7 +62,7 @@ export function validateMagniboxImapCredentials(
   if (isIP(value.host) === 0) {
     const hostname = value.host.endsWith(".") ? value.host.slice(0, -1) : value.host;
     const labels = hostname.split(".");
-    const numericAddressLike = labels.length === 4 && labels.every((label) => /^\\d+$/.test(label));
+    const numericAddressLike = labels.length === 4 && labels.every((label) => /^\d+$/.test(label));
     if (numericAddressLike || !hostname || labels.some((label) =>
       label.length < 1 || label.length > 63
       || !/^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(label))) {
