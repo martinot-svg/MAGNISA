@@ -13,7 +13,7 @@ function reply(error: string,status: number) {
 }
 
 /**
- * A route for real public-address mail — NOT internal .mgmail and NOT Gmail.
+ * A route for real public-address mail — NOT internal .magnibox and NOT Gmail.
  * It is disabled by default and never accepts the claimed sender or org from
  * the body. The authenticated membership and BOTH grant layers are checked.
  */
@@ -68,13 +68,13 @@ export async function POST(request: NextRequest) {
     // checking the user, organization, sender identity and send permission.
     const admin=createAdminClient();
     const [domain,address,mailbox]=await Promise.all([
-      admin.from("mgmail_domain_requests").select("domain_name,status")
+      admin.from("magnibox_domain_requests").select("domain_name,status")
         .eq("id",identity.domain_request_id)
         .eq("organization_id",ctx.organizationId).maybeSingle(),
-      admin.from("mgmail_public_address_requests").select("email_address,status")
+      admin.from("magnibox_public_address_requests").select("email_address,status")
         .eq("id",identity.address_request_id)
         .eq("organization_id",ctx.organizationId).maybeSingle(),
-      admin.from("mgmail_internal_mailboxes").select("id,is_active")
+      admin.from("magnibox_internal_mailboxes").select("id,is_active")
         .eq("id",identity.mailbox_id)
         .eq("organization_id",ctx.organizationId).maybeSingle(),
     ]);
