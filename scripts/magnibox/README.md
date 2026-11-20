@@ -119,7 +119,7 @@ This is not yet a provisioned production vault: no service-role client, encrypti
 
 ## Canonical internal message resolver (first pilot slice)
 
-`canonical-internal-message-resolver.ts` now implements a transport-independent resolver core for **individual, active MGMail mailboxes only**. It reloads the canonical internal message using organization + message ID, verifies that the requested target mailbox is a participant, checks that the target mailbox is active/readable and individually owned, rejects active shared-mailbox grants, and resolves peer mailbox metadata within the same organization.
+`canonical-internal-message-resolver.ts` now implements a transport-independent resolver core for **individual, active MAGNIBOX mailboxes only**. It reloads the canonical internal message using organization + message ID, verifies that the requested target mailbox is a participant, checks that the target mailbox is active/readable and individually owned, rejects active shared-mailbox grants, and resolves peer mailbox metadata within the same organization.
 
 The resolver deliberately ignores `event.payload` for message content and mailbox scope. It supports create/update events only. Deletes must be processed from the durable IMAP mapping/tombstone, because the canonical source row may already have been deleted. Unsupported source/event types fail permanently rather than being acknowledged as successful no-ops.
 
@@ -222,8 +222,11 @@ The state machine is deliberately fail-closed: only `ready` may be advanced to `
 **Integration still outstanding:** this ledger is not yet connected to an IMAP transport. MIME marker serialization, IMAP SEARCH by exact header, APPEND/APPENDUID handling, duplicate-match quarantine, UID mapping write-through and live Dovecot crash/replay tests must be implemented before claiming end-to-end idempotency or enabling synchronization.
 
 
-### Internal MGMail address convention
+### MAGNIBOX internal address convention
 
-The internal address format is derived from the canonical schema: `<local_part>@<organization-slug>.mgmail`. The organization slug comes from `mgmail_internal_namespaces.slug`; the mailbox local part comes from `mgmail_internal_mailboxes.local_part`. The `.mgmail` suffix is a private MAGNISA namespace, not a public Internet domain and must not be routed to external SMTP recipients.
+The internal address format is derived from the canonical schema: `<local_part>@<organization-slug>.magnibox`. The organization slug comes from `mgmail_internal_namespaces.slug`; the mailbox local part comes from `mgmail_internal_mailboxes.local_part`. The `.magnibox` suffix is a private MAGNISA namespace, not a public Internet domain and must not be routed to external SMTP recipients.
 
 `internal-address.ts` formats and validates this convention and rejects invalid components (including header-injection characters). It is a pure formatter; a worker must still load the namespace slug from the organization-scoped canonical namespace row. The formatter does not invent a public domain or enable external delivery.
+
+
+**Legacy schema naming note:** the `mgmail_internal_*` table names are historical Supabase identifiers still referenced by existing application code, RLS policies, triggers and migrations. They are not user-facing product names. Renaming them requires a separate additive migration and coordinated updates to every dependent query/function/test; this change intentionally does not rename database objects or alter production data.
