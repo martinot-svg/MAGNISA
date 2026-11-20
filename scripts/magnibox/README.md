@@ -199,3 +199,6 @@ This is deliberately fail-closed: if the worker crashes after marking APPEND sta
 Tests in `imap-append-idempotency.test.ts` cover first APPEND authorization, ambiguous outcomes, exact-match recovery, duplicate conflicts, UIDVALIDITY rollover, and malformed markers.
 
 **Not yet implemented:** durable APPEND-operation ledger/RPCs, IMAP SEARCH/APPEND transport, MIME header injection/serialization, Dovecot verification, and crash/replay integration tests. This policy alone is not a claim of end-to-end exactly-once delivery.
+
+
+The SQL contract `supabase/tests/magnibox-imap-uid-mapping-contract.sql` is wired into the clean-database migration replay workflow. It verifies that the mapping table and all three RPCs remain inaccessible to browser roles, that `service_role` has the required access, and that PostgreSQL `BIGINT` values are returned as text to avoid JavaScript precision loss.
