@@ -40,10 +40,10 @@ begin
   end if;
   return query
     select 'domain'::text,d.id,d.organization_id,d.domain_name,null::text,d.status,d.created_at
-    from public.mgmail_domain_requests d
+    from public.magnibox_domain_requests d
     union all
     select 'address'::text,a.id,a.organization_id,a.domain_name,a.email_address,a.status,a.created_at
-    from public.mgmail_public_address_requests a
+    from public.magnibox_public_address_requests a
     order by 7 desc;
 end;
 $magnibox$;
@@ -86,29 +86,29 @@ begin
       raise exception 'Un domaine est vérifié uniquement par preuve DNS serveur, pas par approbation manuelle' using errcode='22023';
     end if;
     select d.status,d.organization_id into v_previous,v_org
-      from public.mgmail_domain_requests d where d.id=p_request_id for update;
+      from public.magnibox_domain_requests d where d.id=p_request_id for update;
     if not found then raise exception 'Demande de domaine introuvable' using errcode='P0002'; end if;
     if v_previous='verified' and p_decision='reviewing' then
       raise exception 'Un domaine vérifié ne peut pas revenir en vérification manuelle' using errcode='22023';
     end if;
-    update public.mgmail_domain_requests set status=p_decision,
+    update public.magnibox_domain_requests set status=p_decision,
       verified_at=case when p_decision='rejected' then null else verified_at end,
       proof_reference=case when p_decision='rejected' then null else proof_reference end
       where id=p_request_id;
   elsif p_request_type='address' then
     select a.status,a.organization_id,a.domain_request_id,a.mailbox_id,a.local_part
       into v_previous,v_org,v_domain,v_mailbox,v_local
-      from public.mgmail_public_address_requests a where a.id=p_request_id for update;
+      from public.magnibox_public_address_requests a where a.id=p_request_id for update;
     if not found then raise exception 'Demande d’adresse introuvable' using errcode='P0002'; end if;
     if p_decision='approved' and not exists (
-      select 1 from public.mgmail_domain_requests d
-      join public.mgmail_internal_mailboxes m
+      select 1 from public.magnibox_domain_requests d
+      join public.magnibox_internal_mailboxes m
         on m.id=v_mailbox and m.organization_id=v_org and m.is_active
       where d.id=v_domain and d.organization_id=v_org and d.status='verified'
     ) then
       raise exception 'Approbation impossible : domaine non vérifié ou boîte inactive' using errcode='22023';
     end if;
-    update public.mgmail_public_address_requests set status=p_decision where id=p_request_id;
+    update public.magnibox_public_address_requests set status=p_decision where id=p_request_id;
   else
     raise exception 'Type de demande invalide' using errcode='22023';
   end if;
