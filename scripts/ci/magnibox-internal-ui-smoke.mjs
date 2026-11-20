@@ -97,11 +97,11 @@ try {
     });
     if(ownerLogin.error)throw ownerLogin.error;
     const checks=[
-      ["namespace",()=>ownerProbe.from("mgmail_internal_namespaces").select("slug").eq("organization_id",organizationId).maybeSingle()],
-      ["mailboxes",()=>ownerProbe.from("mgmail_internal_mailboxes").select("id,local_part,owner_user_id,display_name,is_active,can_read,can_send").eq("organization_id",organizationId).order("local_part")],
-      ["messages",()=>ownerProbe.from("mgmail_internal_messages").select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,created_at").eq("organization_id",organizationId).order("created_at",{ascending:false}).limit(80)],
-      ["grants",()=>ownerProbe.from("mgmail_internal_mailbox_grants").select("mailbox_id,user_id,can_read,can_send,is_active").eq("organization_id",organizationId)],
-      ["reads",()=>ownerProbe.from("mgmail_internal_message_reads").select("message_id").eq("organization_id",organizationId).eq("user_id",owner.id)],
+      ["namespace",()=>ownerProbe.from("magnibox_internal_namespaces").select("slug").eq("organization_id",organizationId).maybeSingle()],
+      ["mailboxes",()=>ownerProbe.from("magnibox_internal_mailboxes").select("id,local_part,owner_user_id,display_name,is_active,can_read,can_send").eq("organization_id",organizationId).order("local_part")],
+      ["messages",()=>ownerProbe.from("magnibox_internal_messages").select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,created_at").eq("organization_id",organizationId).order("created_at",{ascending:false}).limit(80)],
+      ["grants",()=>ownerProbe.from("magnibox_internal_mailbox_grants").select("mailbox_id,user_id,can_read,can_send,is_active").eq("organization_id",organizationId)],
+      ["reads",()=>ownerProbe.from("magnibox_internal_message_reads").select("message_id").eq("organization_id",organizationId).eq("user_id",owner.id)],
     ];
     const probe=await Promise.all(checks.map(async ([table,run])=>{
       const response=await run();
@@ -121,9 +121,9 @@ try {
     throw new Error("L'ancien titre MAGNIBOX a réapparu.");
   }
   if(await a.page.getByText(/Identifiant interne\s*:/).count()) {
-    throw new Error("L'ancien identifiant .mgmail a réapparu.");
+    throw new Error("L'ancien identifiant .magnibox a réapparu.");
   }
-  if((await a.page.locator("main").innerText()).includes(".mgmail")) {
+  if((await a.page.locator("main").innerText()).includes(".magnibox")) {
     throw new Error("Une ancienne extension de boîte interne apparaît encore dans Magnibox.");
   }
   console.log("MAGNIBOX UI: espace interne créé");
@@ -140,7 +140,7 @@ try {
   await createMailbox("finance",employee.id);
   await createMailbox("archives",owner.id);
   console.log("SCENARIO 2/7: création et attribution des boîtes");
-  const {data:boxes,error:boxesError}=await admin.from("mgmail_internal_mailboxes")
+  const {data:boxes,error:boxesError}=await admin.from("magnibox_internal_mailboxes")
     .select("id,local_part").eq("organization_id",organizationId);
   if(boxesError)throw boxesError;
   const sender=boxes.find(x=>x.local_part==="direction")?.id;
@@ -157,7 +157,7 @@ try {
   await a.page.locator('input[name="domainName"]').fill(requestedDomain);
   await a.page.getByRole("button",{name:"Enregistrer la demande"}).click();
   await a.page.getByRole("cell",{name:requestedDomain}).waitFor({timeout:20000});
-  const {data:domainRequest,error:domainError}=await admin.from("mgmail_domain_requests")
+  const {data:domainRequest,error:domainError}=await admin.from("magnibox_domain_requests")
     .select("id,verification_token,status").eq("organization_id",organizationId)
     .eq("domain_name",requestedDomain).single();
   if(domainError||!domainRequest)throw domainError||Error("DNS challenge missing");
@@ -198,7 +198,7 @@ try {
   await a.page.locator('textarea[name="body"]').fill("Test sécurisé entre deux collaborateurs authentifiés.");
   await a.page.getByRole("button",{name:"Enregistrer les modifications"}).click();
   await a.page.getByRole("heading",{name:"Brouillons (1)"}).waitFor({timeout:20000});
-  const persistedDraft=await admin.from("mgmail_internal_drafts").select("body_text")
+  const persistedDraft=await admin.from("magnibox_internal_drafts").select("body_text")
     .eq("organization_id",organizationId).eq("subject",subject).single();
   if(persistedDraft.error||persistedDraft.data?.body_text!=="Test sécurisé entre deux collaborateurs authentifiés.")
     throw persistedDraft.error||new Error("La modification du brouillon n'a pas été persistée en base.");
@@ -269,7 +269,7 @@ try {
   const employeeDraftProbe=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
   const employeeDraftLogin=await employeeDraftProbe.auth.signInWithPassword({email:employee.email,password:employee.password});
   if(employeeDraftLogin.error)throw employeeDraftLogin.error;
-  const privateDraftRows=await employeeDraftProbe.from("mgmail_internal_drafts").select("id").eq("organization_id",organizationId);
+  const privateDraftRows=await employeeDraftProbe.from("magnibox_internal_drafts").select("id").eq("organization_id",organizationId);
   if(privateDraftRows.error||(privateDraftRows.data??[]).length!==0)
     throw new Error("Un collaborateur peut lire les brouillons privés d'un autre utilisateur.");
   await b.page.getByText(subject).waitFor({timeout:20000});
@@ -307,7 +307,7 @@ try {
   await b.page.getByRole("heading",{name:/Boîte de réception interne \(0 non lus affichés\)/}).waitFor({timeout:20000});
   if(await b.page.getByRole("button",{name:/Créer une boîte/}).count()>0)
     throw new Error("Un employé ne doit pas créer une boîte sans permission");
-  const {data:reads,error:readError}=await admin.from("mgmail_internal_message_reads")
+  const {data:reads,error:readError}=await admin.from("magnibox_internal_message_reads")
     .select("message_id,user_id").eq("user_id",employee.id).eq("organization_id",organizationId);
   if(readError||!reads?.length)throw readError||new Error("Lecture personnelle non enregistrée");
   if(await b.page.locator("html").evaluate(el=>el.scrollWidth>el.clientWidth+12))
