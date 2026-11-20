@@ -6,8 +6,8 @@
 -- production migration history and prerequisite migrations are reconciled.
 --
 -- Prerequisites:
---   public.mgmail_internal_mailboxes (id, organization_id)
---   public.mgmail_internal_messages
+--   public.magnibox_internal_mailboxes (id, organization_id)
+--   public.magnibox_internal_messages
 --   public.orbit_public_identities (id, organization_id, mailbox_id)
 --   public.orbit_external_messages
 --
@@ -70,7 +70,7 @@ create table public.magnibox_imap_folder_state (
   updated_at timestamptz not null default now(),
   constraint magnibox_imap_folder_mailbox_org_fk
     foreign key (mailbox_id, organization_id)
-    references public.mgmail_internal_mailboxes(id, organization_id)
+    references public.magnibox_internal_mailboxes(id, organization_id)
     on delete restrict,
   constraint magnibox_imap_folder_identity_org_fk
     foreign key (identity_id, organization_id)
@@ -319,7 +319,7 @@ declare
 begin
   v_row := case when tg_op = 'DELETE' then pg_catalog.to_jsonb(old) else pg_catalog.to_jsonb(new) end;
 
-  if tg_table_name = 'mgmail_internal_messages' then
+  if tg_table_name = 'magnibox_internal_messages' then
     v_aggregate_type := 'internal_message';
     v_org := (v_row ->> 'organization_id')::uuid;
     v_message_id := (v_row ->> 'id')::uuid;
@@ -375,7 +375,7 @@ revoke all on function private.magnibox_enqueue_message_sync_event()
   from public, anon, authenticated;
 
 create trigger magnibox_internal_message_sync_outbox
-after insert or update or delete on public.mgmail_internal_messages
+after insert or update or delete on public.magnibox_internal_messages
 for each row execute function private.magnibox_enqueue_message_sync_event();
 
 create trigger magnibox_external_message_sync_outbox
@@ -385,9 +385,9 @@ for each row execute function private.magnibox_enqueue_message_sync_event();
 commit;
 
 -- Intentionally not included in this proposal:
--- * mgmail_internal_message_reads: per-user read state needs an explicit IMAP
+-- * magnibox_internal_message_reads: per-user read state needs an explicit IMAP
 --   mailbox/identity policy before it can be projected to shared mailbox flags.
--- * mgmail_internal_message_folders: personal labels are not canonical IMAP
+-- * magnibox_internal_message_folders: personal labels are not canonical IMAP
 --   folders; do not misrepresent label changes as physical message moves.
 -- * a Dovecot filesystem/Maildir writer: the worker must use IMAP over TLS.
 -- * production migration-history repair or deployment.
