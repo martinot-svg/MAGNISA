@@ -43,7 +43,7 @@ BEGIN
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_trigger
-    WHERE tgrelid='public.mgmail_public_address_requests'::regclass
+    WHERE tgrelid='public.magnibox_public_address_requests'::regclass
       AND tgname='trg_magnibox_create_pending_identity_after_address_approval'
       AND NOT tgisinternal
   ) THEN
