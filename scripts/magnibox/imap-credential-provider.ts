@@ -5,6 +5,8 @@
  * returned password in Supabase application tables, outbox payloads, logs,
  * browser code, or exception messages.
  */
+import { isIP } from "node:net";
+
 export type MagniboxImapCredentialScope = {
   organizationId: string;
   mailboxId: string;
