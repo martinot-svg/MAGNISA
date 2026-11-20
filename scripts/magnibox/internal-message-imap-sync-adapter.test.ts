@@ -39,7 +39,7 @@ const mailbox = (id: string) => ({
 function makeRepository(): MagniboxInternalMessageResolverRepository {
   return {
     getMessage: vi.fn(async () => message),
-    getMailbox: vi.fn(async ({ mailboxId }) => mailbox(mailboxId)),
+    getMailbox: vi.fn(async ({ mailboxId }: { organizationId: string; mailboxId: string }) => mailbox(mailboxId)),
     hasActiveGrants: vi.fn(async () => false),
   };
 }
@@ -48,7 +48,7 @@ describe("createMagniboxInternalMessageImapSyncAdapter", () => {
   it("applies both participant projections sequentially with mailbox-scoped idempotency keys", async () => {
     const calls: string[] = [];
     const sink: MagniboxInternalMessageProjectionSink = {
-      applyMailboxProjection: vi.fn(async ({ idempotencyKey, projection }) => {
+      applyMailboxProjection: vi.fn(async ({ idempotencyKey, projection }: Parameters<MagniboxInternalMessageProjectionSink["applyMailboxProjection"]>[0]) => {
         calls.push(idempotencyKey);
         expect(projection.bodyText).toBe("Canonical content");
       }),
