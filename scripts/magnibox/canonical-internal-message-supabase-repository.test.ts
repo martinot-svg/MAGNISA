@@ -46,8 +46,8 @@ const mailboxRow = {
 describe("createMagniboxSupabaseInternalMessageResolverRepository", () => {
   it("scopes canonical message and mailbox queries by organization and ID", async () => {
     const { client, calls } = clientWithRows({
-      mgmail_internal_messages: messageRow,
-      mgmail_internal_mailboxes: mailboxRow,
+      magnibox_internal_messages: messageRow,
+      magnibox_internal_mailboxes: mailboxRow,
     });
     const repository = createMagniboxSupabaseInternalMessageResolverRepository(client);
 
@@ -57,25 +57,25 @@ describe("createMagniboxSupabaseInternalMessageResolverRepository", () => {
       .resolves.toEqual(mailboxRow);
 
     expect(calls[0]).toMatchObject({
-      table: "mgmail_internal_messages",
+      table: "magnibox_internal_messages",
       filters: [["organization_id", "org-1"], ["id", "message-1"]],
     });
     expect(calls[1]).toMatchObject({
-      table: "mgmail_internal_mailboxes",
+      table: "magnibox_internal_mailboxes",
       filters: [["organization_id", "org-1"], ["id", "recipient-1"]],
     });
   });
 
   it("checks only active grants for the exact organization and mailbox", async () => {
     const { client, calls } = clientWithRows({
-      mgmail_internal_mailbox_grants: { mailbox_id: "recipient-1" },
+      magnibox_internal_mailbox_grants: { mailbox_id: "recipient-1" },
     });
     const repository = createMagniboxSupabaseInternalMessageResolverRepository(client);
 
     await expect(repository.hasActiveGrants({ organizationId: "org-1", mailboxId: "recipient-1" }))
       .resolves.toBe(true);
     expect(calls[0]).toMatchObject({
-      table: "mgmail_internal_mailbox_grants",
+      table: "magnibox_internal_mailbox_grants",
       filters: [
         ["organization_id", "org-1"],
         ["mailbox_id", "recipient-1"],
@@ -116,7 +116,7 @@ describe("createMagniboxSupabaseInternalMessageResolverRepository", () => {
 
   it("rejects malformed database rows without echoing their content", async () => {
     const { client } = clientWithRows({
-      mgmail_internal_messages: { ...messageRow, subject: null },
+      magnibox_internal_messages: { ...messageRow, subject: null },
     });
     const repository = createMagniboxSupabaseInternalMessageResolverRepository(client);
     await expect(repository.getMessage({ organizationId: "org-1", messageId: "message-1" }))
