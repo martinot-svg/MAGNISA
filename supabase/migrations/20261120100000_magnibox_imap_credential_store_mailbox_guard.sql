@@ -25,7 +25,7 @@ begin
   perform pg_advisory_xact_lock(hashtextextended(p_organization_id::text || ':' || p_mailbox_id::text, 0));
 
   perform 1
-    from public.mgmail_internal_mailboxes m
+    from public.magnibox_internal_mailboxes m
     where m.id = p_mailbox_id
       and m.organization_id = p_organization_id
       and m.is_active
