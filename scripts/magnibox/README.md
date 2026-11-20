@@ -151,3 +151,16 @@ The adapter does not acknowledge events itself: any participant failure propagat
 Tests cover two-mailbox fan-out, canonical content usage, partial failure propagation, and fail-closed handling of external events. **This remains an integration seam, not a live IMAP transport**: the injected sink has not been implemented with IMAPFlow/Dovecot, and MIME serialization, folder mapping, UID persistence and real connection tests remain outstanding.
 
 The adapter tests also execute the real `runMagniboxSyncBatch` orchestration with a fake outbox repository: the event is acknowledged only after both mailbox projections complete, and a failure on the second mailbox leaves the event unacknowledged and schedules a retry. These tests validate orchestration semantics only; they do not replace a durable IMAP sink's idempotency or transport integration tests.
+
+
+### UID mapping and UIDVALIDITY safety policy
+
+`imap-uid-mapping.ts` defines the transport-independent decision boundary for durable IMAP message mappings. PostgreSQL `BIGINT` UID values are kept as decimal strings (never JavaScript numbers), and a stored UID is reusable only when its mapping's UIDVALIDITY exactly matches the currently selected folder epoch.
+
+- No mapping: the transport may begin its append workflow, subject to a separate idempotent-append/reconciliation protocol.
+- Matching UIDVALIDITY and a stored UID: the UID may be used as a candidate for server-side verification.
+- Changed UIDVALIDITY: the old UID is never reused; reconciliation is mandatory.
+- Missing UID: reconciliation is mandatory; blind append is not authorized by this policy.
+- Tombstoned mapping: no append or UID reuse is allowed.
+
+The pure policy tests cover values beyond JavaScript's safe-integer range, PostgreSQL BIGINT bounds, UIDVALIDITY changes, missing UIDs and tombstones. This is not yet a database repository or IMAP transport: no UID mapping is written, no APPEND is performed, and the transport must still verify server state and solve the lost-APPEND-response duplicate problem before production use.
