@@ -57,15 +57,31 @@ export function decideMagniboxAppendAction(input: {
     throw new MagniboxSyncError("Invalid IMAP append search result", false);
   }
 
+  if (input.searchMatches.length > 1) {
+    return { action: "duplicate_conflict", matches: input.searchMatches.length };
+  }
+
+  const currentEpoch = positiveBigint(input.currentUidValidity, "UIDVALIDITY");
+
   if (input.operationState === "confirmed") {
     if (!input.confirmedUid || !input.confirmedUidValidity) {
       throw new MagniboxSyncError("Confirmed append is missing its UID mapping", false);
     }
+    const confirmedUid = positiveBigint(input.confirmedUid, "UID");
+    const confirmedEpoch = positiveBigint(input.confirmedUidValidity, "UIDVALIDITY");
+    if (confirmedEpoch !== currentEpoch) {
+      return { action: "reconcile_mapping", reason: "uidvalidity_mismatch" };
+    }
+    if (input.searchMatches.length === 1) {
+      const match = input.searchMatches[0];
+      if (!match) throw new MagniboxSyncError("Malformed IMAP append search match", false);
+      const foundUid = positiveBigint(match.uid, "UID");
+      const foundEpoch = positiveBigint(match.uidValidity, "UIDVALIDITY");
+      if (foundEpoch !== currentEpoch || foundUid !== confirmedUid) {
+        return { action: "reconcile_mapping", reason: "uidvalidity_mismatch" };
+      }
+    }
     return { action: "already_confirmed" };
-  }
-
-  if (input.searchMatches.length > 1) {
-    return { action: "duplicate_conflict", matches: input.searchMatches.length };
   }
 
   if (input.searchMatches.length === 1) {
@@ -75,7 +91,6 @@ export function decideMagniboxAppendAction(input: {
     }
     const uid = positiveBigint(match.uid, "UID");
     const foundEpoch = positiveBigint(match.uidValidity, "UIDVALIDITY");
-    const currentEpoch = positiveBigint(input.currentUidValidity, "UIDVALIDITY");
     if (foundEpoch !== currentEpoch) {
       return { action: "reconcile_mapping", reason: "uidvalidity_mismatch" };
     }
@@ -88,9 +103,11 @@ export function decideMagniboxAppendAction(input: {
   if (input.operationState === "append_started") {
     return { action: "search_again", reason: "append_in_progress" };
   }
-  return { action: "search_again", reason: "append_outcome_ambiguous" };
+  if (input.operationState === "ambiguous") {
+    return { action: "search_again", reason: "append_outcome_ambiguous" };
+  }
+  throw new MagniboxSyncError("Unknown MAGNIBOX append operation state", false);
 }
-
 function positiveBigint(value: string, field: string): string {
   if (typeof value !== "string" || !/^[0-9]+$/.test(value)) {
     throw new MagniboxSyncError(`Invalid IMAP ${field}`, false);
