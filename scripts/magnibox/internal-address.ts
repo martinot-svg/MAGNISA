@@ -33,7 +33,7 @@ export function formatMagniboxInternalAddress(input: {
 /** RFC 5322 addr-spec validation for addresses produced by the convention. */
 export function isMagniboxInternalAddress(value: string): boolean {
   if (typeof value !== "string" || value.length > 119) return false;
-  const match = /^([a-z][a-z0-9._-]{1,63})@([a-z0-9]+(?:-[a-z0-9]+)*)\.mgmail$/.exec(value);
+  const match = /^([a-z][a-z0-9._-]{1,63})@([a-z0-9]+(?:-[a-z0-9]+)*)\.magnibox$/.exec(value);
   if (!match) return false;
   return match[2]!.length >= 2 && match[2]!.length <= 45;
 }
