@@ -73,13 +73,13 @@ export async function POST(request: NextRequest) {
       const checked = await Promise.all(batch.map(async identity => {
         if (!identity.provider_domain_ref?.trim() || !identity.email_address?.trim()) return null;
         const [mailbox, domain, address] = await Promise.all([
-          admin.from("mgmail_internal_mailboxes").select("id,is_active")
+          admin.from("magnibox_internal_mailboxes").select("id,is_active")
             .eq("id", identity.mailbox_id)
             .eq("organization_id", identity.organization_id).maybeSingle(),
-          admin.from("mgmail_domain_requests").select("domain_name,status")
+          admin.from("magnibox_domain_requests").select("domain_name,status")
             .eq("id", identity.domain_request_id)
             .eq("organization_id", identity.organization_id).maybeSingle(),
-          admin.from("mgmail_public_address_requests").select("email_address,status")
+          admin.from("magnibox_public_address_requests").select("email_address,status")
             .eq("id", identity.address_request_id)
             .eq("organization_id", identity.organization_id).maybeSingle(),
         ]);
