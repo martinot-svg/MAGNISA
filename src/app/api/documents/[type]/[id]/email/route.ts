@@ -4,7 +4,7 @@ import { requireOrganization } from "@/lib/current-org";
 import { requirePermission } from "@/lib/permissions";
 import { renderPdf } from "@/lib/pdf/document";
 import { buildMimeMessage, getGmailAccess, sendGmailRaw } from "@/lib/google/gmail";
-import { recordMailHistory } from "@/lib/magnimail/history";
+import { recordMailHistory } from "@/lib/magnibox/history";
 import { resolveOrganizationLogoUrl } from "@/lib/storage/organization-logo";
 
 function validEmail(value: string) {
