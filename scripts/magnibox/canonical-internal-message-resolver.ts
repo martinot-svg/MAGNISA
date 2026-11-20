@@ -62,7 +62,7 @@ function validTimestamp(value: string): boolean {
 }
 
 /**
- * Resolves only individual, active MGMail mailboxes for the first IMAP pilot.
+ * Resolves only individual, active MAGNIBOX mailboxes for the first IMAP pilot.
  *
  * Supported events are create/update. Delete is handled from the durable IMAP
  * mapping/tombstone, because the canonical source row may already be gone.
