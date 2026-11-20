@@ -23,7 +23,7 @@ async function requestDomain(form: FormData) {
   // Fail closed for unknown TLDs; this checks delegation, not registrar availability.
   const catalog = await fetchOfficialTldCatalog();
   getMatchingSuffix(domainName, catalog);
-  const { error } = await ctx.supabase.from("mgmail_domain_requests").insert({
+  const { error } = await ctx.supabase.from("magnibox_domain_requests").insert({
     organization_id: ctx.organizationId,
     domain_name: domainName,
     requested_by: ctx.user.id,
@@ -47,9 +47,9 @@ async function requestAddress(form: FormData) {
   }
   const localPart = normalizeOrbitLocalPart(String(form.get("localPart") || ""));
   const [domainResult, mailboxResult] = await Promise.all([
-    ctx.supabase.from("mgmail_domain_requests").select("id,domain_name,status")
+    ctx.supabase.from("magnibox_domain_requests").select("id,domain_name,status")
       .eq("id", domainRequestId).eq("organization_id", ctx.organizationId).maybeSingle(),
-    ctx.supabase.from("mgmail_internal_mailboxes").select("id")
+    ctx.supabase.from("magnibox_internal_mailboxes").select("id")
       .eq("id", mailboxId).eq("organization_id", ctx.organizationId)
       .eq("is_active", true).maybeSingle(),
   ]);
@@ -58,7 +58,7 @@ async function requestAddress(form: FormData) {
       mailboxResult.error || !mailboxResult.data) {
     throw new Error("Le domaine et la boîte doivent appartenir à cette entreprise et être disponibles.");
   }
-  const { error } = await ctx.supabase.from("mgmail_public_address_requests").insert({
+  const { error } = await ctx.supabase.from("magnibox_public_address_requests").insert({
     organization_id: ctx.organizationId,
     requested_by: ctx.user.id,
     domain_request_id: domainResult.data.id,
@@ -81,13 +81,13 @@ export default async function MagnisaInboxProfessionalDomains() {
     </div>
   );
   const [domainsResult, addressesResult, mailboxesResult] = await Promise.all([
-    ctx.supabase.from("mgmail_domain_requests")
+    ctx.supabase.from("magnibox_domain_requests")
       .select("id,domain_name,status,created_at").eq("organization_id",ctx.organizationId)
       .order("created_at",{ascending:false}).limit(100),
-    ctx.supabase.from("mgmail_public_address_requests")
+    ctx.supabase.from("magnibox_public_address_requests")
       .select("id,email_address,status,mailbox_id,created_at")
       .eq("organization_id",ctx.organizationId).order("created_at",{ascending:false}).limit(100),
-    ctx.supabase.from("mgmail_internal_mailboxes")
+    ctx.supabase.from("magnibox_internal_mailboxes")
       .select("id,local_part,display_name,is_active").eq("organization_id",ctx.organizationId)
       .eq("is_active",true).order("local_part"),
   ]);
