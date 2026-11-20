@@ -47,11 +47,11 @@ export async function POST(request: NextRequest) {
     if (access.error || access.data !== true) return reply("Vous n'avez pas le droit d'envoyer depuis cette adresse.", 403);
 
     const [domain, address, mailbox] = await Promise.all([
-      admin.from("mgmail_domain_requests").select("status")
+      admin.from("magnibox_domain_requests").select("status")
         .eq("id", identity.domain_request_id).eq("organization_id", ctx.organizationId).maybeSingle(),
-      admin.from("mgmail_public_address_requests").select("status")
+      admin.from("magnibox_public_address_requests").select("status")
         .eq("id", identity.address_request_id).eq("organization_id", ctx.organizationId).maybeSingle(),
-      admin.from("mgmail_internal_mailboxes").select("id,is_active")
+      admin.from("magnibox_internal_mailboxes").select("id,is_active")
         .eq("id", identity.mailbox_id).eq("organization_id", ctx.organizationId).maybeSingle(),
     ]);
     const allowed = allowPublicSend(identity, ctx.organizationId, {
