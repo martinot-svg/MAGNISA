@@ -202,3 +202,21 @@ Tests in `imap-append-idempotency.test.ts` cover first APPEND authorization, amb
 
 
 The SQL contract `supabase/tests/magnibox-imap-uid-mapping-contract.sql` is wired into the clean-database migration replay workflow. It verifies that the mapping table and all three RPCs remain inaccessible to browser roles, that `service_role` has the required access, and that PostgreSQL `BIGINT` values are returned as text to avoid JavaScript precision loss.
+
+
+### Durable IMAP APPEND operation ledger
+
+The migration `20261120180000_magnibox_imap_append_operation_ledger.sql` adds a server-only ledger for internal-message APPEND operations. A single row is keyed by organization, outbox event, target mailbox and folder. PostgreSQL generates and persists one `X-Magnibox-Operation-ID` marker, so concurrent/retried workers recover the same marker instead of creating a new operation identity.
+
+The RPC adapter in `imap-append-supabase-repository.ts` exposes four lease-fenced operations:
+
+- `getOrCreate`: validates the current outbox lease, internal folder/mailbox scope and canonical message participation; creates or returns the stable marker.
+- `markStarted`: atomically changes only `ready → append_started` before the network write. It never resets an in-progress or ambiguous operation to ready.
+- `markAmbiguous`: records a lost/uncertain APPEND outcome without authorizing a second APPEND.
+- `confirm`: persists UID and UIDVALIDITY only after an exact marker search match or server-confirmed APPENDUID, rechecking the current folder epoch under lock.
+
+All RPCs require the current Outbox lease token. A worker whose lease has expired cannot change the operation state. UID and UIDVALIDITY are returned as decimal text to preserve PostgreSQL BIGINT precision. The ledger table has RLS enabled, no browser-role grants, and service-role-only RPC execution. Its SQL security/precision contract runs during the clean-database migration replay.
+
+The state machine is deliberately fail-closed: only `ready` may be advanced to `append_started`; `append_started` and `ambiguous` must be searched/reconciled and can never authorize another APPEND. A process crash after the durable start marker but before the actual socket write may require manual reconciliation. This favors duplicate prevention over automatic progress.
+
+**Integration still outstanding:** this ledger is not yet connected to an IMAP transport. MIME marker serialization, IMAP SEARCH by exact header, APPEND/APPENDUID handling, duplicate-match quarantine, UID mapping write-through and live Dovecot crash/replay tests must be implemented before claiming end-to-end idempotency or enabling synchronization.
