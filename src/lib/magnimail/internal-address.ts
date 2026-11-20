@@ -1,8 +1,8 @@
 /**
- * Identifiants MGMail strictement internes à MAGNISA.
+ * Identifiants magnibox strictement internes à MAGNISA.
  * Les boîtes internes sont repérées par leurs identifiants, pas par un domaine de courrier.
  */
-export function normalizeMGMailNamespace(input: string): string {
+export function normalizemagniboxNamespace(input: string): string {
   const slug = input.trim().toLowerCase();
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 2 || slug.length > 45) {
     throw new Error("Identifiant d'entreprise invalide (2 à 45 caractères, lettres, chiffres, tirets).");
@@ -10,7 +10,7 @@ export function normalizeMGMailNamespace(input: string): string {
   return slug;
 }
 
-export function normalizeMGMailLocalPart(input: string): string {
+export function normalizemagniboxLocalPart(input: string): string {
   const alias = input.trim().toLowerCase();
   if (!/^[a-z][a-z0-9._-]{1,63}$/.test(alias)) {
     throw new Error("Nom de boîte invalide (2 à 64 caractères, sans arobase).");
@@ -19,5 +19,5 @@ export function normalizeMGMailLocalPart(input: string): string {
 }
 
 export function internalMailboxLabel(localPart: string, namespace: string): string {
-  return `${normalizeMGMailLocalPart(localPart)} (${normalizeMGMailNamespace(namespace)})`;
+  return `${normalizemagniboxLocalPart(localPart)} (${normalizemagniboxNamespace(namespace)})`;
 }
