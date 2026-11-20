@@ -31,6 +31,20 @@ export function canonicalPositiveBigint(value: string, field: string): string {
   return canonical;
 }
 
+/** Validate a non-negative PostgreSQL BIGINT decimal value (MODSEQ may be zero). */
+export function canonicalNonNegativeBigint(value: string, field: string): string {
+  if (typeof value !== "string" || !/^[0-9]+$/.test(value)) {
+    throw new MagniboxSyncError(`Invalid IMAP ${field}`, false);
+  }
+
+  const canonical = value.replace(/^0+(?=\\d)/, "");
+  if (canonical.length > 19 ||
+      (canonical.length === 19 && canonical > "9223372036854775807")) {
+    throw new MagniboxSyncError(`IMAP ${field} is outside non-negative BIGINT range`, false);
+  }
+  return canonical;
+}
+
 /**
  * Decide whether a stored UID is safe to reuse in the currently selected
  * folder. A UID is meaningful only inside its matching UIDVALIDITY epoch.
