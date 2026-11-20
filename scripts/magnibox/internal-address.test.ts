@@ -10,7 +10,7 @@ describe("MAGNIBOX internal address convention", () => {
     expect(formatMagniboxInternalAddress({
       localPart: "finance.team",
       namespaceSlug: "acme-finance",
-    })).toBe("finance.team@acme-finance.mgmail");
+    })).toBe("finance.team@acme-finance.magnibox");
   });
 
   it("accepts the maximum address length allowed by the schema", () => {
@@ -18,14 +18,14 @@ describe("MAGNIBOX internal address convention", () => {
       localPart: "a" + "b".repeat(63),
       namespaceSlug: "a" + "b".repeat(44),
     });
-    expect(address).toHaveLength(117);
+    expect(address).toHaveLength(119);
     expect(isMagniboxInternalAddress(address)).toBe(true);
   });
 
-  it("recognizes only addresses in the private .mgmail namespace", () => {
-    expect(isMagniboxInternalAddress("alice@acme.mgmail")).toBe(true);
+  it("recognizes only addresses in the private .magnibox namespace", () => {
+    expect(isMagniboxInternalAddress("alice@acme.magnibox")).toBe(true);
     expect(isMagniboxInternalAddress("alice@gmail.com")).toBe(false);
-    expect(isMagniboxInternalAddress("alice@acme.mgmail.evil.test")).toBe(false);
+    expect(isMagniboxInternalAddress("alice@acme.magnibox.evil.test")).toBe(false);
     expect(isMagniboxInternalAddress("Alice@acme.mgmail")).toBe(false);
   });
 
