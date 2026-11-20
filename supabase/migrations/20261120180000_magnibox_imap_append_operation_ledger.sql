@@ -145,7 +145,7 @@ begin
     and o.organization_id = p_organization_id
   for update;
 
-  if not found or v_event.status <> 'processing' or v_event.lease_token <> p_lease_token then
+  if p_lease_token is null or not found or v_event.status <> 'processing' or v_event.lease_token <> p_lease_token then
     raise exception 'MAGNIBOX outbox lease is not current' using errcode = '40001';
   end if;
   if v_event.aggregate_type <> 'internal_message'
@@ -218,7 +218,7 @@ declare
 begin
   select o.* into v_event from public.magnibox_sync_outbox o
   where o.id=p_outbox_event_id and o.organization_id=p_organization_id for update;
-  if not found or v_event.status <> 'processing' or v_event.lease_token <> p_lease_token then
+  if p_lease_token is null or not found or v_event.status <> 'processing' or v_event.lease_token <> p_lease_token then
     raise exception 'MAGNIBOX outbox lease is not current' using errcode='40001';
   end if;
 
@@ -260,7 +260,7 @@ declare
 begin
   select o.* into v_event from public.magnibox_sync_outbox o
   where o.id=p_outbox_event_id and o.organization_id=p_organization_id for update;
-  if not found or v_event.status <> 'processing' or v_event.lease_token <> p_lease_token then
+  if p_lease_token is null or not found or v_event.status <> 'processing' or v_event.lease_token <> p_lease_token then
     raise exception 'MAGNIBOX outbox lease is not current' using errcode='40001';
   end if;
 
@@ -305,7 +305,7 @@ begin
 
   select o.* into v_event from public.magnibox_sync_outbox o
   where o.id=p_outbox_event_id and o.organization_id=p_organization_id for update;
-  if not found or v_event.status <> 'processing' or v_event.lease_token <> p_lease_token then
+  if p_lease_token is null or not found or v_event.status <> 'processing' or v_event.lease_token <> p_lease_token then
     raise exception 'MAGNIBOX outbox lease is not current' using errcode='40001';
   end if;
 
