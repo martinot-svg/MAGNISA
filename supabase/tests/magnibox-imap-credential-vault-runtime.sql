@@ -14,6 +14,7 @@ DECLARE
   v_status text;
   v_count integer;
   v_revoked boolean;
+  v_rejected boolean;
 BEGIN
   INSERT INTO public.organizations (id, name)
     VALUES (v_org, 'MAGNIBOX IMAP credential runtime test'),
@@ -46,10 +47,35 @@ BEGIN
   SELECT count(*) INTO v_count
     FROM public.magnibox_get_active_imap_credential(v_org, v_mailbox);
   IF v_count <> 0 THEN RAISE EXCEPTION 'Disabled mailbox still exposes an active IMAP credential'; END IF;
+  -- Provisioning must fail closed for disabled mailboxes, not merely hide existing secrets.
+  v_rejected := false;
+  BEGIN
+    PERFORM public.magnibox_store_imap_credential(
+      v_org, v_mailbox, 1::smallint, 'aes-256-gcm', 'ci-key',
+      'MDEyMzQ1Njc4OWFi', 'synthetic-disabled-payload',
+      'MDEyMzQ1Njc4OWFiY2RlZg==', 'runtime-disabled-mailbox'
+    );
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    v_rejected := true;
+  END;
+  IF NOT v_rejected THEN RAISE EXCEPTION 'Credential store accepted a disabled mailbox'; END IF;
+
   UPDATE public.mgmail_internal_mailboxes SET is_active=true, can_read=false WHERE id=v_mailbox;
   SELECT count(*) INTO v_count
     FROM public.magnibox_get_active_imap_credential(v_org, v_mailbox);
   IF v_count <> 0 THEN RAISE EXCEPTION 'Read-disabled mailbox still exposes an active IMAP credential'; END IF;
+  v_rejected := false;
+  BEGIN
+    PERFORM public.magnibox_store_imap_credential(
+      v_org, v_mailbox, 1::smallint, 'aes-256-gcm', 'ci-key',
+      'MDEyMzQ1Njc4OWFi', 'synthetic-read-disabled-payload',
+      'MDEyMzQ1Njc4OWFiY2RlZg==', 'runtime-read-disabled-mailbox'
+    );
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    v_rejected := true;
+  END;
+  IF NOT v_rejected THEN RAISE EXCEPTION 'Credential store accepted a read-disabled mailbox'; END IF;
+
   UPDATE public.mgmail_internal_mailboxes SET can_read=true WHERE id=v_mailbox;
 
   SELECT s.credential_id, s.credential_version, s.credential_status
