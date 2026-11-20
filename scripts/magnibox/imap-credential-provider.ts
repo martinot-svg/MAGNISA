@@ -54,8 +54,20 @@ export function validateMagniboxImapCredentials(
   if (!value || typeof value !== "object") {
     throw new MagniboxCredentialError("Invalid IMAP credential configuration");
   }
-  if (typeof value.host !== "string" || !value.host.trim() || /[\s/]/.test(value.host)) {
+  if (typeof value.host !== "string" || !value.host || value.host !== value.host.trim()
+    || value.host.length > 253 || /[\\s\\x00-\\x1f\\x7f/@?#\\\\]/.test(value.host)
+    || value.host.startsWith("[") || value.host.endsWith("]")) {
     throw new MagniboxCredentialError("Invalid IMAP host");
+  }
+  if (isIP(value.host) === 0) {
+    const hostname = value.host.endsWith(".") ? value.host.slice(0, -1) : value.host;
+    const labels = hostname.split(".");
+    const numericAddressLike = labels.length === 4 && labels.every((label) => /^\\d+$/.test(label));
+    if (numericAddressLike || !hostname || labels.some((label) =>
+      label.length < 1 || label.length > 63
+      || !/^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(label))) {
+      throw new MagniboxCredentialError("Invalid IMAP host");
+    }
   }
   if (!Number.isInteger(value.port) || value.port < 1 || value.port > 65535) {
     throw new MagniboxCredentialError("Invalid IMAP port");
