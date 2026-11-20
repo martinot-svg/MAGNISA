@@ -51,7 +51,7 @@ function repository(
 ): MagniboxInternalMessageResolverRepository {
   return {
     getMessage: vi.fn(async () => message),
-    getMailbox: vi.fn(async ({ mailboxId }) =>
+    getMailbox: vi.fn(async ({ mailboxId }: { organizationId: string; mailboxId: string }) =>
       mailboxId === sender.id ? sender : mailboxId === recipient.id ? recipient : null
     ),
     hasActiveGrants: vi.fn(async () => false),
