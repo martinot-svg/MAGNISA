@@ -5,7 +5,7 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !anonKey || !serviceKey) {
-  throw new Error("Environnement MGMail d'intégration isolée incomplet.");
+  throw new Error("Environnement magnibox d'intégration isolée incomplet.");
 }
 
 const client = (key) => createClient(url, key, {
@@ -17,13 +17,13 @@ const owner = client(anonKey);
 // Each run owns a dedicated fixture in the disposable CI Supabase database.
 // This avoids implicit dependence on payroll/CRM users or their memberships.
 const fixtureId = randomUUID().slice(0, 12);
-const ownerEmail = `mgmail-owner-${fixtureId}@magnisa.test`;
+const ownerEmail = `magnibox-owner-${fixtureId}@magnisa.test`;
 const ownerPassword = `MG-${randomBytes(18).toString("hex")}!a9`;
 const createdOwner = await admin.auth.admin.createUser({
   email: ownerEmail, password: ownerPassword, email_confirm: true,
 });
 if (createdOwner.error || !createdOwner.data.user) {
-  throw createdOwner.error || new Error("Création du compte de test MGMail impossible.");
+  throw createdOwner.error || new Error("Création du compte de test magnibox impossible.");
 }
 const auth = await owner.auth.signInWithPassword({
   email: ownerEmail, password: ownerPassword,
@@ -33,11 +33,11 @@ if (auth.error || auth.data.user?.id !== createdOwner.data.user.id) {
 }
 const ownerId = createdOwner.data.user.id;
 const organization = await owner.rpc("create_organization", {
-  p_name: `MGMail intégration ${fixtureId}`,
+  p_name: `magnibox intégration ${fixtureId}`,
   p_currency: "MGA",
 });
 if (organization.error || typeof organization.data !== "string") {
-  throw organization.error || new Error("Création de l'entreprise MGMail impossible.");
+  throw organization.error || new Error("Création de l'entreprise magnibox impossible.");
 }
 const organizationId = organization.data;
 
@@ -54,13 +54,13 @@ const denied = (response, label) => {
 };
 
 const suffix = randomUUID().slice(0, 8);
-const namespace = `mgmail-ci-${suffix}`;
-const ns = required(await owner.from("mgmail_internal_namespaces")
+const namespace = `magnibox-ci-${suffix}`;
+const ns = required(await owner.from("magnibox_internal_namespaces")
   .insert({ organization_id: organizationId, slug: namespace }).select("slug").single(), "Namespace");
-assert(ns.slug === namespace, "Identifiant entreprise MGMail non enregistré.");
+assert(ns.slug === namespace, "Identifiant entreprise magnibox non enregistré.");
 
 async function createCollaborator(role) {
-  const email = `mgmail-${role}-${randomUUID().slice(0, 8)}@magnisa.test`;
+  const email = `magnibox-${role}-${randomUUID().slice(0, 8)}@magnisa.test`;
   const password = `MG-${randomBytes(18).toString("hex")}!a9`;
   const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
   if (created.error || !created.data.user) throw created.error || new Error("Création du collaborateur impossible.");
@@ -77,7 +77,7 @@ const a = await createCollaborator("employee");
 const b = await createCollaborator("employee");
 
 const mailbox = async (localPart, ownerIdValue) =>
-  required(await owner.from("mgmail_internal_mailboxes").insert({
+  required(await owner.from("magnibox_internal_mailboxes").insert({
     organization_id: organizationId, local_part: localPart, owner_user_id: ownerIdValue,
   }).select("id").single(), `Boîte ${localPart}`).id;
 
@@ -89,7 +89,7 @@ const ownerBox = await mailbox(`direction-admin-${suffix}`, ownerId);
 // Régression FK : supprimer une boîte destinataire d'un brouillon doit
 // uniquement nullifier recipient_mailbox_id, jamais organization_id.
 const disposableDraftRecipient = await mailbox(`draft-recipient-${suffix}`, b.userId);
-const draft = required(await admin.from("mgmail_internal_drafts").insert({
+const draft = required(await admin.from("magnibox_internal_drafts").insert({
   organization_id: organizationId,
   sender_mailbox_id: finance,
   recipient_mailbox_id: disposableDraftRecipient,
@@ -97,32 +97,32 @@ const draft = required(await admin.from("mgmail_internal_drafts").insert({
   subject: "Brouillon avant suppression du destinataire",
   body_text: "Le brouillon doit rester dans son entreprise.",
 }).select("id").single(), "Création du brouillon de régression");
-required(await admin.from("mgmail_internal_mailboxes").delete()
+required(await admin.from("magnibox_internal_mailboxes").delete()
   .eq("id", disposableDraftRecipient).eq("organization_id", organizationId)
   .select("id").single(), "Suppression de la boîte destinataire");
-const preservedDraft = required(await admin.from("mgmail_internal_drafts")
+const preservedDraft = required(await admin.from("magnibox_internal_drafts")
   .select("id,organization_id,recipient_mailbox_id")
   .eq("id", draft.id).single(), "Vérification du brouillon après suppression");
 assert(preservedDraft.organization_id === organizationId,
   "La suppression du destinataire ne doit jamais supprimer le tenant du brouillon.");
 assert(preservedDraft.recipient_mailbox_id === null,
   "La référence vers le destinataire supprimé doit devenir NULL.");
-required(await admin.from("mgmail_internal_drafts").delete().eq("id", draft.id),
+required(await admin.from("magnibox_internal_drafts").delete().eq("id", draft.id),
   "Nettoyage du brouillon de régression");
 
 // L'employé ne peut pas attribuer une nouvelle boîte à un collègue.
-denied(await a.userClient.from("mgmail_internal_mailboxes").insert({
+denied(await a.userClient.from("magnibox_internal_mailboxes").insert({
   organization_id: organizationId, local_part: `usurpation-${suffix}`, owner_user_id: a.userId,
 }).select("id"), "Création non autorisée d'une boîte");
 
 // Vérifier d'abord que les membres et leurs boîtes sont effectivement visibles
 // dans le contexte JWT utilisateur, avant de tester l'insertion d'un message.
 const senderVisible = required(await a.userClient
-  .from("mgmail_internal_mailboxes")
+  .from("magnibox_internal_mailboxes")
   .select("id,owner_user_id,is_active,can_read,can_send")
   .eq("organization_id", organizationId).eq("id", finance), "Boîte expéditeur");
 const recipientVisible = required(await a.userClient
-  .from("mgmail_internal_mailboxes")
+  .from("magnibox_internal_mailboxes")
   .select("id,owner_user_id,is_active,can_read,can_send")
   .eq("organization_id", organizationId).eq("id", direction), "Boîte destinataire");
 const ownMembership = required(await a.userClient.from("organization_members")
@@ -134,19 +134,19 @@ assert(recipientVisible.length === 1 && recipientVisible[0].owner_user_id === b.
   && recipientVisible[0].is_active, "Boîte destinataire inaccessible");
 assert(ownMembership.length === 1 && ownMembership[0].status === "active",
   "Adhésion du collaborateur non visible");
-const allowedSend = required(await a.userClient.rpc("mgmail_can_send_internal", {
+const allowedSend = required(await a.userClient.rpc("magnibox_can_send_internal", {
   p_organization_id: organizationId,
   p_sender_mailbox_id: finance,
   p_recipient_mailbox_id: direction,
 }), "Permission interne d'envoi");
-assert(allowedSend === true, "La permission MGMail doit autoriser l'envoi d'un collaborateur actif.");
-denied(await a.userClient.from("mgmail_internal_messages").insert({
+assert(allowedSend === true, "La permission magnibox doit autoriser l'envoi d'un collaborateur actif.");
+denied(await a.userClient.from("magnibox_internal_messages").insert({
   organization_id: organizationId, sender_mailbox_id: finance,
   recipient_mailbox_id: direction, subject: "Contournement RPC",
   body_text: "Un envoi authentifié doit passer par le RPC idempotent.",
 }).select("id"), "Interdiction de contourner le RPC d'envoi");
 
-const forbiddenSend = required(await a.userClient.rpc("mgmail_can_send_internal", {
+const forbiddenSend = required(await a.userClient.rpc("magnibox_can_send_internal", {
   p_organization_id: organizationId,
   p_sender_mailbox_id: direction,
   p_recipient_mailbox_id: finance,
@@ -159,20 +159,20 @@ const sendPayload = {
   p_organization_id: organizationId,
   p_sender_mailbox_id: finance,
   p_recipient_mailbox_id: direction,
-  p_subject: "Facture interne MGMail",
+  p_subject: "Facture interne magnibox",
   p_body_text: "Message interne de contrôle, sans fournisseur Google.",
   p_request_id: sendRequestId,
 };
-const firstSend = required(await a.userClient.rpc("mgmail_send_internal_message", sendPayload),
+const firstSend = required(await a.userClient.rpc("magnibox_send_internal_message", sendPayload),
   "Premier envoi interne");
-const retrySend = required(await a.userClient.rpc("mgmail_send_internal_message", sendPayload),
+const retrySend = required(await a.userClient.rpc("magnibox_send_internal_message", sendPayload),
   "Rejeu idempotent de l'envoi");
 assert(firstSend === retrySend, "Le rejeu d'un envoi doit retourner le même identifiant.");
 
-const sentMessageRows = required(await a.userClient.from("mgmail_internal_messages")
+const sentMessageRows = required(await a.userClient.from("magnibox_internal_messages")
   .select("id").eq("organization_id", organizationId)
   .eq("sender_mailbox_id", finance).eq("recipient_mailbox_id", direction)
-  .eq("subject", "Facture interne MGMail"), "Consultation après envoi");
+  .eq("subject", "Facture interne magnibox"), "Consultation après envoi");
 assert(sentMessageRows.length === 1, "L'expéditeur ne peut pas retrouver le message créé.");
 const outgoing = sentMessageRows[0];
 
@@ -184,7 +184,7 @@ const notice = required(await b.userClient.from("notifications")
   .eq("recipient_user_id", b.userId)
   .eq("entity_id", outgoing.id), "Notification du destinataire");
 assert(notice.length === 1 && notice[0].dedupe_key ===
-  `mgmail-internal-message:${outgoing.id}`,
+  `magnibox-internal-message:${outgoing.id}`,
   "Chaque message interne doit créer une seule notification pour son destinataire.");
 const otherNotice = required(await a.userClient.from("notifications")
   .select("id")
@@ -193,87 +193,87 @@ const otherNotice = required(await a.userClient.from("notifications")
   .eq("entity_id", outgoing.id), "Isolation de notification");
 assert(otherNotice.length === 0, "L'expéditeur ne peut pas lire la notification privée d'autrui.");
 
-const initialRead = required(await b.userClient.from("mgmail_internal_messages")
+const initialRead = required(await b.userClient.from("magnibox_internal_messages")
   .select("id,read_at").eq("id", outgoing.id).single(), "État de lecture initial");
 assert(initialRead.read_at === null, "Le message doit être non lu lors de sa réception.");
-const readResult = required(await b.userClient.from("mgmail_internal_messages")
+const readResult = required(await b.userClient.from("magnibox_internal_messages")
   .update({ read_at: new Date().toISOString() })
   .eq("id", outgoing.id).select("id,read_at").single(), "Marquage du message comme lu");
 assert(!!readResult.read_at, "Le destinataire doit pouvoir marquer son message comme lu.");
-const unauthorizedRead = await a.userClient.from("mgmail_internal_messages")
+const unauthorizedRead = await a.userClient.from("magnibox_internal_messages")
   .update({ read_at: new Date().toISOString() })
   .eq("id", outgoing.id).select("id");
 denied(unauthorizedRead, "Un expéditeur ne peut pas marquer le message d'autrui comme lu");
 
-const inboxB = required(await b.userClient.from("mgmail_internal_messages")
+const inboxB = required(await b.userClient.from("magnibox_internal_messages")
   .select("id").eq("id", outgoing.id), "Lecture destinataire");
 assert(inboxB.length === 1, "Le collaborateur destinataire ne reçoit pas le message.");
 
-const sentA = required(await a.userClient.from("mgmail_internal_messages")
+const sentA = required(await a.userClient.from("magnibox_internal_messages")
   .select("id").eq("id", outgoing.id), "Lecture expéditeur");
 assert(sentA.length === 1, "L'expéditeur ne retrouve pas son envoyé.");
 
-const inboxAdmin = required(await owner.from("mgmail_internal_messages")
+const inboxAdmin = required(await owner.from("magnibox_internal_messages")
   .select("id").eq("id", outgoing.id), "Confidentialité direction");
 assert(inboxAdmin.length === 0, "Un administrateur non destinataire a lu un message privé.");
 
 // Un employé ne peut ni se faire passer pour un collègue ni changer de boîte.
-denied(await a.userClient.from("mgmail_internal_messages").insert({
+denied(await a.userClient.from("magnibox_internal_messages").insert({
   organization_id: organizationId, sender_mailbox_id: direction,
   recipient_mailbox_id: ownerBox, subject: "Usurpation",
   body_text: "Ce message doit être rejeté.",
 }).select("id"), "Usurpation d'expéditeur");
 
-required(await owner.from("mgmail_internal_mailboxes").update({ can_send: false })
+required(await owner.from("magnibox_internal_mailboxes").update({ can_send: false })
   .eq("id", finance).eq("organization_id", organizationId), "Suspension des envois");
 
-denied(await a.userClient.from("mgmail_internal_messages").insert({
+denied(await a.userClient.from("magnibox_internal_messages").insert({
   organization_id: organizationId, sender_mailbox_id: finance,
   recipient_mailbox_id: direction, subject: "Envoi interdit",
   body_text: "Le contrôle can_send doit refuser cet envoi.",
 }).select("id"), "Envoi sans autorisation");
 
-required(await owner.from("mgmail_internal_mailboxes").update({ can_read: false })
+required(await owner.from("magnibox_internal_mailboxes").update({ can_read: false })
   .eq("id", direction).eq("organization_id", organizationId), "Suspension de lecture");
-const blockedInbox = required(await b.userClient.from("mgmail_internal_messages")
+const blockedInbox = required(await b.userClient.from("magnibox_internal_messages")
   .select("id").eq("id", outgoing.id), "Lecture après révocation");
 assert(blockedInbox.length === 0, "La lecture après révocation doit être interdite.");
 
 // Autoriser deux collaborateurs différents sur une même boîte de service.
-required(await owner.from("mgmail_internal_mailboxes").update({can_send: true})
+required(await owner.from("magnibox_internal_mailboxes").update({can_send: true})
   .eq("id",finance).eq("organization_id",organizationId),"Réactivation envoi service");
-required(await owner.from("mgmail_internal_mailboxes").update({can_read: true})
+required(await owner.from("magnibox_internal_mailboxes").update({can_read: true})
   .eq("id",direction).eq("organization_id",organizationId),"Réactivation lecture");
-required(await owner.from("mgmail_internal_mailbox_grants").insert({
+required(await owner.from("magnibox_internal_mailbox_grants").insert({
   organization_id:organizationId,mailbox_id:ownerBox,user_id:a.userId,
   can_read:true,can_send:true,is_active:true,
 }),"Partage lecture et envoi");
-required(await owner.from("mgmail_internal_mailbox_grants").insert({
+required(await owner.from("magnibox_internal_mailbox_grants").insert({
   organization_id:organizationId,mailbox_id:ownerBox,user_id:b.userId,
   can_read:true,can_send:false,is_active:true,
 }),"Partage en lecture seule");
-const permissionA=required(await a.userClient.rpc("mgmail_has_internal_access",{
+const permissionA=required(await a.userClient.rpc("magnibox_has_internal_access",{
   p_org:organizationId,p_mailbox:ownerBox,p_action:"send",
 }),"Permission envoi déléguée");
-const permissionB=required(await b.userClient.rpc("mgmail_has_internal_access",{
+const permissionB=required(await b.userClient.rpc("magnibox_has_internal_access",{
   p_org:organizationId,p_mailbox:ownerBox,p_action:"send",
 }),"Permission lecteur seul");
 assert(permissionA===true && permissionB===false,
   "Les droits de lecture et d'envoi doivent être indépendants.");
-required(await a.userClient.rpc("mgmail_send_internal_message", {
+required(await a.userClient.rpc("magnibox_send_internal_message", {
   p_organization_id:organizationId,p_sender_mailbox_id:ownerBox,p_recipient_mailbox_id:direction,
-  p_subject:"Envoi délégué MGMail",p_body_text:"Message envoyé avec droit explicite.",p_request_id:randomUUID(),
+  p_subject:"Envoi délégué magnibox",p_body_text:"Message envoyé avec droit explicite.",p_request_id:randomUUID(),
 }),"Envoi partagé autorisé");
-denied(await b.userClient.from("mgmail_internal_messages").insert({
+denied(await b.userClient.from("magnibox_internal_messages").insert({
   organization_id:organizationId,sender_mailbox_id:ownerBox,recipient_mailbox_id:finance,
   subject:"Envoi interdit",body_text:"L'accès lecture ne donne pas le droit d'envoyer.",
 }).select("id"),"Envoi refusé à un lecteur seul");
-required(await b.userClient.rpc("mgmail_send_internal_message", {
+required(await b.userClient.rpc("magnibox_send_internal_message", {
   p_organization_id:organizationId,p_sender_mailbox_id:direction,p_recipient_mailbox_id:ownerBox,
   p_subject:"Réponse à la boîte commune",p_body_text:"Notification et état de lecture individuel.",
   p_request_id:randomUUID(),
 }),"Message reçu dans la boîte commune");
-const shared=required(await owner.from("mgmail_internal_messages").select("id")
+const shared=required(await owner.from("magnibox_internal_messages").select("id")
   .eq("organization_id",organizationId).eq("subject","Réponse à la boîte commune"),
   "Accès propriétaire aux messages partagés");
 assert(shared.length===1,"La boîte de service doit recevoir le message.");
@@ -284,33 +284,33 @@ for(const [recipient,session] of [[ownerId,owner],[a.userId,a.userClient]]) {
     .eq("entity_id",sharedId),"Notification de boîte partagée");
   assert(notice.length===1,"Chaque lecteur autorisé doit recevoir une notification.");
 }
-required(await a.userClient.from("mgmail_internal_message_reads").insert({
+required(await a.userClient.from("magnibox_internal_message_reads").insert({
   organization_id:organizationId,message_id:sharedId,user_id:a.userId,
 }),"Lecture personnelle du message partagé");
-const mineRead=required(await a.userClient.from("mgmail_internal_message_reads")
+const mineRead=required(await a.userClient.from("magnibox_internal_message_reads")
   .select("message_id").eq("message_id",sharedId),"Lecture collaborateur");
-const ownerRead=required(await owner.from("mgmail_internal_message_reads")
+const ownerRead=required(await owner.from("magnibox_internal_message_reads")
   .select("message_id").eq("message_id",sharedId),"Lecture administrateur");
 assert(mineRead.length===1 && ownerRead.length===0,
   "La lecture d'un collaborateur ne doit pas effacer les non-lus d'un autre.");
-denied(await b.userClient.from("mgmail_internal_mailbox_grants")
+denied(await b.userClient.from("magnibox_internal_mailbox_grants")
   .update({can_send:true}).eq("organization_id",organizationId)
   .eq("mailbox_id",ownerBox).eq("user_id",b.userId).select("mailbox_id"),
   "Interdiction de modifier ses propres droits");
-required(await owner.from("mgmail_internal_mailbox_grants")
+required(await owner.from("magnibox_internal_mailbox_grants")
   .update({can_read:false,can_send:false,is_active:false})
   .eq("organization_id",organizationId).eq("mailbox_id",ownerBox)
   .eq("user_id",a.userId),"Révocation du partage");
-const afterRevoke=required(await a.userClient.rpc("mgmail_has_internal_access",{
+const afterRevoke=required(await a.userClient.rpc("magnibox_has_internal_access",{
   p_org:organizationId,p_mailbox:ownerBox,p_action:"read",
 }),"Vérification de la révocation");
 assert(afterRevoke===false,"Un accès retiré doit être refusé immédiatement.");
-const hiddenShared=required(await a.userClient.from("mgmail_internal_messages")
+const hiddenShared=required(await a.userClient.from("magnibox_internal_messages")
   .select("id").eq("id",sharedId),"Protection des messages après révocation");
 assert(hiddenShared.length===0,"Les messages doivent disparaître après révocation.");
 
 // Une personne hors de l'organisation n'a pas accès au répertoire.
-const outsiderEmail = `mgmail-outsider-${suffix}@magnisa.test`;
+const outsiderEmail = `magnibox-outsider-${suffix}@magnisa.test`;
 const outsiderPassword = `MG-${randomBytes(18).toString("hex")}!a9`;
 const outsiderCreated = await admin.auth.admin.createUser({
   email: outsiderEmail, password: outsiderPassword, email_confirm: true,
@@ -321,9 +321,9 @@ const outsiderAuth = await outsider.auth.signInWithPassword({
   email: outsiderEmail, password: outsiderPassword,
 });
 if (outsiderAuth.error) throw outsiderAuth.error;
-denied(await outsider.from("mgmail_internal_mailboxes").select("id")
+denied(await outsider.from("magnibox_internal_mailboxes").select("id")
   .eq("organization_id", organizationId), "Répertoire hors organisation");
-denied(await outsider.from("mgmail_internal_messages").select("id")
+denied(await outsider.from("magnibox_internal_messages").select("id")
   .eq("organization_id", organizationId), "Messages hors organisation");
 
 // La suspension d'un membre désactive immédiatement ses boîtes.
@@ -331,19 +331,19 @@ required(await admin.from("organization_members")
   .update({ status: "suspended" })
   .eq("organization_id", organizationId)
   .eq("user_id", b.userId), "Suspension collaborateur");
-const mailboxAfterDeparture = required(await owner.from("mgmail_internal_mailboxes")
+const mailboxAfterDeparture = required(await owner.from("magnibox_internal_mailboxes")
   .select("is_active").eq("organization_id", organizationId)
   .eq("id", direction).single(), "Suspension automatique de la boîte");
 assert(mailboxAfterDeparture.is_active === false,
   "La boîte d'un collaborateur suspendu doit être désactivée.");
-const ownerToDeparted = required(await owner.rpc("mgmail_can_send_internal", {
+const ownerToDeparted = required(await owner.rpc("magnibox_can_send_internal", {
   p_organization_id: organizationId,
   p_sender_mailbox_id: ownerBox,
   p_recipient_mailbox_id: direction,
 }), "Prévention des envois vers un ancien membre");
 assert(ownerToDeparted === false,
   "Un collaborateur suspendu ne peut plus recevoir de messages.");
-const grantAfterDeparture = required(await owner.from("mgmail_internal_mailbox_grants")
+const grantAfterDeparture = required(await owner.from("magnibox_internal_mailbox_grants")
   .select("is_active").eq("organization_id", organizationId)
   .eq("mailbox_id", ownerBox).eq("user_id", b.userId).single(),
   "Délégation du collaborateur suspendu");
@@ -351,5 +351,5 @@ assert(grantAfterDeparture.is_active === false,
   "Les délégations doivent être désactivées au départ d'un collaborateur.");
 
 process.stdout.write(
-  "PASS MGMail: envoi/réception interne, confidentialité, permissions et isolation des entreprises.\n",
+  "PASS magnibox: envoi/réception interne, confidentialité, permissions et isolation des entreprises.\n",
 );
