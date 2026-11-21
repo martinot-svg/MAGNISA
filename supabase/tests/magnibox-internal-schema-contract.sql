@@ -8,8 +8,8 @@ BEGIN
   IF (
     SELECT count(*)
     FROM supabase_migrations.schema_migrations
-    WHERE version IN ('20261114103000', '20261114103100', '20261114103200', '20261116160000', '20261116161000', '20261117100000')
-  ) <> 6 THEN
+    WHERE version IN ('20261114103000', '20261114103100', '20261114103200', '20261116150000', '20261116160000', '20261116161000', '20261117100000')
+  ) <> 7 THEN
     RAISE EXCEPTION 'magnibox: one or more approved migration versions are missing';
   END IF;
 
@@ -26,6 +26,19 @@ BEGIN
   WHERE c.oid IS NULL OR c.relkind NOT IN ('r','p') OR NOT c.relrowsecurity;
   IF v_missing IS NOT NULL THEN
     RAISE EXCEPTION 'magnibox: table missing or RLS disabled: %', v_missing;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relkind IN ('r','p')
+      AND c.relname LIKE 'mgmail_internal_%'
+  ) THEN
+    RAISE EXCEPTION 'magnibox: legacy internal mail tables remain after compatibility migration';
+  END IF;
+
+  IF to_regprocedure('public.mgmail_can_send_internal(uuid,uuid,uuid)') IS NOT NULL
+     OR to_regprocedure('public.mgmail_has_internal_access(uuid,uuid,text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'magnibox: legacy permission RPC names remain after compatibility migration';
   END IF;
 
   SELECT string_agg(expected.tablename || ':' || expected.policyname, ', ' ORDER BY expected.tablename)
@@ -155,6 +168,6 @@ BEGIN
     RAISE EXCEPTION 'magnibox: essential notifications or access-revocation triggers missing: %', v_missing;
   END IF;
 
-  RAISE NOTICE 'PASS magnibox: six versions, eight RLS tables including private drafts and personal folders, idempotent send RPC, required policies, invoker permission RPCs, guarded definer send RPCs and access/notification triggers';
+  RAISE NOTICE 'PASS magnibox: seven versions, eight RLS tables including private drafts and personal folders, idempotent send RPC, required policies, invoker permission RPCs, guarded definer send RPCs and access/notification triggers';
 END
 $magnibox_check$;
