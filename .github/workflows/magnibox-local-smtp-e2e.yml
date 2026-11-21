@@ -100,7 +100,7 @@ jobs:
             > infra/magnibox-mail/docker-data/config/postfix-accounts.cf
           chmod 600 infra/magnibox-mail/docker-data/config/postfix-accounts.cf
           # Four disposable accounts represent two independent organizations.
-          for spec in "ORG_A_ALICE:org-a-alice@example-a.test" "ORG_A_BOB:org-a-bob@example-a.test" "ORG_B_ALICE:org-b-alice@example-b.test" "ORG_B_BOB:org-b-bob@example-b.test"; do
+          for spec in "ORG_A_ALICE:org-a-alice@example.test" "ORG_A_BOB:org-a-bob@example.test" "ORG_B_ALICE:org-b-alice@example.test" "ORG_B_BOB:org-b-bob@example.test"; do
             key="${spec%%:*}"
             user="${spec#*:}"
             password="$(openssl rand -hex 24)"
