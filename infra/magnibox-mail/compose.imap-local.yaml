@@ -1,0 +1,31 @@
+# Local-only overlay for the MAGNIBOX Dovecot sync worker.
+# Use together with compose.yaml. The profile is opt-in and never starts by default.
+services:
+  imap-sync-worker:
+    profiles: ["imap-sync-local"]
+    build:
+      context: ../..
+      dockerfile: infra/magnibox-mail/worker/imap.Dockerfile
+    depends_on:
+      - mailserver
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      MAGNIBOX_IMAP_WORKER_MODE: isolated
+      SUPABASE_URL: ${MAGNIBOX_LOCAL_SUPABASE_URL:-http://host.docker.internal:54321}
+      SUPABASE_SERVICE_ROLE_KEY: ${MAGNIBOX_LOCAL_SUPABASE_SERVICE_ROLE_KEY:?Set the local Supabase service role key}
+      MAGNIBOX_IMAP_ALLOWED_HOSTS: mailserver
+      MAGNIBOX_IMAP_ACTIVE_KEY_ID: ${MAGNIBOX_LOCAL_IMAP_ACTIVE_KEY_ID:?Set a local-only credential key ID}
+      MAGNIBOX_IMAP_CREDENTIALS_KEYS: ${MAGNIBOX_LOCAL_IMAP_CREDENTIALS_KEYS:?Set a local-only Base64 AES-256 keyring}
+      MAGNIBOX_IMAP_CA_FILE: /run/magnibox-imap-ca/ca.pem
+    volumes:
+      - ${MAGNIBOX_LOCAL_IMAP_CA_FILE:?Set the local Dovecot CA certificate path}:/run/magnibox-imap-ca/ca.pem:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    restart: unless-stopped
