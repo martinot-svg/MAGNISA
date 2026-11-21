@@ -5,7 +5,7 @@ import hashlib, hmac, json, os, re, signal, sys, tempfile, time, urllib.error, u
 from pathlib import Path
 from urllib.parse import urlparse
 
-LINE_RE = re.compile(r"postfix/smtp\\[\\d+\\]:\\s+(?P<queue>[A-F0-9]{5,20}):\\s+to=<(?P<recipient>[^>\\r\\n]+)>,.*?\\bstatus=(?P<status>sent|bounced|deferred|expired)\\b", re.IGNORECASE)
+LINE_RE = re.compile(r"postfix/smtp\[\d+\]:\s+(?P<queue>[A-F0-9]{5,20}):\s+to=<(?P<recipient>[^>\r\n]+)>,.*?\bstatus=(?P<status>sent|bounced|deferred|expired)\b", re.IGNORECASE)
 EVENTS = {"sent":"remote_accepted","bounced":"bounced","deferred":"deferred","expired":"failed"}
 STOP = False
 
