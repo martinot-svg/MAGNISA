@@ -211,6 +211,21 @@ export async function POST(request: NextRequest) {
         from:identity.email_address,to:input.to,subject:input.subject,
         text:input.text,requestId:input.requestId,attachments:outgoingAttachments,
       });
+      const recipientRows=input.to.map(recipient=>({
+        message_id:id,recipient_email:recipient.trim().toLowerCase(),state:"local_accepted",
+      }));
+      const recipientsSaved=await admin.from("orbit_external_message_recipients")
+        .upsert(recipientRows,{onConflict:"message_id,recipient_email",ignoreDuplicates:true});
+      if(recipientsSaved.error) {
+        await admin.from("orbit_external_messages").update({
+          status:"uncertain",last_error:"SMTP accepté mais le suivi des destinataires n'a pas été enregistré.",
+          updated_at:new Date().toISOString(),
+        }).eq("organization_id",ctx.organizationId).eq("id",id);
+        return NextResponse.json({
+          ok:false,id,state:"uncertain",
+          error:"Le SMTP a accepté le message, mais l'enregistrement du suivi destinataire a échoué. Ne renvoyez pas le message.",
+        },{status:202});
+      }
       const saved=await admin.from("orbit_external_messages").update({
         status:"accepted",provider_email_id:result.providerMessageId,
         last_error:null,updated_at:new Date().toISOString(),
