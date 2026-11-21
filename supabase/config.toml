@@ -20,5 +20,5 @@ enabled = false
 [auth]
 enabled = true
 
-[inbucket]
+[local_smtp]
 enabled = false
