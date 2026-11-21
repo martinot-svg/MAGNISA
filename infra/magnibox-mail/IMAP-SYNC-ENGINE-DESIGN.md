@@ -12,9 +12,9 @@ Validation en cours : replay Supabase local isolé et CI. La migration n'a pas �
 ## Constat de la base connectée
 
 Tables de messagerie présentes:
-- `mgmail_internal_mailboxes`
-- `mgmail_internal_messages`
-- `mgmail_internal_message_reads`
+- `magnibox_internal_mailboxes`
+- `magnibox_internal_messages`
+- `magnibox_internal_message_reads`
 - `orbit_public_identities`
 - `orbit_external_messages`
 
@@ -108,7 +108,7 @@ Une reprise après interruption rejoue les tombstones non confirmés; la même s
 
 ## Décisions à verrouiller avant migration
 
-1. Définir les dossiers IMAP canoniques et leur correspondance avec les dossiers personnels `mgmail_internal_folders` (qui sont des dossiers/étiquettes personnels, pas des boîtes IMAP physiques partagées).
+1. Définir les dossiers IMAP canoniques et leur correspondance avec les dossiers personnels `magnibox_internal_folders` (qui sont des dossiers/étiquettes personnels, pas des boîtes IMAP physiques partagées).
 2. Séparer les namespaces `internal` et `internet`, même si une identité Internet référence une boîte interne.
 3. Choisir l'adaptateur Dovecot réel. Une écriture arbitraire dans Maildir pendant que Dovecot fonctionne n'est pas une intégration acceptable. Vérifier le backend de stockage/protocole retenu et ses garanties UID/UIDVALIDITY.
 4. Résoudre l'écart de migrations entre la base connectée et la branche.

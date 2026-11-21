@@ -54,26 +54,26 @@ try {
     p_name: "MAGNIBOX Worker E2E " + stamp, p_currency: "MGA",
   }), "create isolated test organization");
   created.organizationId = org;
-  unwrap(await owner.from("mgmail_internal_namespaces").insert({ organization_id: org, slug: "magnibox-e2e-" + stamp }).select("organization_id").single(), "create internal namespace");
-  const mailbox = unwrap(await owner.from("mgmail_internal_mailboxes").insert({
+  unwrap(await owner.from("magnibox_internal_namespaces").insert({ organization_id: org, slug: "magnibox-e2e-" + stamp }).select("organization_id").single(), "create internal namespace");
+  const mailbox = unwrap(await owner.from("magnibox_internal_mailboxes").insert({
     organization_id: org, local_part: "scanner", owner_user_id: user.user.id, display_name: "MAGNIBOX E2E scanner",
   }).select("id").single(), "create test mailbox");
   created.mailboxId = mailbox.id;
   const domain = "magnibox-e2e-" + stamp + ".example.org";
-  const domainRequest = unwrap(await owner.from("mgmail_domain_requests").insert({
+  const domainRequest = unwrap(await owner.from("magnibox_domain_requests").insert({
     organization_id: org, domain_name: domain, requested_by: user.user.id,
   }).select("id").single(), "create local domain request");
   created.domainId = domainRequest.id;
-  const addressRequest = unwrap(await owner.from("mgmail_public_address_requests").insert({
+  const addressRequest = unwrap(await owner.from("magnibox_public_address_requests").insert({
     organization_id: org, mailbox_id: mailbox.id, domain_request_id: domainRequest.id,
     domain_name: domain, local_part: "scanner", requested_by: user.user.id,
   }).select("id").single(), "create local address request");
   created.addressId = addressRequest.id;
 
-  unwrap(await admin.from("mgmail_domain_requests").update({
+  unwrap(await admin.from("magnibox_domain_requests").update({
     status: "verified", verified_at: new Date().toISOString(), proof_reference: "local-e2e-fixture-only",
   }).eq("id", created.domainId).select("id").single(), "approve local test domain");
-  unwrap(await admin.from("mgmail_public_address_requests").update({ status: "approved" })
+  unwrap(await admin.from("magnibox_public_address_requests").update({ status: "approved" })
     .eq("id", created.addressId).select("id").single(), "approve local test address");
   const pendingIdentity = unwrap(await admin.from("orbit_public_identities").select("id,status,receive_enabled")
     .eq("organization_id", org).eq("address_request_id", created.addressId).single(),
@@ -213,12 +213,12 @@ try {
   if (created.staleMessageId) await admin.from("orbit_external_messages").delete().eq("id", created.staleMessageId);
   if (created.messageId) await admin.from("orbit_external_messages").delete().eq("id", created.messageId);
   if (created.identityId) await admin.from("orbit_public_identities").delete().eq("id", created.identityId);
-  if (created.addressId) await admin.from("mgmail_public_address_requests").delete().eq("id", created.addressId);
-  if (created.domainId) await admin.from("mgmail_domain_requests").delete().eq("id", created.domainId);
-  if (created.mailboxId) await admin.from("mgmail_internal_mailboxes").delete().eq("id", created.mailboxId);
+  if (created.addressId) await admin.from("magnibox_public_address_requests").delete().eq("id", created.addressId);
+  if (created.domainId) await admin.from("magnibox_domain_requests").delete().eq("id", created.domainId);
+  if (created.mailboxId) await admin.from("magnibox_internal_mailboxes").delete().eq("id", created.mailboxId);
   // Remove the namespace explicitly; otherwise its organization foreign key can
   // leave synthetic test data behind when the organization delete is attempted.
-  if (created.organizationId) await admin.from("mgmail_internal_namespaces").delete().eq("organization_id", created.organizationId);
+  if (created.organizationId) await admin.from("magnibox_internal_namespaces").delete().eq("organization_id", created.organizationId);
   if (created.organizationId) await admin.from("organizations").delete().eq("id", created.organizationId);
   if (created.secondOrganizationId) await admin.from("organizations").delete().eq("id", created.secondOrganizationId);
   if (created.secondUserId) await admin.auth.admin.deleteUser(created.secondUserId);

@@ -1,7 +1,7 @@
 # MAGNISA — Audit approfondi et travaux transverses des lots 2-7, 9, 10
 Date : 2026-10-16
 Source comptable : Plan comptable général 2005 de Madagascar fourni par le demandeur (décret n° 2004-272).
-Périmètre de changement : MAGNISA-TEST et `lot1-securite-financiere` exclusivement. MAGNIMAIL exclu.
+Périmètre de changement : MAGNISA-TEST et `lot1-securite-financiere` exclusivement. MAGNIBOX exclu.
 
 ## Réalisations vérifiées
 1. Vues RLS en lecture seule de rapprochement factures clients / factures fournisseurs / comptes financiers, versionnées dans `20261016170000_financial_reconciliation_diagnostics.sql`, exposées au module Comptabilité.

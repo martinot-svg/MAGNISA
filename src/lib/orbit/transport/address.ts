@@ -1,14 +1,14 @@
 /**
  * Deliberately restrict domain and mailbox syntax to compatible ASCII.
  * This validates input only: it does not assert ownership, availability or
- * server-side sender permission. A .mgmail mailbox is not Internet-routable.
+ * server-side sender permission. A .magnibox mailbox is not Internet-routable.
  */
 const PUBLIC_ADDRESS = /^[a-z0-9][a-z0-9.!#$%&'*+/=?^_`{|}~-]*@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i;
 export function normalizePublicEmail(input: string): string {
   const value = input.trim().toLowerCase();
   if (value.length > 254 || value.includes("\r") || value.includes("\n")
     || !PUBLIC_ADDRESS.test(value) || value.includes("..")
-    || value.endsWith(".mgmail")) {
+    || value.endsWith(".magnibox")) {
     throw new Error("Adresse de courrier Internet invalide.");
   }
   return value;

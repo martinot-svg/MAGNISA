@@ -47,7 +47,7 @@ BEGIN
       AND tgname='trg_orbit_identity_activation' AND NOT tgisinternal
   ) OR NOT EXISTS (
     SELECT 1 FROM pg_trigger
-    WHERE tgrelid='public.mgmail_domain_requests'::regclass
+    WHERE tgrelid='public.magnibox_domain_requests'::regclass
       AND tgname='trg_orbit_domain_unverified' AND NOT tgisinternal
   ) THEN
     RAISE EXCEPTION 'Provider activation/domain-revocation guard trigger missing';

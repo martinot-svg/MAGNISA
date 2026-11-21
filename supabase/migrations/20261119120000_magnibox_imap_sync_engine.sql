@@ -57,7 +57,7 @@ create table public.magnibox_imap_folder_state (
   updated_at timestamptz not null default now(),
   constraint magnibox_imap_folder_mailbox_org_fk
     foreign key (mailbox_id, organization_id)
-    references public.mgmail_internal_mailboxes(id, organization_id) on delete restrict,
+    references public.magnibox_internal_mailboxes(id, organization_id) on delete restrict,
   constraint magnibox_imap_folder_identity_org_fk
     foreign key (identity_id, organization_id)
     references public.orbit_public_identities(id, organization_id) on delete restrict,
@@ -163,7 +163,7 @@ begin
   if new.source_type = 'internal_message' then
     if not exists (
       select 1
-      from public.mgmail_internal_messages m
+      from public.magnibox_internal_messages m
       join public.magnibox_imap_folder_state f
         on f.id = new.folder_state_id and f.organization_id = new.organization_id
       where m.id = new.source_message_id
@@ -387,7 +387,7 @@ declare
   v_aggregate_type text;
   v_dedupe_key text;
 begin
-  if tg_table_name = 'mgmail_internal_messages' then
+  if tg_table_name = 'magnibox_internal_messages' then
     v_aggregate_type := 'internal_message';
     if tg_op = 'DELETE' then
       v_row := pg_catalog.to_jsonb(old);
@@ -478,7 +478,7 @@ $enqueue$;
 revoke all on function private.magnibox_enqueue_message_sync_event()
   from public, anon, authenticated;
 create trigger magnibox_internal_message_sync_outbox
-after insert or delete on public.mgmail_internal_messages
+after insert or delete on public.magnibox_internal_messages
 for each row execute function private.magnibox_enqueue_message_sync_event();
 create trigger magnibox_external_message_sync_outbox
 after insert or delete or update of direction, status, identity_id, from_email, to_emails, subject, body_text

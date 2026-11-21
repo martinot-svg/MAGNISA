@@ -42,53 +42,53 @@ const denied=(x,description)=>{
 };
 
 const domain=`ci-${token}.example.org`;
-const namespace=ok(await owner.account.from("mgmail_internal_namespaces").insert({
+const namespace=ok(await owner.account.from("magnibox_internal_namespaces").insert({
   organization_id:org,slug:`ci-${token}`,
 }).select("organization_id").single(),"namespace");
-const mailbox=ok(await owner.account.from("mgmail_internal_mailboxes").insert({
+const mailbox=ok(await owner.account.from("magnibox_internal_mailboxes").insert({
   organization_id:namespace.organization_id,local_part:"finance",owner_user_id:owner.id,
 }).select("id").single(),"internal mailbox");
 
-const request=ok(await owner.account.from("mgmail_domain_requests").insert({
+const request=ok(await owner.account.from("magnibox_domain_requests").insert({
   organization_id:org,domain_name:domain,requested_by:owner.id,
 }).select("id,status,domain_name,verification_token").single(),"domain request");
 if(request.status!=="pending"||request.domain_name!==domain)throw Error("Domain request must remain pending");
 if(!/^[0-9a-f]{64}$/.test(request.verification_token))throw Error("DNS challenge must have 244 random bits");
-denied(await employee.account.from("mgmail_domain_requests")
+denied(await employee.account.from("magnibox_domain_requests")
   .select("verification_token").eq("id",request.id),
   "Employee must not read another person's DNS ownership challenge");
-denied(await owner.account.from("mgmail_domain_requests").insert({
+denied(await owner.account.from("magnibox_domain_requests").insert({
   organization_id:org,domain_name:`forged-${token}.example.org`,
   requested_by:owner.id,verification_token:"b".repeat(64),
 }).select("id"),"Browser may not choose its own DNS proof token");
-const address=ok(await owner.account.from("mgmail_public_address_requests").insert({
+const address=ok(await owner.account.from("magnibox_public_address_requests").insert({
   organization_id:org,mailbox_id:mailbox.id,domain_request_id:request.id,
   domain_name:domain,local_part:"direction",requested_by:owner.id,
 }).select("email_address,status").single(),"professional address request");
 if(address.status!=="pending"||address.email_address!==`direction@${domain}`)
   throw Error("No real mailbox must be provisioned by the request");
 
-denied(await employee.account.from("mgmail_domain_requests").select("id").eq("organization_id",org),
+denied(await employee.account.from("magnibox_domain_requests").select("id").eq("organization_id",org),
   "Employee must not see admin domain registry");
-denied(await employee.account.from("mgmail_domain_requests").insert({
+denied(await employee.account.from("magnibox_domain_requests").insert({
   organization_id:org,domain_name:`bad-${token}.example.net`,requested_by:employee.id,
 }).select("id"),"Employee cannot request a domain");
-denied(await outsider.account.from("mgmail_public_address_requests").select("id").eq("organization_id",org),
+denied(await outsider.account.from("magnibox_public_address_requests").select("id").eq("organization_id",org),
   "Foreign company cannot see pending addresses");
-denied(await outsider.account.from("mgmail_domain_requests").insert({
+denied(await outsider.account.from("magnibox_domain_requests").insert({
   organization_id:org,domain_name:`foreign-${token}.example.net`,requested_by:outsider.id,
 }).select("id"),"Foreign company cannot claim someone else's organization");
-denied(await owner.account.from("mgmail_domain_requests").update({
+denied(await owner.account.from("magnibox_domain_requests").update({
   status:"verified",verified_at:new Date().toISOString(),proof_reference:"client fraud",
 }).eq("id",request.id).select("id"),"Admin cannot self-verify a public domain");
-denied(await owner.account.from("mgmail_public_address_requests")
+denied(await owner.account.from("magnibox_public_address_requests")
   .update({status:"approved"}).eq("organization_id",org).select("id"),
   "Admin cannot self-activate a public address");
-denied(await owner.account.from("mgmail_public_address_requests").insert({
+denied(await owner.account.from("magnibox_public_address_requests").insert({
   organization_id:org,mailbox_id:mailbox.id,domain_request_id:request.id,
   domain_name:`other-${token}.example.net`,local_part:"support",requested_by:owner.id,
 }).select("id"),"Foreign domain name cannot be attached to a request");
-const stillPending=ok(await owner.account.from("mgmail_domain_requests")
+const stillPending=ok(await owner.account.from("magnibox_domain_requests")
   .select("status,verified_at").eq("id",request.id).single(),"domain state");
 if(stillPending.status!=="pending"||stillPending.verified_at!==null)
   throw Error("Domain unexpectedly verified");

@@ -5,11 +5,11 @@
 Cette évolution concerne les **demandes de domaines et d'adresses** et ne simule jamais l'envoi ou la réception de courriels Internet.
 
 - Un administrateur MAGNISA ayant `users.manage` peut demander plusieurs domaines qui lui appartiennent ou sont légalement mis à disposition : `entreprise.mg`, `entreprise.com`, `entreprise.org`, etc.
-- Il peut demander une adresse professionnelle (ex. `finance@entreprise.mg`) rattachée à une boîte MGMail interne autorisée ; les permissions existantes de cette boîte ne sont pas dupliquées.
+- Il peut demander une adresse professionnelle (ex. `finance@entreprise.mg`) rattachée à une boîte magnibox interne autorisée ; les permissions existantes de cette boîte ne sont pas dupliquées.
 - La demande est enregistrée avec `status=pending` ; aucun salarié ou administrateur d'entreprise ne peut modifier le statut en vérifié / approuvé.
 - L'adresse est générée côté PostgreSQL depuis le domaine et la partie locale, empêchant un client API d'écrire une adresse qui ne correspond pas au domaine demandé.
 - Les clés étrangères composites, RLS et permissions SQL empêchent les références interentreprises. Un index unique empêche qu'un même domaine soit marqué `verified` pour deux entreprises, sans permettre à des demandes non vérifiées de bloquer le domaine d'autrui.
-- Les anciennes tables `mgmail_internal_*`, `email_connections`, les messages et l'authentification restent intacts.
+- Les anciennes tables `magnibox_internal_*`, `email_connections`, les messages et l'authentification restent intacts.
 
 ## Vérification de propriété DNS (développée)
 

@@ -1,6 +1,6 @@
 import { FormDialog } from "@/components/form-dialog";
 import { requirePermission } from "@/lib/permissions";
-import { getEmailTemplate, renderEmailTemplate } from "@/lib/magnimail/templates";
+import { getEmailTemplate, renderEmailTemplate } from "@/lib/magnibox/templates";
 import { notFound, redirect } from "next/navigation";
 import { requireOrganization } from "@/lib/current-org";
 import { money } from "@/lib/money";

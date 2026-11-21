@@ -1,5 +1,5 @@
 -- Magnisa Orbit Action: collaborative tasks are independent of financial project status.
--- No historical commercial project, MGMail mailbox or existing message is modified.
+-- No historical commercial project, magnibox mailbox or existing message is modified.
 -- Composite FK ensures optional project links never cross organizations.
 create unique index if not exists orbit_projects_id_org_unique_idx
   on public.projects(id,organization_id);

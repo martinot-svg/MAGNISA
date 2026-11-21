@@ -54,27 +54,27 @@ try {
     p_name: "MAGNIBOX inbound E2E " + stamp, p_currency: "MGA",
   }), "create isolated inbound organization");
   created.organizationId = org;
-  unwrap(await owner.from("mgmail_internal_namespaces").insert({
+  unwrap(await owner.from("magnibox_internal_namespaces").insert({
     organization_id: org, slug: "inbound-" + stamp,
   }).select("organization_id").single(), "create internal namespace");
-  const mailbox = unwrap(await owner.from("mgmail_internal_mailboxes").insert({
+  const mailbox = unwrap(await owner.from("magnibox_internal_mailboxes").insert({
     organization_id: org, local_part: "receiver", owner_user_id: user.user.id,
     display_name: "Inbound E2E receiver",
   }).select("id").single(), "create inbound mailbox");
   created.mailboxId = mailbox.id;
-  const domainRow = unwrap(await owner.from("mgmail_domain_requests").insert({
+  const domainRow = unwrap(await owner.from("magnibox_domain_requests").insert({
     organization_id: org, domain_name: domain, requested_by: user.user.id,
   }).select("id").single(), "create test domain request");
   created.domainId = domainRow.id;
-  const addressRow = unwrap(await owner.from("mgmail_public_address_requests").insert({
+  const addressRow = unwrap(await owner.from("magnibox_public_address_requests").insert({
     organization_id: org, mailbox_id: mailbox.id, domain_request_id: domainRow.id,
     domain_name: domain, local_part: "receiver", requested_by: user.user.id,
   }).select("id").single(), "create test address request");
   created.addressId = addressRow.id;
-  unwrap(await admin.from("mgmail_domain_requests").update({
+  unwrap(await admin.from("magnibox_domain_requests").update({
     status: "verified", verified_at: new Date().toISOString(), proof_reference: "local-inbound-e2e-only",
   }).eq("id", domainRow.id).select("id").single(), "verify local test domain");
-  unwrap(await admin.from("mgmail_public_address_requests").update({ status: "approved" })
+  unwrap(await admin.from("magnibox_public_address_requests").update({ status: "approved" })
     .eq("id", addressRow.id).select("id").single(), "approve local test address");
   // Address approval creates the pending, non-routable identity automatically.
   // Reuse that row instead of inserting a duplicate email_address.
@@ -394,10 +394,10 @@ try {
   if (created.identityId && created.messageIds.length) await admin.from("orbit_external_messages").delete()
     .eq("identity_id", created.identityId).eq("direction", "incoming").in("id", created.messageIds);
   if (created.identityId) await admin.from("orbit_public_identities").delete().eq("id", created.identityId);
-  if (created.addressId) await admin.from("mgmail_public_address_requests").delete().eq("id", created.addressId);
-  if (created.domainId) await admin.from("mgmail_domain_requests").delete().eq("id", created.domainId);
-  if (created.mailboxId) await admin.from("mgmail_internal_mailboxes").delete().eq("id", created.mailboxId);
-  if (created.organizationId) await admin.from("mgmail_internal_namespaces").delete().eq("organization_id", created.organizationId);
+  if (created.addressId) await admin.from("magnibox_public_address_requests").delete().eq("id", created.addressId);
+  if (created.domainId) await admin.from("magnibox_domain_requests").delete().eq("id", created.domainId);
+  if (created.mailboxId) await admin.from("magnibox_internal_mailboxes").delete().eq("id", created.mailboxId);
+  if (created.organizationId) await admin.from("magnibox_internal_namespaces").delete().eq("organization_id", created.organizationId);
   if (created.unauthorizedUserId) await admin.auth.admin.deleteUser(created.unauthorizedUserId);
   if (created.userId) await admin.auth.admin.deleteUser(created.userId);
 }

@@ -1,7 +1,7 @@
 -- Magnibox: real Internet identities and messages (NO provider activation).
--- Depends on 20261114120000 domain requests. No historical MGMail data modified.
+-- Depends on 20261114120000 domain requests. No historical magnibox data modified.
 create unique index orbit_address_request_identity_reference_idx
-  on public.mgmail_public_address_requests
+  on public.magnibox_public_address_requests
   (id,organization_id,domain_name,local_part,mailbox_id);
 
 create table public.orbit_public_identities (
@@ -25,14 +25,14 @@ create table public.orbit_public_identities (
   unique(email_address),
   constraint orbit_identity_mailbox_same_org
     foreign key(mailbox_id,organization_id)
-      references public.mgmail_internal_mailboxes(id,organization_id) on delete restrict,
+      references public.magnibox_internal_mailboxes(id,organization_id) on delete restrict,
   constraint orbit_identity_domain_same_org
     foreign key(domain_request_id,organization_id,domain_name)
-      references public.mgmail_domain_requests(id,organization_id,domain_name)
+      references public.magnibox_domain_requests(id,organization_id,domain_name)
       on delete restrict,
   constraint orbit_identity_requested_address_same_org
     foreign key(address_request_id,organization_id,domain_name,local_part,mailbox_id)
-      references public.mgmail_public_address_requests
+      references public.magnibox_public_address_requests
         (id,organization_id,domain_name,local_part,mailbox_id)
       on delete restrict,
   constraint orbit_identity_activation_requires_provider
@@ -78,9 +78,9 @@ create policy orbit_public_identities_read on public.orbit_public_identities
       where g.identity_id=orbit_public_identities.id
         and g.organization_id=orbit_public_identities.organization_id
         and g.user_id=(select auth.uid()) and g.is_active
-        and ((g.can_read and public.mgmail_has_internal_access(
+        and ((g.can_read and public.magnibox_has_internal_access(
           orbit_public_identities.organization_id,orbit_public_identities.mailbox_id,'read'))
-          or (g.can_send and public.mgmail_has_internal_access(
+          or (g.can_send and public.magnibox_has_internal_access(
           orbit_public_identities.organization_id,orbit_public_identities.mailbox_id,'send')))
     ))
   );
@@ -101,7 +101,7 @@ as $orbit_access$
         and g.user_id=(select auth.uid()) and g.is_active
         and (p_action='read' or i.status='active')
         and (case when p_action='read' then g.can_read else g.can_send end)
-        and public.mgmail_has_internal_access(p_org,i.mailbox_id,p_action)
+        and public.magnibox_has_internal_access(p_org,i.mailbox_id,p_action)
     );
 $orbit_access$;
 revoke all on function public.orbit_can_public_mail_access(uuid,uuid,text)
@@ -116,8 +116,8 @@ returns trigger language plpgsql security definer
 set search_path=pg_catalog,public,private as $orbit_guard$
 begin
   if new.status='active' and not exists (
-    select 1 from public.mgmail_domain_requests d
-    join public.mgmail_public_address_requests a
+    select 1 from public.magnibox_domain_requests d
+    join public.magnibox_public_address_requests a
       on a.domain_request_id=d.id and a.organization_id=d.organization_id
     where d.id=new.domain_request_id and d.organization_id=new.organization_id
       and d.domain_name=new.domain_name and d.status='verified'
@@ -152,10 +152,10 @@ $orbit_revoke$;
 revoke all on function private.orbit_suspend_unverified_public_domain()
   from public,anon,authenticated;
 create trigger trg_orbit_domain_unverified
-  after update of status on public.mgmail_domain_requests
+  after update of status on public.magnibox_domain_requests
   for each row execute function private.orbit_suspend_unverified_public_domain();
 
--- Internet messages are segregated from internal MGMail messages.
+-- Internet messages are segregated from internal magnibox messages.
 create table public.orbit_external_messages (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete restrict,

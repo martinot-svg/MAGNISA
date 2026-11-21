@@ -72,7 +72,7 @@ BEGIN
   SELECT string_agg(required.trigger_name, ', ' ORDER BY required.trigger_name)
     INTO v_missing
   FROM (VALUES
-    ('mgmail_internal_messages','magnibox_internal_message_sync_outbox'),
+    ('magnibox_internal_messages','magnibox_internal_message_sync_outbox'),
     ('orbit_external_messages','magnibox_external_message_sync_outbox'),
     ('magnibox_imap_folder_state','magnibox_imap_folder_identity_guard'),
     ('magnibox_imap_message_map','magnibox_imap_message_map_source_guard')

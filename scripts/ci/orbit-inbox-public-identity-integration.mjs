@@ -32,22 +32,22 @@ const m=await admin.from("organization_members").insert({
   organization_id:org,user_id:employee.id,role:"employee",status:"active",
 });
 if(m.error)throw m.error;
-const namespace=ok(await owner.account.from("mgmail_internal_namespaces").insert({
+const namespace=ok(await owner.account.from("magnibox_internal_namespaces").insert({
   organization_id:org,slug:`inbox-${stamp}`,
 }).select("organization_id").single(),"namespace");
-const mailbox=ok(await owner.account.from("mgmail_internal_mailboxes").insert({
+const mailbox=ok(await owner.account.from("magnibox_internal_mailboxes").insert({
   organization_id:namespace.organization_id,local_part:"finance",owner_user_id:owner.id,
 }).select("id").single(),"mailbox");
-const internal=await admin.from("mgmail_internal_mailbox_grants").insert({
+const internal=await admin.from("magnibox_internal_mailbox_grants").insert({
   organization_id:org,mailbox_id:mailbox.id,user_id:employee.id,
   can_read:true,can_send:true,is_active:true,
 });
 if(internal.error)throw internal.error;
 const domain=`ci-${stamp}.example.org`;
-const d=ok(await owner.account.from("mgmail_domain_requests").insert({
+const d=ok(await owner.account.from("magnibox_domain_requests").insert({
   organization_id:org,domain_name:domain,requested_by:owner.id,
 }).select("id,status").single(),"domain");
-const a=ok(await owner.account.from("mgmail_public_address_requests").insert({
+const a=ok(await owner.account.from("magnibox_public_address_requests").insert({
   organization_id:org,domain_request_id:d.id,domain_name:domain,
   mailbox_id:mailbox.id,local_part:"finance",requested_by:owner.id,
 }).select("id,status").single(),"requested address");
@@ -60,11 +60,11 @@ const prototype={
 // Even service role may not activate a sender before domain and address approval.
 deny(await admin.from("orbit_public_identities").insert(prototype).select("id"),
   "Unverified public identity activation");
-const proof=await admin.from("mgmail_domain_requests").update({
+const proof=await admin.from("magnibox_domain_requests").update({
   status:"verified",verified_at:new Date().toISOString(),proof_reference:"ci-verified-only",
 }).eq("id",d.id);
 if(proof.error)throw proof.error;
-const approval=await admin.from("mgmail_public_address_requests")
+const approval=await admin.from("magnibox_public_address_requests")
   .update({status:"approved"}).eq("id",a.id);
 if(approval.error)throw approval.error;
 const pending=ok(await admin.from("orbit_public_identities")
@@ -148,14 +148,14 @@ if(revoke.error)throw revoke.error;
 const readAfter=await employee.account.from("orbit_external_messages").select("id")
   .eq("organization_id",org);
 if(readAfter.error||readAfter.data.length!==0)throw Error("Revoked employee still sees mail");
-const disableMailbox=await admin.from("mgmail_internal_mailboxes")
+const disableMailbox=await admin.from("magnibox_internal_mailboxes")
   .update({is_active:false}).eq("id",mailbox.id).eq("organization_id",org);
 if(disableMailbox.error)throw disableMailbox.error;
 const mailboxSuspended=ok(await admin.from("orbit_public_identities")
   .select("status,receive_enabled").eq("id",identity.id).single(),"mailbox suspension");
 if(mailboxSuspended.status!=="suspended"||mailboxSuspended.receive_enabled!==false)
   throw Error("Disabling the linked company mailbox must suspend public MAGNIBOX identity immediately");
-const removeDomain=await admin.from("mgmail_domain_requests").update({
+const removeDomain=await admin.from("magnibox_domain_requests").update({
   status:"rejected",verified_at:null,
 }).eq("id",d.id);
 if(removeDomain.error)throw removeDomain.error;

@@ -3,7 +3,7 @@ Date : 2026-10-16
 Branche : lot1-securite-financiere
 Base d'exécution : MAGNISA-TEST / jrotsmzkyjsibmbnqxtz
 Production : inchangée
-MAGNIMAIL : exclu des modifications
+MAGNIBOX : exclu des modifications
 
 ## Réalisation
 - Migration `20261016170000_financial_reconciliation_diagnostics.sql` ajoutée et appliquée sur TEST.

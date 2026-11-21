@@ -1,5 +1,5 @@
 /**
- * Provider-neutral contract for MGMail.
+ * Provider-neutral contract for magnibox.
  *
  * Adapters translate provider-specific APIs (Gmail, Microsoft Graph, IMAP/SMTP)
  * into these normalized shapes. Tokens and provider secrets must never be

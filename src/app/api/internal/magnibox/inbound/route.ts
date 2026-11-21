@@ -55,12 +55,12 @@ export async function POST(request: NextRequest) {
       if (!identity || !identity.provider_verified_at || !identity.provider_domain_ref?.trim())
         return NextResponse.json({ error: "Destinataire non disponible." }, { status: 422 });
       const [mailbox, domain, address] = await Promise.all([
-        admin.from("mgmail_internal_mailboxes").select("id,is_active")
+        admin.from("magnibox_internal_mailboxes").select("id,is_active")
           .eq("id", identity.mailbox_id)
           .eq("organization_id", identity.organization_id).maybeSingle(),
-        admin.from("mgmail_domain_requests").select("domain_name,status")
+        admin.from("magnibox_domain_requests").select("domain_name,status")
           .eq("id", identity.domain_request_id).eq("organization_id", identity.organization_id).maybeSingle(),
-        admin.from("mgmail_public_address_requests").select("email_address,status")
+        admin.from("magnibox_public_address_requests").select("email_address,status")
           .eq("id", identity.address_request_id).eq("organization_id", identity.organization_id).maybeSingle(),
       ]);
       if (domain.error || address.error || mailbox.error) return unavailable();

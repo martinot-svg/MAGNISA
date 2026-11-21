@@ -3,7 +3,7 @@ import {loadPayslip} from "@/lib/payroll/payslip-document";
 import {requirePermission} from "@/lib/permissions";
 import {renderPayslipPdf} from "@/lib/pdf/payslip";
 import {buildMimeMessage,getGmailAccess,sendGmailRaw} from "@/lib/google/gmail";
-import {recordMailHistory} from "@/lib/magnimail/history";
+import {recordMailHistory} from "@/lib/magnibox/history";
 export async function POST(request:NextRequest,{params}:{params:Promise<{id:string}>}){
  try{
  const {id}=await params;const result=await loadPayslip(id);if(!result)return NextResponse.json({error:"Bulletin introuvable"},{status:404});

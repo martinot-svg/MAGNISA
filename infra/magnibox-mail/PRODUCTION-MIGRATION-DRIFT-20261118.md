@@ -10,13 +10,13 @@ La liste des migrations réellement enregistrées dans Supabase se termine à:
 `20261115220000 magnibox_atomic_draft_submission`.
 
 La branche contient des migrations ultérieures, notamment:
-- `20261117100000_mgmail_internal_idempotent_send.sql`
+- `20261117100000_magnibox_internal_idempotent_send.sql`
 - `20261117200000_magnibox_outbound_request_fingerprint.sql`
 - `20261118110000_magnibox_draft_recipient_fk.sql`
 
-L'introspection ciblée confirme également que les tables `mgmail_internal_drafts`, `mgmail_internal_folders` et `mgmail_internal_message_folders` sont absentes de la base connectée. Les colonnes `client_request_id` sur `mgmail_internal_messages` et `request_fingerprint` sur `orbit_external_messages` sont absentes. La fonction `orbit_reserve_magnibox_outbound` présente encore l'ancienne signature sans paramètre de fingerprint. Les fonctions `mgmail_send_internal_message` et `mgmail_send_internal_draft` attendues par les migrations récentes ne figurent pas dans l'inventaire des fonctions publiques.
+L'introspection ciblée confirme également que les tables `magnibox_internal_drafts`, `magnibox_internal_folders` et `magnibox_internal_message_folders` sont absentes de la base connectée. Les colonnes `client_request_id` sur `magnibox_internal_messages` et `request_fingerprint` sur `orbit_external_messages` sont absentes. La fonction `orbit_reserve_magnibox_outbound` présente encore l'ancienne signature sans paramètre de fingerprint. Les fonctions `magnibox_send_internal_message` et `magnibox_send_internal_draft` attendues par les migrations récentes ne figurent pas dans l'inventaire des fonctions publiques.
 
-Le fichier `production-pending-allowlist.txt` contient `20261117100000`, mais l'historique connecté ne l'indique pas comme appliquée. Les migrations `20261116160000_mgmail_internal_drafts.sql`, `20261116161000_mgmail_internal_folders.sql`, `20261117100000_mgmail_internal_idempotent_send.sql`, `20261117200000_magnibox_outbound_request_fingerprint.sql` et `20261118110000_magnibox_draft_recipient_fk.sql` ne sont pas enregistrées dans l'historique Supabase connecté. Les objets absents/anciennes signatures observés confirment que ce n'est pas uniquement un problème de ledger. Les migrations postérieures ne sont pas toutes dans cet allowlist. Le marqueur `production-release-approved.txt` décrit un ancien lot de production, pas une approbation des migrations MAGNIBOX de novembre 17–18.
+Le fichier `production-pending-allowlist.txt` contient `20261117100000`, mais l'historique connecté ne l'indique pas comme appliquée. Les migrations `20261116160000_magnibox_internal_drafts.sql`, `20261116161000_magnibox_internal_folders.sql`, `20261117100000_magnibox_internal_idempotent_send.sql`, `20261117200000_magnibox_outbound_request_fingerprint.sql` et `20261118110000_magnibox_draft_recipient_fk.sql` ne sont pas enregistrées dans l'historique Supabase connecté. Les objets absents/anciennes signatures observés confirment que ce n'est pas uniquement un problème de ledger. Les migrations postérieures ne sont pas toutes dans cet allowlist. Le marqueur `production-release-approved.txt` décrit un ancien lot de production, pas une approbation des migrations MAGNIBOX de novembre 17–18.
 
 ## Décision de sécurité
 
