@@ -10,6 +10,8 @@ on:
       - ".github/workflows/magnibox-local-smtp-e2e.yml"
       - "package.json"
       - "package-lock.json"
+      - "supabase/config.toml"
+      - "scripts/magnibox/**"
   push:
     branches: [main]
     paths:

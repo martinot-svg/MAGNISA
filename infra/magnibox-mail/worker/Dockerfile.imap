@@ -1,0 +1,14 @@
+FROM node:22-alpine
+
+ENV NODE_ENV=production
+WORKDIR /app
+
+RUN npm install --omit=dev --no-audit --no-fund --save-exact \
+  @supabase/supabase-js@2.57.0 tsx@4.20.6
+
+# Copy the complete server-only MAGNIBOX worker modules. The adapter module
+# must be added and explicitly configured before the profile can process mail.
+COPY scripts/magnibox/*.ts ./scripts/magnibox/
+
+USER node
+CMD ["./node_modules/.bin/tsx", "scripts/magnibox/run-imap-sync-worker.ts"]

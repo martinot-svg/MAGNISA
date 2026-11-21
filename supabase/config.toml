@@ -19,3 +19,6 @@ enabled = false
 
 [auth]
 enabled = true
+
+[local_smtp]
+enabled = false
