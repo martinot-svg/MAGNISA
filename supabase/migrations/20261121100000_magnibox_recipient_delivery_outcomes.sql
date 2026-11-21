@@ -81,7 +81,7 @@ begin
   select m.id into v_message_id
   from public.orbit_external_messages m
   where m.direction='outgoing' and m.provider_email_id=upper(p_queue_id)
-    and v_recipient=any(select lower(btrim(x)) from unnest(m.to_emails) x)
+    and v_recipient=any(select lower(btrim(u.email)) from unnest(m.to_emails) as u(email))
   limit 1;
   if v_message_id is null then return 'not_found'; end if;
 
