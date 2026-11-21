@@ -120,7 +120,7 @@ async function main(): Promise<void> {
       organizationId,
       mailboxId: mailbox.id,
       credentials: {
-        host: "mailserver",
+        host: "mail.example.test",
         port: 993,
         secure: true,
         username: account.email,
