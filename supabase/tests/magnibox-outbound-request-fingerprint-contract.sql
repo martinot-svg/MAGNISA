@@ -5,7 +5,7 @@ DECLARE
   v_def text;
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM supabase_migrations.schema_migrations WHERE version='20261117200000'
+    SELECT 1 FROM supabase_migrations.schema_migrations WHERE version='20261121123100'
   ) THEN
     RAISE EXCEPTION 'MAGNIBOX outbound request fingerprint migration absent';
   END IF;
