@@ -163,7 +163,7 @@ export function createMagniboxDovecotProjectionSink(
               outboxEventId: event.id,
               leaseToken: event.lease_token,
               operationId: operation.operationId,
-            }).catch(() => undefined);
+            }).catch((): undefined => undefined);
             throw error;
           }
         } else if (decision.action === "search_again") {
