@@ -51,8 +51,23 @@ function positiveImapInteger(value: unknown, label: string): string {
   return normalized;
 }
 
-function nullableImapInteger(value: unknown, label: string): string | null {
-  return value === undefined || value === null ? null : positiveImapInteger(value, label);
+function nonNegativeImapInteger(value: unknown, label: string): string {
+  let normalized: string;
+  try {
+    normalized = typeof value === "bigint" ? value.toString() : String(value);
+  } catch {
+    throw new MagniboxSyncError(`Invalid Dovecot ${label}`, false);
+  }
+  if (!/^(0|[1-9][0-9]*)$/.test(normalized) || normalized.length > 19
+    || (normalized.length === 19 && normalized > "9223372036854775807")) {
+    throw new MagniboxSyncError(`Invalid Dovecot ${label}`, false);
+  }
+  return normalized;
+}
+
+function nullableImapInteger(value: unknown, label: string, allowZero = false): string | null {
+  if (value === undefined || value === null) return null;
+  return allowZero ? nonNegativeImapInteger(value, label) : positiveImapInteger(value, label);
 }
 
 /**
@@ -106,7 +121,7 @@ export class MagniboxDovecotImapAdapter {
         path: mailboxPath,
         uidValidity,
         uidNext: nullableImapInteger(mailbox.uidNext, "UIDNEXT"),
-        highestModseq: nullableImapInteger(mailbox.highestModseq, "HIGHESTMODSEQ"),
+        highestModseq: nullableImapInteger(mailbox.highestModseq, "HIGHESTMODSEQ", true),
       };
 
       const session: MagniboxDovecotSession = {
