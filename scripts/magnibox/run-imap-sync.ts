@@ -152,7 +152,7 @@ async function main(): Promise<void> {
     async composeMessage({ projection, operationMarker }) {
       const { data, error } = await supabase.from("magnibox_internal_namespaces")
         .select("slug")
-        .eq("id", projection.organizationId)
+        .eq("organization_id", projection.organizationId)
         .maybeSingle();
       if (error || typeof data?.slug !== "string") {
         throw new MagniboxSyncError("MAGNIBOX namespace could not be resolved", false);
