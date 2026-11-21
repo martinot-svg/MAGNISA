@@ -73,13 +73,15 @@ describe("MAGNIBOX signed delivery-event route", () => {
     ["remote_accepted", "remote_accepted"],
     ["bounced", "bounced"],
     ["failed", "failed"],
-    ["deferred", "uncertain"],
+    ["deferred", "deferred"],
   ])("maps %s into the database delivery state", async (event, expectedState) => {
     const response = await POST(signedRequest({ queueId: "ABC123DEF", event }) as never);
     expect(response.status).toBe(202);
     expect(await response.json()).toEqual({ ok: true, applied: true, duplicate: false });
-    expect(fixture.rpc).toHaveBeenCalledWith("orbit_apply_magnibox_delivery_event", {
+    expect(fixture.rpc).toHaveBeenCalledWith("orbit_apply_magnibox_recipient_delivery_event", {
       p_queue_id: "ABC123DEF",
+      p_recipient_email: "client@example.net",
+      p_event_id: "a".repeat(64),
       p_event_state: expectedState,
     });
   });
