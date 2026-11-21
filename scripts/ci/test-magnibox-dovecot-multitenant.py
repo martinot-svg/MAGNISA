@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import imaplib
 import os
-import re
 import ssl
 import sys
 import time
@@ -46,10 +45,10 @@ def main() -> int:
     context.verify_mode = ssl.CERT_REQUIRED
 
     mailboxes = [
-        ("org-a-alice@example-a.test", os.environ["MAGNIBOX_LAB_ORG_A_ALICE_PASSWORD"]),
-        ("org-a-bob@example-a.test", os.environ["MAGNIBOX_LAB_ORG_A_BOB_PASSWORD"]),
-        ("org-b-alice@example-b.test", os.environ["MAGNIBOX_LAB_ORG_B_ALICE_PASSWORD"]),
-        ("org-b-bob@example-b.test", os.environ["MAGNIBOX_LAB_ORG_B_BOB_PASSWORD"]),
+        ("org-a-alice@example.test", os.environ["MAGNIBOX_LAB_ORG_A_ALICE_PASSWORD"]),
+        ("org-a-bob@example.test", os.environ["MAGNIBOX_LAB_ORG_A_BOB_PASSWORD"]),
+        ("org-b-alice@example.test", os.environ["MAGNIBOX_LAB_ORG_B_ALICE_PASSWORD"]),
+        ("org-b-bob@example.test", os.environ["MAGNIBOX_LAB_ORG_B_BOB_PASSWORD"]),
     ]
     markers = {username: f"magnibox-lab-{uuid.uuid4()}" for username, _ in mailboxes}
     epochs: dict[str, str] = {}
