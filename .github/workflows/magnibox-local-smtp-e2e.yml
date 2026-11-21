@@ -78,6 +78,11 @@ jobs:
         run: |
           set -euo pipefail
           supabase --version
+          # GitHub-hosted runners may have a service bound to Supabase's default
+          # Postgres port. Pick an available loopback port for this isolated job.
+          db_port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+          sed -i "/^\[db\]/,/^\[/ s/^port = 54322$/port = ${db_port}/" supabase/config.toml
+          echo "Using isolated Supabase database port: ${db_port}"
           supabase start
           supabase db reset --no-seed
           status="$(supabase status -o env)"
