@@ -25,8 +25,7 @@ services:
       - /tmp:rw,noexec,nosuid,size=16m
     cap_drop:
       - ALL
-    security_opt:
-      - no-new-privileges:true
+    # security_opt is inherited from the base compose service.
     init: true
     restart: unless-stopped
     stop_grace_period: 30s
