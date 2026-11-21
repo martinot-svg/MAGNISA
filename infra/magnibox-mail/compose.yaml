@@ -56,6 +56,36 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+  imap-sync-worker:
+    profiles: ["imap-sync"]
+    build:
+      context: ../..
+      dockerfile: infra/magnibox-mail/worker/Dockerfile.imap
+    network_mode: "service:mailserver"
+    depends_on:
+      - mailserver
+    environment:
+      MAGNIBOX_WORKER_SUPABASE_URL: ${MAGNIBOX_WORKER_SUPABASE_URL:?Set the Supabase project URL}
+      MAGNIBOX_WORKER_SERVICE_ROLE_KEY: ${MAGNIBOX_WORKER_SERVICE_ROLE_KEY:?Set the server-only Supabase service role key}
+      MAGNIBOX_IMAP_ADAPTER_MODULE: ${MAGNIBOX_IMAP_ADAPTER_MODULE:?Add and configure the reviewed Dovecot adapter before enabling this profile}
+      MAGNIBOX_IMAP_WORKER_ID: ${MAGNIBOX_IMAP_WORKER_ID:-magnibox-imap-local}
+      MAGNIBOX_IMAP_POLL_INTERVAL_MS: ${MAGNIBOX_IMAP_POLL_INTERVAL_MS:-5000}
+      MAGNIBOX_IMAP_BATCH_SIZE: ${MAGNIBOX_IMAP_BATCH_SIZE:-10}
+      MAGNIBOX_IMAP_LEASE_SECONDS: ${MAGNIBOX_IMAP_LEASE_SECONDS:-120}
+      MAGNIBOX_IMAP_MAX_ATTEMPTS: ${MAGNIBOX_IMAP_MAX_ATTEMPTS:-12}
+      MAGNIBOX_IMAP_BASE_RETRY_SECONDS: ${MAGNIBOX_IMAP_BASE_RETRY_SECONDS:-5}
+      MAGNIBOX_IMAP_MAX_RETRY_SECONDS: ${MAGNIBOX_IMAP_MAX_RETRY_SECONDS:-3600}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+
   delivery-events:
     image: ${MAGNIBOX_FORWARDER_IMAGE:-python:3.12-alpine}
     profiles: ["delivery-events"]
