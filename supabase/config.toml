@@ -19,3 +19,6 @@ enabled = false
 
 [auth]
 enabled = true
+
+[inbucket]
+enabled = false
