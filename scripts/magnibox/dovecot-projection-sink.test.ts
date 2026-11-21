@@ -125,6 +125,7 @@ describe("MAGNIBOX Dovecot projection sink", () => {
   it("fails closed when the selected Dovecot UIDVALIDITY changed", async () => {
     const setup = makeDependencies();
     setup.session.mailbox.uidValidity = "43";
+    setup.dependencies.observeFolder.mockResolvedValue(false);
     const sink = createMagniboxDovecotProjectionSink(setup.dependencies);
 
     await expect(sink.applyMailboxProjection({
