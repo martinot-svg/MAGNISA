@@ -6,7 +6,6 @@ import { loadMagniboxCredentialKeyring } from "../magnibox/imap-credential-crypt
 
 type Account = {
   org: "org-a" | "org-b";
-  slug: string;
   localPart: "alice" | "bob";
   email: string;
   password: string;
@@ -67,9 +66,9 @@ async function main(): Promise<void> {
   const ca = readFileSync(required("MAGNIBOX_IMAP_CA_FILE"));
 
   const accounts: Account[] = [
-    { org: "org-a", slug: "org-a", localPart: "alice", email: "org-a-alice@example.test", password: required("MAGNIBOX_LAB_ORG_A_ALICE_PASSWORD"), displayName: "Org A Alice" },
+    { org: "org-a", localPart: "alice", email: "org-a-alice@example.test", password: required("MAGNIBOX_LAB_ORG_A_ALICE_PASSWORD"), displayName: "Org A Alice" },
     { org: "org-a", slug: "org-a", localPart: "bob", email: "org-a-bob@example.test", password: required("MAGNIBOX_LAB_ORG_A_BOB_PASSWORD"), displayName: "Org A Bob" },
-    { org: "org-b", slug: "org-b", localPart: "alice", email: "org-b-alice@example.test", password: required("MAGNIBOX_LAB_ORG_B_ALICE_PASSWORD"), displayName: "Org B Alice" },
+    { org: "org-b", localPart: "alice", email: "org-b-alice@example.test", password: required("MAGNIBOX_LAB_ORG_B_ALICE_PASSWORD"), displayName: "Org B Alice" },
     { org: "org-b", slug: "org-b", localPart: "bob", email: "org-b-bob@example.test", password: required("MAGNIBOX_LAB_ORG_B_BOB_PASSWORD"), displayName: "Org B Bob" },
   ];
 
@@ -86,7 +85,6 @@ async function main(): Promise<void> {
   }
 
   const mailboxIds = new Map<string, string>();
-  const userIds = new Map<string, string>();
   for (const account of accounts) {
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: account.email,
@@ -94,7 +92,6 @@ async function main(): Promise<void> {
       email_confirm: true,
     });
     if (authError || !authData.user?.id) throw new Error("Unable to create disposable local auth user");
-    userIds.set(account.email, authData.user.id);
 
     const organizationId = organizations.get(account.org)!;
     const membership = await supabase.from("organization_members").insert({
