@@ -1,11 +1,11 @@
 # Local-only overlay for the MAGNIBOX Dovecot sync worker.
-# Use together with compose.yaml. The profile is opt-in and never starts by default.
+# Use with compose.yaml and the isolated local Supabase stack only.
 services:
   imap-sync-worker:
     profiles: ["imap-sync-local"]
     build:
       context: ../..
-      dockerfile: infra/magnibox-mail/worker/imap.Dockerfile
+      dockerfile: infra/magnibox-mail/worker/Dockerfile.imap
     depends_on:
       - mailserver
     extra_hosts:
@@ -25,5 +25,8 @@ services:
       - /tmp:rw,noexec,nosuid,size=16m
     cap_drop:
       - ALL
+    security_opt:
+      - no-new-privileges:true
     init: true
     restart: unless-stopped
+    stop_grace_period: 30s
