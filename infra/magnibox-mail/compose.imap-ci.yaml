@@ -1,0 +1,10 @@
+# CI-only networking bridge: the worker shares the Linux runner network namespace
+# so it can reach both loopback-bound Supabase and the host-published Dovecot TLS port.
+services:
+  imap-sync-worker:
+    network_mode: host
+    extra_hosts:
+      - "mail.example.test:127.0.0.1"
+    environment:
+      SUPABASE_URL: http://127.0.0.1:54321
+      MAGNIBOX_IMAP_ALLOWED_HOSTS: mail.example.test

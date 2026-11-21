@@ -66,7 +66,20 @@ Le résultat attendu est une capture locale. N'utilisez pas d'adresse réelle co
 
 ## Contrôle IMAPS / Dovecot en CI
 
-Le workflow `.github/workflows/magnibox-local-smtp-e2e.yml` active IMAP uniquement dans son environnement CI isolé et conserve le port 993 lié à loopback. Après le démarrage du MTA, le script `scripts/ci/test-magnibox-dovecot-imaps.py` :
+Le workflow `.github/workflows/magnibox-local-smtp-e2e.yml` active IMAP uniquement dans son environnement CI isolé et conserve le port 993 lié à loopback. Après le démarrage du MTA, le script `scripts/ci/test-magnibox-dovecot-imaps.py` : 
+Le même workflow provisionne aussi quatre comptes jetables dans le domaine réservé `example.test`, répartis en deux groupes de test (organisation A et organisation B). Le script `scripts/ci/test-magnibox-dovecot-multitenant.py` vérifie pour chaque compte :
+
+- authentification TLS et accès à sa propre INBOX ;
+- APPEND d'un message synthétique avec un marqueur unique ;
+- lecture de UIDVALIDITY, recherche du marqueur et récupération par UID ;
+- reconnexion après APPEND pour simuler le redémarrage d'un worker après acceptation du message ;
+- présence d'un seul marqueur après reconnexion, sans second APPEND ;
+- absence de visibilité des marqueurs des trois autres boîtes.
+
+Les quatre comptes sont générés à chaque exécution, leurs mots de passe sont aléatoires et masqués dans les logs, puis les données du conteneur sont supprimées en fin de job. Le test ne contacte aucun compte réel et n'ouvre pas le port 993 publiquement.
+
+**Limite importante :** ce scénario exerce un vrai serveur Dovecot avec quatre boîtes isolées. Il ne lance pas encore `run-imap-sync.ts` contre un Supabase local peuplé de deux organisations. Le worker, ses RPC Supabase, son coffre de credentials et ses mappings UID sont couverts séparément par les tests unitaires/contractuels. La prochaine étape d'intégration est de démarrer Supabase local dans le même job, d'y créer les deux organisations et les quatre boîtes canoniques, puis de faire traiter les événements par le worker réel.
+
 
 - vérifie la chaîne TLS et le nom d'hôte du certificat ;
 - ouvre une session IMAPS avec le compte de test pré-provisionné ;

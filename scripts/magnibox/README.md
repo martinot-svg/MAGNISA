@@ -79,13 +79,13 @@ Unit tests are in `imap-sync-core.test.ts` and are picked up by the repository's
 
 The SQL implementation is now a real migration in this branch: `supabase/migrations/20261119120000_magnibox_imap_sync_engine.sql`. Its clean-database replay, schema contract, and runtime lease/retry/dead-letter tests pass in GitHub Actions on commit `771716716117621d9bdce2015645d63ca5aa381f`. The migration has **not** been applied to the connected Supabase project or production. The earlier `infra/magnibox-mail/sql/IMAP-SYNC-ENGINE-PROPOSAL.sql` is superseded documentation and must not be applied.
 
-**Not implemented yet:** the concrete IMAPFlow/Dovecot adapter, MIME serialization and parsing policy, per-mailbox credential provisioning, mailbox/folder reconciliation loop, and live Dovecot integration tests covering UIDVALIDITY changes, UID mapping, flags, reconnects, duplicate events, lease expiry, and crash/replay behavior.
+**Still outstanding:** automatic mailbox/folder provisioning, a complete UIDVALIDITY epoch-reconciliation workflow, inbound IMAP change ingestion (flags/moves/deletes), attachment MIME serialization, and a live multi-organization Dovecot integration campaign. The concrete outbound IMAPFlow/Dovecot transport and its projection sink now exist for the internal plain-text pilot; this does not yet make general mailbox synchronization operational.
 
-### Required blocker before a real IMAP adapter
+### Remaining gates before enabling general mailbox synchronization
 
-The current MTA scaffold uses Docker Mailserver's file-based account provisioner (`ACCOUNT_PROVISIONER=FILE`) and a manually created technical pilot account. It does not yet provide a secure, tenant-aware mapping from a MAGNIBOX mailbox/identity to Dovecot IMAP credentials. The application mailbox tables are not proof that a matching Dovecot account exists.
+The current MTA scaffold uses Docker Mailserver's file-based account provisioner (`ACCOUNT_PROVISIONER=FILE`) and a manually created technical pilot account. It still does not automatically provision a Dovecot account for every MAGNIBOX mailbox. The application mailbox tables are not proof that a matching Dovecot account exists.
 
-Do not put mailbox passwords in the outbox payload, ordinary application rows, source control, browser variables, or worker logs. Before implementing the concrete adapter, define and test a server-only credential provider with encrypted-at-rest storage or a dedicated secrets manager, tenant/mailbox binding, rotation/revocation, and least-privilege access. Then implement a pilot-only IMAP adapter against a dedicated test mailbox and prove APPEND/UID mapping/replay before enabling any general mailbox synchronization.
+Do not put mailbox passwords in the outbox payload, ordinary application rows, source control, browser variables, or worker logs. The server-only encrypted credential vault and concrete IMAPFlow transport now exist, but local pilot credentials must be provisioned through the vault with exact organization/mailbox scope, rotation/revocation and least-privilege access. The local worker must use only a local Supabase instance and an explicitly allowlisted Dovecot endpoint.
 
 Until that credential boundary and the live Dovecot tests exist, the core worker and Supabase repository are tested building blocks—not an operational IMAP synchronization service.
 
@@ -230,3 +230,38 @@ The internal address format is derived from the canonical schema: `<local_part>@
 
 
 **Legacy schema naming note:** the `mgmail_internal_*` table names are historical Supabase identifiers still referenced by existing application code, RLS policies, triggers and migrations. They are not user-facing product names. Renaming them requires a separate additive migration and coordinated updates to every dependent query/function/test; this change intentionally does not rename database objects or alter production data.
+
+
+## Concrete Dovecot adapter and isolated worker (pilot stage)
+
+The following pieces now connect the existing sync engine to a real IMAP-over-TLS client:
+
+- `dovecot-imap-adapter.ts` uses ImapFlow with direct TLS, certificate verification, bounded connection/greeting/socket timeouts, a per-folder mailbox lock, UID marker search and APPEND UIDPLUS confirmation.
+- `dovecot-projection-sink.ts` connects the internal-message worker adapter to the encrypted credential provider, durable APPEND ledger, UID mapping repository and a folder-state reconciliation gate.
+- `run-imap-sync.ts` composes the Supabase outbox, canonical message resolver and Dovecot sink. It refuses to run unless `MAGNIBOX_IMAP_WORKER_MODE=isolated` and the Supabase URL is local.
+- `infra/magnibox-mail/worker/imap.Dockerfile` installs a pinned ImapFlow runtime separately from the application dependency tree.
+- `infra/magnibox-mail/compose.imap-local.yaml` adds an opt-in `imap-sync-local` profile. It expects the base `compose.yaml` mailserver and a local Supabase instance. The profile is not started by default.
+
+The first projection is deliberately limited to internal plain-text messages: recipients are projected to INBOX and senders to Sent. The worker does not project external messages, attachments, shared mailboxes, flags, moves or deletes. The MIME composer uses only canonical plain-text fields and includes the durable `X-Magnibox-Operation-ID` marker.
+
+The folder-state gate updates UIDNEXT/HIGHESTMODSEQ only while UIDVALIDITY matches the persisted epoch. If UIDVALIDITY changes, the worker stops and retries without reusing stale UIDs. A complete bounded epoch reconciliation workflow remains a separate gate; do not manually change the stored epoch to force the worker through.
+
+### Local-only launch outline
+
+1. Start the repository's local Supabase stack and apply migrations only to that local database.
+2. Start the base mailserver stack with a dedicated local Dovecot certificate whose SAN matches `mailserver`, and mount its issuing CA as a read-only file.
+3. Provision one or more disposable Dovecot pilot accounts and store their credentials through the local encrypted credential vault. Use only local test data.
+4. Set the local-only variables in an untracked environment file: `MAGNIBOX_LOCAL_SUPABASE_SERVICE_ROLE_KEY`, `MAGNIBOX_LOCAL_IMAP_ACTIVE_KEY_ID`, `MAGNIBOX_LOCAL_IMAP_CREDENTIALS_KEYS`, `MAGNIBOX_LOCAL_IMAP_CA_FILE`, and the local Dovecot mailbox/folder rows.
+5. Validate the rendered Compose configuration, then opt into the worker profile:
+
+```sh
+docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.imap-local.yaml --profile imap-sync-local config --quiet
+docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.imap-local.yaml --profile imap-sync-local up -d imap-sync-worker
+docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.imap-local.yaml logs -f imap-sync-worker
+```
+
+All secrets and certificates remain local and uncommitted. The profile must not be configured with production Supabase URLs, production service-role keys, or public Dovecot endpoints. It does not change DNS, MX records, Vercel settings or production services.
+
+### Current validation boundary
+
+The projection sink unit tests cover APPEND, marker-based crash recovery, UIDVALIDITY fail-closed behavior and cross-organization scope rejection. These tests do not substitute for a real Dovecot TLS session or a two-organization end-to-end run. Do not describe the worker as fully validated until the isolated Dovecot and Supabase integration campaign passes.
