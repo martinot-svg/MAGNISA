@@ -36,17 +36,18 @@ export async function POST(request: NextRequest) {
   }
   const data = payload as Record<string, unknown>;
   if (typeof data.queueId !== "string" || !/^[A-F0-9]{5,20}$/i.test(data.queueId)
-    || !["accepted", "bounced", "failed", "deferred"].includes(String(data.event))) {
+    || typeof data.recipient !== "string" || data.recipient.length > 320
+    || typeof data.eventId !== "string" || !/^[a-f0-9]{64}$/.test(data.eventId)
+    || !["remote_accepted", "bounced", "failed", "deferred"].includes(String(data.event))) {
     return NextResponse.json({ error: "Référence de livraison invalide." }, { status: 400 });
   }
 
-  const state = data.event === "accepted" ? "delivered"
-    : data.event === "bounced" ? "bounced"
-    : data.event === "failed" ? "failed" : "uncertain";
   const admin = createAdminClient();
-  const updated = await admin.rpc("orbit_apply_magnibox_delivery_event", {
+  const updated = await admin.rpc("orbit_apply_magnibox_recipient_delivery_event", {
     p_queue_id: data.queueId,
-    p_event_state: state,
+    p_recipient_email: data.recipient,
+    p_event_id: data.eventId,
+    p_event_state: data.event,
   });
   if (updated.error) return NextResponse.json({ error: "Mise à jour de livraison indisponible." }, { status: 503 });
   if (updated.data === "ambiguous") return NextResponse.json(
@@ -55,5 +56,5 @@ export async function POST(request: NextRequest) {
   if (updated.data === "not_found") return NextResponse.json(
     { error: "Référence de livraison inconnue." }, { status: 404 },
   );
-  return NextResponse.json({ ok: true, applied: updated.data === "updated" }, { status: 202 });
+  return NextResponse.json({ ok: true, applied: updated.data === "updated", duplicate: updated.data === "duplicate" }, { status: 202 });
 }
