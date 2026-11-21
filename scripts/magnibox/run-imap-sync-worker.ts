@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { pathToFileURL } from "node:url";
 import { isAbsolute, relative, resolve } from "node:path";
 import { createMagniboxSupabaseOutboxRepository } from "./imap-sync-supabase-repository";
@@ -6,7 +6,7 @@ import { readMagniboxImapWorkerConfig, runMagniboxImapWorker } from "./imap-work
 import type { MagniboxImapSyncAdapter } from "./imap-sync-core";
 
 type AdapterModule = {
-  createMagniboxImapSyncAdapter(input: { supabase: ReturnType<typeof createClient> }): MagniboxImapSyncAdapter | Promise<MagniboxImapSyncAdapter>;
+  createMagniboxImapSyncAdapter(input: { supabase: SupabaseClient<any, "public", "public", any, any> }): MagniboxImapSyncAdapter | Promise<MagniboxImapSyncAdapter>;
 };
 
 function requiredEnv(name: string): string {
