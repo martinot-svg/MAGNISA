@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MagniboxSyncError } from "./imap-sync-core";
 import {
   canonicalPositiveBigint,
+  canonicalNonNegativeBigint,
   decideMagniboxImapUidAction,
   type MagniboxImapUidMapping,
 } from "./imap-uid-mapping";
@@ -25,6 +26,18 @@ describe("canonicalPositiveBigint", () => {
       expect(() => canonicalPositiveBigint(value, "UID")).toThrow(MagniboxSyncError);
     },
   );
+});
+
+describe("canonicalNonNegativeBigint", () => {
+  it("normalizes leading zeros and preserves zero", () => {
+    expect(canonicalNonNegativeBigint("00042", "MODSEQ")).toBe("42");
+    expect(canonicalNonNegativeBigint("000", "MODSEQ")).toBe("0");
+  });
+
+  it("rejects values outside the PostgreSQL BIGINT range", () => {
+    expect(() => canonicalNonNegativeBigint("9223372036854775808", "MODSEQ"))
+      .toThrow(MagniboxSyncError);
+  });
 });
 
 describe("decideMagniboxImapUidAction", () => {
