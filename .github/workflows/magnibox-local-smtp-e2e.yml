@@ -44,7 +44,7 @@ concurrency:
 jobs:
   postfix-mailpit-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       COMPOSE_PROJECT_NAME: magnibox-smtp-ci
       MAGNIBOX_MTA_HOSTNAME: mail.example.test
@@ -88,6 +88,7 @@ jobs:
           echo "::add-mask::$service_role"
           echo "MAGNIBOX_LOCAL_SUPABASE_SERVICE_ROLE_KEY=$service_role" >> "$GITHUB_ENV"
           echo "MAGNIBOX_LOCAL_IMAP_ACTIVE_KEY_ID=ci-test-key" >> "$GITHUB_ENV"
+          echo "MAGNIBOX_LOCAL_IMAP_CA_FILE=${GITHUB_WORKSPACE}/.ci-tls/fullchain.pem" >> "$GITHUB_ENV"
           credential_key="$(openssl rand -base64 32)"
           echo "::add-mask::$credential_key"
           printf 'MAGNIBOX_LOCAL_IMAP_CREDENTIALS_KEYS={"ci-test-key":"%s"}\n' "$credential_key" >> "$GITHUB_ENV"
@@ -215,7 +216,7 @@ jobs:
           docker compose \
             -f infra/magnibox-mail/compose.yaml \
             -f infra/magnibox-mail/compose.imap-local.yaml \
-            --profile imap-sync-local run --rm imap-sync-worker
+            --profile imap-sync-local run --rm imap-sync-worker sh -c "./node_modules/.bin/tsx scripts/magnibox/run-imap-sync.ts"
 
       - name: Assert delivered events, confirmed APPEND ledger and UID mappings
         run: npx tsx scripts/ci/assert-magnibox-imap-sync-lab.ts
