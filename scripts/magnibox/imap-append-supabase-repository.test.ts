@@ -107,4 +107,55 @@ describe("durable IMAP APPEND ledger Supabase repository", () => {
       leaseToken: "lease-1", operationId: "operation-1",
     })).rejects.not.toThrow("private SQL detail");
   });
+  it("reads bounded recovery inventory and canonicalizes epoch values", async () => {
+    const rpc = client([[
+      {
+        operation_id: "op-1",
+        outbox_event_id: "event-1",
+        source_message_id: "message-1",
+        marker: row.marker,
+        operation_state: "ambiguous",
+        operation_uidvalidity: "00042",
+        imap_uid: null,
+        created_at: "2026-11-21T10:00:00.000Z",
+      },
+    ]]);
+    const repository = createMagniboxSupabaseImapAppendLedgerRepository(rpc);
+    await expect(repository.listRecoveryInventory({
+      organizationId: "org-1",
+      folderStateId: "folder-1",
+      currentUidValidity: "42",
+      afterOperationId: "op-cursor",
+      limit: 25,
+    })).resolves.toEqual([{
+      operationId: "op-1",
+      outboxEventId: "event-1",
+      sourceMessageId: "message-1",
+      marker: row.marker,
+      state: "ambiguous",
+      operationUidValidity: "42",
+      uid: null,
+      createdAt: "2026-11-21T10:00:00.000Z",
+    }]);
+    expect(rpc.rpc).toHaveBeenCalledWith("magnibox_list_imap_append_recovery", {
+      p_organization_id: "org-1",
+      p_folder_state_id: "folder-1",
+      p_current_uidvalidity: "42",
+      p_after_operation_id: "op-cursor",
+      p_limit: 25,
+    });
+  });
+
+  it("rejects invalid recovery page limits before calling Supabase", async () => {
+    const rpc = client([]);
+    const repository = createMagniboxSupabaseImapAppendLedgerRepository(rpc);
+    await expect(repository.listRecoveryInventory({
+      organizationId: "org-1",
+      folderStateId: "folder-1",
+      currentUidValidity: "42",
+      limit: 501,
+    })).rejects.toBeInstanceOf(MagniboxSyncError);
+    expect(rpc.rpc).not.toHaveBeenCalled();
+  });
+
 });
