@@ -150,12 +150,12 @@ async function main(): Promise<void> {
       return Boolean(data?.id);
     },
     async composeMessage({ projection, operationMarker }) {
-      const { data, error } = await supabase.from("organizations")
+      const { data, error } = await supabase.from("magnibox_internal_namespaces")
         .select("slug")
         .eq("id", projection.organizationId)
         .maybeSingle();
       if (error || typeof data?.slug !== "string") {
-        throw new MagniboxSyncError("Organization namespace could not be resolved", false);
+        throw new MagniboxSyncError("MAGNIBOX namespace could not be resolved", false);
       }
       return composePlainTextMessage({
         projection,
