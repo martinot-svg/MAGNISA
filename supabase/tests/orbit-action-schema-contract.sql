@@ -3,7 +3,7 @@ DO $orbit_action_contract$
 DECLARE missing text;
 BEGIN
  IF NOT EXISTS(SELECT 1 FROM supabase_migrations.schema_migrations
-   WHERE version='20261114121000') THEN
+   WHERE version='20261121110000') THEN
    RAISE EXCEPTION 'Orbit Action task migration absent';
  END IF;
  IF (SELECT count(*) FROM pg_class WHERE oid IN (
