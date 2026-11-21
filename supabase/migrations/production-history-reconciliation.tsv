@@ -1,7 +1,7 @@
 # remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256
-# Reconciliation snapshot updated 2026-11-14: remote history contains 212 migrations; an exact SQL recovery for version 20261113125253 is documented below.
+# Reconciliation snapshot updated 2026-11-21: remote history contains 232 migrations; recovered and renamed historical SQL is checksum-verified below.
 # The CI preflight verifies version/name coverage and blocks any unreviewed pending or out-of-order migration.
-# No renamed, recovered, or absorbed production migration currently requires a mapping entry.
+# Every non-identical historical name is represented by an explicit checksum-verified mapping.
 20261009091913|0008_email_verification|archive_20261009091913_0008_email_verification.sql|recovered|Exact production SQL archived; local replay guards absent historical prerequisite|e20b38505d79cb14217e2dc623d4ae01967bddd8a32e93d5c698053a14adfd85
 20261103153930|secure_active_schedule_repayment_and_loan_amendments|archive_20261103153930_secure_active_schedule_repayment_and_loan_amendments.sql|recovered|Exact production SQL archived; local replay restores pre-ledger loan schedule baseline before rowtype compilation|e837d255c328bdb269cac2ff101e55b7b045281c84b3277d0be5f9d04eeb3920
 20261113125253|automatic_short_usernames|archive_20261113125253_automatic_short_usernames.sql|recovered|Read-only production ledger extraction 2026-11-14 version-name-SHA256 verified|6b4b36744793d0d5ea5fa6e3a9f7663bb82caa7a297affdee2e92f8b99559643
@@ -13,3 +13,4 @@
 20261114103200|mgmail_shared_mailboxes|archive_20261114103200_mgmail_shared_mailboxes.sql|recovered|Read-only Supabase ledger extraction; SQL payload normalized by removing ledger serialization prefix; SHA-256 verified|39d520c573b86e389cdd51655e4e6f5d97b9ed24da362670442da1332ed4c2a2
 20261114110000|mgmail_agenda|archive_20261114110000_mgmail_agenda.sql|recovered|Read-only Supabase ledger extraction; SQL payload normalized by removing ledger serialization prefix; SHA-256 verified|398480e209d2652e3cfff2d794849995c8f8de5655fdf7d9004463f4c8b832ec
 20261114110100|mgmail_agenda_reminders|archive_20261114110100_mgmail_agenda_reminders.sql|recovered|Read-only Supabase ledger extraction; SQL payload normalized by removing ledger serialization prefix; SHA-256 verified|b7a1fdc863b7fb13c41c524c03f4f5c35208bfc596442cca18328cbe0597f0ab
+20261013121250|magnimail_authenticated_token_access|20261013121250_magnibox_authenticated_token_access.sql|renamed|Read-only Supabase production ledger extraction 2026-11-21; exact original SQL recovered by restoring historical MagniMail comment and SHA-256 verified against stored statements|91ccccbbc4634c56e0c76b5b1020abf2082d5dc640ea529906a52a8e11b69d7b
