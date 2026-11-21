@@ -16,4 +16,4 @@ USER node
 # The concrete composition loads the credential vault, canonical resolver,
 # Dovecot TLS transport and durable APPEND/mapping repositories. One batch per
 # process keeps failures isolated; the container restarts the worker loop.
-CMD ["sh", "-c", "while true; do ./node_modules/.bin/tsx scripts/magnibox/run-imap-sync.ts || true; sleep 5; done"]
+CMD ["sh", "-c", "trap 'exit 0' TERM INT; while :; do if ./node_modules/.bin/tsx scripts/magnibox/run-imap-sync.ts; then sleep 5; else status=$?; echo \"MAGNIBOX IMAP batch failed (exit ${status}); retrying in 15 seconds\" >&2; sleep 15; fi; done"]
