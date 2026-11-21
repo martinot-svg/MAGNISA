@@ -2,15 +2,9 @@ name: Encrypted Supabase Production Backup Verification
 # Re-run marker: 2026-11-11 post-SSL-fix verification.
 
 on:
+  # Production export is deliberately manual: PR merges and migration pushes
+  # must never export production business data implicitly.
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/backup-supabase-production.yml
-      - supabase/migrations/**
-      - scripts/ci/apply-production-allowlist.sh
-      - .github/workflows/deploy-supabase-production.yml
 
 permissions:
   contents: read
@@ -169,8 +163,9 @@ jobs:
           # log_min_messages setting, Vault contains production secrets, and the
           # local stack does not provision the pg_cron schema. These are managed
           # platform schemas, not application business data.
-          # The encrypted dump retains ownership and ACLs; local replay omits
-          # them because its postgres role cannot change other roles' defaults.
+          # Ownership is intentionally normalized to the isolated local postgres
+          # role; the encrypted archive itself is produced with pg_dump --no-owner.
+          # ACLs are restored from the dump (the roles-only export is loaded first).
           # Storage binary objects are restored separately through the local
           # Storage API and verified by SHA-256.
           POSTGRES_CREATEDB=$(docker run --rm --network host postgres:17 \
@@ -204,13 +199,13 @@ jobs:
           }
 
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
+            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
               --section=pre-data /backup/magnisa-production.dump
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
+            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
               --section=data /backup/magnisa-production.dump
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --no-acl --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
+            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
               --section=post-data /backup/magnisa-production.dump
 
           SUPABASE_URL="$LOCAL_API_URL" SUPABASE_SERVICE_ROLE_KEY="$LOCAL_SERVICE_ROLE_KEY" \
@@ -412,6 +407,56 @@ jobs:
             IF EXISTS (SELECT 1 FROM public.pcg2005_balance_sheet_mapping_gaps)
                OR EXISTS (SELECT 1 FROM public.pcg2005_balance_sheet_passif_mapping_gaps) THEN
               RAISE EXCEPTION 'Unmapped PCG balance-sheet presentation accounts remain';
+            END IF;
+            -- MAGNIBOX migration chain: canonical schema must be present after
+            -- the exact allowlist replay, with IMAP internals service-only.
+            IF to_regclass('public.magnibox_internal_namespaces') IS NULL
+              OR to_regclass('public.magnibox_internal_mailboxes') IS NULL
+              OR to_regclass('public.magnibox_internal_messages') IS NULL
+              OR to_regclass('public.magnibox_internal_mailbox_grants') IS NULL
+              OR to_regclass('public.magnibox_internal_message_reads') IS NULL
+              OR to_regclass('public.magnibox_internal_drafts') IS NULL
+              OR to_regclass('public.magnibox_internal_folders') IS NULL
+              OR to_regclass('public.magnibox_sync_outbox') IS NULL
+              OR to_regclass('public.magnibox_imap_folder_state') IS NULL
+              OR to_regclass('public.magnibox_imap_message_map') IS NULL
+              OR to_regclass('public.magnibox_imap_credentials') IS NULL THEN
+              RAISE EXCEPTION 'MAGNIBOX canonical internal/IMAP schema is incomplete after production allowlist replay';
+            END IF;
+
+            IF EXISTS (
+              SELECT 1 FROM pg_catalog.pg_class c
+              JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+              WHERE n.nspname='public' AND c.relkind IN ('r','p')
+                AND c.relname LIKE 'mgmail_internal_%'
+            ) THEN
+              RAISE EXCEPTION 'Legacy internal mail tables remain after MAGNIBOX compatibility migration';
+            END IF;
+
+            IF EXISTS (
+              SELECT 1 FROM pg_catalog.pg_class c
+              JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+              WHERE n.nspname='public'
+                AND c.relname IN (
+                  'magnibox_internal_namespaces','magnibox_internal_mailboxes',
+                  'magnibox_internal_messages','magnibox_internal_mailbox_grants',
+                  'magnibox_internal_message_reads','magnibox_internal_drafts',
+                  'magnibox_internal_folders','magnibox_sync_outbox',
+                  'magnibox_imap_folder_state','magnibox_imap_message_map',
+                  'magnibox_imap_credentials'
+                )
+                AND NOT c.relrowsecurity
+            ) THEN
+              RAISE EXCEPTION 'RLS is disabled on one or more MAGNIBOX internal/IMAP tables';
+            END IF;
+
+            IF has_table_privilege('authenticated','public.magnibox_imap_credentials','SELECT')
+              OR has_table_privilege('anon','public.magnibox_imap_credentials','SELECT')
+              OR NOT has_table_privilege('service_role','public.magnibox_imap_credentials','SELECT')
+              OR has_function_privilege('authenticated','public.magnibox_claim_sync_events(text,integer,integer)','EXECUTE')
+              OR has_function_privilege('anon','public.magnibox_claim_sync_events(text,integer,integer)','EXECUTE')
+              OR NOT has_function_privilege('service_role','public.magnibox_claim_sync_events(text,integer,integer)','EXECUTE') THEN
+              RAISE EXCEPTION 'MAGNIBOX IMAP credential or worker RPC grants are not service-role-only';
             END IF;
           END $;
           SQL
