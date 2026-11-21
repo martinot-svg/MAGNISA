@@ -25,7 +25,5 @@ services:
       - /tmp:rw,noexec,nosuid,size=16m
     cap_drop:
       - ALL
-    security_opt:
-      - no-new-privileges:true
     init: true
     restart: unless-stopped
