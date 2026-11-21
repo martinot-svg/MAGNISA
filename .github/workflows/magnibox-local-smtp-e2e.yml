@@ -8,6 +8,11 @@ on:
       - "scripts/ci/test-magnibox-postfix-mailpit-e2e.ts"
       - "scripts/ci/test-magnibox-dovecot-imaps.py"
       - "scripts/ci/test-magnibox-dovecot-multitenant.py"
+      - "scripts/ci/seed-magnibox-imap-sync-lab.ts"
+      - "scripts/ci/assert-magnibox-imap-sync-lab.ts"
+      - "scripts/magnibox/**"
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
       - ".github/workflows/magnibox-local-smtp-e2e.yml"
       - "package.json"
       - "package-lock.json"
@@ -19,6 +24,11 @@ on:
       - "scripts/ci/test-magnibox-postfix-mailpit-e2e.ts"
       - "scripts/ci/test-magnibox-dovecot-imaps.py"
       - "scripts/ci/test-magnibox-dovecot-multitenant.py"
+      - "scripts/ci/seed-magnibox-imap-sync-lab.ts"
+      - "scripts/ci/assert-magnibox-imap-sync-lab.ts"
+      - "scripts/magnibox/**"
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
       - ".github/workflows/magnibox-local-smtp-e2e.yml"
       - "package.json"
       - "package-lock.json"
@@ -56,6 +66,32 @@ jobs:
       - name: Install application dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Start isolated Supabase local stack and replay migrations
+        uses: supabase/setup-cli@v1
+        with:
+          version: 3.0.0
+
+      - name: Apply MAGNIBOX schema to local Supabase only
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase --version
+          supabase start
+          supabase db reset --no-seed
+          status="$(supabase status -o env)"
+          api_url="$(printf '%s\n' "$status" | sed -n 's/^API_URL=//p' | tr -d '"')"
+          service_role="$(printf '%s\n' "$status" | sed -n 's/^SERVICE_ROLE_KEY=//p' | tr -d '"')"
+          test -n "$api_url"
+          test -n "$service_role"
+          case "$api_url" in http://127.0.0.1:*|http://localhost:*) ;; *) echo "Refusing non-local Supabase API URL"; exit 1 ;; esac
+          echo "MAGNIBOX_LOCAL_SUPABASE_URL=$api_url" >> "$GITHUB_ENV"
+          echo "::add-mask::$service_role"
+          echo "MAGNIBOX_LOCAL_SUPABASE_SERVICE_ROLE_KEY=$service_role" >> "$GITHUB_ENV"
+          echo "MAGNIBOX_LOCAL_IMAP_ACTIVE_KEY_ID=ci-test-key" >> "$GITHUB_ENV"
+          credential_key="$(openssl rand -base64 32)"
+          echo "::add-mask::$credential_key"
+          printf 'MAGNIBOX_LOCAL_IMAP_CREDENTIALS_KEYS={"ci-test-key":"%s"}\n' "$credential_key" >> "$GITHUB_ENV"
+
       - name: Prepare isolated local MTA configuration and test TLS
         shell: bash
         run: |
@@ -64,7 +100,7 @@ jobs:
           openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
             -keyout .ci-tls/privkey.pem -out .ci-tls/fullchain.pem \
             -subj "/CN=mail.example.test" \
-            -addext "subjectAltName=DNS:mail.example.test"
+            -addext "subjectAltName=DNS:mail.example.test,DNS:mailserver"
           chmod 600 .ci-tls/privkey.pem
           cat > infra/magnibox-mail/mailserver.env <<'EOF'
           ACCOUNT_PROVISIONER=FILE
@@ -166,6 +202,24 @@ jobs:
           MAGNIBOX_IMAP_CA_FILE: ${{ github.workspace }}/.ci-tls/fullchain.pem
         run: python3 scripts/ci/test-magnibox-dovecot-multitenant.py
 
+      - name: Seed two organizations and four canonical MAGNIBOX mailboxes
+        env:
+          MAGNIBOX_IMAP_CA_FILE: ${{ github.workspace }}/.ci-tls/fullchain.pem
+          MAGNIBOX_LAB_IMAP_HOST: mail.example.test
+        run: npx tsx scripts/ci/seed-magnibox-imap-sync-lab.ts
+
+      - name: Run the real Supabase outbox events through run-imap-sync.ts
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose \
+            -f infra/magnibox-mail/compose.yaml \
+            -f infra/magnibox-mail/compose.imap-local.yaml \
+            --profile imap-sync-local run --rm imap-sync-worker
+
+      - name: Assert delivered events, confirmed APPEND ledger and UID mappings
+        run: npx tsx scripts/ci/assert-magnibox-imap-sync-lab.ts
+
       - name: Upload Postfix and Mailpit diagnostic logs on failure
         if: failure()
         run: |
@@ -177,3 +231,4 @@ jobs:
           docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.mailpit-relay.yaml down --remove-orphans || true
           rm -f infra/magnibox-mail/mailserver.env
           sudo rm -rf .ci-tls infra/magnibox-mail/docker-data
+          supabase stop --no-backup || true
