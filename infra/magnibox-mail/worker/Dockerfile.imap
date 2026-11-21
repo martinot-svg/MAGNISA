@@ -3,12 +3,17 @@ FROM node:22-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 
+# Keep the IMAP runtime dependency pinned inside the isolated worker image.
 RUN npm install --omit=dev --no-audit --no-fund --save-exact \
-  @supabase/supabase-js@2.57.0 tsx@4.20.6
+  @supabase/supabase-js@2.57.0 \
+  tsx@4.20.6 \
+  imapflow@2.12.2
 
-# Copy the complete server-only MAGNIBOX worker modules. The adapter module
-# must be added and explicitly configured before the profile can process mail.
-COPY scripts/magnibox/*.ts ./scripts/magnibox/
+COPY scripts/magnibox ./scripts/magnibox
 
 USER node
-CMD ["./node_modules/.bin/tsx", "scripts/magnibox/run-imap-sync-worker.ts"]
+
+# The concrete composition loads the credential vault, canonical resolver,
+# Dovecot TLS transport and durable APPEND/mapping repositories. One batch per
+# process keeps failures isolated; the container restarts the worker loop.
+CMD ["sh", "-c", "while true; do ./node_modules/.bin/tsx scripts/magnibox/run-imap-sync.ts || true; sleep 5; done"]
