@@ -35,6 +35,7 @@ export type MagniboxDovecotAdapterOptions = {
   connectionTimeoutMs?: number;
   greetingTimeoutMs?: number;
   socketTimeoutMs?: number;
+  caPem?: string;
 };
 
 function positiveImapInteger(value: unknown, label: string): string {
@@ -101,7 +102,7 @@ export class MagniboxDovecotImapAdapter {
       port: credentials.port,
       secure: true,
       auth: { user: credentials.username, pass: credentials.password },
-      tls: { rejectUnauthorized: true, minVersion: "TLSv1.2" },
+      tls: { rejectUnauthorized: true, minVersion: "TLSv1.2", ...(this.options.caPem ? { ca: this.options.caPem } : {}) },
       logger: false,
       connectionTimeout: this.options.connectionTimeoutMs ?? 10_000,
       greetingTimeout: this.options.greetingTimeoutMs ?? 10_000,
