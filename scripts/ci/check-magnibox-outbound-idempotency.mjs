@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 const route = readFileSync("src/app/api/magnibox/internet/send/route.ts", "utf8");
-const migration = readFileSync("supabase/migrations/20261117200000_magnibox_outbound_request_fingerprint.sql", "utf8");
+const migration = readFileSync("supabase/migrations/20261121123100_magnibox_outbound_request_fingerprint.sql", "utf8");
 const contract = readFileSync("supabase/tests/magnibox-outbound-request-fingerprint-contract.sql", "utf8");
 
 const checks = [
