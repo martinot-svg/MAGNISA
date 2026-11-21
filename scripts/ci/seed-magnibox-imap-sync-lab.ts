@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { createClient } from "@supabase/supabase-js";
-import { ImapFlow } from "imapflow";
 import { createMagniboxSupabaseCredentialProvider } from "../magnibox/imap-credential-supabase-provider";
 import { loadMagniboxCredentialKeyring } from "../magnibox/imap-credential-crypto";
 
@@ -19,36 +19,45 @@ function required(name: string): string {
 }
 
 async function mailboxEpoch(account: Account, folder: string, ca: Buffer): Promise<string> {
-  const client = new ImapFlow({
-    host: required("MAGNIBOX_LAB_IMAP_HOST"),
-    port: 993,
-    secure: true,
-    auth: { user: account.email, pass: account.password },
-    tls: { rejectUnauthorized: true, minVersion: "TLSv1.2", ca },
-    logger: false,
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 20_000,
-  });
-  let connected = false;
-  let lock: { release(): void } | undefined;
-  try {
-    await client.connect();
-    connected = true;
-    if (folder === "Sent") {
-      try { await client.mailboxCreate("Sent"); } catch { /* Existing Sent folder is acceptable. */ }
-    }
-    lock = await client.getMailboxLock(folder, { description: "MAGNIBOX CI fixture" });
-    const value = client.mailbox?.uidValidity;
-    const epoch = value === undefined || value === null ? "" : String(value);
-    if (!/^[1-9][0-9]*$/.test(epoch)) throw new Error("Dovecot returned an invalid folder UIDVALIDITY");
-    return epoch;
-  } finally {
-    lock?.release();
-    if (connected) await client.logout().catch(() => undefined);
-  }
+  const python = [
+    "import imaplib, os, ssl, sys",
+    "host = os.environ['MAGNIBOX_LAB_IMAP_HOST']",
+    "context = ssl.create_default_context(cafile=os.environ['MAGNIBOX_IMAP_CA_FILE'])",
+    "client = imaplib.IMAP4_SSL(host, 993, ssl_context=context, timeout=15)",
+    "try:",
+    "    client.login(os.environ['MAGNIBOX_LAB_IMAP_USER'], os.environ['MAGNIBOX_LAB_IMAP_PASSWORD'])",
+    "    folder = sys.argv[1]",
+    "    status, _ = client.select(folder, readonly=True)",
+    "    if status != 'OK':",
+    "        client.create(folder)",
+    "        status, _ = client.select(folder, readonly=True)",
+    "    if status != 'OK':",
+    "        raise RuntimeError('Unable to select IMAP folder')",
+    "    status, values = client.response('UIDVALIDITY')",
+    "    if status != 'UIDVALIDITY' or not values or not values[0]:",
+    "        raise RuntimeError('Dovecot did not return UIDVALIDITY')",
+    "    value = values[0].decode('ascii')",
+    "    if not value.isdigit() or int(value) < 1:",
+    "        raise RuntimeError('Dovecot returned invalid UIDVALIDITY')",
+    "    print(value)",
+    "finally:",
+    "    try: client.logout()",
+    "    except Exception: pass",
+  ].join("\\n");
+  const value = execFileSync("python3", ["-c", python, folder], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      MAGNIBOX_LAB_IMAP_HOST: required("MAGNIBOX_LAB_IMAP_HOST"),
+      MAGNIBOX_LAB_IMAP_USER: account.email,
+      MAGNIBOX_LAB_IMAP_PASSWORD: account.password,
+      MAGNIBOX_IMAP_CA_FILE: required("MAGNIBOX_IMAP_CA_FILE"),
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+  if (!/^[1-9][0-9]*$/.test(value)) throw new Error("Dovecot returned an invalid folder UIDVALIDITY");
+  return value;
 }
-
 async function main(): Promise<void> {
   const supabaseUrl = required("MAGNIBOX_LOCAL_SUPABASE_URL");
   if (!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(supabaseUrl)) {
@@ -67,9 +76,9 @@ async function main(): Promise<void> {
 
   const accounts: Account[] = [
     { org: "org-a", localPart: "alice", email: "org-a-alice@example.test", password: required("MAGNIBOX_LAB_ORG_A_ALICE_PASSWORD"), displayName: "Org A Alice" },
-    { org: "org-a", slug: "org-a", localPart: "bob", email: "org-a-bob@example.test", password: required("MAGNIBOX_LAB_ORG_A_BOB_PASSWORD"), displayName: "Org A Bob" },
+    { org: "org-a", localPart: "bob", email: "org-a-bob@example.test", password: required("MAGNIBOX_LAB_ORG_A_BOB_PASSWORD"), displayName: "Org A Bob" },
     { org: "org-b", localPart: "alice", email: "org-b-alice@example.test", password: required("MAGNIBOX_LAB_ORG_B_ALICE_PASSWORD"), displayName: "Org B Alice" },
-    { org: "org-b", slug: "org-b", localPart: "bob", email: "org-b-bob@example.test", password: required("MAGNIBOX_LAB_ORG_B_BOB_PASSWORD"), displayName: "Org B Bob" },
+    { org: "org-b", localPart: "bob", email: "org-b-bob@example.test", password: required("MAGNIBOX_LAB_ORG_B_BOB_PASSWORD"), displayName: "Org B Bob" },
   ];
 
   const organizations = new Map<string, string>();
