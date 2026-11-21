@@ -119,6 +119,9 @@ export function createMagniboxDovecotProjectionSink(
         }
 
         const matches = await session.findByOperationMarker(operation.marker);
+        if (operation.state === "confirmed" && matches.length !== 1) {
+          throw new MagniboxSyncError("Confirmed Dovecot APPEND marker is missing or ambiguous; reconciliation is required");
+        }
         const decision = decideMagniboxAppendAction({
           marker: operation.marker,
           operationState: operation.state,
