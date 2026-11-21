@@ -68,7 +68,7 @@ describe("MAGNIBOX signed delivery-event route", () => {
   });
 
   it.each([
-    ["accepted", "accepted"],
+    ["accepted", "delivered"],
     ["bounced", "bounced"],
     ["failed", "failed"],
     ["deferred", "uncertain"],
