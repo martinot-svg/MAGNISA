@@ -2,9 +2,11 @@
 DO $orbit_action_contract$
 DECLARE missing text;
 BEGIN
- IF NOT EXISTS(SELECT 1 FROM supabase_migrations.schema_migrations
-   WHERE version='20261114121000') THEN
-   RAISE EXCEPTION 'Orbit Action task migration absent';
+ -- Migration replay is validated by the CLI; this contract checks the resulting
+ -- schema rather than assuming the ledger stores this exact version string.
+ IF to_regclass('public.orbit_action_tasks') IS NULL
+ OR to_regclass('public.orbit_action_comments') IS NULL THEN
+   RAISE EXCEPTION 'Orbit Action task/comment tables absent after replay';
  END IF;
  IF (SELECT count(*) FROM pg_class WHERE oid IN (
    to_regclass('public.orbit_action_tasks'),
