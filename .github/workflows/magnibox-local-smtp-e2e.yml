@@ -110,7 +110,7 @@ jobs:
               -e MAIL_USER="$user" -e MAIL_PASS="$password" \
               "$MAGNIBOX_DMS_IMAGE" -lc \
               'doveadm pw -s SHA512-CRYPT -u "$MAIL_USER" -p "$MAIL_PASS"')"
-            printf '%s|%s\\n' "$user" "$hash" >> infra/magnibox-mail/docker-data/config/postfix-accounts.cf
+            printf "%s|%s\\n" "$user" "$hash" >> infra/magnibox-mail/docker-data/config/postfix-accounts.cf
           done
           chmod 600 infra/magnibox-mail/docker-data/config/postfix-accounts.cf
           echo "127.0.0.1 mail.example.test" | sudo tee -a /etc/hosts
