@@ -5,14 +5,18 @@ import hashlib, hmac, json, os, re, signal, sys, tempfile, time, urllib.error, u
 from pathlib import Path
 from urllib.parse import urlparse
 
-LINE_RE = re.compile(r"postfix/smtp\[\d+\]:\s+(?P<queue>[A-F0-9]{5,20}):\s+to=<[^>\r\n]+>,.*?\bstatus=(?P<status>sent|bounced|deferred|expired)\b", re.IGNORECASE)
+LINE_RE = re.compile(r"postfix/smtp\\[\\d+\\]:\\s+(?P<queue>[A-F0-9]{5,20}):\\s+to=<(?P<recipient>[^>\\r\\n]+)>,.*?\\bstatus=(?P<status>sent|bounced|deferred|expired)\\b", re.IGNORECASE)
 EVENTS = {"sent":"remote_accepted","bounced":"bounced","deferred":"deferred","expired":"failed"}
 STOP = False
 
 def parse_log_line(line: str):
     match = LINE_RE.search(line)
     if not match: return None
-    queue_id=match.group("queue").upper()\n    recipient=match.group("recipient").strip().lower()\n    event=EVENTS[match.group("status").lower()]\n    event_id=hashlib.sha256(f"{queue_id}\\x1f{recipient}\\x1f{event}".encode("utf-8")).hexdigest()\n    return {"queueId":queue_id,"recipient":recipient,"eventId":event_id,"event":event}
+    queue_id = match.group("queue").upper()
+    recipient = match.group("recipient").strip().lower()
+    event = EVENTS[match.group("status").lower()]
+    event_id = hashlib.sha256(f"{queue_id}\x1f{recipient}\x1f{event}".encode("utf-8")).hexdigest()
+    return {"queueId": queue_id, "recipient": recipient, "eventId": event_id, "event": event}
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl): return None
