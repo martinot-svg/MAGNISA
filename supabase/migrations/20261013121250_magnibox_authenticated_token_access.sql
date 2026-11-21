@@ -1,4 +1,4 @@
--- Remove the server-wide service-role dependency from MAGNIBOX.
+-- Remove the server-wide service-role dependency from MagniMail.
 -- OAuth credentials remain encrypted in the database and are only accessible
 -- to the authenticated owner of the corresponding e-mail connection.
 
