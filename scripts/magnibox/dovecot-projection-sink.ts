@@ -135,6 +135,14 @@ export function createMagniboxDovecotProjectionSink(
           if (!operation.uid) throw new MagniboxSyncError("Confirmed APPEND is missing its UID", false);
           confirmed = { uid: operation.uid, uidValidity: operation.uidValidity };
         } else if (decision.action === "append_allowed") {
+          // Complete local serialization before crossing the irreversible APPEND boundary.
+          const raw = await dependencies.composeMessage({
+            projection,
+            operationMarker: operation.marker,
+          });
+          if (!Buffer.isBuffer(raw) || !hasOperationHeader(raw, operation.marker)) {
+            throw new MagniboxSyncError("MIME composer omitted the durable operation marker", false);
+          }
           const state = await dependencies.appendLedger.markStarted({
             organizationId: projection.organizationId,
             outboxEventId: event.id,
@@ -145,13 +153,6 @@ export function createMagniboxDovecotProjectionSink(
             throw new MagniboxSyncError("APPEND operation is not in a writable state");
           }
           try {
-            const raw = await dependencies.composeMessage({
-              projection,
-              operationMarker: operation.marker,
-            });
-            if (!Buffer.isBuffer(raw) || !hasOperationHeader(raw, operation.marker)) {
-              throw new MagniboxSyncError("MIME composer omitted the durable operation marker", false);
-            }
             confirmed = await session.append(raw, [], new Date(projection.createdAt));
           } catch (error) {
             await dependencies.appendLedger.markAmbiguous({
