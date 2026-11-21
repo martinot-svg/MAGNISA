@@ -11,7 +11,7 @@ const fakeClient = vi.hoisted(() => ({
 }));
 
 vi.mock("imapflow", () => ({
-  ImapFlow: vi.fn(() => fakeClient),
+  ImapFlow: vi.fn(function ImapFlowMock() { return fakeClient; }),
 }));
 
 import { ImapFlow } from "imapflow";
