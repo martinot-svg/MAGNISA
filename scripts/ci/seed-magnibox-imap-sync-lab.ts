@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createClient } from "@supabase/supabase-js";
 import { createMagniboxSupabaseCredentialProvider } from "../magnibox/imap-credential-supabase-provider";
@@ -18,7 +17,7 @@ function required(name: string): string {
   return value.trim();
 }
 
-async function mailboxEpoch(account: Account, folder: string, ca: Buffer): Promise<string> {
+async function mailboxEpoch(account: Account, folder: string): Promise<string> {
   const python = [
     "import imaplib, os, ssl, sys",
     "host = os.environ['MAGNIBOX_LAB_IMAP_HOST']",
@@ -72,7 +71,6 @@ async function main(): Promise<void> {
     MAGNIBOX_IMAP_CREDENTIALS_KEYS: required("MAGNIBOX_LOCAL_IMAP_CREDENTIALS_KEYS"),
   });
   const credentials = createMagniboxSupabaseCredentialProvider(supabase, keyring);
-  const ca = readFileSync(required("MAGNIBOX_IMAP_CA_FILE"));
 
   const accounts: Account[] = [
     { org: "org-a", localPart: "alice", email: "org-a-alice@example.test", password: required("MAGNIBOX_LAB_ORG_A_ALICE_PASSWORD"), displayName: "Org A Alice" },
@@ -139,7 +137,7 @@ async function main(): Promise<void> {
     });
 
     for (const folder of ["INBOX", "Sent"]) {
-      const uidValidity = await mailboxEpoch(account, folder, ca);
+      const uidValidity = await mailboxEpoch(account, folder);
       const { error: folderError } = await supabase.from("magnibox_imap_folder_state").insert({
         organization_id: organizationId,
         mailbox_id: mailbox.id,
