@@ -42,7 +42,7 @@ async function mailboxEpoch(account: Account, folder: string): Promise<string> {
     "finally:",
     "    try: client.logout()",
     "    except Exception: pass",
-  ].join("\\n");
+  ].join("\n");
   const value = execFileSync("python3", ["-c", python, folder], {
     encoding: "utf8",
     env: {
