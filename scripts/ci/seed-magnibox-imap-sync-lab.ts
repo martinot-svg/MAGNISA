@@ -67,6 +67,7 @@ async function main(): Promise<void> {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
   const keyring = loadMagniboxCredentialKeyring({
+    NODE_ENV: process.env.NODE_ENV ?? "test",
     MAGNIBOX_IMAP_ACTIVE_KEY_ID: required("MAGNIBOX_LOCAL_IMAP_ACTIVE_KEY_ID"),
     MAGNIBOX_IMAP_CREDENTIALS_KEYS: required("MAGNIBOX_LOCAL_IMAP_CREDENTIALS_KEYS"),
   });
