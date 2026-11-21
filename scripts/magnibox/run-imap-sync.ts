@@ -3,7 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { createMagniboxSupabaseCredentialProvider } from "./imap-credential-supabase-provider";
 import { loadMagniboxCredentialKeyring } from "./imap-credential-crypto";
 import { createMagniboxSupabaseOutboxRepository } from "./imap-sync-supabase-repository";
-import { createMagniboxSupabaseInternalMessageResolverRepository } from "./canonical-internal-message-supabase-repository";
+import {
+  createMagniboxSupabaseInternalMessageResolverRepository,
+  type MagniboxResolverSupabaseClient,
+} from "./canonical-internal-message-supabase-repository";
 import { createMagniboxInternalMessageImapSyncAdapter } from "./internal-message-imap-sync-adapter";
 import { createMagniboxSupabaseImapAppendLedgerRepository } from "./imap-append-supabase-repository";
 import { createMagniboxSupabaseImapMappingRepository } from "./imap-mapping-supabase-repository";
@@ -100,7 +103,9 @@ async function main(): Promise<void> {
   const keyring = loadMagniboxCredentialKeyring();
   const credentials = createMagniboxSupabaseCredentialProvider(supabase, keyring);
   const outbox = createMagniboxSupabaseOutboxRepository(supabase);
-  const resolver = createMagniboxSupabaseInternalMessageResolverRepository(supabase);
+  const resolver = createMagniboxSupabaseInternalMessageResolverRepository(
+    supabase as unknown as MagniboxResolverSupabaseClient,
+  );
   const appendLedger = createMagniboxSupabaseImapAppendLedgerRepository(supabase);
   const mappings = createMagniboxSupabaseImapMappingRepository(supabase);
   const caFile = requiredEnv("MAGNIBOX_IMAP_CA_FILE");
