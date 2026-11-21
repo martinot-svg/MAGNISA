@@ -1,4 +1,4 @@
-import type { MagniboxImapSyncAdapter } from "./imap-sync-core";
+import type { MagniboxImapSyncAdapter, MagniboxSyncOutboxRepository } from "./imap-sync-core";
 
 export type MagniboxImapWorkerConfig = {
   workerId: string;
@@ -10,13 +10,7 @@ export type MagniboxImapWorkerConfig = {
   maxRetrySeconds: number;
 };
 
-function integerEnv(
-  env: Record<string, string | undefined>,
-  key: string,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
+function integerEnv(env: Record<string, string | undefined>, key: string, fallback: number, min: number, max: number): number {
   const raw = env[key];
   if (raw === undefined || raw.trim() === "") return fallback;
   if (!/^\d+$/.test(raw)) throw new Error(`Invalid ${key}: expected an integer`);
@@ -27,14 +21,9 @@ function integerEnv(
   return value;
 }
 
-export function readMagniboxImapWorkerConfig(
-  env: Record<string, string | undefined>,
-): MagniboxImapWorkerConfig {
-  const workerId = env.MAGNIBOX_IMAP_WORKER_ID?.trim()
-    || `magnibox-imap-${process.env.HOSTNAME || "local"}`;
-  if (workerId.length > 120 || /[\r\n\x00-\x1f]/.test(workerId)) {
-    throw new Error("Invalid MAGNIBOX_IMAP_WORKER_ID");
-  }
+export function readMagniboxImapWorkerConfig(env: Record<string, string | undefined>): MagniboxImapWorkerConfig {
+  const workerId = env.MAGNIBOX_IMAP_WORKER_ID?.trim() || `magnibox-imap-${env.HOSTNAME || "local"}`;
+  if (workerId.length > 120 || /[\r\n\x00-\x1f]/.test(workerId)) throw new Error("Invalid MAGNIBOX_IMAP_WORKER_ID");
   const baseRetrySeconds = integerEnv(env, "MAGNIBOX_IMAP_BASE_RETRY_SECONDS", 5, 1, 3600);
   const maxRetrySeconds = integerEnv(env, "MAGNIBOX_IMAP_MAX_RETRY_SECONDS", 3600, baseRetrySeconds, 86400);
   return {
@@ -54,7 +43,7 @@ export type MagniboxWorkerLogger = {
 };
 
 export type MagniboxWorkerDependencies = {
-  repository: import("./imap-sync-core").MagniboxSyncOutboxRepository;
+  repository: MagniboxSyncOutboxRepository;
   adapter: MagniboxImapSyncAdapter;
   config: MagniboxImapWorkerConfig;
   logger: MagniboxWorkerLogger;
@@ -64,23 +53,21 @@ export type MagniboxWorkerDependencies = {
 function defaultSleep(milliseconds: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (signal.aborted) return resolve();
-    const timer = setTimeout(done, milliseconds);
-    function done() {
-      signal.removeEventListener("abort", done);
-      resolve();
-    }
-    signal.addEventListener("abort", () => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
-      done();
-    }, { once: true });
+      signal.removeEventListener("abort", finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, milliseconds);
+    signal.addEventListener("abort", finish, { once: true });
   });
 }
 
 /** Polls the transactional outbox until shutdown; every batch is lease-fenced. */
-export async function runMagniboxImapWorker(
-  dependencies: MagniboxWorkerDependencies,
-  signal: AbortSignal,
-): Promise<void> {
+export async function runMagniboxImapWorker(dependencies: MagniboxWorkerDependencies, signal: AbortSignal): Promise<void> {
   const { repository, adapter, config, logger } = dependencies;
   const sleep = dependencies.sleep ?? defaultSleep;
   while (!signal.aborted) {
