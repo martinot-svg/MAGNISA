@@ -61,6 +61,7 @@ set search_path = ''
 as $magnibox_recipient_event$
 declare
   v_message_id uuid;
+  v_match_count integer;
   v_recipient_id uuid;
   v_recipient text;
   v_current text;
@@ -70,6 +71,7 @@ begin
   if p_queue_id is null or upper(p_queue_id) !~ '^[A-F0-9]{5,20}$'
     or v_recipient !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
     or p_event_id is null or p_event_id !~ '^[a-f0-9]{64}$'
+    or p_event_state is null
     or p_event_state not in ('remote_accepted','deferred','bounced','failed') then
     raise exception 'Invalid MAGNIBOX recipient delivery event' using errcode='22023';
   end if;
@@ -78,12 +80,18 @@ begin
     pg_catalog.hashtextextended('magnibox-recipient:'||upper(p_queue_id)||':'||v_recipient,0)
   );
 
+  -- Never update an arbitrary message if a queue ID/recipient pair is ambiguous.
+  select count(*) into v_match_count
+  from public.orbit_external_messages m
+  where m.direction='outgoing' and m.provider_email_id=upper(p_queue_id)
+    and v_recipient=any(select lower(btrim(u.email)) from unnest(m.to_emails) as u(email));
+  if v_match_count=0 then return 'not_found'; end if;
+  if v_match_count>1 then return 'ambiguous'; end if;
+
   select m.id into v_message_id
   from public.orbit_external_messages m
   where m.direction='outgoing' and m.provider_email_id=upper(p_queue_id)
-    and v_recipient=any(select lower(btrim(u.email)) from unnest(m.to_emails) as u(email))
-  limit 1;
-  if v_message_id is null then return 'not_found'; end if;
+    and v_recipient=any(select lower(btrim(u.email)) from unnest(m.to_emails) as u(email));
 
   insert into public.orbit_external_message_recipients(message_id,recipient_email,state)
   values(v_message_id,v_recipient,'local_accepted')
