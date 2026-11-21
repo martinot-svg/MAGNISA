@@ -8,7 +8,12 @@ forwarder=importlib.util.module_from_spec(spec); spec.loader.exec_module(forward
 class PostfixDeliveryEventTests(unittest.TestCase):
     def test_parses_sent_as_remote_mta_acceptance(self):
         line="Nov 15 10:20:30 mx postfix/smtp[123]: ABC123DEF: to=<client@example.net>, relay=mx.example.net[192.0.2.1]:25, delay=1, dsn=2.0.0, status=sent (250 queued)"
-        self.assertEqual(forwarder.parse_log_line(line),{"queueId":"ABC123DEF","event":"accepted"})
+        event=forwarder.parse_log_line(line)
+        self.assertEqual(event["queueId"],"ABC123DEF")
+        self.assertEqual(event["recipient"],"client@example.net")
+        self.assertEqual(event["event"],"remote_accepted")
+        self.assertRegex(event["eventId"],r"^[a-f0-9]{64}$")
+        self.assertEqual(event,forwarder.parse_log_line(line))
     def test_maps_bounce_defer_and_expiry(self):
         base="postfix/smtp[123]: 1A2B3C4D: to=<x@example.net>, relay=mx, status={status} (diagnostic)"
         self.assertEqual(forwarder.parse_log_line(base.format(status="bounced"))["event"],"bounced")
@@ -18,7 +23,7 @@ class PostfixDeliveryEventTests(unittest.TestCase):
         self.assertIsNone(forwarder.parse_log_line("postfix/qmgr[12]: ABC123: removed"))
         self.assertIsNone(forwarder.parse_log_line("postfix/smtp[12]: connect to mx:25: timed out"))
     def test_event_signature_matches_application_contract(self):
-        payload={"queueId":"ABC123DEF","event":"delivered"}
+        payload={"queueId":"ABC123DEF","recipient":"client@example.net","eventId":"a"*64,"event":"remote_accepted"}
         encoded=json.dumps(payload,separators=(",",":"),ensure_ascii=True).encode("ascii")
         with patch.object(forwarder.time,"time",return_value=1800000000):
             with patch.object(forwarder.urllib.request,"build_opener") as build:
