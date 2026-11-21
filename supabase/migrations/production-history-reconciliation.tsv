@@ -14,3 +14,8 @@
 20261114110000|mgmail_agenda|archive_20261114110000_mgmail_agenda.sql|recovered|Read-only Supabase ledger extraction; SQL payload normalized by removing ledger serialization prefix; SHA-256 verified|398480e209d2652e3cfff2d794849995c8f8de5655fdf7d9004463f4c8b832ec
 20261114110100|mgmail_agenda_reminders|archive_20261114110100_mgmail_agenda_reminders.sql|recovered|Read-only Supabase ledger extraction; SQL payload normalized by removing ledger serialization prefix; SHA-256 verified|b7a1fdc863b7fb13c41c524c03f4f5c35208bfc596442cca18328cbe0597f0ab
 20261013121250|magnimail_authenticated_token_access|20261013121250_magnibox_authenticated_token_access.sql|renamed|Read-only Supabase production ledger extraction 2026-11-21; exact original SQL recovered by restoring historical MagniMail comment and SHA-256 verified against stored statements|91ccccbbc4634c56e0c76b5b1020abf2082d5dc640ea529906a52a8e11b69d7b
+
+# Production forward migrations applied after the local migration timestamp; map by the exact
+# production SQL digest so db push does not attempt to replay their local source files.
+20261121122200|20261121110000_orbit_action_tasks_forward|20261121110000_orbit_action_tasks_forward.sql|renamed|Read-only production ledger extraction 2026-11-21; stored SQL SHA-256 verified|12caa461acc472f75fde1234090c83ba74dade0f59c71eaf8a58607ae32aee71
+20261121122216|20261121120000_repair_prospect_intervention_catalog_defaults_forward|20261121120000_repair_prospect_intervention_catalog_defaults_forward.sql|renamed|Read-only production ledger extraction 2026-11-21; stored SQL SHA-256 verified|8fce27b16a7d1f620cb76d909fadbead4b3b107b77914e9219ba2a970fe9817f
