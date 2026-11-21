@@ -216,6 +216,7 @@ jobs:
           docker compose \
             -f infra/magnibox-mail/compose.yaml \
             -f infra/magnibox-mail/compose.imap-local.yaml \
+            -f infra/magnibox-mail/compose.imap-ci.yaml \
             --profile imap-sync-local run --rm imap-sync-worker sh -c "./node_modules/.bin/tsx scripts/magnibox/run-imap-sync.ts"
 
       - name: Assert delivered events, confirmed APPEND ledger and UID mappings
