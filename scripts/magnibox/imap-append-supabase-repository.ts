@@ -20,7 +20,26 @@ export type MagniboxAppendOperation = {
   uid: string | null;
 };
 
+export type MagniboxAppendRecoveryItem = {
+  operationId: string;
+  outboxEventId: string;
+  sourceMessageId: string;
+  marker: string;
+  state: MagniboxAppendOperationState;
+  operationUidValidity: string;
+  uid: string | null;
+  createdAt: string;
+};
+
 export interface MagniboxImapAppendLedgerRepository {
+  listRecoveryInventory(input: {
+    organizationId: string;
+    folderStateId: string;
+    currentUidValidity: string;
+    afterOperationId?: string | null;
+    limit?: number;
+  }): Promise<MagniboxAppendRecoveryItem[]>;
+
   getOrCreate(input: {
     organizationId: string;
     outboxEventId: string;
@@ -123,6 +142,55 @@ export function createMagniboxSupabaseImapAppendLedgerRepository(
   client: MagniboxImapAppendRpcClient,
 ): MagniboxImapAppendLedgerRepository {
   return {
+    async listRecoveryInventory(input) {
+      const limit = input.limit ?? 100;
+      if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
+        throw new MagniboxSyncError("Invalid IMAP recovery inventory limit", false);
+      }
+      const currentUidValidity = canonicalPositiveBigint(
+        input.currentUidValidity, "UIDVALIDITY",
+      );
+      const data = await call(client, "magnibox_list_imap_append_recovery", {
+        p_organization_id: input.organizationId,
+        p_folder_state_id: input.folderStateId,
+        p_current_uidvalidity: currentUidValidity,
+        p_after_operation_id: input.afterOperationId ?? null,
+        p_limit: limit,
+      });
+      if (!Array.isArray(data) || data.length > limit) {
+        throw new MagniboxSyncError("Invalid IMAP recovery inventory response", false);
+      }
+      return data.map(value => {
+        const row = record(value);
+        const state = mapState(row.operation_state);
+        const marker = requiredString(row, "marker");
+        if (!/^mbxop-[0-9a-f-]{36}$/.test(marker)) {
+          throw new MagniboxSyncError("Invalid IMAP recovery marker", false);
+        }
+        const rawUid = row.imap_uid;
+        const uid = rawUid === null
+          ? null
+          : canonicalPositiveBigint(typeof rawUid === "string" ? rawUid : "", "UID");
+        const operationUidValidity = canonicalPositiveBigint(
+          requiredString(row, "operation_uidvalidity"), "UIDVALIDITY",
+        );
+        const createdAt = requiredString(row, "created_at");
+        if (!Number.isFinite(Date.parse(createdAt))
+          || (state === "confirmed") !== (uid !== null)) {
+          throw new MagniboxSyncError("Invalid IMAP recovery inventory row", false);
+        }
+        return {
+          operationId: requiredString(row, "operation_id"),
+          outboxEventId: requiredString(row, "outbox_event_id"),
+          sourceMessageId: requiredString(row, "source_message_id"),
+          marker,
+          state,
+          operationUidValidity,
+          uid,
+          createdAt,
+        };
+      });
+    },
     async getOrCreate(input) {
       const data = await call(client, "magnibox_get_or_create_imap_append_operation", {
         p_organization_id: input.organizationId,
