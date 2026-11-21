@@ -40,8 +40,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # MAGNIBOX integration tests do not use Supabase Inbucket; skip it to avoid
-          # binding the runner's commonly occupied host port 54324.
+          # MAGNIBOX integration tests do not use Supabase Inbucket; skip it.
+          # Select a free loopback database port because GitHub runners can have
+          # PostgreSQL already bound to Supabase's default 54322.
+          db_port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+          sed -i "/^\\[db\\]/,/^\\[/ s/^port = 54322$/port = ${db_port}/" supabase/config.toml
+          echo "Using isolated Supabase database port: ${db_port}"
           supabase start -x inbucket
           supabase db reset
           eval "$(supabase status -o env)"
