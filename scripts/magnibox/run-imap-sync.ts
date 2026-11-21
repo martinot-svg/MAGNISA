@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { createMagniboxSupabaseCredentialProvider } from "./imap-credential-supabase-provider";
 import { loadMagniboxCredentialKeyring } from "./imap-credential-crypto";
@@ -102,7 +103,9 @@ async function main(): Promise<void> {
   const resolver = createMagniboxSupabaseInternalMessageResolverRepository(supabase);
   const appendLedger = createMagniboxSupabaseImapAppendLedgerRepository(supabase);
   const mappings = createMagniboxSupabaseImapMappingRepository(supabase);
-  const transport = new MagniboxDovecotImapAdapter({ allowedHosts });
+  const caFile = requiredEnv("MAGNIBOX_IMAP_CA_FILE");
+  const caPem = readFileSync(caFile, "utf8");
+  const transport = new MagniboxDovecotImapAdapter({ allowedHosts, caPem });
   const sink = createMagniboxDovecotProjectionSink({
     credentials,
     transport,
