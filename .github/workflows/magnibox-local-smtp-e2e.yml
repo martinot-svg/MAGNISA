@@ -97,6 +97,20 @@ jobs:
             'printf "%s|%s\\n" "$MAIL_USER" "$(doveadm pw -s SHA512-CRYPT -u "$MAIL_USER" -p "$MAIL_PASS")"' \
             > infra/magnibox-mail/docker-data/config/postfix-accounts.cf
           chmod 600 infra/magnibox-mail/docker-data/config/postfix-accounts.cf
+          # Four disposable accounts represent two independent organizations.
+          for spec in "ORG_A_ALICE:org-a-alice@example-a.test" "ORG_A_BOB:org-a-bob@example-a.test" "ORG_B_ALICE:org-b-alice@example-b.test" "ORG_B_BOB:org-b-bob@example-b.test"; do
+            key="${spec%%:*}"
+            user="${spec#*:}"
+            password="$(openssl rand -hex 24)"
+            echo "::add-mask::$password"
+            echo "MAGNIBOX_LAB_${key}_PASSWORD=$password" >> "$GITHUB_ENV"
+            hash="$(docker run --rm --entrypoint /bin/bash \
+              -e MAIL_USER="$user" -e MAIL_PASS="$password" \
+              "$MAGNIBOX_DMS_IMAGE" -lc \
+              'doveadm pw -s SHA512-CRYPT -u "$MAIL_USER" -p "$MAIL_PASS"')"
+            printf '%s|%s\\n' "$user" "$hash" >> infra/magnibox-mail/docker-data/config/postfix-accounts.cf
+          done
+          chmod 600 infra/magnibox-mail/docker-data/config/postfix-accounts.cf
           echo "127.0.0.1 mail.example.test" | sudo tee -a /etc/hosts
 
       - name: Start Docker Mailserver Postfix and Mailpit relay
@@ -142,6 +156,13 @@ jobs:
           MAGNIBOX_IMAP_PASSWORD: ${{ env.MAGNIBOX_SMTP_PASSWORD }}
           MAGNIBOX_IMAP_CA_FILE: ${{ github.workspace }}/.ci-tls/fullchain.pem
         run: python3 scripts/ci/test-magnibox-dovecot-imaps.py
+
+      - name: Verify two-organization Dovecot mailbox isolation and restart replay
+        env:
+          MAGNIBOX_IMAP_HOST: mail.example.test
+          MAGNIBOX_IMAP_PORT: "993"
+          MAGNIBOX_IMAP_CA_FILE: ${{ github.workspace }}/.ci-tls/fullchain.pem
+        run: python3 scripts/ci/test-magnibox-dovecot-multitenant.py
 
       - name: Upload Postfix and Mailpit diagnostic logs on failure
         if: failure()
