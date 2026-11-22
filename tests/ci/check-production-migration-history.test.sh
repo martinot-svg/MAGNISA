@@ -183,4 +183,14 @@ EXPECTED_MAPPED_SHA="$mapped_forward_sha" SUPABASE_DB_URL=mock PATH="$TMP/fake-m
 grep -q 'Already applied through verified production reconciliation' "$TMP/apply-mapped.log" || fail "reconciled forward migration was not skipped"
 grep -q '0 approved migration(s) pending' "$TMP/apply-mapped.log" || fail "reconciled forward migration was incorrectly counted as pending"
 
+# Production release automation must be backup-gated and tied to the exact push SHA.
+DEPLOY_WORKFLOW="$ROOT/.github/workflows/deploy-supabase-production.yml"
+BACKUP_WORKFLOW="$ROOT/.github/workflows/backup-supabase-production.yml"
+grep -q '^  workflow_run:' "$DEPLOY_WORKFLOW" || fail "production deploy workflow lacks backup completion trigger"
+grep -q "workflow_run.event == 'push'" "$DEPLOY_WORKFLOW" || fail "automatic apply is not restricted to main push backups"
+grep -q 'github.event.workflow_run.head_sha' "$DEPLOY_WORKFLOW" || fail "automatic apply does not checkout the exact backup commit"
+grep -q 'Main advanced after the backup' "$DEPLOY_WORKFLOW" || fail "stale main commit is not blocked after backup"
+grep -q "github.event_name == 'workflow_dispatch' || github.event_name == 'push'" "$BACKUP_WORKFLOW" || fail "production backup is not restricted to manual or migration-release push"
+grep -q 'magnisa-supabase-production-encrypted-backup' "$BACKUP_WORKFLOW" || fail "encrypted production backup artifact is missing"
+
 echo "Migration history guard fixtures passed."
