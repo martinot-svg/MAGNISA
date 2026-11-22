@@ -7,64 +7,158 @@ import { FormDialog } from "@/components/form-dialog";
 import { convertProspectToCustomer, createProspect } from "@/server/actions/commissions";
 import { formatDateTimeDisplay } from "@/lib/date-format";
 
-export default async function ProspectsPage({ searchParams }: { searchParams: Promise<{ conversion?: string }> }) {
+const statusLabels: Record<string, string> = {
+  new: "Nouveau",
+  qualified: "Qualifié",
+  proposal: "Proposition",
+  won: "Gagné",
+  lost: "Perdu",
+};
+const statusOptions = ["new", "qualified", "proposal", "won", "lost"] as const;
+
+export default async function ProspectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ conversion?: string; status?: string; q?: string }>;
+}) {
   const params = await searchParams;
+  const selectedStatus = statusOptions.includes(params.status as (typeof statusOptions)[number])
+    ? params.status!
+    : "all";
+  const search = (params.q ?? "").trim().slice(0, 120);
   const ctx = await requireOrganization();
-  const [canViewSales,canContribute,canConvert,canManageCollaborativeSettings] = await Promise.all([
-    hasPermission(ctx,"sales.view"),
-    hasPermission(ctx,"commissions.contribute"),
-    hasPermission(ctx,"prospects.convert"),
-    hasPermission(ctx,"commissions.policy.manage"),
+  const [canViewSales, canContribute, canConvert, canManageCollaborativeSettings] = await Promise.all([
+    hasPermission(ctx, "sales.view"),
+    hasPermission(ctx, "commissions.contribute"),
+    hasPermission(ctx, "prospects.convert"),
+    hasPermission(ctx, "commissions.policy.manage"),
   ]);
   if (!canViewSales && !canContribute) redirect("/dashboard?access=denied");
 
-  const [{data:prospects=[],error},{data:members=[],error:membersError}] = await Promise.all([
-    ctx.supabase.from("prospects")
-      .select("id,name,email,phone,source,status,converted_customer_id,created_at")
-      .eq("organization_id",ctx.organizationId).order("created_at",{ascending:false}),
-    ctx.supabase.rpc("list_collaboration_members",{p_org:ctx.organizationId}),
+  const [{ data: prospects = [], error }, { data: members = [], error: membersError }] = await Promise.all([
+    ctx.supabase
+      .from("prospects")
+      .select("id,name,email,phone,source,status,converted_customer_id,current_owner_id,created_at")
+      .eq("organization_id", ctx.organizationId)
+      .order("created_at", { ascending: false }),
+    ctx.supabase.rpc("list_collaboration_members", { p_org: ctx.organizationId }),
   ]);
   if (error) throw new Error("Impossible de charger les prospects.");
   if (membersError) throw new Error("Impossible de charger le répertoire des collaborateurs.");
 
-  return <>
-    <div className="pageHead">
-      <div><h1>Prospects</h1><p>Suivi des opportunités, des collaborateurs impliqués et des conversions clients.</p></div>
-      <div className="actions">
-        {canManageCollaborativeSettings && <Link className="button" href="/prospects/settings">Configurer les interventions</Link>}
-        {canContribute && <FormDialog title="Nouveau prospect" buttonLabel="+ Nouveau prospect">
-          <form action={createProspect} className="form">
-            <div className="field"><label>Nom / raison sociale</label><input name="name" minLength={2} maxLength={180} required/></div>
-            <div className="field"><label>E-mail</label><input name="email" type="email" maxLength={254}/></div>
-            <div className="field"><label>Téléphone</label><input name="phone" maxLength={40}/></div>
-            <div className="field"><label>Source</label><input name="source" maxLength={120} placeholder="Recommandation, appel, visite…"/></div>
-            <div className="field"><label>Recommandé par un collaborateur (facultatif)</label>
-              <select name="referrer_user_id" defaultValue=""><option value="">Aucune recommandation déclarée</option>
-                {(members as any[]).filter((member:any)=>member.status==="active" && member.user_id!==ctx.user.id)
-                  .map((member:any)=><option key={member.user_id} value={member.user_id}>{member.email||member.user_id} · {member.department||member.role}</option>)}
-              </select>
-              <small className="muted">La recommandation est enregistrée séparément et reste en attente de validation.</small>
-            </div>
-            <div className="field"><label>Justificatif de recommandation (facultatif ou obligatoire selon la configuration)</label><input name="referrer_evidence_reference" maxLength={1000} placeholder="Référence e-mail, document ou contrat"/></div>
-            <div className="field"><label>Notes</label><textarea name="notes" rows={3} maxLength={2000}/></div>
-            <button className="button primary">Créer le prospect</button>
-          </form>
-        </FormDialog>}
+  const allProspects = prospects as any[];
+  const filteredProspects = allProspects.filter((prospect) => {
+    const matchesStatus = selectedStatus === "all" || prospect.status === selectedStatus;
+    const haystack = [prospect.name, prospect.email, prospect.phone, prospect.source]
+      .filter(Boolean)
+      .join(" ")
+      .toLocaleLowerCase("fr");
+    return matchesStatus && (!search || haystack.includes(search.toLocaleLowerCase("fr")));
+  });
+  const counts = Object.fromEntries(
+    statusOptions.map((status) => [status, allProspects.filter((prospect) => prospect.status === status).length]),
+  ) as Record<(typeof statusOptions)[number], number>;
+  const ownerById = new Map((members as any[]).map((member: any) => [
+    member.user_id,
+    member.email || member.user_id,
+  ]));
+
+  return (
+    <>
+      <div className="pageHead">
+        <div>
+          <h1>Prospects</h1>
+          <p>Suivi des opportunités, des responsables, des interventions et des conversions clients.</p>
+        </div>
+        <div className="actions">
+          {canManageCollaborativeSettings && <Link className="button" href="/prospects/settings">Configurer les interventions</Link>}
+          {canContribute && (
+            <FormDialog title="Nouveau prospect" buttonLabel="+ Nouveau prospect">
+              <form action={createProspect} className="form">
+                <div className="field"><label>Nom / raison sociale</label><input name="name" minLength={2} maxLength={180} required /></div>
+                <div className="field"><label>E-mail</label><input name="email" type="email" maxLength={254} /></div>
+                <div className="field"><label>Téléphone</label><input name="phone" maxLength={40} /></div>
+                <div className="field"><label>Source</label><input name="source" maxLength={120} placeholder="Recommandation, appel, visite…" /></div>
+                <div className="field">
+                  <label>Recommandé par un collaborateur (facultatif)</label>
+                  <select name="referrer_user_id" defaultValue="">
+                    <option value="">Aucune recommandation déclarée</option>
+                    {(members as any[]).filter((member: any) => member.status === "active" && member.user_id !== ctx.user.id)
+                      .map((member: any) => <option key={member.user_id} value={member.user_id}>{member.email || member.user_id} · {member.department || member.role}</option>)}
+                  </select>
+                  <small className="muted">La recommandation est enregistrée séparément et reste en attente de validation.</small>
+                </div>
+                <div className="field"><label>Justificatif de recommandation (facultatif ou obligatoire selon la configuration)</label><input name="referrer_evidence_reference" maxLength={1000} placeholder="Référence e-mail, document ou contrat" /></div>
+                <div className="field"><label>Notes</label><textarea name="notes" rows={3} maxLength={2000} /></div>
+                <button className="button primary">Créer le prospect</button>
+              </form>
+            </FormDialog>
+          )}
+        </div>
       </div>
-    </div>
-    {params.conversion === "duplicate" && <p role="alert" className="muted">Conversion impossible : un client actif possède déjà cet e-mail ou ce numéro. Vérifie le client existant avant de poursuivre.</p>}
-    <div className="section">
-      {!prospects.length ? <EmptyState title="Aucun prospect" description="Crée un prospect réel pour démarrer le suivi commercial."/> :
-      <div className="tableWrap"><table><thead><tr><th>Prospect</th><th>Statut</th><th>Contact</th><th>Source</th><th>Conversion</th><th>Action</th></tr></thead><tbody>
-        {(prospects as any[]).map((prospect:any)=><tr key={prospect.id}>
-          <td><strong><Link href={"/prospects/"+prospect.id}>{prospect.name}</Link></strong><div className="muted">{formatDateTimeDisplay(prospect.created_at)}</div></td>
-          <td><span className="badge">{prospect.status}</span></td><td>{prospect.email||"—"}<div className="muted">{prospect.phone||""}</div></td>
-          <td>{prospect.source||"—"}</td><td>{prospect.converted_customer_id?<span className="badge">Client créé</span>:"Non converti"}</td>
-          <td>{canConvert&&!prospect.converted_customer_id&&prospect.status!=="lost"?
-            <FormDialog title="Convertir le prospect en client" buttonLabel="Clôturer comme gagné"><form action={convertProspectToCustomer}><input type="hidden" name="prospect_id" value={prospect.id}/><button className="button small">Clôturer comme gagné</button></form></FormDialog>:
-            prospect.converted_customer_id?"Déjà converti":"—"}</td>
-        </tr>)}
-      </tbody></table></div>}
-    </div>
-  </>;
+
+      {params.conversion === "duplicate" && (
+        <p role="alert" className="muted">Conversion impossible : un client actif possède déjà cet e-mail ou ce numéro. Vérifie le client existant avant de poursuivre.</p>
+      )}
+
+      <div className="grid grid-3 section">
+        <div className="card"><div className="muted">Nouveaux</div><strong className="metric">{counts.new}</strong></div>
+        <div className="card"><div className="muted">Qualifiés</div><strong className="metric">{counts.qualified}</strong></div>
+        <div className="card"><div className="muted">Propositions</div><strong className="metric">{counts.proposal}</strong></div>
+        <div className="card"><div className="muted">Gagnés</div><strong className="metric">{counts.won}</strong></div>
+        <div className="card"><div className="muted">Perdus</div><strong className="metric">{counts.lost}</strong></div>
+        <div className="card"><div className="muted">Taux de conversion</div><strong className="metric">{allProspects.length ? Math.round((counts.won / allProspects.length) * 100) : 0} %</strong></div>
+      </div>
+
+      <section className="section card">
+        <form method="get" action="/prospects" className="form">
+          <div className="grid grid-3">
+            <div className="field">
+              <label htmlFor="prospect-search">Rechercher</label>
+              <input id="prospect-search" name="q" defaultValue={search} maxLength={120} placeholder="Nom, e-mail, téléphone ou source" />
+            </div>
+            <div className="field">
+              <label htmlFor="prospect-status">Statut commercial</label>
+              <select id="prospect-status" name="status" defaultValue={selectedStatus}>
+                <option value="all">Tous les statuts</option>
+                {statusOptions.map((status) => <option key={status} value={status}>{statusLabels[status]}</option>)}
+              </select>
+            </div>
+            <div className="actions">
+              <button className="button primary" type="submit">Filtrer</button>
+              <Link className="button" href="/prospects">Réinitialiser</Link>
+            </div>
+          </div>
+          <p className="muted">{filteredProspects.length} prospect(s) affiché(s) sur {allProspects.length}.</p>
+        </form>
+      </section>
+
+      <div className="section">
+        {!filteredProspects.length ? (
+          <EmptyState
+            title={allProspects.length ? "Aucun résultat" : "Aucun prospect"}
+            description={allProspects.length ? "Aucun prospect ne correspond aux filtres sélectionnés." : "Crée un prospect réel pour démarrer le suivi commercial."}
+          />
+        ) : (
+          <div className="tableWrap"><table><thead><tr><th>Prospect</th><th>Statut</th><th>Contact</th><th>Source</th><th>Responsable</th><th>Conversion</th><th>Action</th></tr></thead><tbody>
+            {filteredProspects.map((prospect: any) => (
+              <tr key={prospect.id}>
+                <td><strong><Link href={"/prospects/" + prospect.id}>{prospect.name}</Link></strong><div className="muted">{formatDateTimeDisplay(prospect.created_at)}</div></td>
+                <td><span className="badge">{statusLabels[prospect.status] || prospect.status}</span></td>
+                <td>{prospect.email || "—"}<div className="muted">{prospect.phone || ""}</div></td>
+                <td>{prospect.source || "—"}</td>
+                <td>{prospect.current_owner_id ? ownerById.get(prospect.current_owner_id) || "Responsable indisponible" : "Non attribué"}</td>
+                <td>{prospect.converted_customer_id ? <span className="badge">Client créé</span> : "Non converti"}</td>
+                <td>{canConvert && !prospect.converted_customer_id && prospect.status !== "lost" ? (
+                  <FormDialog title="Convertir le prospect en client" buttonLabel="Clôturer comme gagné">
+                    <form action={convertProspectToCustomer}><input type="hidden" name="prospect_id" value={prospect.id} /><button className="button small">Clôturer comme gagné</button></form>
+                  </FormDialog>
+                ) : prospect.converted_customer_id ? "Déjà converti" : "—"}</td>
+              </tr>
+            ))}
+          </tbody></table></div>
+        )}
+      </div>
+    </>
+  );
 }
