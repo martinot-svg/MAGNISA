@@ -1,5 +1,4 @@
--- Keep the CRM intervention catalogue complete for organizations whose settings
--- predate the seeding trigger. Existing tenant customizations always take precedence.
+-- Preserve tenant-specific labels and flags while restoring defaults for legacy tenants.
 create or replace function public.list_prospect_intervention_types(p_org uuid)
 returns table(intervention_type text,label text,is_active boolean,requires_evidence boolean,sort_order smallint)
 language plpgsql
@@ -42,6 +41,5 @@ begin
   order by defaults.sort_order;
 end;
 $types$;
-
 revoke all on function public.list_prospect_intervention_types(uuid) from public,anon;
 grant execute on function public.list_prospect_intervention_types(uuid) to authenticated;
