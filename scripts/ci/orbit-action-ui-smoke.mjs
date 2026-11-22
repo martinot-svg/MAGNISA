@@ -54,7 +54,21 @@ try {
   async function submitDialog(label){
     const button=page.getByRole("button",{name:label});
     await button.waitFor({state:"visible",timeout:20000});
-    await button.evaluate(element=>element.click());
+    const form=button.locator("xpath=ancestor::form");
+    await form.waitFor({state:"visible",timeout:10000});
+    // Trigger the actual form submit event. A synthetic button click can close
+    // a client dialog during a concurrent router refresh without dispatching
+    // the Server Action request; requestSubmit preserves native validation and
+    // the submitter semantics used by Next.js.
+    const requestPromise=page.waitForRequest(request=>
+      request.method()==="POST" &&
+      new URL(request.url()).pathname==="/orbit/action/taches",
+      {timeout:15000}
+    );
+    await form.evaluate((element,submitter)=>element.requestSubmit(submitter),await button.elementHandle());
+    const request=await requestPromise;
+    const response=await page.waitForResponse(response=>response.request()===request,{timeout:20000});
+    if(!response.ok()) throw Error(`Task form Server Action returned HTTP ${response.status()}`);
     await page.getByRole("dialog").waitFor({state:"detached",timeout:20000});
   }
   const title=`Tâche UI ${fixture}`;
