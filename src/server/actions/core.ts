@@ -29,6 +29,9 @@ export async function createCustomer(formData: FormData) {
     address: parsed.data.address || null,
     tax_id: parsed.data.tax_id || null,
   });
+  if (error?.code === "23505" && error.message?.includes("client de cette organisation")) {
+    throw new Error(error.message);
+  }
   if (error) throw new Error("Impossible de créer le client. Vérifie les champs puis réessaie.");
   revalidatePath("/clients");
 }
