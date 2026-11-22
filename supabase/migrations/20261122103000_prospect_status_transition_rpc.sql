@@ -13,8 +13,7 @@ declare
   v_customer uuid;
 begin
   if auth.uid() is null or not (
-    public.has_org_permission(p_org,'sales.view')
-    or public.has_org_permission(p_org,'quotes.edit')
+    public.has_org_permission(p_org,'quotes.edit')
     or public.has_org_permission(p_org,'customers.create')
   ) then
     raise exception 'Accès refusé pour modifier le statut commercial.';
