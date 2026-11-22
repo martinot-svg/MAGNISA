@@ -365,6 +365,11 @@ jobs:
           export MAGNIBOX_INBOUND_URL=http://host.docker.internal:3000/api/internal/magnibox/inbound
           export MAGNIBOX_INBOUND_WEBHOOK_SECRET
           export MAGNIBOX_INBOUND_TEST_DOMAIN
+          # Compose validates these worker variables even when the worker profile is inactive.
+          export MAGNIBOX_IMAP_ALLOWED_HOSTS=mail.example.test
+          export MAGNIBOX_IMAP_ACTIVE_KEY_ID=ci-test-key
+          export MAGNIBOX_IMAP_CREDENTIALS_KEYS='{"ci-test-key":"ci-placeholder-key-not-used"}'
+          export MAGNIBOX_IMAP_CA_FILE="$GITHUB_WORKSPACE/.ci-tls/fullchain.pem"
 
           mkdir -p .ci-tls infra/magnibox-mail/docker-data/{mail-data,mail-state,logs,config,provisioning}
 
