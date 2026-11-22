@@ -100,19 +100,24 @@ export class MagniboxSmtpTransport implements InternetTransport {
       // without a lifecycle owner to close the pool after the HTTP request.
       pool: false,
     });
-    const result = await mailer.sendMail({
-      from,
-      to,
-      subject,
-      text: message.text,
-      ...(attachments.length ? { attachments: attachments.map((attachment) => ({
-        filename: attachment.filename,
-        content: attachment.content,
-        contentType: attachment.contentType,
-      })) } : {}),
-      messageId: `<${message.requestId}@${from.split("@")[1]}>`,
-      headers: { "X-Magnibox-Request-ID": message.requestId },
-    });
+    let result: MailResult;
+    try {
+      result = await mailer.sendMail({
+        from,
+        to,
+        subject,
+        text: message.text,
+        ...(attachments.length ? { attachments: attachments.map((attachment) => ({
+          filename: attachment.filename,
+          content: attachment.content,
+          contentType: attachment.contentType,
+        })) } : {}),
+        messageId: `<${message.requestId}@${from.split("@")[1]}>`,
+        headers: { "X-Magnibox-Request-ID": message.requestId },
+      });
+    } finally {
+      mailer.close?.();
+    }
     const queueId = result.response?.match(/queued as ([A-F0-9]{5,20})\b/i)?.[1];
     const acceptedAddresses = Array.isArray(result.accepted)
       ? result.accepted.map((recipient) => {
