@@ -192,5 +192,9 @@ grep -q 'github.event.workflow_run.head_sha' "$DEPLOY_WORKFLOW" || fail "automat
 grep -q 'Main advanced after the backup' "$DEPLOY_WORKFLOW" || fail "stale main commit is not blocked after backup"
 grep -q "github.event_name == 'workflow_dispatch' || github.event_name == 'push'" "$BACKUP_WORKFLOW" || fail "production backup is not restricted to manual or migration-release push"
 grep -q 'magnisa-supabase-production-encrypted-backup' "$BACKUP_WORKFLOW" || fail "encrypted production backup artifact is missing"
+grep -q 'pg_restore --list /backup/magnisa-production.dump' "$BACKUP_WORKFLOW" || fail "disposable restore does not build a pg_restore TOC"
+grep -q "DEFAULT ACL" "$BACKUP_WORKFLOW" || fail "disposable restore does not filter provider-managed DEFAULT ACL entries"
+grep -q 'DEFAULT_ACL_ENTRIES" -gt 0' "$BACKUP_WORKFLOW" || fail "disposable restore does not fail closed when DEFAULT ACL entries are not found"
+grep -q -- '--use-list=/backup/restore.list' "$BACKUP_WORKFLOW" || fail "restore commands do not use the verified TOC list"
 
 echo "Migration history guard fixtures passed."

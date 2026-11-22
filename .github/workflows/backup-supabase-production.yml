@@ -174,7 +174,11 @@ jobs:
           # platform schemas, not application business data.
           # Ownership is intentionally normalized to the isolated local postgres
           # role; the encrypted archive itself is produced with pg_dump --no-owner.
-          # ACLs are restored from the dump (the roles-only export is loaded first).
+          # The encrypted dump retains all ACLs. The disposable local Supabase
+          # instance cannot assume ownership of provider-managed roles such as
+          # supabase_auth_admin, so only DEFAULT ACL TOC entries are skipped
+          # during this restore test. Ordinary table/function ACLs are restored
+          # and checked below; the production archive is never modified.
           # Storage binary objects are restored separately through the local
           # Storage API and verified by SHA-256.
           POSTGRES_CREATEDB=$(docker run --rm --network host postgres:17 \
@@ -207,14 +211,26 @@ jobs:
             exit 1
           }
 
+          # Build a TOC for the disposable restore. Skip only default-privilege
+          # changes owned by provider-managed roles; keep ordinary ACL entries.
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
+            pg_restore --list /backup/magnisa-production.dump > backup/restore.list
+          DEFAULT_ACL_ENTRIES=$(grep -c 'DEFAULT ACL' backup/restore.list || true)
+          test "$DEFAULT_ACL_ENTRIES" -gt 0 || {
+            echo "::error::The production dump contains no DEFAULT ACL TOC entries to filter; refusing an unfiltered restore."
+            exit 1
+          }
+          sed -i '/DEFAULT ACL/ s/^/;/' backup/restore.list
+          echo "Disposable restore skips $DEFAULT_ACL_ENTRIES provider DEFAULT ACL TOC entries; encrypted dump remains unchanged."
+
+          docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
+            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --use-list=/backup/restore.list --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
               --section=pre-data /backup/magnisa-production.dump
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
+            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --use-list=/backup/restore.list --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
               --section=data /backup/magnisa-production.dump
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
-            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
+            pg_restore --dbname="$RESTORE_DB_URL" --no-owner --use-list=/backup/restore.list --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
               --section=post-data /backup/magnisa-production.dump
 
           SUPABASE_URL="$LOCAL_API_URL" SUPABASE_SERVICE_ROLE_KEY="$LOCAL_SERVICE_ROLE_KEY" \
