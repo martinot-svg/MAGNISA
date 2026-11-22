@@ -80,7 +80,7 @@ export default async function Clients({
           <Link className="button" href={archived ? "/clients" : "/clients?archive=1"}>
             {archived ? "Voir les clients actifs" : "Voir les clients archivés"}
           </Link>
-          {!archived && (
+          {!archived && canManageCustomers && (
             <FormDialog title="Nouveau client" buttonLabel="+ Nouveau client">
               <form action={createCustomer} className="form">
                 <div className="field"><label>Nom / raison sociale</label><input name="name" required minLength={2} /></div>

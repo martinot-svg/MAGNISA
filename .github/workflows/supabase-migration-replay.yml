@@ -365,6 +365,11 @@ jobs:
           export MAGNIBOX_INBOUND_URL=http://host.docker.internal:3000/api/internal/magnibox/inbound
           export MAGNIBOX_INBOUND_WEBHOOK_SECRET
           export MAGNIBOX_INBOUND_TEST_DOMAIN
+          # Compose validates these worker variables even when the worker profile is inactive.
+          export MAGNIBOX_IMAP_ALLOWED_HOSTS=mail.example.test
+          export MAGNIBOX_IMAP_ACTIVE_KEY_ID=ci-test-key
+          export MAGNIBOX_IMAP_CREDENTIALS_KEYS='{"ci-test-key":"ci-placeholder-key-not-used"}'
+          export MAGNIBOX_IMAP_CA_FILE="$GITHUB_WORKSPACE/.ci-tls/fullchain.pem"
 
           mkdir -p .ci-tls infra/magnibox-mail/docker-data/{mail-data,mail-state,logs,config,provisioning}
 
@@ -504,6 +509,10 @@ jobs:
           MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET: ci-delivery-event-secret-unused
           MAGNIBOX_INBOUND_URL: http://host.docker.internal:3000/api/internal/magnibox/inbound
           MAGNIBOX_INBOUND_WEBHOOK_SECRET: ci-cleanup-placeholder-not-used
+          MAGNIBOX_IMAP_ALLOWED_HOSTS: mail.example.test
+          MAGNIBOX_IMAP_ACTIVE_KEY_ID: ci-test-key
+          MAGNIBOX_IMAP_CREDENTIALS_KEYS: '{"ci-test-key":"ci-placeholder-key-not-used"}'
+          MAGNIBOX_IMAP_CA_FILE: ${{ github.workspace }}/.ci-tls/fullchain.pem
         run: |
           docker compose -f infra/magnibox-mail/compose.yaml -f infra/magnibox-mail/compose.inbound-e2e.yaml down --remove-orphans || true
           rm -f infra/magnibox-mail/mailserver.env
