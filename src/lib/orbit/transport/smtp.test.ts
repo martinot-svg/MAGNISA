@@ -124,4 +124,32 @@ describe("Magnibox native SMTP transport", () => {
     })).rejects.toThrow();
     expect(sendMail).not.toHaveBeenCalled();
   });
+  it("verifies SMTP connectivity and authentication without sending a message", async () => {
+    const verify = vi.fn().mockResolvedValue(true);
+    const close = vi.fn();
+    const sendMail = vi.fn();
+    const factory = vi.fn(() => ({ sendMail, verify, close }));
+    const transport = new MagniboxSmtpTransport(env as NodeJS.ProcessEnv, factory);
+    await expect(transport.verifyConnection()).resolves.toEqual({ provider: "smtp", connected: true });
+    expect(verify).toHaveBeenCalledOnce();
+    expect(sendMail).not.toHaveBeenCalled();
+    expect(close).toHaveBeenCalledOnce();
+    expect(factory).toHaveBeenCalledWith(expect.objectContaining({
+      host: "smtp.internal.magnibox.net",
+      port: 587,
+      requireTLS: true,
+      tls: expect.objectContaining({ rejectUnauthorized: true }),
+    }));
+  });
+
+  it("closes the SMTP connection when verification fails", async () => {
+    const verify = vi.fn().mockRejectedValue(new Error("authentication failed"));
+    const close = vi.fn();
+    const transport = new MagniboxSmtpTransport(env as NodeJS.ProcessEnv, () => ({
+      sendMail: vi.fn(), verify, close,
+    }));
+    await expect(transport.verifyConnection()).rejects.toThrow("authentication failed");
+    expect(close).toHaveBeenCalledOnce();
+  });
+
 });
