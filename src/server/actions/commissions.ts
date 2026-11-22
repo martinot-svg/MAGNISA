@@ -462,7 +462,6 @@ export async function reviewProspectIntervention(formData: FormData) {
 export async function setProspectStatus(formData: FormData) {
   const ctx = await requireOrganization();
   if (
-    !(await hasPermission(ctx, "sales.view")) &&
     !(await hasPermission(ctx, "quotes.edit")) &&
     !(await hasPermission(ctx, "customers.create"))
   ) {
