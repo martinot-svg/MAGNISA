@@ -82,6 +82,65 @@ function nullableImapInteger(value: unknown, label: string, allowZero = false): 
 export class MagniboxDovecotImapAdapter {
   constructor(private readonly options: MagniboxDovecotAdapterOptions) {}
 
+  /**
+   * Idempotently provisions operator-requested folders. It never renames or
+   * deletes server folders; callers must pass an explicit, tenant-scoped list.
+   */
+  async ensureMailboxes(
+    credentials: MagniboxImapConnectionCredentials,
+    requestedPaths: string[],
+  ): Promise<{ existing: string[]; created: string[] }> {
+    validateMagniboxImapCredentials(credentials);
+    if (!this.options.allowedHosts.has(credentials.host.toLowerCase())) {
+      throw new MagniboxSyncError("IMAP endpoint is not in the worker allowlist", false);
+    }
+    if (!Array.isArray(requestedPaths) || requestedPaths.length < 1 || requestedPaths.length > 100
+      || requestedPaths.some(path => typeof path !== "string" || !path.trim()
+        || path.length > 255 || /[\\r\\n\\x00]/.test(path))) {
+      throw new MagniboxSyncError("Invalid requested IMAP folder set", false);
+    }
+    const uniquePaths = [...new Set(requestedPaths)];
+    const client = new ImapFlow({
+      host: credentials.host,
+      port: credentials.port,
+      secure: true,
+      auth: { user: credentials.username, pass: credentials.password },
+      tls: { rejectUnauthorized: true, minVersion: "TLSv1.2", ...(this.options.caPem ? { ca: this.options.caPem } : {}) },
+      logger: false,
+      connectionTimeout: this.options.connectionTimeoutMs ?? 10_000,
+      greetingTimeout: this.options.greetingTimeoutMs ?? 10_000,
+      socketTimeout: this.options.socketTimeoutMs ?? 30_000,
+    });
+    let connected = false;
+    try {
+      await client.connect();
+      connected = true;
+      const listed = await client.list();
+      if (!Array.isArray(listed)) throw new MagniboxSyncError("Dovecot folder listing was not definitive");
+      const existingSet = new Set(listed.map(item => item.path));
+      const existing: string[] = [];
+      const created: string[] = [];
+      for (const path of uniquePaths) {
+        if (existingSet.has(path)) {
+          existing.push(path);
+          continue;
+        }
+        const result = await client.mailboxCreate(path);
+        if (result === false) throw new MagniboxSyncError("Dovecot folder creation was not confirmed");
+        created.push(path);
+        existingSet.add(path);
+      }
+      return { existing, created };
+    } catch (error) {
+      if (error instanceof MagniboxSyncError) throw error;
+      throw new MagniboxSyncError("Dovecot folder provisioning failed");
+    } finally {
+      if (connected) {
+        try { await client.logout(); } catch { /* preserve operation result */ }
+      }
+    }
+  }
+
   async withMailbox<T>(
     credentials: MagniboxImapConnectionCredentials,
     mailboxPath: string,
