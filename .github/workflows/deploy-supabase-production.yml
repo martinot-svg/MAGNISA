@@ -27,6 +27,8 @@ on:
       - Encrypted Supabase Production Backup Verification
     types:
       - completed
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -101,8 +103,10 @@ jobs:
     env:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
-      - name: Checkout main
+      - name: Checkout release commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Verify required credential
         shell: bash
