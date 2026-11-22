@@ -116,9 +116,10 @@ describe("runMagniboxImapWorker", () => {
       retryable: true,
     }));
     expect(adapter.apply).toHaveBeenCalledTimes(1);
-    expect(logger.error).toHaveBeenCalledWith(
-      { workerId: "reconnect-test" },
-      "MAGNIBOX IMAP worker cycle failed; will retry",
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ claimed: 1, retried: 1, delivered: 0, workerId: "reconnect-test" }),
+      "MAGNIBOX IMAP batch completed",
     );
   });
 
