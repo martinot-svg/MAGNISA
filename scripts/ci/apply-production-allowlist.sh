@@ -84,7 +84,7 @@ for version in "${ALLOWED_VERSIONS[@]}"; do
         exit 1
       fi
       mapped_remote="$(psql "$SUPABASE_DB_URL" -X -qAt -F '|' -v ON_ERROR_STOP=1 \
-        -c "select version::text, coalesce(name,''), encode(digest(convert_to(case when cardinality(statements)=1 and left(statements[1],1)=',' then substr(statements[1],2) else array_to_string(statements,E'\\\\n') end,'UTF8'),'sha256'),'hex') from supabase_migrations.schema_migrations where version = '$mapped_version'")"
+        -c "select version::text, coalesce(name,''), encode(digest(convert_to(case when cardinality(statements)=1 and left(statements[1],1)=',' then substr(statements[1],2) else array_to_string(statements,chr(10)) end,'UTF8'),'sha256'),'hex') from supabase_migrations.schema_migrations where version = '$mapped_version'")"
       if [[ "$mapped_remote" != "$mapped_version|$mapped_name|$mapped_sha" ]]; then
         echo "::error::Reconciled production record is absent or differs for $filename (expected $mapped_version $mapped_name with verified SQL checksum)"
         exit 1
