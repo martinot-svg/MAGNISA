@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "supabase/migrations/**"
+      - "supabase/migrations/production-pending-allowlist.txt"
       - "scripts/ci/check-production-migration-history.sh"
       - "scripts/ci/apply-production-allowlist.sh"
       - ".github/workflows/deploy-supabase-production.yml"
@@ -21,6 +22,11 @@ on:
           - DRY_RUN
           - APPLY
         default: NO
+  workflow_run:
+    workflows:
+      - Encrypted Supabase Production Backup Verification
+    types:
+      - completed
 
 permissions:
   contents: read
@@ -33,15 +39,17 @@ concurrency:
 jobs:
   dry-run:
     name: Production migration preflight (read-only)
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.confirm_production == 'DRY_RUN' || inputs.confirm_production == 'APPLY')
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && (inputs.confirm_production == 'DRY_RUN' || inputs.confirm_production == 'APPLY')) || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
     environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
-      - name: Checkout main
+      - name: Checkout release commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Verify required credential
         shell: bash
@@ -84,8 +92,8 @@ jobs:
         run: bash scripts/ci/apply-production-allowlist.sh dry-run
 
   apply:
-    name: Apply production migrations (explicit approval)
-    if: github.event_name == 'workflow_dispatch' && inputs.confirm_production == 'APPLY'
+    name: Apply production migrations after verified backup
+    if: (github.event_name == 'workflow_dispatch' && inputs.confirm_production == 'APPLY') || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
     needs: dry-run
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -133,17 +141,41 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const runs = await github.rest.actions.listWorkflowRuns({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: "backup-supabase-production.yml",
-              branch: "main",
-              status: "success",
-              per_page: 10
-            });
-            const backupRun = runs.data.workflow_runs.find(run =>
-              run.head_sha === context.sha && run.conclusion === "success"
-            );
+            const workflowRun = context.eventName === "workflow_run"
+              ? context.payload.workflow_run
+              : null;
+            let backupRun = workflowRun;
+
+            if (workflowRun) {
+              if (workflowRun.event !== "push"
+                || workflowRun.head_branch !== "main"
+                || workflowRun.conclusion !== "success") {
+                core.setFailed("Automatic release requires a successful backup run from a main-branch push.");
+                return;
+              }
+              const mainRef = await github.rest.git.getRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: "heads/main"
+              });
+              if (mainRef.data.object.sha !== workflowRun.head_sha) {
+                core.setFailed("Main advanced after the backup; refusing to apply a stale release.");
+                return;
+              }
+            } else {
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: "backup-supabase-production.yml",
+                branch: "main",
+                status: "success",
+                per_page: 10
+              });
+              backupRun = runs.data.workflow_runs.find(run =>
+                run.head_sha === context.sha && run.conclusion === "success"
+              );
+            }
+
             if (!backupRun) {
               core.setFailed("Aucune sauvegarde vérifiée pour le commit exact en cours de déploiement.");
               return;
