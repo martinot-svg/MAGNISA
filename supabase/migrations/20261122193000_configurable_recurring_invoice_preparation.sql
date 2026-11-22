@@ -106,7 +106,7 @@ begin
           p_org,c.customer_id,c.order_id,c.id,v_period_start,v_period_end,
           v_number,'draft',v_today,greatest(v_today,v_period_start+v_due_days),
           v_gross,0,v_tax,v_total,0,v_total,
-          'Brouillon préparé automatiquement cinq jours avant l’échéance. Vérifier la période et les prestations avant émission.',p_actor
+          'Brouillon préparé automatiquement à J-' || v_lead_days::text || '. Vérifier la période et les prestations avant émission.',p_actor
         ) returning id into v_invoice;
         insert into public.invoice_lines(
           organization_id,invoice_id,service_id,description,quantity,unit,unit_price,discount_pct,
