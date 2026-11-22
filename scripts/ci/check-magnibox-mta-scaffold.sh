@@ -71,7 +71,7 @@ if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; 
   fi
   cleanup() { if [[ "$created_mail_env" == "1" ]]; then rm -f "$MAIL_ENV"; fi; }
   trap cleanup EXIT
-  env MAGNIBOX_DMS_IMAGE=ghcr.io/docker-mailserver/docker-mailserver:v16.0 MAGNIBOX_MTA_HOSTNAME=mail.example.invalid MAGNIBOX_TLS_DIR=/tmp/magnibox-tls MAGNIBOX_WORKER_SUPABASE_URL=https://example.supabase.co MAGNIBOX_WORKER_SERVICE_ROLE_KEY=ci-placeholder-service-role-key MAGNIBOX_FORWARDER_IMAGE=python:3.12-alpine MAGNIBOX_DELIVERY_EVENT_URL=https://example.invalid/api/internal/magnibox/delivery-event MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET=ci-placeholder-delivery-secret docker compose -f "$COMPOSE" config --quiet
+  env MAGNIBOX_DMS_IMAGE=ghcr.io/docker-mailserver/docker-mailserver:v16.0 MAGNIBOX_MTA_HOSTNAME=mail.example.invalid MAGNIBOX_TLS_DIR=/tmp/magnibox-tls MAGNIBOX_WORKER_SUPABASE_URL=https://example.supabase.co MAGNIBOX_WORKER_SERVICE_ROLE_KEY=ci-placeholder-service-role-key MAGNIBOX_IMAP_ALLOWED_HOSTS=mail.example.invalid MAGNIBOX_IMAP_ACTIVE_KEY_ID=ci-key MAGNIBOX_IMAP_CREDENTIALS_KEYS=ci-placeholder-keyring MAGNIBOX_IMAP_CA_FILE=/tmp/magnibox-ca.pem MAGNIBOX_FORWARDER_IMAGE=python:3.12-alpine MAGNIBOX_DELIVERY_EVENT_URL=https://example.invalid/api/internal/magnibox/delivery-event MAGNIBOX_DELIVERY_EVENT_WEBHOOK_SECRET=ci-placeholder-delivery-secret docker compose -f "$COMPOSE" config --quiet
 fi
 # Keep all operator preflight scripts syntactically valid in CI. These checks
 # are intentionally static: CI must never probe a real host or open network ports.
