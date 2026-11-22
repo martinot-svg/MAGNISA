@@ -23,6 +23,17 @@ export default async function MagniboxPage({ searchParams }: { searchParams?: Pr
       <MagniboxInternalContent embedded searchQuery={searchQuery} selectedFolderId={selectedFolderId} />
       <MagniboxInternetWorkspace />
 
+      {canManageDomains && (
+        <div className="card section">
+          <h2>Configuration et activation de MAGNIBOX</h2>
+          <p className="muted">
+            Contrôlez les paramètres serveur, suivez les prérequis SMTP et DNS et préparez
+            l'activation sécurisée de la messagerie Internet.
+          </p>
+          <a className="button primary" href="/orbit/magnibox/configuration">Ouvrir le centre de configuration</a>
+        </div>
+      )}
+
       <div className="card section">
         <h2>Agenda et rendez-vous</h2>
         <p className="muted">Calendriers personnels, de service et d'entreprise avec fuseaux horaires et rappels internes.</p>
