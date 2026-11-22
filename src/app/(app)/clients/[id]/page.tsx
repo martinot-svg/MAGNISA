@@ -21,6 +21,7 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
     { data: projects = [] },
     { data: orders = [] },
     { data: recurringContracts = [] },
+    { data: payments = [] },
   ] = await Promise.all([
     supabase
       .from("customers")
@@ -70,6 +71,13 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
       .eq("customer_id", id)
       .order("created_at", { ascending: false })
       .limit(30),
+    supabase
+      .from("payments")
+      .select("id,invoice_id,reference,amount,method,status,paid_at,invoices(number)")
+      .eq("organization_id", organizationId)
+      .eq("customer_id", id)
+      .order("paid_at", { ascending: false })
+      .limit(50),
   ]);
 
   if (!customer) notFound();
@@ -211,6 +219,25 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
                 <Link href={`/factures/${invoice.id}`}><b>{invoice.number}</b></Link> · {invoice.status}
               </div>
             ))}
+          </div>
+          <div className="card">
+            <h2>Paiements reçus</h2>
+            {!payments.length ? <p className="muted">Aucun paiement enregistré.</p> : (
+              <div className="tableWrap"><table>
+                <thead><tr><th>Date</th><th>Facture</th><th>Mode</th><th>Référence</th><th>Statut</th><th className="right">Montant</th></tr></thead>
+                <tbody>{payments.map((payment: any) => {
+                  const invoice = Array.isArray(payment.invoices) ? payment.invoices[0] : payment.invoices;
+                  return <tr key={payment.id}>
+                    <td>{payment.paid_at ? formatDateTimeDisplay(payment.paid_at) : "—"}</td>
+                    <td><Link href={`/factures/${payment.invoice_id}`}>{invoice?.number || "Voir facture"}</Link></td>
+                    <td>{({bank_transfer:"Virement",cash:"Espèces",mobile_money:"Mobile money",cheque:"Chèque",card:"Carte",other:"Autre"} as Record<string,string>)[payment.method] || payment.method}</td>
+                    <td>{payment.reference || "—"}</td>
+                    <td>{({pending_verification:"À vérifier",confirmed:"Confirmé",reconciled:"Rapproché",cancelled:"Annulé"} as Record<string,string>)[payment.status] || payment.status}</td>
+                    <td className="right">{Number(payment.amount).toLocaleString("fr-FR")}</td>
+                  </tr>;
+                })}</tbody>
+              </table></div>
+            )}
           </div>
           <div className="card">
             <h2>Projets & missions</h2>
