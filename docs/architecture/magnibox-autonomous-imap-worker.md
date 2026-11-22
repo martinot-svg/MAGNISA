@@ -18,27 +18,29 @@ jamais les secrets depuis le navigateur et ne modifie ni DNS ni MX.
 - Image Docker séparée et profil Compose optionnel `imap-sync`, distinct du
   worker antivirus existant.
 
-## Limite fonctionnelle explicite
+## Exécution et limites fonctionnelles
 
-L'adaptateur Dovecot/IMAP n'est pas encore implémenté. Le runtime exige un
-module serveur configuré par `MAGNIBOX_IMAP_ADAPTER_MODULE`, qui exporte
-`createMagniboxImapSyncAdapter({ supabase })`. Le profil Compose refuse de
-démarrer si ce module n'est pas fourni. **Ne pas activer le profil maintenant**:
-aucun événement ne doit être acquitté sans un adaptateur réel et idempotent.
+Le dépôt contient un adaptateur Dovecot/IMAP concret pour la projection des
+messages internes, avec transport TLS, allowlist d'hôtes, coffre de credentials,
+ledger APPEND idempotent et mapping UID/UIDVALIDITY. Le worker peut fonctionner
+en mode `isolated` (Supabase local) ou `production` (Supabase HTTPS).
 
-Le prochain lot doit ajouter:
-1. Le dépôt de lecture des dossiers IMAP et de leur scope organisation/boîte.
-2. Le client IMAP TLS vers Dovecot avec vérification de certificat.
-3. La projection MIME des messages canoniques, avec APPEND/UIDPLUS et recherche
-   de reprise après résultat ambigu.
-4. L'écriture et la réconciliation des mappings UID/UIDVALIDITY.
-5. Les tests d'intégration sur Dovecot isolé: doublon, crash après APPEND,
-   changement UIDVALIDITY, multi-tenant et révocation d'identifiants.
+Le mode production exige explicitement:
+- `MAGNIBOX_IMAP_WORKER_MODE=production`;
+- URL Supabase HTTPS (port 443) et clé de service côté serveur;
+- allowlist Dovecot exacte, sans hôte loopback/local;
+- keyring de credentials chiffrées et identifiant de clé actif;
+- certificat CA Dovecot monté en lecture seule.
 
+La composition Docker transmet ces paramètres au worker et le démarre avec
+redémarrage automatique. Le worker ne doit jamais acquitter un événement avant
+confirmation de l'adaptateur.
+
+La portée de l'adaptateur actuel reste limitée aux messages internes canoniques.
 Les événements `external_message`, les boîtes partagées, les flags/dossiers
-personnels et les suppressions physiques restent hors du premier adaptateur.
-Tout type non pris en charge doit échouer de façon explicite, jamais être
-marqué comme livré.
+personnels, les suppressions physiques et la réconciliation complète après
+changement UIDVALIDITY ne sont pas considérés comme livrés. Tout type non
+pris en charge doit échouer explicitement, jamais être marqué comme livré.
 
 ## Configuration serveur (à préparer plus tard)
 
@@ -71,5 +73,4 @@ docker compose -f infra/magnibox-mail/compose.yaml config --quiet
 
 L'image `Dockerfile.imap` est distincte de `Dockerfile`, qui continue à
 exécuter le worker antivirus. Le profil `imap-sync` est optionnel et n'est pas
-activé par défaut. Aucun déploiement, démarrage de service, accès au projet
-Supabase connecté ou changement DNS n'est réalisé par ce code.
+activé par défaut. Le code ne modifie pas le DNS. Le déploiement de production requiert un hôte mail et des paramètres externes configurés.

@@ -21,11 +21,20 @@ function requiredEnv(name: string): string {
   return value.trim();
 }
 
-function assertIsolatedSupabaseUrl(value: string): void {
+function assertWorkerSupabaseUrl(value: string, mode: "isolated" | "production"): void {
   const url = new URL(value);
-  const allowed = new Set(["localhost", "127.0.0.1", "::1", "host.docker.internal"]);
-  if (url.protocol !== "http:" || !allowed.has(url.hostname)) {
-    throw new Error("The IMAP worker is isolated-only and accepts only a local Supabase URL");
+  if (url.username || url.password || url.hash) {
+    throw new Error("Supabase worker URL must not contain credentials or a fragment");
+  }
+  if (mode === "isolated") {
+    const allowed = new Set(["localhost", "127.0.0.1", "::1", "host.docker.internal"]);
+    if (url.protocol !== "http:" || !allowed.has(url.hostname)) {
+      throw new Error("Isolated IMAP worker accepts only a local Supabase URL");
+    }
+    return;
+  }
+  if (url.protocol !== "https:" || (url.port && url.port !== "443")) {
+    throw new Error("Production IMAP worker requires Supabase HTTPS on port 443");
   }
 }
 
@@ -87,15 +96,22 @@ function composePlainTextMessage(input: {
 }
 
 async function main(): Promise<void> {
-  if (requiredEnv("MAGNIBOX_IMAP_WORKER_MODE") !== "isolated") {
-    throw new Error("Set MAGNIBOX_IMAP_WORKER_MODE=isolated; production mode is not supported by this entrypoint");
+  const mode = requiredEnv("MAGNIBOX_IMAP_WORKER_MODE");
+  if (mode !== "isolated" && mode !== "production") {
+    throw new Error("MAGNIBOX_IMAP_WORKER_MODE must be isolated or production");
   }
   const supabaseUrl = requiredEnv("SUPABASE_URL");
-  assertIsolatedSupabaseUrl(supabaseUrl);
+  assertWorkerSupabaseUrl(supabaseUrl, mode);
   const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
   const allowedHosts = new Set(requiredEnv("MAGNIBOX_IMAP_ALLOWED_HOSTS")
     .split(",").map((host) => host.trim().toLowerCase()).filter(Boolean));
   if (allowedHosts.size === 0) throw new Error("No Dovecot host allowlist is configured");
+  if (mode === "production") {
+    const unsafeHost = [...allowedHosts].find((host) =>
+      host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")
+      || host === "127.0.0.1" || host === "::1" || host === "host.docker.internal");
+    if (unsafeHost) throw new Error("Production Dovecot allowlist must not contain loopback or local-only hosts");
+  }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -172,7 +188,7 @@ async function main(): Promise<void> {
 
   const adapter = createMagniboxInternalMessageImapSyncAdapter(resolver, sink);
   const result = await runMagniboxSyncBatch(outbox, adapter, {
-    workerId: `magnibox-imap-local-${process.pid}`,
+    workerId: process.env.MAGNIBOX_IMAP_WORKER_ID?.trim() || `magnibox-imap-${mode}-${process.pid}`,
     batchSize: 10,
     leaseSeconds: 180,
     maxAttempts: 12,
