@@ -104,7 +104,13 @@ export function createMagniboxDovecotProjectionSink(
           snapshot: session.mailbox,
         });
         if (!epochReady) {
-          throw new MagniboxSyncError("Dovecot UIDVALIDITY reconciliation is required before projection");
+          // Epoch changes need a dedicated UID inventory/reconciliation run.
+          // Do not retry this outbox event repeatedly and eventually lose it
+          // among transient IMAP failures; dead-letter it for operator recovery.
+          throw new MagniboxSyncError(
+            "Dovecot UIDVALIDITY changed; stop projection and run explicit folder reconciliation before replay",
+            false,
+          );
         }
 
         const operation = await dependencies.appendLedger.getOrCreate({

@@ -132,7 +132,7 @@ describe("MAGNIBOX Dovecot projection sink", () => {
       event,
       projection,
       idempotencyKey: "event-1:mailbox-2",
-    })).rejects.toThrow("UIDVALIDITY reconciliation");
+    })).rejects.toThrow("Dovecot UIDVALIDITY changed");
 
     expect(setup.appendLedger.getOrCreate).not.toHaveBeenCalled();
     expect(setup.session.append).not.toHaveBeenCalled();

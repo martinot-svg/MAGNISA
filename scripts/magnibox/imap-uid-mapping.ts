@@ -37,7 +37,7 @@ export function canonicalNonNegativeBigint(value: string, field: string): string
     throw new MagniboxSyncError(`Invalid IMAP ${field}`, false);
   }
 
-  const canonical = value.replace(/^0+(?=\\d)/, "");
+  const canonical = value.replace(/^0+(?=\d)/, "");
   if (canonical.length > 19 ||
       (canonical.length === 19 && canonical > "9223372036854775807")) {
     throw new MagniboxSyncError(`IMAP ${field} is outside non-negative BIGINT range`, false);
