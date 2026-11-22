@@ -189,3 +189,22 @@ begin
 end $$;
 
 rollback;
+
+
+-- Ownership transfers must remain restricted at the database boundary.
+begin;
+do $$
+declare
+  v_definition text;
+begin
+  select pg_get_functiondef(
+    'public.record_prospect_intervention(uuid,uuid,uuid,uuid,text,text,text,text,text,text,uuid,timestamptz)'::regprocedure
+  ) into v_definition;
+  if position('p_type=''transfer'' and not' in v_definition)=0
+     or position('commissions.policy.manage' in v_definition)=0
+     or position('commissions.audit' in v_definition)=0
+     or position('transfert de responsabilité est réservé' in v_definition)=0 then
+    raise exception 'Prospect ownership transfers must require privileged CRM permissions';
+  end if;
+end $$;
+rollback;
