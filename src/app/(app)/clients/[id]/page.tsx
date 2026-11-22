@@ -19,6 +19,7 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
     { data: quotes = [] },
     { data: invoices = [] },
     { data: projects = [] },
+    { data: orders = [] },
   ] = await Promise.all([
     supabase
       .from("customers")
@@ -50,6 +51,13 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
     supabase
       .from("projects")
       .select("id,name,status,created_at")
+      .eq("organization_id", organizationId)
+      .eq("customer_id", id)
+      .order("created_at", { ascending: false })
+      .limit(20),
+    supabase
+      .from("orders")
+      .select("id,number,status,total,order_date,created_at")
       .eq("organization_id", organizationId)
       .eq("customer_id", id)
       .order("created_at", { ascending: false })
@@ -154,6 +162,15 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
             {!quotes.length ? <p className="muted">Aucun devis.</p> : quotes.map((q: any) => (
               <div key={q.id} style={{ padding: "8px 0", borderBottom: "1px solid #eef1f5" }}>
                 <Link href={`/devis/${q.id}`}><b>{q.number}</b></Link> · {q.status}
+              </div>
+            ))}
+          </div>
+          <div className="card">
+            <h2>Commandes</h2>
+            {!orders.length ? <p className="muted">Aucune commande.</p> : orders.map((order: any) => (
+              <div key={order.id} style={{ padding: "8px 0", borderBottom: "1px solid #eef1f5" }}>
+                <strong>{order.number || "Commande"}</strong> · {order.status}
+                <div className="muted">{order.order_date || formatDateTimeDisplay(order.created_at)} · Total : {Number(order.total || 0).toLocaleString("fr-FR")}</div>
               </div>
             ))}
           </div>
