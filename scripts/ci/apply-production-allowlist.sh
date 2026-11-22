@@ -11,6 +11,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MIGRATIONS_DIR="$ROOT/supabase/migrations"
 ALLOWLIST="$MIGRATIONS_DIR/production-pending-allowlist.txt"
 REPLAY_ONLY_FILE="$MIGRATIONS_DIR/production-local-replay-only.txt"
+RECONCILIATION_FILE="${RECONCILIATION_FILE:-$MIGRATIONS_DIR/production-history-reconciliation.tsv}"
 : "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}"
 command -v psql >/dev/null
 test -f "$ALLOWLIST"
