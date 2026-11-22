@@ -7,8 +7,10 @@ import { FormDialog } from "@/components/form-dialog";
 import { convertProspectToCustomer, createProspect, setProspectStatus } from "@/server/actions/commissions";
 import { formatDateTimeDisplay } from "@/lib/date-format";
 
-export default async function ProspectsPage({ searchParams }: { searchParams: Promise<{ conversion?: string }> }) {
+export default async function ProspectsPage({ searchParams }: { searchParams: Promise<{ conversion?: string; q?: string; status?: string }> }) {
   const params = await searchParams;
+  const search = (params.q ?? "").trim().toLocaleLowerCase();
+  const selectedStatus = ["new", "qualified", "proposal", "won", "lost"].includes(params.status ?? "") ? params.status : "";
   const ctx = await requireOrganization();
   const [canViewSales,canContribute,canConvert,canManageCollaborativeSettings,canEditStatus] = await Promise.all([
     hasPermission(ctx,"sales.view"),
@@ -27,6 +29,11 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
   ]);
   if (error) throw new Error("Impossible de charger les prospects.");
   if (membersError) throw new Error("Impossible de charger le répertoire des collaborateurs.");
+  const visibleProspects = (prospects as any[]).filter((prospect:any) => {
+    const matchesStatus = !selectedStatus || prospect.status === selectedStatus;
+    const searchable = [prospect.name, prospect.email, prospect.phone, prospect.source].filter(Boolean).join(" ").toLocaleLowerCase();
+    return matchesStatus && (!search || searchable.includes(search));
+  });
 
   return <>
     <div className="pageHead">
@@ -54,10 +61,15 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
       </div>
     </div>
     {params.conversion === "duplicate" && <p role="alert" className="muted">Conversion impossible : un client actif possède déjà cet e-mail ou ce numéro. Vérifie le client existant avant de poursuivre.</p>}
+    <form method="get" className="card form" style={{display:"flex",gap:12,alignItems:"end",flexWrap:"wrap"}}>
+      <div className="field" style={{flex:"1 1 240px"}}><label htmlFor="prospect-search">Rechercher un prospect</label><input id="prospect-search" name="q" defaultValue={params.q ?? ""} placeholder="Nom, e-mail, téléphone ou source"/></div>
+      <div className="field" style={{minWidth:180}}><label htmlFor="prospect-status">Statut</label><select id="prospect-status" name="status" defaultValue={selectedStatus}><option value="">Tous les statuts</option><option value="new">Nouveau</option><option value="qualified">Qualifié</option><option value="proposal">Proposition</option><option value="won">Gagné</option><option value="lost">Perdu</option></select></div>
+      <div className="actions"><button className="button primary" type="submit">Filtrer</button><Link className="button" href="/prospects">Réinitialiser</Link></div>
+    </form>
     <div className="section">
-      {!prospects.length ? <EmptyState title="Aucun prospect" description="Crée un prospect réel pour démarrer le suivi commercial."/> :
+      {!visibleProspects.length ? <EmptyState title={prospects.length ? "Aucun résultat" : "Aucun prospect"} description={prospects.length ? "Aucun prospect ne correspond à ces filtres." : "Crée un prospect réel pour démarrer le suivi commercial."}/> :
       <div className="tableWrap"><table><thead><tr><th>Prospect</th><th>Statut</th><th>Contact</th><th>Source</th><th>Conversion</th><th>Action</th></tr></thead><tbody>
-        {(prospects as any[]).map((prospect:any)=><tr key={prospect.id}>
+        {visibleProspects.map((prospect:any)=><tr key={prospect.id}>
           <td><strong><Link href={"/prospects/"+prospect.id}>{prospect.name}</Link></strong><div className="muted">{formatDateTimeDisplay(prospect.created_at)}</div></td>
           <td>{canEditStatus && !prospect.converted_customer_id && prospect.status!=="won" ? <FormDialog title="Modifier le statut commercial" buttonLabel={prospect.status}><form action={setProspectStatus} className="form"><input type="hidden" name="prospect_id" value={prospect.id}/><div className="field"><label>Nouveau statut</label><select name="status" defaultValue={prospect.status}><option value="new">Nouveau</option><option value="qualified">Qualifié</option><option value="proposal">Proposition</option><option value="lost">Perdu</option></select></div><button className="button primary">Enregistrer le statut</button></form></FormDialog> : <span className="badge">{prospect.status}</span>}</td><td>{prospect.email||"—"}<div className="muted">{prospect.phone||""}</div></td>
           <td>{prospect.source||"—"}</td><td>{prospect.converted_customer_id?<span className="badge">Client créé</span>:"Non converti"}</td>
