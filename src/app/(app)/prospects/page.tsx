@@ -4,17 +4,18 @@ import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
 import { EmptyState } from "@/components/empty-state";
 import { FormDialog } from "@/components/form-dialog";
-import { convertProspectToCustomer, createProspect } from "@/server/actions/commissions";
+import { convertProspectToCustomer, createProspect, setProspectStatus } from "@/server/actions/commissions";
 import { formatDateTimeDisplay } from "@/lib/date-format";
 
 export default async function ProspectsPage({ searchParams }: { searchParams: Promise<{ conversion?: string }> }) {
   const params = await searchParams;
   const ctx = await requireOrganization();
-  const [canViewSales,canContribute,canConvert,canManageCollaborativeSettings] = await Promise.all([
+  const [canViewSales,canContribute,canConvert,canManageCollaborativeSettings,canEditStatus] = await Promise.all([
     hasPermission(ctx,"sales.view"),
     hasPermission(ctx,"commissions.contribute"),
     hasPermission(ctx,"prospects.convert"),
     hasPermission(ctx,"commissions.policy.manage"),
+    Promise.all([hasPermission(ctx,"quotes.edit"),hasPermission(ctx,"customers.create")]).then((permissions)=>permissions.some(Boolean)),
   ]);
   if (!canViewSales && !canContribute) redirect("/dashboard?access=denied");
 
@@ -58,7 +59,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
       <div className="tableWrap"><table><thead><tr><th>Prospect</th><th>Statut</th><th>Contact</th><th>Source</th><th>Conversion</th><th>Action</th></tr></thead><tbody>
         {(prospects as any[]).map((prospect:any)=><tr key={prospect.id}>
           <td><strong><Link href={"/prospects/"+prospect.id}>{prospect.name}</Link></strong><div className="muted">{formatDateTimeDisplay(prospect.created_at)}</div></td>
-          <td><span className="badge">{prospect.status}</span></td><td>{prospect.email||"—"}<div className="muted">{prospect.phone||""}</div></td>
+          <td>{canEditStatus && !prospect.converted_customer_id && prospect.status!=="won" ? <FormDialog title="Modifier le statut commercial" buttonLabel={prospect.status}><form action={setProspectStatus} className="form"><input type="hidden" name="prospect_id" value={prospect.id}/><div className="field"><label>Nouveau statut</label><select name="status" defaultValue={prospect.status}><option value="new">Nouveau</option><option value="qualified">Qualifié</option><option value="proposal">Proposition</option><option value="lost">Perdu</option></select></div><button className="button primary">Enregistrer le statut</button></form></FormDialog> : <span className="badge">{prospect.status}</span>}</td><td>{prospect.email||"—"}<div className="muted">{prospect.phone||""}</div></td>
           <td>{prospect.source||"—"}</td><td>{prospect.converted_customer_id?<span className="badge">Client créé</span>:"Non converti"}</td>
           <td>{canConvert&&!prospect.converted_customer_id&&prospect.status!=="lost"?
             <FormDialog title="Convertir le prospect en client" buttonLabel="Clôturer comme gagné"><form action={convertProspectToCustomer}><input type="hidden" name="prospect_id" value={prospect.id}/><button className="button small">Clôturer comme gagné</button></form></FormDialog>:
