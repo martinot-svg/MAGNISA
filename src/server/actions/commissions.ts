@@ -459,3 +459,29 @@ export async function reviewProspectIntervention(formData: FormData) {
   revalidatePath("/commissions");
 }
 
+export async function setProspectStatus(formData: FormData) {
+  const ctx = await requireOrganization();
+  if (
+    !(await hasPermission(ctx, "sales.view")) &&
+    !(await hasPermission(ctx, "quotes.edit")) &&
+    !(await hasPermission(ctx, "customers.create"))
+  ) {
+    throw new Error("Tu n'as pas l'autorisation de modifier le statut commercial.");
+  }
+  const parsed = z.object({
+    prospect_id: z.string().uuid(),
+    status: z.enum(["new", "qualified", "proposal", "lost"]),
+  }).safeParse({
+    prospect_id: String(formData.get("prospect_id") ?? ""),
+    status: String(formData.get("status") ?? ""),
+  });
+  if (!parsed.success) throw new Error("Prospect ou statut invalide.");
+  const { error } = await ctx.supabase.rpc("set_prospect_status", {
+    p_org: ctx.organizationId,
+    p_prospect: parsed.data.prospect_id,
+    p_status: parsed.data.status,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/prospects");
+  revalidatePath("/prospects/" + parsed.data.prospect_id);
+}
