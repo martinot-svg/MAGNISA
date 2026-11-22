@@ -34,8 +34,6 @@ create index orbit_action_assignee_idx
   on public.orbit_action_tasks(organization_id,assigned_to,status);
 alter table public.orbit_action_tasks enable row level security;
 
--- The assignee must still be active inside the exact same organization.
--- This is evaluated for API writes as well as server actions.
 create policy orbit_action_tasks_read on public.orbit_action_tasks
   for select to authenticated
   using (public.is_org_member(organization_id));
@@ -78,7 +76,6 @@ grant update (
   title,description,status,priority,due_date,assigned_to,updated_at
 ) on public.orbit_action_tasks to authenticated;
 
--- Comments are append-only to preserve the collaboration record.
 create table public.orbit_action_comments (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -104,5 +101,4 @@ revoke all on public.orbit_action_comments from public,anon,authenticated;
 grant select on public.orbit_action_comments to authenticated;
 grant insert(organization_id,task_id,author_user_id,body)
   on public.orbit_action_comments to authenticated;
-
 -- No authenticated DELETE. Historical projects and messages remain intact.
