@@ -400,6 +400,9 @@ export async function recordProspectIntervention(formData: FormData) {
   if (parsed.data.intervention_type !== "transfer" && parsed.data.responsible_user_id) {
     throw new Error("Un nouveau responsable ne peut être défini que lors d'un transfert.");
   }
+  if (parsed.data.intervention_type === "transfer" && !canAttributeForOthers) {
+    throw new Error("Le transfert de responsabilité est réservé aux responsables habilités.");
+  }
   if (parsed.data.intervention_type === "transfer" &&
       (!parsed.data.responsible_user_id || parsed.data.stage_status !== "transferred")) {
     throw new Error("Un transfert exige un nouveau responsable et le statut Transféré.");
