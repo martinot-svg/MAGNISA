@@ -68,13 +68,15 @@ async function commentActionTask(form: FormData) {
   if (!UUID.test(taskId) || !body || body.length > 10000) {
     throw new Error("Commentaire ou tâche invalide.");
   }
-  const { error } = await ctx.supabase.from("orbit_action_comments").insert({
+  const { data, error } = await ctx.supabase.from("orbit_action_comments").insert({
     organization_id: ctx.organizationId,
     task_id: taskId,
     author_user_id: ctx.user.id,
     body,
-  });
-  if (error) throw new Error("Ce commentaire ne peut pas être enregistré.");
+  }).select("id").single();
+  if (error || !data?.id) {
+    throw new Error("Ce commentaire ne peut pas être enregistré.");
+  }
   revalidatePath(PATH);
 }
 
