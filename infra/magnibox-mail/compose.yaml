@@ -67,14 +67,22 @@ services:
     environment:
       MAGNIBOX_WORKER_SUPABASE_URL: ${MAGNIBOX_WORKER_SUPABASE_URL:?Set the Supabase project URL}
       MAGNIBOX_WORKER_SERVICE_ROLE_KEY: ${MAGNIBOX_WORKER_SERVICE_ROLE_KEY:?Set the server-only Supabase service role key}
-      MAGNIBOX_IMAP_ADAPTER_MODULE: ${MAGNIBOX_IMAP_ADAPTER_MODULE:-}
-      MAGNIBOX_IMAP_WORKER_ID: ${MAGNIBOX_IMAP_WORKER_ID:-magnibox-imap-local}
+      MAGNIBOX_IMAP_WORKER_MODE: ${MAGNIBOX_IMAP_WORKER_MODE:-production}
+      SUPABASE_URL: ${MAGNIBOX_WORKER_SUPABASE_URL:?Set the Supabase project URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${MAGNIBOX_WORKER_SERVICE_ROLE_KEY:?Set the server-only Supabase service role key}
+      MAGNIBOX_IMAP_ALLOWED_HOSTS: ${MAGNIBOX_IMAP_ALLOWED_HOSTS:?Set the exact trusted Dovecot host allowlist}
+      MAGNIBOX_IMAP_ACTIVE_KEY_ID: ${MAGNIBOX_IMAP_ACTIVE_KEY_ID:?Set the active IMAP credential encryption key ID}
+      MAGNIBOX_IMAP_CREDENTIALS_KEYS: ${MAGNIBOX_IMAP_CREDENTIALS_KEYS:?Set the server-only encrypted credential keyring}
+      MAGNIBOX_IMAP_CA_FILE: /run/magnibox-imap-ca/ca.pem
+      MAGNIBOX_IMAP_WORKER_ID: ${MAGNIBOX_IMAP_WORKER_ID:-magnibox-imap-production}
       MAGNIBOX_IMAP_POLL_INTERVAL_MS: ${MAGNIBOX_IMAP_POLL_INTERVAL_MS:-5000}
       MAGNIBOX_IMAP_BATCH_SIZE: ${MAGNIBOX_IMAP_BATCH_SIZE:-10}
       MAGNIBOX_IMAP_LEASE_SECONDS: ${MAGNIBOX_IMAP_LEASE_SECONDS:-120}
       MAGNIBOX_IMAP_MAX_ATTEMPTS: ${MAGNIBOX_IMAP_MAX_ATTEMPTS:-12}
       MAGNIBOX_IMAP_BASE_RETRY_SECONDS: ${MAGNIBOX_IMAP_BASE_RETRY_SECONDS:-5}
       MAGNIBOX_IMAP_MAX_RETRY_SECONDS: ${MAGNIBOX_IMAP_MAX_RETRY_SECONDS:-3600}
+    volumes:
+      - ${MAGNIBOX_IMAP_CA_FILE:?Set the trusted Dovecot TLS CA certificate path}:/run/magnibox-imap-ca/ca.pem:ro
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
