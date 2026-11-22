@@ -5,6 +5,8 @@ const fakeClient = vi.hoisted(() => ({
   connect: vi.fn(),
   getMailboxLock: vi.fn(),
   search: vi.fn(),
+  list: vi.fn(),
+  mailboxCreate: vi.fn(),
   append: vi.fn(),
   logout: vi.fn(),
   release: vi.fn(),
@@ -32,6 +34,8 @@ describe("MagniboxDovecotImapAdapter", () => {
     fakeClient.connect.mockResolvedValue(undefined);
     fakeClient.getMailboxLock.mockResolvedValue({ release: fakeClient.release });
     fakeClient.search.mockResolvedValue([8]);
+    fakeClient.list.mockResolvedValue([{ path: "INBOX" }, { path: "Sent" }]);
+    fakeClient.mailboxCreate.mockResolvedValue(true);
     fakeClient.append.mockResolvedValue({ uid: 9, uidValidity: 42n });
     fakeClient.logout.mockResolvedValue(undefined);
   });
@@ -89,4 +93,20 @@ describe("MagniboxDovecotImapAdapter", () => {
     expect(fakeClient.release).toHaveBeenCalledTimes(1);
     expect(fakeClient.logout).toHaveBeenCalledTimes(1);
   });
+  it("provisions only missing requested folders and is safe to repeat", async () => {
+    const adapter = new MagniboxDovecotImapAdapter({ allowedHosts: new Set(["mailserver"]) });
+    await expect(adapter.ensureMailboxes(credentials, ["INBOX", "Sent", "Archive"]))
+      .resolves.toEqual({ existing: ["INBOX", "Sent"], created: ["Archive"] });
+    expect(fakeClient.mailboxCreate).toHaveBeenCalledTimes(1);
+    expect(fakeClient.mailboxCreate).toHaveBeenCalledWith("Archive");
+    expect(fakeClient.logout).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects invalid folder sets before connecting", async () => {
+    const adapter = new MagniboxDovecotImapAdapter({ allowedHosts: new Set(["mailserver"]) });
+    await expect(adapter.ensureMailboxes(credentials, ["INBOX\r\nINBOX"]))
+      .rejects.toThrow("Invalid requested IMAP folder set");
+    expect(fakeClient.connect).not.toHaveBeenCalled();
+  });
+
 });
