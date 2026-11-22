@@ -1,4 +1,3 @@
-
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireOrganization } from "@/lib/current-org";
@@ -40,6 +39,7 @@ export default async function ProspectsPage({
     : "all";
 
   const search = (params.q ?? "").trim().slice(0, 120);
+
   const ctx = await requireOrganization();
 
   const [
