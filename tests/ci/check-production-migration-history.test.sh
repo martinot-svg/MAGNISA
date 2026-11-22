@@ -168,7 +168,13 @@ cat > "$TMP/fake-mapped-bin/psql" <<'PSQL'
 #!/usr/bin/env bash
 case "$*" in
   *"max(version)"*) printf '20261102000000\n' ;;
-  *"where version = '20261102000000'"* && *"cardinality(statements)"*) printf '20261102000000|remote_forward_name|%s\n' "${EXPECTED_MAPPED_SHA:?}" ;;
+  *"where version = '20261102000000'"*)
+    if [[ "$*" == *"cardinality(statements)"* ]]; then
+      printf '20261102000000|remote_forward_name|%s\n' "${EXPECTED_MAPPED_SHA:?}"
+    else
+      echo "Unexpected mapped ledger lookup: $*" >&2; exit 2
+    fi
+    ;;
   *) echo "Unexpected mapped psql invocation: $*" >&2; exit 2 ;;
 esac
 PSQL
