@@ -153,6 +153,34 @@ chmod +x "$TMP/fake-bin/psql"
 if SUPABASE_DB_URL=mock PATH="$TMP/fake-bin:$PATH" bash "$TMP/apply-root/scripts/ci/apply-production-allowlist.sh" dry-run > "$TMP/apply-out-of-order.log" 2>&1; then
   fail "production allowlist executor accepted an out-of-order migration"
 fi
-grep -q 'Refusing out-of-order migration' "$TMP/apply-out-of-order.log" || fail "production executor out-of-order guard reason missing"
+grep -q 'Refusing out-of-order migration' "$TMP/apply-out-of-order.log" || { cat "$TMP/apply-out-of-order.log"; fail "production executor out-of-order guard reason missing"; }
+
+
+# A local forward migration already represented by a checksum-verified remote
+# reconciliation record must be skipped, not rejected as out-of-order or replayed.
+mkdir -p "$TMP/apply-mapped/scripts/ci" "$TMP/apply-mapped/supabase/migrations" "$TMP/fake-mapped-bin"
+cp "$ROOT/scripts/ci/apply-production-allowlist.sh" "$TMP/apply-mapped/scripts/ci/apply-production-allowlist.sh"
+printf 'CREATE TABLE mapped_fixture(id integer);\n' > "$TMP/apply-mapped/supabase/migrations/20261101000000_forward.sql"
+mapped_forward_sha="$(sha256sum "$TMP/apply-mapped/supabase/migrations/20261101000000_forward.sql" | awk '{print $1}')"
+printf '20261101000000\n' > "$TMP/apply-mapped/supabase/migrations/production-pending-allowlist.txt"
+printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\n20261102000000|remote_forward_name|20261101000000_forward.sql|renamed|fixture evidence|%s\n' "$mapped_forward_sha" > "$TMP/apply-mapped/supabase/migrations/production-history-reconciliation.tsv"
+cat > "$TMP/fake-mapped-bin/psql" <<'PSQL'
+#!/usr/bin/env bash
+case "$*" in
+  *"max(version)"*) printf '20261102000000\n' ;;
+  *"where version = '20261102000000'"*)
+    if [[ "$*" == *"cardinality(statements)"* ]]; then
+      printf '20261102000000|remote_forward_name|%s\n' "${EXPECTED_MAPPED_SHA:?}"
+    else
+      echo "Unexpected mapped ledger lookup: $*" >&2; exit 2
+    fi
+    ;;
+  *) echo "Unexpected mapped psql invocation: $*" >&2; exit 2 ;;
+esac
+PSQL
+chmod +x "$TMP/fake-mapped-bin/psql"
+EXPECTED_MAPPED_SHA="$mapped_forward_sha" SUPABASE_DB_URL=mock PATH="$TMP/fake-mapped-bin:$PATH" bash "$TMP/apply-mapped/scripts/ci/apply-production-allowlist.sh" dry-run > "$TMP/apply-mapped.log" 2>&1 || { cat "$TMP/apply-mapped.log"; fail "verified reconciled forward migration should be skipped safely"; }
+grep -q 'Already applied through verified production reconciliation' "$TMP/apply-mapped.log" || fail "reconciled forward migration was not skipped"
+grep -q '0 approved migration(s) pending' "$TMP/apply-mapped.log" || fail "reconciled forward migration was incorrectly counted as pending"
 
 echo "Migration history guard fixtures passed."

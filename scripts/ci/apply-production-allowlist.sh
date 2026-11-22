@@ -11,6 +11,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MIGRATIONS_DIR="$ROOT/supabase/migrations"
 ALLOWLIST="$MIGRATIONS_DIR/production-pending-allowlist.txt"
 REPLAY_ONLY_FILE="$MIGRATIONS_DIR/production-local-replay-only.txt"
+RECONCILIATION_FILE="${RECONCILIATION_FILE:-$MIGRATIONS_DIR/production-history-reconciliation.tsv}"
 : "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}"
 command -v psql >/dev/null
 test -f "$ALLOWLIST"
@@ -66,6 +67,34 @@ for version in "${ALLOWED_VERSIONS[@]}"; do
     exit 1
   fi
 
+  checksum="$(sha256sum "$file" | awk '{print $1}')"
+
+  # A forward-only local migration may already be applied in production under
+  # a separately versioned, checksum-verified ledger entry. Never replay that
+  # local file or reject it as out-of-order: verify the exact remote record.
+  if [[ -f "$RECONCILIATION_FILE" ]]; then
+    mapped_row="$(awk -F '|' -v f="$filename" '$1 !~ /^#/ && $3 == f {print $1 "|" $2 "|" $4 "|" $6}' "$RECONCILIATION_FILE")"
+    if [[ -n "$mapped_row" ]]; then
+      IFS='|' read -r mapped_version mapped_name mapped_type mapped_sha <<< "$mapped_row"
+      if [[ ! "$mapped_version" =~ ^[0-9]{14}$ || ! "$mapped_name" =~ ^[a-z0-9_]+$ || ! "$mapped_sha" =~ ^[0-9a-f]{64}$ ]]; then
+        echo "::error::Invalid production reconciliation mapping for $filename"
+        exit 1
+      fi
+      if [[ "$checksum" != "$mapped_sha" ]]; then
+        echo "::error::Local SQL checksum does not match reconciliation mapping for $filename"
+        exit 1
+      fi
+      mapped_remote="$(psql "$SUPABASE_DB_URL" -X -qAt -F '|' -v ON_ERROR_STOP=1 \
+        -c "select version::text, coalesce(name,''), encode(digest(convert_to(case when cardinality(statements)=1 and left(statements[1],1)=',' then substr(statements[1],2) else array_to_string(statements,E'\\\\n') end,'UTF8'),'sha256'),'hex') from supabase_migrations.schema_migrations where version = '$mapped_version'")"
+      if [[ "$mapped_remote" != "$mapped_version|$mapped_name|$mapped_sha" ]]; then
+        echo "::error::Reconciled production record is absent or differs for $filename (expected $mapped_version $mapped_name with verified SQL checksum)"
+        exit 1
+      fi
+      echo "Already applied through verified production reconciliation: $version -> $mapped_version $mapped_name"
+      continue
+    fi
+  fi
+
   remote_name="$(psql "$SUPABASE_DB_URL" -X -qAt -v ON_ERROR_STOP=1 \
     -c "select coalesce(name,'') from supabase_migrations.schema_migrations where version = '$version'")"
 
@@ -84,7 +113,6 @@ for version in "${ALLOWED_VERSIONS[@]}"; do
     exit 1
   fi
 
-  checksum="$(sha256sum "$file" | awk '{print $1}')"
   printf 'Pending approved migration: %s %s sha256=%s\n' "$version" "$expected_name" "$checksum"
   PENDING=$((PENDING + 1))
 
