@@ -2,8 +2,17 @@ name: Encrypted Supabase Production Backup Verification
 # Re-run marker: 2026-11-11 post-SSL-fix verification.
 
 on:
-  # Production export is deliberately manual: PR merges and migration pushes
-  # must never export production business data implicitly.
+  # Only reviewed migration/release-file pushes to main trigger an automatic
+  # encrypted backup. Ordinary application pushes and PRs never export data.
+  push:
+    branches:
+      - main
+    paths:
+      - "supabase/migrations/**"
+      - "scripts/ci/check-production-migration-history.sh"
+      - "scripts/ci/apply-production-allowlist.sh"
+      - ".github/workflows/deploy-supabase-production.yml"
+      - ".github/workflows/backup-supabase-production.yml"
   workflow_dispatch:
 
 permissions:
@@ -15,7 +24,7 @@ concurrency:
 
 jobs:
   backup-and-restore-test:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
