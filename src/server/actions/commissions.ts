@@ -375,7 +375,7 @@ export async function recordProspectIntervention(formData: FormData) {
     description: z.string().trim().min(3).max(4000),
     evidence_reference: z.string().trim().max(1000),
     responsible_user_id: z.string().uuid().or(z.literal("")),
-    occurred_at: z.string().optional(),
+    occurred_at: z.string().optional().refine((value) => !value || (/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$/.test(value) && !Number.isNaN(Date.parse(value))), "Date et heure invalides."),
   }).safeParse({
     prospect_id: String(formData.get("prospect_id") ?? ""),
     customer_id: String(formData.get("customer_id") ?? ""),
@@ -399,6 +399,9 @@ export async function recordProspectIntervention(formData: FormData) {
   }
   if (parsed.data.intervention_type !== "transfer" && parsed.data.responsible_user_id) {
     throw new Error("Un nouveau responsable ne peut être défini que lors d'un transfert.");
+  }
+  if (parsed.data.intervention_type === "transfer" && !canAttributeForOthers) {
+    throw new Error("Le transfert de responsabilité est réservé aux responsables habilités.");
   }
   if (parsed.data.intervention_type === "transfer" &&
       (!parsed.data.responsible_user_id || parsed.data.stage_status !== "transferred")) {
