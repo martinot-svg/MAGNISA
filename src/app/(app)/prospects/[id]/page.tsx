@@ -96,7 +96,7 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
         <div className="grid grid-3">
           <div className="field"><label>Collaborateur ayant contribué</label><select name="contributor_user_id" required defaultValue="">
             <option value="" disabled>Choisir</option>
-            {(members as any[]).filter((member:any)=>member.status==="active").map((member:any)=><option key={member.user_id} value={member.user_id}>{member.email || member.user_id} · {member.department || member.role}</option>)}
+            {(members as any[]).filter((member:any)=>member.status==="active" && (canReview || member.user_id===ctx.user.id)).map((member:any)=><option key={member.user_id} value={member.user_id}>{member.email || member.user_id} · {member.department || member.role}</option>)}
           </select></div>
           <div className="field"><label>Type d'intervention</label><select name="intervention_type" defaultValue={(interventionTypes as any[]).find((item:any)=>item.is_active)?.intervention_type || ""}>
             {(interventionTypes as any[]).filter((item:any)=>item.is_active).map((item:any)=><option key={item.intervention_type} value={item.intervention_type}>{item.label}{item.requires_evidence?" · preuve requise":""}</option>)}
