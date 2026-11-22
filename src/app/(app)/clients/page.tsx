@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requirePermission } from "@/lib/permissions";
+import { hasPermission, requirePermission } from "@/lib/permissions";
 import { requireOrganization } from "@/lib/current-org";
 import { createCustomer, setCustomerActive } from "@/server/actions/core";
 import { EmptyState } from "@/components/empty-state";
@@ -25,6 +25,7 @@ export default async function Clients({
   const search = (params.q ?? "").trim().slice(0, 120);
   const ctx = await requireOrganization();
   await requirePermission(ctx, "billing.view");
+  const canManageCustomers = await hasPermission(ctx, "customers.create");
   const { supabase, organizationId } = ctx;
   const { data, error } = await supabase
     .from("customers")
@@ -66,7 +67,7 @@ export default async function Clients({
     }
   };
   indexDuplicates((customer) => (customer.email ?? "").trim().toLocaleLowerCase("fr"), "e-mail");
-  indexDuplicates((customer) => (customer.phone ?? "").replace(/\\D/g, ""), "téléphone");
+  indexDuplicates((customer) => (customer.phone ?? "").replace(/\D/g, ""), "téléphone");
 
   return (
     <>
@@ -137,13 +138,15 @@ export default async function Clients({
                   <td>{customer.is_active ? "Actif" : "Archivé"}</td>
                   <td>{duplicateLabels.length ? <span className="badge">Doublon possible : {duplicateLabels.join(", ")}</span> : <span className="muted">Aucun doublon détecté</span>}</td>
                   <td>
-                    <FormDialog title="Modifier le statut du client" buttonLabel="Modifier le statut">
-                      <form action={setCustomerActive} className="actions">
-                        <input type="hidden" name="id" value={customer.id} />
-                        <input type="hidden" name="is_active" value={archived ? "true" : "false"} />
-                        <button className="button" type="submit">{archived ? "Réactiver" : "Archiver"}</button>
-                      </form>
-                    </FormDialog>
+                    {canManageCustomers ? (
+                      <FormDialog title="Modifier le statut du client" buttonLabel="Modifier le statut">
+                        <form action={setCustomerActive} className="actions">
+                          <input type="hidden" name="id" value={customer.id} />
+                          <input type="hidden" name="is_active" value={archived ? "true" : "false"} />
+                          <button className="button" type="submit">{archived ? "Réactiver" : "Archiver"}</button>
+                        </form>
+                      </FormDialog>
+                    ) : "—"}
                   </td>
                 </tr>
               );
