@@ -282,7 +282,7 @@ export default async function ProspectsPage({
       </div>
 
       <section className="section card">
-        <form method="get" action="/prospects" className="form">
+        <form method="get" className="form">
           <div className="grid grid-3">
             <div className="field">
               <label htmlFor="prospect-search">Rechercher</label>
