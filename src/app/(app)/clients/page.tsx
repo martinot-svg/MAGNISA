@@ -101,7 +101,7 @@ export default async function Clients({
       </div>
 
       <section className="section card">
-        <form method="get" action="/clients" className="form">
+        <form method="get" className="form">
           {archived && <input type="hidden" name="archive" value="1" />}
           <div className="grid grid-3">
             <div className="field">
