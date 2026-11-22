@@ -25,6 +25,8 @@ declare module "imapflow" {
       uid?: number | bigint;
       uidValidity?: number | bigint;
     } | false>;
+    list(): Promise<Array<{ path: string; delimiter?: string; flags?: string[] }>>;
+    mailboxCreate(path: string): Promise<boolean | undefined>;
     logout(): Promise<void>;
   }
 }

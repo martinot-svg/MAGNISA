@@ -81,6 +81,14 @@ export function createMagniboxDovecotProjectionSink(
   return {
     async applyMailboxProjection({ event, projection }) {
       assertEventScope(event, projection);
+      if (event.event_type !== "message.created") {
+        // Until UID-fenced STORE/MOVE/DELETE handlers are wired, never treat
+        // a mutation event as a fresh APPEND. That would create duplicate mail.
+        throw new MagniboxSyncError(
+          `IMAP projection handler is not implemented for ${event.event_type}`,
+          false,
+        );
+      }
       const target = await dependencies.resolveTargetFolder({
         organizationId: projection.organizationId,
         mailboxId: projection.targetMailboxId,

@@ -77,4 +77,50 @@ describe("runMagniboxImapWorker", () => {
 
     expect(repository.claim).not.toHaveBeenCalled();
   });
+  it("records a failed IMAP delivery and retries the next leased cycle after reconnect", async () => {
+    const controller = new AbortController();
+    const event = {
+      id: "event-retry",
+      organization_id: "org-1",
+      aggregate_type: "internal_message" as const,
+      aggregate_id: "message-1",
+      event_type: "message.created" as const,
+      payload: {},
+      attempts: 1,
+      lease_token: "lease-1",
+    };
+    const repository: MagniboxSyncOutboxRepository = {
+      claim: vi.fn()
+        .mockResolvedValueOnce([event])
+        .mockResolvedValueOnce([]),
+      complete: vi.fn(async () => true),
+      fail: vi.fn(async () => "pending" as const),
+    };
+    const adapter = { apply: vi.fn().mockRejectedValueOnce(new Error("temporary IMAP disconnect")) };
+    const logger = { info: vi.fn(), error: vi.fn() };
+    const config = readMagniboxImapWorkerConfig({ MAGNIBOX_IMAP_WORKER_ID: "reconnect-test" });
+    const sleep = vi.fn(async () => controller.abort());
+
+    await runMagniboxImapWorker({
+      repository,
+      adapter,
+      config,
+      logger,
+      sleep,
+    }, controller.signal);
+
+    expect(repository.claim).toHaveBeenCalledTimes(2);
+    expect(repository.fail).toHaveBeenCalledWith(expect.objectContaining({
+      eventId: "event-retry",
+      leaseToken: "lease-1",
+      retryable: true,
+    }));
+    expect(adapter.apply).toHaveBeenCalledTimes(1);
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ claimed: 1, retried: 1, delivered: 0, workerId: "reconnect-test" }),
+      "MAGNIBOX IMAP batch completed",
+    );
+  });
+
 });
