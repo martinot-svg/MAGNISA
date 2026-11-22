@@ -2,7 +2,7 @@
 -- Preserve the existing billing timing, frequency, numbering, invoice lines and audit behavior.
 create or replace function private.process_due_recurring_invoice_drafts(p_org uuid, p_actor uuid)
 returns integer
-language plpgsql security definer set search_path=pg_catalog, public, private as $
+language plpgsql security definer set search_path=pg_catalog, public, private as $$
 declare
   c public.recurring_service_contracts%rowtype;
   v_trigger date;
@@ -66,7 +66,6 @@ begin
         v_gross := round(c.quantity*c.unit_price,2);
         v_tax := round(v_gross*c.tax_rate/100,2);
         v_total := v_gross+v_tax;
-        -- Allocate the number inside this private scheduler function because there is no user JWT.
         select prefix,next_value,padding into v_prefix,v_sequence,v_padding
           from public.number_sequences
           where organization_id=p_org and document_type='invoice'
