@@ -23,7 +23,7 @@ const modalRequiredFiles = new Map([
   ["src/app/(app)/fiscalite-social/page.tsx", 3],
   ["src/app/(app)/identite-documents/page.tsx", 1],
   ["src/app/(app)/modeles-documents/page.tsx", 1],
-  ["src/app/(app)/parametres/page.tsx", 4],
+  ["src/app/(app)/parametres/page.tsx", 5],
   ["src/app/(app)/prestations-recurrentes/page.tsx", 3],
   ["src/app/(app)/prospects/page.tsx", 3],
   ["src/app/(app)/tresorerie/page.tsx", 1],
