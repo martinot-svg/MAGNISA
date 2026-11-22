@@ -23,12 +23,13 @@ const validationLabels: Record<string,string> = {
 export default async function ProspectDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ctx = await requireOrganization();
-  const [canView, canContribute, canReview, canManage] = await Promise.all([
+  const [canView, canContribute, canReview, canManage, canCreateQuote] = await Promise.all([
     hasPermission(ctx,"sales.view"),
     hasPermission(ctx,"commissions.contribute"),
     Promise.all([hasPermission(ctx,"commissions.policy.manage"),hasPermission(ctx,"commissions.audit")])
       .then(([manage,audit])=>manage||audit),
     hasPermission(ctx,"commissions.policy.manage"),
+    hasPermission(ctx,"quotes.create"),
   ]);
   if (!canView && !canContribute && !canReview) redirect("/dashboard?access=denied");
 
@@ -79,7 +80,7 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
         <h1>{prospect.name}</h1>
         <p>{prospect.email || "Sans e-mail"} · {prospect.phone || "Sans téléphone"} · Source : {prospect.source || "Non renseignée"} · Responsable actuel : {prospect.current_owner_id ? (emailById.get(prospect.current_owner_id) || prospect.current_owner_id) : "Non attribué"}</p>
       </div>
-      <div className="actions"><Link className="button" href="/prospects">Retour aux prospects</Link></div>
+      <div className="actions">{prospect.converted_customer_id && canCreateQuote && <Link className="button primary" href={"/devis/nouveau?customer_id="+encodeURIComponent(prospect.converted_customer_id)}>Créer un devis</Link>}<Link className="button" href="/prospects">Retour aux prospects</Link></div>
     </div>
 
     <div className="grid grid-3">
