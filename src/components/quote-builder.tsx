@@ -5,11 +5,11 @@ import type { FormEvent } from "react";
 type Service={id:string;name:string;unit_price:number;tax_rate:number;unit?:string|null};
 type Customer={id:string;name:string};
 type Line={service_id:string;quantity:number;discount_pct:number;unit_price:number};
-type Props={services:Service[];customers:Customer[];validUntil?:string;action:(data:FormData)=>void|Promise<void>};
+type Props={services:Service[];customers:Customer[];initialCustomerId?:string;validUntil?:string;action:(data:FormData)=>void|Promise<void>};
 const amount=(value:number)=>new Intl.NumberFormat("fr-FR",{maximumFractionDigits:2}).format(value);
-export function QuoteBuilder({services,customers,validUntil,action}:Props){
+export function QuoteBuilder({services,customers,initialCustomerId,validUntil,action}:Props){
  const dialogAction=useFormDialogAction(action);
- const [customerId,setCustomerId]=useState("");
+ const [customerId,setCustomerId]=useState(initialCustomerId||"");
  const [date,setDate]=useState(validUntil||"");
  const [lines,setLines]=useState<Line[]>([{service_id:services[0]?.id||"",quantity:1,discount_pct:0,unit_price:Number(services[0]?.unit_price||0)}]);
  const update=(index:number,patch:Partial<Line>)=>setLines(current=>current.map((line,i)=>i===index?{...line,...patch}:line));
