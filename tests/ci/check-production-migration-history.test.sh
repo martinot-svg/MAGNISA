@@ -160,15 +160,15 @@ grep -q 'Refusing out-of-order migration' "$TMP/apply-out-of-order.log" || fail 
 # reconciliation record must be skipped, not rejected as out-of-order or replayed.
 mkdir -p "$TMP/apply-mapped/scripts/ci" "$TMP/apply-mapped/supabase/migrations" "$TMP/fake-mapped-bin"
 cp "$ROOT/scripts/ci/apply-production-allowlist.sh" "$TMP/apply-mapped/scripts/ci/apply-production-allowlist.sh"
-printf 'CREATE TABLE mapped_fixture(id integer);\\n' > "$TMP/apply-mapped/supabase/migrations/20261101000000_forward.sql"
+printf 'CREATE TABLE mapped_fixture(id integer);\n' > "$TMP/apply-mapped/supabase/migrations/20261101000000_forward.sql"
 mapped_forward_sha="$(sha256sum "$TMP/apply-mapped/supabase/migrations/20261101000000_forward.sql" | awk '{print $1}')"
-printf '20261101000000\\n' > "$TMP/apply-mapped/supabase/migrations/production-pending-allowlist.txt"
-printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\\n20261102000000|remote_forward_name|20261101000000_forward.sql|renamed|fixture evidence|%s\\n' "$mapped_forward_sha" > "$TMP/apply-mapped/supabase/migrations/production-history-reconciliation.tsv"
+printf '20261101000000\n' > "$TMP/apply-mapped/supabase/migrations/production-pending-allowlist.txt"
+printf '# remote_version|remote_name|local_file|mapping_type|evidence_ref|local_sha256\n20261102000000|remote_forward_name|20261101000000_forward.sql|renamed|fixture evidence|%s\n' "$mapped_forward_sha" > "$TMP/apply-mapped/supabase/migrations/production-history-reconciliation.tsv"
 cat > "$TMP/fake-mapped-bin/psql" <<'PSQL'
 #!/usr/bin/env bash
 case "$*" in
-  *"max(version)"*) printf '20261102000000\\n' ;;
-  *"where version = '20261102000000'"* && *"cardinality(statements)"*) printf '20261102000000|remote_forward_name|%s\\n' "${EXPECTED_MAPPED_SHA:?}" ;;
+  *"max(version)"*) printf '20261102000000\n' ;;
+  *"where version = '20261102000000'"* && *"cardinality(statements)"*) printf '20261102000000|remote_forward_name|%s\n' "${EXPECTED_MAPPED_SHA:?}" ;;
   *) echo "Unexpected mapped psql invocation: $*" >&2; exit 2 ;;
 esac
 PSQL
