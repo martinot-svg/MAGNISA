@@ -96,7 +96,10 @@ try {
     if(!c.error && c.data?.length===1) break;
     await new Promise(resolve=>setTimeout(resolve,250));
   }
-  if(c?.error||c?.data?.length!==1)throw Error("Task comment not persisted after server-action completion window");
+  if(c?.error||c?.data?.length!==1){
+    const detail=c?.error?`${c.error.code||"DB"}: ${c.error.message}`:`found ${c?.data?.length??"no"} comments; ids=${JSON.stringify(c?.data?.map(row=>row.id)??[])}`;
+    throw Error(`Task comment persistence check failed after server-action completion window: ${detail}`);
+  }
 
   await openDialog("+ Sous-tâche");
   await page.locator('input[name="title"]').fill(`Sous-tâche ${fixture}`);
