@@ -43,7 +43,12 @@ export default async function RecurringServices() {
   ]);
   const currency = org?.currency || "MGA";
   const activeCount = contracts.filter((c: any) => c.status === "active").length;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Indian/Antananarivo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
   const dueCount = contracts.filter(
     (c: any) => c.status === "active" && c.next_billing_date <= today
   ).length;
