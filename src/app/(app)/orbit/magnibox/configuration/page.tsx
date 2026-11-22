@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
 import { magniboxSmtpConfig } from "@/lib/orbit/transport/smtp";
+import { MagniboxSmtpCheck } from "@/components/magnibox-smtp-check";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,7 @@ export default async function MagniboxConfigurationPage() {
             </tbody>
           </table>
         </div>
+        <MagniboxSmtpCheck />
       </section>
 
       <section className="card section">
