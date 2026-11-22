@@ -216,6 +216,10 @@ jobs:
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
             pg_restore --list /backup/magnisa-production.dump > backup/restore.list
           DEFAULT_ACL_ENTRIES=$(grep -c 'DEFAULT ACL' backup/restore.list || true)
+          test "$DEFAULT_ACL_ENTRIES" -gt 0 || {
+            echo "::error::The production dump contains no DEFAULT ACL TOC entries to filter; refusing an unfiltered restore."
+            exit 1
+          }
           sed -i '/DEFAULT ACL/ s/^/;/' backup/restore.list
           echo "Disposable restore skips $DEFAULT_ACL_ENTRIES provider DEFAULT ACL TOC entries; encrypted dump remains unchanged."
 
