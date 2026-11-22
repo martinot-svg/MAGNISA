@@ -20,7 +20,7 @@ begin
     raise exception 'Accès refusé pour modifier le statut commercial.';
   end if;
 
-  if p_status not in ('new','qualified','proposal','lost') then
+  if p_status is null or p_status not in ('new','qualified','proposal','lost') then
     raise exception 'Statut commercial invalide. La conversion gagnée doit passer par le parcours de conversion client.';
   end if;
 
