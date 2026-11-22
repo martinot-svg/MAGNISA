@@ -96,7 +96,7 @@ export class MagniboxDovecotImapAdapter {
     }
     if (!Array.isArray(requestedPaths) || requestedPaths.length < 1 || requestedPaths.length > 100
       || requestedPaths.some(path => typeof path !== "string" || !path.trim()
-        || path.length > 255 || /[\\r\\n\\x00]/.test(path))) {
+        || path.length > 255 || /[\r\n\x00]/.test(path))) {
       throw new MagniboxSyncError("Invalid requested IMAP folder set", false);
     }
     const uniquePaths = [...new Set(requestedPaths)];
