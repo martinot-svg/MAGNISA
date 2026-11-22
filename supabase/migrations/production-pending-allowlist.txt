@@ -57,3 +57,5 @@
 20261121124100
 20261121110000
 20261121120000
+# Read-only bounded recovery inventory; depends on the IMAP sync engine and append ledger migrations above.
+20261121125000
