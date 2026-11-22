@@ -19,6 +19,8 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
     { data: quotes = [] },
     { data: invoices = [] },
     { data: projects = [] },
+    { data: orders = [] },
+    { data: recurringContracts = [] },
   ] = await Promise.all([
     supabase
       .from("customers")
@@ -54,6 +56,20 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
       .eq("customer_id", id)
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("orders")
+      .select("id,number,status,total,order_date,created_at")
+      .eq("organization_id", organizationId)
+      .eq("customer_id", id)
+      .order("created_at", { ascending: false })
+      .limit(20),
+    supabase
+      .from("recurring_service_contracts")
+      .select("id,description,frequency,custom_interval_days,next_billing_date,start_date,end_date,status,billing_timing")
+      .eq("organization_id", organizationId)
+      .eq("customer_id", id)
+      .order("created_at", { ascending: false })
+      .limit(30),
   ]);
 
   if (!customer) notFound();
@@ -154,6 +170,37 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
             {!quotes.length ? <p className="muted">Aucun devis.</p> : quotes.map((q: any) => (
               <div key={q.id} style={{ padding: "8px 0", borderBottom: "1px solid #eef1f5" }}>
                 <Link href={`/devis/${q.id}`}><b>{q.number}</b></Link> · {q.status}
+              </div>
+            ))}
+          </div>
+          <div className="card">
+            <h2>Abonnements et prestations récurrentes</h2>
+            {!recurringContracts.length ? <p className="muted">Aucun contrat récurrent associé à ce client.</p> : recurringContracts.map((contract: any) => (
+              <div key={contract.id} style={{ padding: "10px 0", borderBottom: "1px solid #eef1f5" }}>
+                <div className="actions">
+                  <strong>{contract.description || "Prestation récurrente"}</strong>
+                  <span className="badge">{contract.status === "active" ? "Active" : contract.status === "suspended" ? "Suspendue" : contract.status === "cancelled" ? "Résiliée" : contract.status}</span>
+                </div>
+                <div className="muted">
+                  Fréquence : {contract.frequency === "custom" ? `Tous les ${contract.custom_interval_days || "?"} jours` : ({ daily: "Quotidienne", weekly: "Hebdomadaire", monthly: "Mensuelle", quarterly: "Trimestrielle", semiannual: "Semestrielle", annual: "Annuelle" } as Record<string, string>)[contract.frequency] || contract.frequency}
+                  · Prochaine échéance : {contract.status === "active" ? contract.next_billing_date || "Non définie" : "—"}
+                </div>
+                <div className="muted">
+                  Période : {contract.start_date} au {contract.end_date || "sans date de fin"}
+                  · Facturation : {contract.billing_timing === "arrears" ? "Après prestation" : "D'avance"}
+                </div>
+              </div>
+            ))}
+            <div className="actions" style={{ marginTop: 10 }}>
+              <Link className="button" href="/prestations-recurrentes">Gérer les prestations récurrentes</Link>
+            </div>
+          </div>
+          <div className="card">
+            <h2>Commandes</h2>
+            {!orders.length ? <p className="muted">Aucune commande.</p> : orders.map((order: any) => (
+              <div key={order.id} style={{ padding: "8px 0", borderBottom: "1px solid #eef1f5" }}>
+                <strong>{order.number || "Commande"}</strong> · {order.status}
+                <div className="muted">{order.order_date || formatDateTimeDisplay(order.created_at)} · Total : {Number(order.total || 0).toLocaleString("fr-FR")}</div>
               </div>
             ))}
           </div>
