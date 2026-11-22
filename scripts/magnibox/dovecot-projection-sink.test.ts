@@ -150,4 +150,18 @@ describe("MAGNIBOX Dovecot projection sink", () => {
 
     expect(setup.transport.withMailbox).not.toHaveBeenCalled();
   });
+  it("does not APPEND for flags, move, delete or update events without dedicated handlers", async () => {
+    for (const eventType of ["message.updated", "message.flags_changed", "message.moved", "message.deleted"] as const) {
+      const setup = makeDependencies();
+      const sink = createMagniboxDovecotProjectionSink(setup.dependencies);
+      await expect(sink.applyMailboxProjection({
+        event: { ...event, event_type: eventType },
+        projection,
+        idempotencyKey: `event-1:mailbox-2:${eventType}`,
+      })).rejects.toThrow(`handler is not implemented for ${eventType}`);
+      expect(setup.transport.withMailbox).not.toHaveBeenCalled();
+      expect(setup.session.append).not.toHaveBeenCalled();
+    }
+  });
+
 });
