@@ -152,4 +152,36 @@ describe("Magnibox native SMTP transport", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it("closes the request-scoped SMTP transport after submission", async () => {
+    const close = vi.fn();
+    const sendMail = vi.fn().mockResolvedValue({
+      messageId: "<request@example.com>",
+      response: "250 2.0.0 Ok: queued as ABC123DEF",
+      accepted: ["client@example.com"],
+      rejected: [],
+    });
+    const transport = new MagniboxSmtpTransport(env as NodeJS.ProcessEnv, () => ({
+      sendMail, close,
+    }));
+    await transport.send({
+      from: "finance@entreprise.mg", to: ["client@example.com"],
+      subject: "Facture", text: "Bonjour",
+      requestId: "aeeb4255-0860-45d8-9c92-72488919ee51",
+    });
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("closes the request-scoped SMTP transport when submission throws", async () => {
+    const close = vi.fn();
+    const transport = new MagniboxSmtpTransport(env as NodeJS.ProcessEnv, () => ({
+      sendMail: vi.fn().mockRejectedValue(new Error("connection reset")), close,
+    }));
+    await expect(transport.send({
+      from: "finance@entreprise.mg", to: ["client@example.com"],
+      subject: "Facture", text: "Bonjour",
+      requestId: "aeeb4255-0860-45d8-9c92-72488919ee51",
+    })).rejects.toThrow("connection reset");
+    expect(close).toHaveBeenCalledOnce();
+  });
+
 });
