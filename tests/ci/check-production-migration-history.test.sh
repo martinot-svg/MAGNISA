@@ -153,7 +153,7 @@ chmod +x "$TMP/fake-bin/psql"
 if SUPABASE_DB_URL=mock PATH="$TMP/fake-bin:$PATH" bash "$TMP/apply-root/scripts/ci/apply-production-allowlist.sh" dry-run > "$TMP/apply-out-of-order.log" 2>&1; then
   fail "production allowlist executor accepted an out-of-order migration"
 fi
-grep -q 'Refusing out-of-order migration' "$TMP/apply-out-of-order.log" || fail "production executor out-of-order guard reason missing"
+grep -q 'Refusing out-of-order migration' "$TMP/apply-out-of-order.log" || { cat "$TMP/apply-out-of-order.log"; fail "production executor out-of-order guard reason missing"; }
 
 
 # A local forward migration already represented by a checksum-verified remote
