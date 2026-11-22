@@ -12,7 +12,7 @@ type SmtpConfig = {
 };
 
 type MailResult = { messageId?: string; response?: string; accepted?: unknown[]; rejected?: unknown[] };
-type Mailer = { sendMail(input: Record<string, unknown>): Promise<MailResult> };
+type Mailer = { sendMail(input: Record<string, unknown>): Promise<MailResult>; verify?(): Promise<boolean>; close?(): void };
 type MailerFactory = (options: Record<string, unknown>) => Mailer;
 
 export function magniboxSmtpConfig(
@@ -43,6 +43,24 @@ export class MagniboxSmtpTransport implements InternetTransport {
       nodemailer.createTransport(options) as unknown as Mailer,
   ) {
     this.config = magniboxSmtpConfig(env);
+  }
+
+  async verifyConnection() {
+    const config = this.config;
+    if (!config) throw new Error("Transport SMTP MAGNIBOX non configuré.");
+    const mailer = this.factory({
+      host: config.host, port: config.port, secure: config.secure, name: config.heloName,
+      auth: { user: config.user, pass: config.password }, requireTLS: !config.secure,
+      tls: { rejectUnauthorized: true, servername: config.host },
+      connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 20000, pool: false,
+    });
+    try {
+      if (typeof mailer.verify !== "function") throw new Error("Vérification SMTP indisponible.");
+      await mailer.verify();
+      return { provider: this.provider, connected: true as const };
+    } finally {
+      mailer.close?.();
+    }
   }
 
   async send(message: OutgoingInternetMessage) {
@@ -82,19 +100,24 @@ export class MagniboxSmtpTransport implements InternetTransport {
       // without a lifecycle owner to close the pool after the HTTP request.
       pool: false,
     });
-    const result = await mailer.sendMail({
-      from,
-      to,
-      subject,
-      text: message.text,
-      ...(attachments.length ? { attachments: attachments.map((attachment) => ({
-        filename: attachment.filename,
-        content: attachment.content,
-        contentType: attachment.contentType,
-      })) } : {}),
-      messageId: `<${message.requestId}@${from.split("@")[1]}>`,
-      headers: { "X-Magnibox-Request-ID": message.requestId },
-    });
+    let result: MailResult;
+    try {
+      result = await mailer.sendMail({
+        from,
+        to,
+        subject,
+        text: message.text,
+        ...(attachments.length ? { attachments: attachments.map((attachment) => ({
+          filename: attachment.filename,
+          content: attachment.content,
+          contentType: attachment.contentType,
+        })) } : {}),
+        messageId: `<${message.requestId}@${from.split("@")[1]}>`,
+        headers: { "X-Magnibox-Request-ID": message.requestId },
+      });
+    } finally {
+      mailer.close?.();
+    }
     const queueId = result.response?.match(/queued as ([A-F0-9]{5,20})\b/i)?.[1];
     const acceptedAddresses = Array.isArray(result.accepted)
       ? result.accepted.map((recipient) => {
