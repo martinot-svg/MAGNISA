@@ -1,4 +1,7 @@
-# Reviewed migrations not yet recorded in the production ledger.\n# Historical entries and forward-source files already represented by checksum-verified\n# reconciliation records are intentionally excluded to prevent replay and out-of-order apply.\n20261121122300
+# Reviewed migrations not yet recorded in the production ledger.
+# Historical entries and forward-source files already represented by checksum-verified
+# reconciliation records are intentionally excluded to prevent replay and out-of-order apply.
+20261121122300
 20261121122400
 20261121122500
 20261121122600
