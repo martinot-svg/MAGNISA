@@ -1,6 +1,6 @@
 -- Daily in-app reminders for unpaid customer invoices.
 -- Reuses notification_rules, notification_events and notifications.
-create or replace function private.run_invoice_due_reminders(p_run_date date default null)
+create or replace function public.run_invoice_due_reminders(p_run_date date default null)
 returns integer
 language plpgsql
 security definer
@@ -117,5 +117,5 @@ begin
 end;
 $$;
 
-revoke all on function private.run_invoice_due_reminders(date) from public, anon, authenticated;
-grant execute on function private.run_invoice_due_reminders(date) to service_role;
+revoke all on function public.run_invoice_due_reminders(date) from public, anon, authenticated;
+grant execute on function public.run_invoice_due_reminders(date) to service_role;
