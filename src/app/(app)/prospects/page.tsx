@@ -15,7 +15,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
     hasPermission(ctx,"commissions.contribute"),
     hasPermission(ctx,"prospects.convert"),
     hasPermission(ctx,"commissions.policy.manage"),
-    Promise.all([hasPermission(ctx,"sales.view"),hasPermission(ctx,"quotes.edit"),hasPermission(ctx,"customers.create")]).then((permissions)=>permissions.some(Boolean)),
+    Promise.all([hasPermission(ctx,"quotes.edit"),hasPermission(ctx,"customers.create")]).then((permissions)=>permissions.some(Boolean)),
   ]);
   if (!canViewSales && !canContribute) redirect("/dashboard?access=denied");
 
