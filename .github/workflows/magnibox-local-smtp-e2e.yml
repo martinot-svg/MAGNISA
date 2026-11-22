@@ -96,9 +96,14 @@ jobs:
           echo "MAGNIBOX_LOCAL_SUPABASE_SERVICE_ROLE_KEY=$service_role" >> "$GITHUB_ENV"
           echo "MAGNIBOX_LOCAL_IMAP_ACTIVE_KEY_ID=ci-test-key" >> "$GITHUB_ENV"
           echo "MAGNIBOX_LOCAL_IMAP_CA_FILE=${GITHUB_WORKSPACE}/.ci-tls/fullchain.pem" >> "$GITHUB_ENV"
+          # Compose interpolates these names even when the IMAP worker profile is not started.
+          echo "MAGNIBOX_IMAP_ALLOWED_HOSTS=mail.example.test" >> "$GITHUB_ENV"
+          echo "MAGNIBOX_IMAP_ACTIVE_KEY_ID=ci-test-key" >> "$GITHUB_ENV"
+          echo "MAGNIBOX_IMAP_CA_FILE=${GITHUB_WORKSPACE}/.ci-tls/fullchain.pem" >> "$GITHUB_ENV"
           credential_key="$(openssl rand -base64 32)"
           echo "::add-mask::$credential_key"
           printf 'MAGNIBOX_LOCAL_IMAP_CREDENTIALS_KEYS={"ci-test-key":"%s"}\n' "$credential_key" >> "$GITHUB_ENV"
+          printf 'MAGNIBOX_IMAP_CREDENTIALS_KEYS={"ci-test-key":"%s"}\n' "$credential_key" >> "$GITHUB_ENV"
 
       - name: Prepare isolated local MTA configuration and test TLS
         shell: bash
