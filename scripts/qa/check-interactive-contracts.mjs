@@ -25,7 +25,7 @@ const modalRequiredFiles = new Map([
   ["src/app/(app)/modeles-documents/page.tsx", 1],
   ["src/app/(app)/parametres/page.tsx", 4],
   ["src/app/(app)/prestations-recurrentes/page.tsx", 3],
-  ["src/app/(app)/prospects/page.tsx", 2],
+  ["src/app/(app)/prospects/page.tsx", 3],
   ["src/app/(app)/tresorerie/page.tsx", 1],
   ["src/app/(app)/prospects/[id]/page.tsx", 4],
   ["src/app/(app)/prospects/settings/page.tsx", 1],
