@@ -2,7 +2,7 @@
 -- The cron remains hourly; this only advances draft preparation, never invoice issuance.
 create or replace function private.process_due_recurring_invoice_drafts(p_org uuid, p_actor uuid)
 returns integer
-language plpgsql security definer set search_path=public,private as $$
+language plpgsql security definer set search_path=pg_catalog,public,private as $
 declare
   c public.recurring_service_contracts%rowtype;
   v_today date := (now() at time zone 'Indian/Antananarivo')::date;
