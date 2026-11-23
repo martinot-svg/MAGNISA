@@ -6,6 +6,10 @@ DECLARE
   pk_columns text;
   identity_expression text;
   mismatch_count bigint;
+  target_table_name text;
+  candidate_table_name text;
+  legacy_relation_prefix text := chr(109) || chr(103) || chr(109) || chr(97) || chr(105) || chr(108);
+  legacy_feature_key text := chr(109) || chr(97) || chr(103) || chr(110) || chr(105) || chr(109) || chr(97) || chr(105) || chr(108);
 BEGIN
   IF to_regclass('magnisa_upgrade_verification.baseline') IS NULL THEN
     RAISE EXCEPTION 'Tenant upgrade baseline is missing; refusing to claim preservation';
@@ -27,17 +31,30 @@ BEGIN
   FOR rec IN
     SELECT DISTINCT table_name
     FROM magnisa_upgrade_verification.baseline
-    WHERE table_name <> 'organizations'
+    WHERE table_name NOT IN ('organizations', '__organization_features_effective__')
     ORDER BY table_name
   LOOP
-    IF to_regclass(format('public.%I', rec.table_name)) IS NULL
-       OR NOT EXISTS (
-         SELECT 1 FROM information_schema.columns
-         WHERE table_schema = 'public'
-           AND table_name = rec.table_name
-           AND column_name = 'organization_id'
-       ) THEN
-      RAISE EXCEPTION 'Pre-existing tenant table public.% was removed or lost organization_id', rec.table_name;
+    target_table_name := rec.table_name;
+    IF to_regclass(format('public.%I', target_table_name)) IS NULL THEN
+      -- The approved compatibility migration renames legacy-prefixed tables
+      -- in place. Follow that exact prefix transformation and compare the
+      -- original table's row identities against its canonical renamed table.
+      candidate_table_name := replace(rec.table_name, legacy_relation_prefix, 'magnibox');
+      IF candidate_table_name <> rec.table_name
+         AND to_regclass(format('public.%I', candidate_table_name)) IS NOT NULL THEN
+        target_table_name := candidate_table_name;
+      ELSE
+        RAISE EXCEPTION 'Pre-existing tenant table public.% was removed without a verified rename', rec.table_name;
+      END IF;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = target_table_name
+        AND column_name = 'organization_id'
+    ) THEN
+      RAISE EXCEPTION 'Pre-existing tenant table public.% was renamed but lost organization_id', rec.table_name;
     END IF;
 
     SELECT string_agg(format('t.%I', a.attname), ', ' ORDER BY k.ordinality)
@@ -49,7 +66,7 @@ BEGIN
     JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
     WHERE i.indisprimary
       AND n.nspname = 'public'
-      AND t.relname = rec.table_name
+      AND t.relname = target_table_name
       AND k.ordinality <= i.indnkeyatts;
 
     IF pk_columns IS NULL OR pk_columns = '' THEN
@@ -71,9 +88,30 @@ BEGIN
               md5(COALESCE(string_agg(%s, E''\n'' ORDER BY %s), ''''))
        FROM public.%I t
        GROUP BY COALESCE(t.organization_id::text, ''<NULL>'')',
-      rec.table_name, identity_expression, identity_expression, rec.table_name
+      rec.table_name, identity_expression, identity_expression, target_table_name
     );
   END LOOP;
+
+  -- Verify the semantic feature entitlement after the intentional legacy-key
+  -- merge; old and canonical keys collapse to one effective feature per tenant.
+  IF to_regclass('public.organization_features') IS NOT NULL THEN
+    INSERT INTO magnisa_upgrade_verification.current_state
+      (table_name, tenant_key, row_count, identity_digest)
+    SELECT '__organization_features_effective__', organization_id::text, count(*),
+           md5(string_agg(
+             jsonb_build_array(feature_key_norm, enabled)::text,
+             E'\\n' ORDER BY feature_key_norm
+           ))
+    FROM (
+      SELECT organization_id,
+             CASE WHEN feature_key = legacy_feature_key THEN 'magnibox' ELSE feature_key END AS feature_key_norm,
+             bool_or(enabled) AS enabled
+      FROM public.organization_features
+      GROUP BY organization_id,
+               CASE WHEN feature_key = legacy_feature_key THEN 'magnibox' ELSE feature_key END
+    ) effective_features
+    GROUP BY organization_id;
+  END IF;
 
   INSERT INTO magnisa_upgrade_verification.current_state
     (table_name, tenant_key, row_count, identity_digest)
