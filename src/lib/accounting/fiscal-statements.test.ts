@@ -89,6 +89,18 @@ describe("classifyCashFlowCounterpart",()=>{
     expect(classifyCashFlowCounterpart("4051")).toBe("investing");
     expect(classifyCashFlowCounterpart("4621")).toBe("investing");
   });
+  it("does not misclassify inter-entity, suspense, accrual or impairment accounts as operating",()=>{
+    expect(classifyCashFlowCounterpart("451")).toBeNull();
+    expect(classifyCashFlowCounterpart("471")).toBeNull();
+    expect(classifyCashFlowCounterpart("486")).toBeNull();
+    expect(classifyCashFlowCounterpart("491")).toBeNull();
+  });
+  it("keeps ordinary third-party control accounts operating",()=>{
+    expect(classifyCashFlowCounterpart("401")).toBe("operating");
+    expect(classifyCashFlowCounterpart("411")).toBe("operating");
+    expect(classifyCashFlowCounterpart("431")).toBe("operating");
+    expect(classifyCashFlowCounterpart("445")).toBe("operating");
+  });
   it("does not classify unsupported account families by guessing",()=>{
     expect(classifyCashFlowCounterpart("501")).toBeNull();
     expect(classifyCashFlowCounterpart("80")).toBeNull();

@@ -106,9 +106,14 @@ export function isLoanRepaymentEffectiveAtDate(
 }
 
 export function classifyCashFlowCounterpart(code:string):"operating"|"investing"|"financing"|null {
+  // Fixed assets and their dedicated settlement accounts are investing flows.
   if(/^(2|404|405|462)/.test(code))return "investing";
+  // Equity, provisions and financial debt (including current maturities) are financing.
   if(/^(10|11|12|13|14|15|16|17|516)/.test(code))return "financing";
-  if(/^(3|4|6|7)/.test(code))return "operating";
+  // Only the ordinary third-party families are safely classifiable as operating.
+  // Inter-entity, miscellaneous, suspense, accrual and impairment accounts need
+  // their own documented nature and must not be guessed from the first digit.
+  if(/^(3|40|41|42|43|44|6|7)/.test(code))return "operating";
   return null;
 }
 
