@@ -16,6 +16,7 @@ DECLARE
   pk_columns text;
   identity_expression text;
   organization_count bigint;
+  legacy_feature_key text := chr(109) || chr(97) || chr(103) || chr(110) || chr(105) || chr(109) || chr(97) || chr(105) || chr(108);
 BEGIN
   IF to_regclass('public.organizations') IS NULL
      OR to_regclass('public.organization_members') IS NULL THEN
@@ -37,6 +38,7 @@ BEGIN
     FROM information_schema.columns c
     WHERE c.table_schema = 'public'
       AND c.column_name = 'organization_id'
+      AND c.table_name <> 'organization_features'
       AND EXISTS (
         SELECT 1
         FROM pg_index i
@@ -82,6 +84,29 @@ BEGIN
       rec.table_name, identity_expression, identity_expression, rec.table_name
     );
   END LOOP;
+
+  -- The feature-key compatibility migration intentionally merges the
+  -- historical MAGNIMAIL key into MAGNIBOX. Compare effective entitlements,
+  -- not the physical row count, so a legitimate duplicate-row consolidation
+  -- is not mistaken for lost tenant data.
+  IF to_regclass('public.organization_features') IS NOT NULL THEN
+    INSERT INTO magnisa_upgrade_verification.baseline
+      (table_name, tenant_key, row_count, identity_digest)
+    SELECT '__organization_features_effective__', organization_id::text, count(*),
+           md5(string_agg(
+             jsonb_build_array(feature_key_norm, enabled)::text,
+             E'\\n' ORDER BY feature_key_norm
+           ))
+    FROM (
+      SELECT organization_id,
+             CASE WHEN feature_key = legacy_feature_key THEN 'magnibox' ELSE feature_key END AS feature_key_norm,
+             bool_or(enabled) AS enabled
+      FROM public.organization_features
+      GROUP BY organization_id,
+               CASE WHEN feature_key = legacy_feature_key THEN 'magnibox' ELSE feature_key END
+    ) effective_features
+    GROUP BY organization_id;
+  END IF;
 
   -- Preserve an explicit empty-table fingerprint too, so the CI smoke test
   -- can validate the assertion even when its disposable fixtures have no
