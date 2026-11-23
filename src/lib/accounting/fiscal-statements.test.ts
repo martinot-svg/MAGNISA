@@ -111,7 +111,7 @@ describe("classifyCashFlowCounterpart",()=>{
     expect(classifyCashFlowCounterpart("431")).toBe("operating");
     expect(classifyCashFlowCounterpart("445")).toBe("operating");
   });
-  it("does not classify unsupported account families by guessing",()=>{
+  it("rejects malformed cash account codes instead of accepting a numeric prefix",()=>{\n    expect(classifyCashFlowCounterpart("512ABC")).toBeNull();\n    expect(classifyCashFlowCounterpart("512.1")).toBeNull();\n  });\n  it("does not classify unsupported account families by guessing",()=>{
     expect(classifyCashFlowCounterpart("501")).toBeNull();
     expect(classifyCashFlowCounterpart("80")).toBeNull();
     expect(classifyCashFlowCounterpart("")).toBeNull();
@@ -141,7 +141,7 @@ describe("isInternalCashTransferJournalEntry", () => {
       {pcg_code:"401",debit:50,credit:0},
     ])).toBe(false);
   });
-  it("rejects unbalanced cash-transfer entries", () => {
+  it("rejects malformed transfer account codes", () => {\n    expect(isInternalCashTransferJournalEntry([\n      {pcg_code:"512",debit:0,credit:250},\n      {pcg_code:"58ABC",debit:250,credit:0},\n    ])).toBe(false);\n  });\n  it("rejects negative or non-finite line amounts", () => {\n    expect(isInternalCashTransferJournalEntry([\n      {pcg_code:"512",debit:0,credit:250},\n      {pcg_code:"53",debit:Number.NaN,credit:0},\n    ])).toBe(false);\n  });\n  it("rejects unbalanced cash-transfer entries", () => {
     expect(isInternalCashTransferJournalEntry([
       {pcg_code:"512",debit:0,credit:250},
       {pcg_code:"53",debit:249,credit:0},
@@ -172,7 +172,7 @@ describe("classifyCashFlowJournalEntry", () => {
       {pcg_code:"401",debit:0,credit:99},
     ])).toBeNull();
   });
-  it("ignores fiscal-year opening entries", () => {
+  it("rejects non-finite and negative amounts instead of producing a NaN flow", () => {\n    expect(classifyCashFlowJournalEntry([\n      {pcg_code:"512",debit:Number.NaN,credit:0},\n      {pcg_code:"401",debit:0,credit:100},\n    ])).toBeNull();\n    expect(classifyCashFlowJournalEntry([\n      {pcg_code:"512",debit:100,credit:0},\n      {pcg_code:"401",debit:-100,credit:0},\n    ])).toBeNull();\n  });\n  it("ignores fiscal-year opening entries", () => {
     expect(classifyCashFlowJournalEntry([
       {pcg_code:"512",debit:100,credit:0,source_type:"fiscal_year_opening"},
     ])).toBeNull();
