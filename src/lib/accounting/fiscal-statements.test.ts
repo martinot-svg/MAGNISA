@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyCashFlowJournalEntry, classifyCashFlowCounterpart, isBalanceSheetReady, isFiscalStatementReady, isInventoryCountReady, isLoanRepaymentEffectiveAtDate, isObligationBalanceReconstructable, taxSocialObligationAccountCode, type FiscalStatementReadinessInput } from "./fiscal-statements";
+import { classifyCashFlowJournalEntry, classifyCashFlowCounterpart, isInternalCashTransferJournalEntry, isBalanceSheetReady, isFiscalStatementReady, isInventoryCountReady, isLoanRepaymentEffectiveAtDate, isObligationBalanceReconstructable, taxSocialObligationAccountCode, type FiscalStatementReadinessInput } from "./fiscal-statements";
 
 const valid: FiscalStatementReadinessInput = {
   isClosed:true,
@@ -112,6 +112,34 @@ describe("classifyCashFlowCounterpart",()=>{
   });
 });
 
+
+describe("isInternalCashTransferJournalEntry", () => {
+  it("excludes bank-to-cash transfers from cash-flow activity totals", () => {
+    expect(isInternalCashTransferJournalEntry([
+      {pcg_code:"512",debit:0,credit:250},
+      {pcg_code:"53",debit:250,credit:0},
+    ])).toBe(true);
+  });
+  it("excludes transfers routed through PCG 58 clearing accounts", () => {
+    expect(isInternalCashTransferJournalEntry([
+      {pcg_code:"512",debit:0,credit:250},
+      {pcg_code:"581",debit:250,credit:0},
+    ])).toBe(true);
+  });
+  it("does not hide genuine operating flows that also contain a PCG 58 line", () => {
+    expect(isInternalCashTransferJournalEntry([
+      {pcg_code:"512",debit:0,credit:250},
+      {pcg_code:"581",debit:200,credit:0},
+      {pcg_code:"401",debit:50,credit:0},
+    ])).toBe(false);
+  });
+  it("rejects unbalanced cash-transfer entries", () => {
+    expect(isInternalCashTransferJournalEntry([
+      {pcg_code:"512",debit:0,credit:250},
+      {pcg_code:"53",debit:249,credit:0},
+    ])).toBe(false);
+  });
+});
 
 describe("classifyCashFlowJournalEntry", () => {
   it("accepts several counterpart lines in the same category when the entry balances", () => {
