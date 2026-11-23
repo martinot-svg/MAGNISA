@@ -178,3 +178,36 @@ Les deux verrous `operatingCashFlowReconciliationReady=false` et `pcgPresentatio
 
 ### Décision actualisée
 Les workflows listés ci-dessus sont verts sur leurs SHA exacts. Cela clôt le contrôle de la priorité 1 pour ces exécutions, mais **ne clôt pas la Phase 1**. Les critères comptables, les parcours métier complets, la matrice RBAC exhaustive, la recette paie/notifications et la validation professionnelle restent à satisfaire.
+
+
+## 10. Addendum de vérification GitHub — 23 novembre 2026
+
+La référence actuelle de `main` contrôlée est `c8503aed199ecb9f5161cbdb79f7c4ab7f4afc0d`.
+
+Mises à jour qui remplacent les états historiques décrits plus haut :
+- PR #353, #354 et #355 sont toutes fusionnées.
+- La PR #355 a été contrôlée sur le SHA `1d088c485ccad62fc2cd75876195cf9524319630`.
+- CI MAGNISA #45165264256 : succès.
+- Replay Supabase #45165264320 : succès.
+- Replay Supabase #45170478564 : succès, y compris les étapes exécutées de contrôles SQL/RLS, tests authentifiés ciblés et audit responsive. Artefacts publiés : `magnisa-all-modules-responsive` et `magnisa-responsive-viewports`.
+- La revue indépendante visible sur la PR #355 est un commentaire (`COMMENTED`), et non une approbation (`APPROVED`).
+
+Le registre d'interactions reste un inventaire statique : les éléments y sont initialisés à `NOT_TESTED` jusqu'à preuve d'exécution runtime. Le succès CI ne certifie donc pas chaque action, chaque permission, chaque rôle et chaque chaîne métier des huit modules.
+
+**Décision inchangée : PHASE 1 NON CLÔTURÉE.** Restent notamment à démontrer la matrice RBAC complète, les chaînes E2E intermodules, la recette des notifications et exports par rôle et tenant, les rapprochements financiers, les états PCG approuvés, la validation réglementaire de la paie et le PV final signé.
+
+Aucune donnée de production, écriture comptable, migration de production ni readiness flag n'a été modifié lors de cette actualisation documentaire.
+
+
+## 11. Provisionnement SaaS et parité existants/nouveaux tenants
+
+Un contrôle supplémentaire a été ajouté au test navigateur `scripts/ci/company-onboarding-browser-smoke.mjs` sur la branche de travail :
+- adhésion active du créateur au rôle `owner` ;
+- présence des six séquences documentaires par organisation ;
+- vérification de leurs préfixes et valeurs initiales.
+
+**Résultat : EN ATTENTE CI** sur la branche de cette PR ; aucun succès n'est revendiqué avant la fin du workflow.
+
+La base MAGNISA utilise un schéma Supabase partagé et un cloisonnement par `organization_id`. Les scénarios multi-tenant existants vérifient certains refus d'accès entre organisations. Il manque encore une recette d'upgrade d'une base contenant plusieurs tenants déjà existants : conservation de leurs données et paramètres, application des nouvelles fonctionnalités après déploiement central, compatibilité des migrations et absence de fuite entre tenants.
+
+Ce point est un critère obligatoire de l'architecture SaaS centrale. La Phase 1 reste NON CLÔTURÉE tant que cette preuve n'est pas obtenue.

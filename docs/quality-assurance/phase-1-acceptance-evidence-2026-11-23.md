@@ -216,3 +216,46 @@ Les indicateurs `operatingCashFlowReconciliationReady` et `pcgPresentationReady`
 
 ### Verdict
 La priorité 1 est vérifiée pour les quatre exécutions ci-dessus. La Phase 1 reste **NON CLÔTURÉE** : les contrôles financiers et les parcours métier exhaustifs ne sont pas démontrés. PR #353 et #354 restent ouvertes ; aucune fusion n'a été réalisée.
+
+
+## 11. Addendum de vérification après fusion de la PR #355 — 23 novembre 2026
+
+Référence de dépôt vérifiée : `main` à `c8503aed199ecb9f5161cbdb79f7c4ab7f4afc0d`.
+
+### État GitHub corrigé
+- PR #353 — fusionnée.
+- PR #354 — fusionnée.
+- PR #355 — fusionnée ; son commit de tête contrôlé avant fusion était `1d088c485ccad62fc2cd75876195cf9524319630`.
+- Aucune PR ouverte et aucune issue ouverte n'ont été retournées par la recherche GitHub au relevé.
+- Les affirmations antérieures indiquant que les PR #353, #354 ou #355 étaient encore ouvertes sont historiques et ne décrivent plus l'état actuel.
+
+### Exécutions contrôlées
+- [MAGNISA CI #45165264256](https://github.com/martinot-svg/MAGNISA/actions/runs/45165264256) : succès sur le commit de tête de PR #355.
+- [Supabase migration replay #45165264320](https://github.com/martinot-svg/MAGNISA/actions/runs/45165264320) : succès sur le commit de tête de PR #355.
+- [Supabase migration replay #45170478564](https://github.com/martinot-svg/MAGNISA/actions/runs/45170478564) : job `replay` terminé avec succès. Les contrôles de schéma, migrations, permissions RPC, RLS, parcours Auth ciblés, stock, immobilisations, CRM, paie, notifications ciblées et audit responsive présents dans ce workflow sont réussis. Les étapes de diagnostic conditionnelles ont été ignorées lorsqu'aucun échec ne les déclenchait.
+- Artefacts de ce dernier replay : `magnisa-all-modules-responsive` et `magnisa-responsive-viewports`.
+
+### Limite de portée à conserver
+Le registre statique des interactions déclare explicitement chaque élément découvert `NOT_TESTED` jusqu'à son scénario d'exécution. Il précise aussi qu'une source peut produire plusieurs instances runtime. Le succès du replay et de l'audit responsive ne doit donc pas être présenté comme la validation exhaustive de chaque action, rôle et parcours métier des huit modules.
+
+La revue de PR #355 est de type `COMMENTED`, pas `APPROVED`. Elle ne vaut ni approbation formelle ni signature de clôture.
+
+### Décision actualisée
+Les correctifs exports #353 et #355 sont intégrés ; le dossier de recette #354 est intégré ; les exécutions automatisées citées sont vertes. La Phase 1 reste **NON CLÔTURÉE** tant que les validations métier transversales, la matrice RBAC exhaustive, les rapprochements et états financiers PCG, la recette complète des exports/notifications, la certification paie requise et le PV signé ne sont pas établis.
+
+Aucune donnée réelle, écriture comptable, migration de production ou readiness flag n'a été modifié pour cet addendum.
+
+
+## 12. Contrôle de provisionnement des nouveaux tenants — ajouté, CI en attente
+
+Le test navigateur `scripts/ci/company-onboarding-browser-smoke.mjs` a été renforcé sur cette branche. Après création d'une organisation de test isolée, il vérifie désormais :
+- que l'utilisateur créateur possède une adhésion active au rôle `owner` ;
+- que les six séquences de documents propres au tenant existent (`quote`, `order`, `invoice`, `credit_note`, `payment`, `expense`) ;
+- que les préfixes, la prochaine valeur initiale et le padding correspondent à la configuration de provisionnement attendue.
+
+Ce test est ajouté au parcours d'onboarding déjà exécuté dans le workflow de replay Supabase. Son résultat doit être considéré **EN ATTENTE** jusqu'à la conclusion verte du workflow déclenché par cette branche.
+
+### Limite importante — comptes existants
+Le modèle actuel utilise une application et un schéma Supabase partagés, avec cloisonnement des données par `organization_id`. Le replay propre valide le chemin de migration sur une base vide ; il ne démontre pas à lui seul la compatibilité de chaque migration sur une base déjà peuplée de tenants existants. La clôture doit donc aussi inclure un test d'upgrade sur une base de recette contenant au moins deux organisations préexistantes, puis vérifier que leurs données, memberships et paramètres sont conservés, que les nouvelles fonctionnalités sont disponibles après mise à jour centrale et qu'aucune donnée ne traverse les tenants.
+
+**Statut architecture SaaS : PARTIELLEMENT PROUVÉ.** Provisionnement d'une nouvelle organisation et isolation multi-tenant sont couverts par plusieurs tests ciblés ; parité de mise à jour entre tenants existants et nouveaux tenants, sur une base peuplée et après évolution de schéma, reste à démontrer.
