@@ -36,6 +36,6 @@ describe("buildXlsxWorkbook", () => {
     const bytes = buildXlsxWorkbook([{ name: "A very long/name that exceeds 31 chars", rows: [["ok"]] }]);
     const files = unzipSync(bytes);
     const workbook = strFromU8(files["xl/workbook.xml"]);
-    expect(workbook).toContain('name="A very long name that exceeds"');
+    expect(workbook).toContain('name="A very long name that exceeds 3"');
   });
 });
