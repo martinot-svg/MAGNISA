@@ -83,6 +83,17 @@ BEGIN
     );
   END LOOP;
 
+  -- Preserve an explicit empty-table fingerprint too, so the CI smoke test
+  -- can validate the assertion even when its disposable fixtures have no
+  -- remaining Auth memberships after their temporary users are cleaned up.
+  INSERT INTO magnisa_upgrade_verification.baseline
+    (table_name, tenant_key, row_count, identity_digest)
+  SELECT 'organization_members', '__EMPTY__', 0, md5('')
+  WHERE NOT EXISTS (
+    SELECT 1 FROM magnisa_upgrade_verification.baseline
+    WHERE table_name = 'organization_members'
+  );
+
   IF NOT EXISTS (
     SELECT 1 FROM magnisa_upgrade_verification.baseline
     WHERE table_name = 'organization_members'
