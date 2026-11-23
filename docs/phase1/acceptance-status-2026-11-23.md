@@ -1,7 +1,7 @@
 # MAGNISA — Recette de clôture Phase 1
 Date du relevé : 23 novembre 2026
 Dépôt : `martinot-svg/MAGNISA`
-Branche de référence contrôlée : `main` — `5cbb3292b57de511b3350c9d9ca9af6b310ef77b4`
+Branche de référence contrôlée : `main` après fusion des PR #347, #348, #350 et #351 (voir les commits de fusion ci-dessous).
 Branche de travail du présent dossier : `qa/phase1-acceptance-recipe`
 
 ## 1. Statut du procès-verbal
@@ -14,7 +14,7 @@ Ce document enregistre les preuves réellement consultées et les validations en
 
 ### MAGNISA CI
 - Run : [45135101154](https://github.com/martinot-svg/MAGNISA/actions/runs/45135101154)
-- Commit contrôlé : `ac27964b3abcf5e091a23601a26390b722be547a` (tête de la PR #348, non fusionnée).
+- Commit contrôlé : `ac27964b3abcf5e091a23601a26390b722be547a` (ancienne tête de la PR #348, avant sa correction finale et sa fusion).
 - Conclusion du run : **success**.
 - Étapes vérifiées comme réussies :
   - compilation Next.js de production ;
@@ -32,7 +32,7 @@ Ce document enregistre les preuves réellement consultées et les validations en
 - Limite : un replay local et des tests SQL de politiques ne remplacent pas une recette navigateur avec plusieurs comptes Auth réels et plusieurs organisations.
 
 ### Périmètre non couvert par ces runs
-Le workflow CI consulté n'exécute pas le script Playwright `scripts/ci/modules-responsive-ui-smoke.mjs` dans le run ci-dessus. Ce script existe et nécessite `TEST_EMAIL` et `TEST_PASSWORD`, mais aucune preuve d'exécution réussie de ce parcours n'a été retrouvée dans les runs consultés.
+Mise à jour : le run #45146222356 exécute désormais les parcours Auth UI et responsive. Au dernier contrôle, 71 étapes étaient réussies et l'audit responsive des modules ERP était encore en cours ; le run n'avait donc pas encore de conclusion finale.
 
 ## 3. Matrice de recette — rôles et permissions
 
@@ -122,3 +122,20 @@ La clôture est refusée tant que les conditions suivantes ne sont pas toutes do
 
 **Décision à cette date : PHASE 1 NON CLÔTURÉE.**
 Les workflows verts consultés prouvent une compilation, une suite de tests automatisés et un rejeu de migrations réussis sur le commit de la PR #348. Ils ne prouvent pas encore les scénarios métier authentifiés, la recette complète des exports/notifications ni la conformité finale des états financiers.
+
+
+## 9. Mise à jour des preuves après fusion des PR
+
+Les PR #347, #348, #350 et #351 sont désormais fusionnées dans `main` :
+- PR #347 — migration de rappels d'expiration : merge commit `5cbb3292b57de511b3350c9d9ca9af6b310ef77b4`.
+- PR #348 — classification des flux PCG : merge commit `f3a6926fd407dc4cb954a76e24d09fdb5d4873d3`.
+- PR #350 — dossier de recette : merge commit `0a7acea34d0422477c0dfb4e3aa1e1ff8c0acf8c`.
+- PR #351 — export XLSX natif : merge commit `bd88e1c94549816a312bcfbd10e335a30d5a7766`.
+
+Nouvelles exécutions observées sur la tête corrigée de la PR #348 (`4907b4c53a49ca0cf6a1cfe7b4536e0e7fdb28f7`) :
+- [MAGNISA CI #45146222368](https://github.com/martinot-svg/MAGNISA/actions/runs/45146222368) : **success**, deux jobs réussis (build/Vitest et MAGNIBOX local E2E).
+- [Supabase migration replay #45146222356](https://github.com/martinot-svg/MAGNISA/actions/runs/45146222356) : **en cours au dernier contrôle** ; rejeu des migrations et contrats SQL réussis, tests Auth UI CRM/paie/immobilisations/stock réussis, responsive 13 tailles réussi ; audit responsive module par module encore en cours. Ne pas qualifier ce replay de succès avant sa conclusion finale.
+
+La correction de l'export Excel est intégrée par PR #351 et le classeur est généré au format XLSX natif. La validation du contenu métier, des données d'identification et des permissions d'export reste à effectuer.
+
+La fusion des PR ne clôture pas la Phase 1 : les scénarios transversaux complets, les états financiers PCG, les rapprochements, la recette exhaustive des rôles, la paie et la validation professionnelle restent des critères distincts.
