@@ -94,9 +94,9 @@ begin
             else 'Fin de contrat récurrent à venir'
           end,
           case
-            when v_offset = 0 then 'Le contrat « ' || coalesce(v_contract.description, 'Prestation récurrente') || ' » arrive à échéance aujourd’hui.'
-            when v_offset < 0 then 'Le contrat « ' || coalesce(v_contract.description, 'Prestation récurrente') || ' » est arrivé à échéance depuis ' || abs(v_offset)::text || ' jour(s).'
-            else 'Le contrat « ' || coalesce(v_contract.description, 'Prestation récurrente') || ' » arrive à échéance dans ' || v_offset::text || ' jour(s).'
+            when v_offset = 0 then 'Le contrat « ' || left(coalesce(v_contract.description, 'Prestation récurrente'), 700) || ' » arrive à échéance aujourd’hui.'
+            when v_offset < 0 then 'Le contrat « ' || left(coalesce(v_contract.description, 'Prestation récurrente'), 700) || ' » est arrivé à échéance depuis ' || abs(v_offset)::text || ' jour(s).'
+            else 'Le contrat « ' || left(coalesce(v_contract.description, 'Prestation récurrente'), 700) || ' » arrive à échéance dans ' || v_offset::text || ' jour(s).'
           end,
           '/clients/' || v_contract.customer_id::text,
           'recurring_contract',
