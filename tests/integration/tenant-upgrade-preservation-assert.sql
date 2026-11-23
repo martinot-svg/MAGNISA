@@ -75,6 +75,14 @@ BEGIN
     );
   END LOOP;
 
+  INSERT INTO magnisa_upgrade_verification.current_state
+    (table_name, tenant_key, row_count, identity_digest)
+  SELECT 'organization_members', '__EMPTY__', 0, md5('')
+  WHERE NOT EXISTS (
+    SELECT 1 FROM magnisa_upgrade_verification.current_state
+    WHERE table_name = 'organization_members'
+  );
+
   SELECT count(*) INTO mismatch_count
   FROM magnisa_upgrade_verification.baseline b
   FULL OUTER JOIN magnisa_upgrade_verification.current_state c
