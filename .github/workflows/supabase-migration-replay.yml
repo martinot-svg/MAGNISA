@@ -24,6 +24,8 @@ on:
     paths:
       - "supabase/**"
       - ".github/workflows/supabase-migration-replay.yml"
+      - ".github/workflows/backup-supabase-production.yml"
+      - "tests/integration/**"
       - "scripts/ci/**"
       - "scripts/qa/**"
       - "src/**"
