@@ -189,3 +189,30 @@ Le run [MAGNISA CI #45146222368](https://github.com/martinot-svg/MAGNISA/actions
 - Le replay [#45148647452](https://github.com/martinot-svg/MAGNISA/actions/runs/45148647452) était encore en cours au dernier relevé, avec 71/80 étapes réussies. Aucun succès final n'est revendiqué.
 
 La recette métier des exports, la cohérence des montants, les permissions de téléchargement et la revue professionnelle restent obligatoires. La Phase 1 reste non clôturée.
+
+
+## 10. Addendum de clôture des workflows et audit comptable actualisé — 23 novembre 2026
+
+Les statuts « en cours » des exécutions #45148647452 et #45149985742 dans les sections précédentes sont historiques et sont remplacés par les résultats finaux ci-dessous.
+
+| Exécution | SHA contrôlé | Conclusion finale |
+|---|---|---|
+| [Supabase replay #45148647452](https://github.com/martinot-svg/MAGNISA/actions/runs/45148647452) | `752ce5c6a803dbc3ee99acb469c5a4b286a3f925` | **success** |
+| [MAGNISA CI #45148647430](https://github.com/martinot-svg/MAGNISA/actions/runs/45148647430) | `752ce5c6a803dbc3ee99acb469c5a4b286a3f925` | **success** |
+| [MAGNISA CI #45149985742](https://github.com/martinot-svg/MAGNISA/actions/runs/45149985742) | `35b23686f02efa77d7a71b30c6a796f0a5194e8f` | **success** |
+| [MAGNISA CI #45149183974](https://github.com/martinot-svg/MAGNISA/actions/runs/45149183974) | `e0e56c05b4cdeae5db77d9cb358c85ccf8493faf` | **success** |
+
+Le replay #45148647452 a terminé son job unique `replay` avec succès ; le contrôle des migrations, contrats SQL, parcours Auth locaux, tests paie/immobilisations/CRM/stock, isolation multi-tenant et responsive figure dans les étapes réussies. Une étape conditionnelle de diagnostic a été ignorée, sans échec du job. La CI #45149985742 a terminé avec succès ses deux jobs : build (incluant production build, Vitest et inspection des PDF) et MAGNIBOX local E2E.
+
+### Actualisation des données comptables (requêtes en lecture seule)
+- 1 exercice 2026 est présent en base, mais reste au statut `open` ; l'audit du 7 novembre qui indiquait zéro exercice est donc historique.
+- Le grand livre interrogé comporte 83 écritures et 172 lignes ; les 83 écritures sont équilibrées selon `pcg2005_journal_integrity`.
+- La vue effective de classification laisse deux lignes fournisseur au statut `a_mapper`. Deux autres lignes fournisseurs ont une affectation provisoire 606 en mode `record_only`, avec pièces obligatoires non fournies.
+- Les deux lignes non mappées n'ont ni code de charge explicite ni justificatifs suffisants pour déterminer si elles relèvent du compte 604, 606 ou 611. Ne pas les classer par supposition.
+- Le registre des immobilisations est vide. Le profil fiscal est non confirmé et des champs de secteur/régime ne sont pas renseignés.
+- Les vues SQL de lacunes des règles de présentation actif/passif ne renvoient pas de compte non paramétré ; ce contrôle isolé ne certifie pas le bilan, le compte de résultat, le tableau de flux ou l'annexe.
+
+Les indicateurs `operatingCashFlowReconciliationReady` et `pcgPresentationReady` restent volontairement à `false`. L'exercice n'est pas clôturé et les preuves comptables manquent ; aucun indicateur ne doit être forcé à `true`. Aucune donnée réelle, écriture ou migration de production n'a été modifiée.
+
+### Verdict
+La priorité 1 est vérifiée pour les quatre exécutions ci-dessus. La Phase 1 reste **NON CLÔTURÉE** : les contrôles financiers et les parcours métier exhaustifs ne sont pas démontrés. PR #353 et #354 restent ouvertes ; aucune fusion n'a été réalisée.
