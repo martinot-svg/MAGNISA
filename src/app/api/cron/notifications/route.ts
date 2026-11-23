@@ -45,6 +45,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Invoice reminder engine failed" }, { status: 500 });
     }
 
+    const prospectFollowUps = await supabase.rpc("run_prospect_follow_up_reminders", {
+      p_run_date: localRunDate,
+    });
+    if (prospectFollowUps.error) {
+      console.error("prospect follow-up reminder engine failed", prospectFollowUps.error);
+      return NextResponse.json({ error: "Prospect follow-up reminder engine failed" }, { status: 500 });
+    }
+
     const contractExpiryReminders = await supabase.rpc("run_recurring_contract_expiry_reminders", {
       p_run_date: localRunDate,
     });
@@ -72,7 +80,7 @@ export async function GET(request: Request) {
       }
       agendaReminders = agenda.data;
     }
-    return NextResponse.json({ ok: true, result: data, invoiceDueReminders: invoiceReminders.data, contractExpiryReminders: contractExpiryReminders.data, agendaReminders });
+    return NextResponse.json({ ok: true, result: data, invoiceDueReminders: invoiceReminders.data, prospectFollowUpReminders: prospectFollowUps.data, contractExpiryReminders: contractExpiryReminders.data, agendaReminders });
   } catch (error) {
     console.error("notification cron error", error);
     return NextResponse.json({ error: "Notification engine failed" }, { status: 500 });
