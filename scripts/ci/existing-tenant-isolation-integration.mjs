@@ -65,8 +65,11 @@ try {
 
   const { data: crossDelete, error: crossDeleteError } = await a.client.from("customers")
     .delete().eq("id", b.customer.id).select("id");
-  if (crossDeleteError) throw crossDeleteError;
-  assert(crossDelete?.length === 0, "Tenant A unexpectedly deleted Tenant B's customer");
+  // This role intentionally has no table-level DELETE grant (42501). If DELETE
+  // is granted in a future policy change, RLS must still affect zero rows.
+  if (crossDeleteError && crossDeleteError.code !== "42501") throw crossDeleteError;
+  assert(crossDeleteError?.code === "42501" || crossDelete?.length === 0,
+    "Tenant A unexpectedly deleted Tenant B's customer");
 
   const { data: intactB, error: intactBError } = await b.client.from("customers").select("id,name");
   if (intactBError) throw intactBError;
