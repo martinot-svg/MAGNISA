@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireOrganization } from "@/lib/current-org";
 import { hasPermission } from "@/lib/permissions";
 import { changeProspectInterventionStatus, recordProspectIntervention, reviewProspectIntervention } from "@/server/actions/commissions";
+import { scheduleProspectFollowUp } from "@/server/actions/prospect-follow-up";
 
 const roleLabels: Record<string,string> = {
   initiator:"Initiateur", recommender:"Recommandeur", prospector:"Prospecteur",
@@ -72,6 +73,9 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
     : {data:[] as any[],error:null};
   if (allocationsError) throw new Error("Impossible de charger les répartitions de commission.");
   const path = "/prospects/"+id;
+  const followUpDate = prospect.next_follow_up_at
+    ? new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Antananarivo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(prospect.next_follow_up_at))
+    : "";
 
   return <>
     <div className="pageHead">
@@ -82,6 +86,26 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
       </div>
       <div className="actions">{prospect.converted_customer_id && canCreateQuote && <Link className="button primary" href={"/devis/nouveau?customer_id="+encodeURIComponent(prospect.converted_customer_id)}>Créer un devis</Link>}<Link className="button" href="/prospects">Retour aux prospects</Link></div>
     </div>
+
+    {canContribute && !["won","lost"].includes(prospect.status) && <section className="section card">
+      <FormDialog title="Planifier la prochaine relance" buttonLabel="Planifier / modifier la relance">
+        <form action={scheduleProspectFollowUp} className="form">
+          <input type="hidden" name="prospect_id" value={id}/>
+          <div className="grid grid-3">
+            <div className="field">
+              <label htmlFor="prospect-follow-up-date">Date de relance</label>
+              <input id="prospect-follow-up-date" name="follow_up_date" type="date" defaultValue={followUpDate}/>
+            </div>
+            <div className="field">
+              <label htmlFor="prospect-follow-up-note">Note / action attendue</label>
+              <input id="prospect-follow-up-note" name="follow_up_note" maxLength={1000} defaultValue={prospect.follow_up_note || ""} placeholder="Appeler, envoyer une proposition…"/>
+            </div>
+          </div>
+          <button className="button primary">Enregistrer la relance</button>
+          <p className="muted">Une notification interne sera créée à la date prévue pour le responsable du prospect.</p>
+        </form>
+      </FormDialog>
+    </section>}
 
     <div className="grid grid-3">
       <div className="card"><div className="muted">Statut commercial</div><strong className="metric">{prospect.status}</strong></div>
