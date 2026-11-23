@@ -57,6 +57,25 @@ try {
     .insert({ organization_id: b.orgId, name: `Forbidden cross-tenant write ${suffix}` });
   assert(Boolean(crossInsertError), "Tenant A unexpectedly inserted a customer into Tenant B");
 
+  // RLS may reject UPDATE/DELETE by returning zero affected rows rather than an error.
+  const { data: crossUpdate, error: crossUpdateError } = await a.client.from("customers")
+    .update({ name: `Tampered by tenant A ${suffix}` }).eq("id", b.customer.id).select("id");
+  if (crossUpdateError) throw crossUpdateError;
+  assert(crossUpdate?.length === 0, "Tenant A unexpectedly updated Tenant B's customer");
+
+  const { data: crossDelete, error: crossDeleteError } = await a.client.from("customers")
+    .delete().eq("id", b.customer.id).select("id");
+  // This role intentionally has no table-level DELETE grant (42501). If DELETE
+  // is granted in a future policy change, RLS must still affect zero rows.
+  if (crossDeleteError && crossDeleteError.code !== "42501") throw crossDeleteError;
+  assert(crossDeleteError?.code === "42501" || crossDelete?.length === 0,
+    "Tenant A unexpectedly deleted Tenant B's customer");
+
+  const { data: intactB, error: intactBError } = await b.client.from("customers").select("id,name");
+  if (intactBError) throw intactBError;
+  assert(intactB?.length === 1 && intactB[0].id === b.customer.id && intactB[0].name === b.customer.name,
+    "Tenant B's persisted customer was changed or deleted by Tenant A");
+
   const { data: ownInsert, error: ownInsertError } = await a.client.from("customers")
     .insert({ organization_id: a.orgId, name: `Allowed own tenant write ${suffix}` }).select("id").single();
   if (ownInsertError || !ownInsert) throw ownInsertError ?? new Error("Own-tenant write was unexpectedly denied");
@@ -66,12 +85,11 @@ try {
   assert(afterA?.length === 2 && afterA.some(row => row.id === ownInsert.id),
     "Tenant A did not retain its own isolated persisted rows");
 
-  console.log("PASS TENANT ISOLATION: two populated tenants, scoped reads, rejected cross-tenant insert, allowed own-tenant insert");
+  console.log("PASS TENANT ISOLATION: populated tenants, scoped reads, rejected cross-tenant insert/update/delete, preserved tenant B row, allowed own-tenant insert");
 } finally {
-  for (const orgId of organizations) {
-    const { error } = await admin.from("organizations").delete().eq("id", orgId);
-    if (error) console.error("Fixture organization cleanup failed:", error.message);
-  }
+  // The local replay database is disposable. Keep the QA organization records:
+  // immutable audit-log references make deleting these fixtures invalid.
+  // Remove their temporary Auth users; no production project is touched.
   for (const userId of users) {
     const { error } = await admin.auth.admin.deleteUser(userId);
     if (error) console.error("Fixture auth cleanup failed:", error.message);
