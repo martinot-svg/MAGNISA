@@ -33,8 +33,8 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
  await requirePermission(ctx,"accounting.view");
  await requirePermission(ctx,"reports.export");
  const s=await loadFiscalStatements(ctx,id);
- const profile=s.organization?.onboarding_profile&&typeof s.organization.onboarding_profile==="object"?s.organization.onboarding_profile:{};
  const generatedAt=new Date().toISOString();
+ const identity=buildFiscalExportIdentity(s.organization,s.currency,generatedAt);
  const title=s.organization?.trade_name||s.organization?.legal_name||s.organization?.name||"Entreprise";
  const doc=<Document>
   <Page size="A4" style={styles.page} wrap>
