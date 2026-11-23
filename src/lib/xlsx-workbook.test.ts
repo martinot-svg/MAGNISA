@@ -24,6 +24,14 @@ describe("buildXlsxWorkbook", () => {
     expect(firstSheet).toContain('t="inlineStr"');
   });
 
+  it("removes XML 1.0 control characters from exported text cells", () => {
+    const bytes = buildXlsxWorkbook([{ name: "Bilan", rows: [["Avant\\u0001Après"]] }]);
+    const files = unzipSync(bytes);
+    const sheet = strFromU8(files["xl/worksheets/sheet1.xml"]);
+    expect(sheet).toContain("AvantAprès");
+    expect(sheet).not.toContain("\\u0001");
+  });
+
   it("rejects an empty workbook and duplicate worksheet names", () => {
     expect(() => buildXlsxWorkbook([])).toThrow(/at least one worksheet/i);
     expect(() => buildXlsxWorkbook([
