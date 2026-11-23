@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyCashFlowCounterpart, isBalanceSheetReady, isFiscalStatementReady, isInventoryCountReady, isLoanRepaymentEffectiveAtDate, isObligationBalanceReconstructable, taxSocialObligationAccountCode, type FiscalStatementReadinessInput } from "./fiscal-statements";
+import { classifyCashFlowJournalEntry, classifyCashFlowCounterpart, isBalanceSheetReady, isFiscalStatementReady, isInventoryCountReady, isLoanRepaymentEffectiveAtDate, isObligationBalanceReconstructable, taxSocialObligationAccountCode, type FiscalStatementReadinessInput } from "./fiscal-statements";
 
 const valid: FiscalStatementReadinessInput = {
   isClosed:true,
@@ -112,6 +112,36 @@ describe("classifyCashFlowCounterpart",()=>{
   });
 });
 
+
+describe("classifyCashFlowJournalEntry", () => {
+  it("accepts several counterpart lines in the same category when the entry balances", () => {
+    expect(classifyCashFlowJournalEntry([
+      {pcg_code:"512",debit:0,credit:100},
+      {pcg_code:"401",debit:60,credit:0},
+      {pcg_code:"445",debit:40,credit:0},
+    ])).toEqual({bucket:"operating",cashAmount:-100});
+  });
+  it("rejects mixed categories, unmapped counterparts and unbalanced entries", () => {
+    expect(classifyCashFlowJournalEntry([
+      {pcg_code:"512",debit:100,credit:0},
+      {pcg_code:"401",debit:0,credit:70},
+      {pcg_code:"404",debit:0,credit:30},
+    ])).toBeNull();
+    expect(classifyCashFlowJournalEntry([
+      {pcg_code:"512",debit:100,credit:0},
+      {pcg_code:null,debit:0,credit:100},
+    ])).toBeNull();
+    expect(classifyCashFlowJournalEntry([
+      {pcg_code:"512",debit:100,credit:0},
+      {pcg_code:"401",debit:0,credit:99},
+    ])).toBeNull();
+  });
+  it("ignores fiscal-year opening entries", () => {
+    expect(classifyCashFlowJournalEntry([
+      {pcg_code:"512",debit:100,credit:0,source_type:"fiscal_year_opening"},
+    ])).toBeNull();
+  });
+});
 
 describe("isLoanRepaymentEffectiveAtDate", () => {
   it("includes posted principal repayments made by fiscal close", () => {
