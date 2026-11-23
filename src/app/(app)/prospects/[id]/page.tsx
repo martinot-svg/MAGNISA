@@ -87,22 +87,23 @@ export default async function ProspectDetail({ params }: { params: Promise<{ id:
     </div>
 
     {canContribute && !["won","lost"].includes(prospect.status) && <section className="section card">
-      <h2>Planifier la prochaine relance</h2>
-      <form action={scheduleProspectFollowUp} className="form">
-        <input type="hidden" name="prospect_id" value={id}/>
-        <div className="grid grid-3">
-          <div className="field">
-            <label htmlFor="prospect-follow-up-date">Date de relance</label>
-            <input id="prospect-follow-up-date" name="follow_up_date" type="date" defaultValue={followUpDate}/>
+      <FormDialog title="Planifier la prochaine relance" buttonLabel="Planifier / modifier la relance">
+        <form action={scheduleProspectFollowUp} className="form">
+          <input type="hidden" name="prospect_id" value={id}/>
+          <div className="grid grid-3">
+            <div className="field">
+              <label htmlFor="prospect-follow-up-date">Date de relance</label>
+              <input id="prospect-follow-up-date" name="follow_up_date" type="date" defaultValue={followUpDate}/>
+            </div>
+            <div className="field">
+              <label htmlFor="prospect-follow-up-note">Note / action attendue</label>
+              <input id="prospect-follow-up-note" name="follow_up_note" maxLength={1000} defaultValue={prospect.follow_up_note || ""} placeholder="Appeler, envoyer une proposition…"/>
+            </div>
           </div>
-          <div className="field">
-            <label htmlFor="prospect-follow-up-note">Note / action attendue</label>
-            <input id="prospect-follow-up-note" name="follow_up_note" maxLength={1000} defaultValue={prospect.follow_up_note || ""} placeholder="Appeler, envoyer une proposition…"/>
-          </div>
-        </div>
-        <button className="button primary">Enregistrer la relance</button>
-        <p className="muted">Une notification interne sera créée à la date prévue pour le responsable du prospect.</p>
-      </form>
+          <button className="button primary">Enregistrer la relance</button>
+          <p className="muted">Une notification interne sera créée à la date prévue pour le responsable du prospect.</p>
+        </form>
+      </FormDialog>
     </section>}
 
     <div className="grid grid-3">
