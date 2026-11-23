@@ -109,7 +109,9 @@ begin
       r.tgname,r.nspname,r.relname,v_target);
   end loop;
 
-  -- Rename and recompile functions so their stored SQL/PLpgSQL bodies call the new objects.
+  -- Rename every legacy function first. Recompiling inside this same loop is
+  -- unsafe when one renamed SQL function calls another legacy function that
+  -- sorts later (for example can_send_internal -> has_internal_access).
   for r in
     select p.oid, n.nspname, p.proname,
            pg_catalog.pg_get_function_identity_arguments(p.oid) as identity_args
@@ -119,7 +121,7 @@ begin
       and position(v_old in p.proname)>0
     order by n.nspname,p.proname
   loop
-    v_target := replace(r.proname,v_old,v_new);
+    v_target := replace(r.proname, v_old, v_new);
     if exists (
       select 1 from pg_catalog.pg_proc p2
       join pg_catalog.pg_namespace n2 on n2.oid=p2.pronamespace
@@ -130,6 +132,18 @@ begin
     end if;
     execute format('alter function %I.%I(%s) rename to %I',
       r.nspname,r.proname,r.identity_args,v_target);
+  end loop;
+
+  -- Recompile only after all names have been moved, so inter-function
+  -- dependencies resolve to their final names in one pass.
+  for r in
+    select p.oid
+    from pg_catalog.pg_proc p
+    join pg_catalog.pg_namespace n on n.oid=p.pronamespace
+    where n.nspname not in ('pg_catalog','information_schema')
+      and position(v_old in pg_catalog.pg_get_functiondef(p.oid))>0
+    order by n.nspname,p.proname
+  loop
     v_definition := pg_catalog.pg_get_functiondef(r.oid);
     v_definition := regexp_replace(v_definition,v_old,v_new,'gi');
     execute v_definition;
