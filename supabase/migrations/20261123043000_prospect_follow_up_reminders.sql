@@ -63,9 +63,9 @@ begin
       ) values (
         v_prospect.organization_id,v_member.user_id,'service','attention',
         'Relance prospect à effectuer',
-        'Le suivi prévu pour ' || v_prospect.name || ' est arrivé à échéance.' ||
+        left('Le suivi prévu pour ' || coalesce(v_prospect.name,'le prospect') || ' est arrivé à échéance.' ||
           case when coalesce(v_prospect.follow_up_note,'')='' then ''
-          else ' Note : ' || v_prospect.follow_up_note end,
+          else ' Note : ' || v_prospect.follow_up_note end, 1100),
         '/prospects/' || v_prospect.id::text,'prospect',v_prospect.id,
         jsonb_build_object('event_id',v_event_id,'follow_up_at',v_prospect.next_follow_up_at),
         v_event_key
