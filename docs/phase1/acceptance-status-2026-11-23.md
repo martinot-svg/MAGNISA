@@ -197,3 +197,17 @@ Le registre d'interactions reste un inventaire statique : les éléments y sont 
 **Décision inchangée : PHASE 1 NON CLÔTURÉE.** Restent notamment à démontrer la matrice RBAC complète, les chaînes E2E intermodules, la recette des notifications et exports par rôle et tenant, les rapprochements financiers, les états PCG approuvés, la validation réglementaire de la paie et le PV final signé.
 
 Aucune donnée de production, écriture comptable, migration de production ni readiness flag n'a été modifié lors de cette actualisation documentaire.
+
+
+## 11. Provisionnement SaaS et parité existants/nouveaux tenants
+
+Un contrôle supplémentaire a été ajouté au test navigateur `scripts/ci/company-onboarding-browser-smoke.mjs` sur la branche de travail :
+- adhésion active du créateur au rôle `owner` ;
+- présence des six séquences documentaires par organisation ;
+- vérification de leurs préfixes et valeurs initiales.
+
+**Résultat : EN ATTENTE CI** sur la branche de cette PR ; aucun succès n'est revendiqué avant la fin du workflow.
+
+La base MAGNISA utilise un schéma Supabase partagé et un cloisonnement par `organization_id`. Les scénarios multi-tenant existants vérifient certains refus d'accès entre organisations. Il manque encore une recette d'upgrade d'une base contenant plusieurs tenants déjà existants : conservation de leurs données et paramètres, application des nouvelles fonctionnalités après déploiement central, compatibilité des migrations et absence de fuite entre tenants.
+
+Ce point est un critère obligatoire de l'architecture SaaS centrale. La Phase 1 reste NON CLÔTURÉE tant que cette preuve n'est pas obtenue.
