@@ -118,6 +118,7 @@ begin
     from pg_catalog.pg_proc p
     join pg_catalog.pg_namespace n on n.oid=p.pronamespace
     where n.nspname not in ('pg_catalog','information_schema')
+      and p.prokind='f'
       and position(v_old in p.proname)>0
     order by n.nspname,p.proname
   loop
@@ -141,6 +142,7 @@ begin
     from pg_catalog.pg_proc p
     join pg_catalog.pg_namespace n on n.oid=p.pronamespace
     where n.nspname not in ('pg_catalog','information_schema')
+      and p.prokind='f'
       and position(v_old in pg_catalog.pg_get_functiondef(p.oid))>0
     order by n.nspname,p.proname
   loop
