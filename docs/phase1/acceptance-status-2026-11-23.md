@@ -233,7 +233,10 @@ Un contrôle automatisé a été ajouté au parcours de restauration chiffrée, 
 - inventaire, par organisation, des tables publiques possédant `organization_id` et une clé primaire ;
 - comparaison avant/après du nombre de lignes et de l'empreinte déterministe des clés primaires ;
 - pour `organization_members`, inclusion du rôle et du statut dans l'empreinte afin de détecter une perte ou une modification d'adhésion ;
-- échec fermé si une table préexistante disparaît, perd `organization_id` ou sa clé primaire, ou si ses lignes sont supprimées, ajoutées ou réaffectées.
+- conservation des paramètres `company_settings` (identité légale, coordonnées, fiscalité et conditions) ;
+- conservation des séquences documentaires `number_sequences` (type, préfixe, prochaine valeur et padding) ;
+- normalisation contrôlée du renommage historique des tables MAGNIBOX et de la fusion de la clé d'entitlement, sans confondre ces transformations approuvées avec une perte de données ;
+- échec fermé si une table préexistante disparaît sans renommage reconnu, perd `organization_id` ou sa clé primaire, ou si ses lignes sont supprimées, ajoutées ou réaffectées.
 
 Les contrôles sont exécutés uniquement dans la base temporaire `magnisa_restore`. Le schéma d'empreinte est supprimé après validation. Aucun SQL d'écriture n'est exécuté sur la base de production par ce contrôle.
 
