@@ -150,3 +150,31 @@ La fusion des PR ne clôture pas la Phase 1 : les scénarios transversaux comple
 - [Supabase replay #45148647452](https://github.com/martinot-svg/MAGNISA/actions/runs/45148647452) : encore en cours au dernier relevé, 71 étapes réussies sur 80 et audit responsive final module par module en cours. Aucun succès final n'est revendiqué pour ce run.
 
 La recette des exports métier avec jeu de données de référence et permissions par rôle reste à exécuter. La réussite du build et des tests automatisés de PR #353 n'est pas une preuve d'exactitude comptable des PDF/XLSX.
+
+
+## 10. Addendum de vérification finale — 23 novembre 2026, après clôture des workflows
+
+Cet addendum remplace les statuts « en cours » mentionnés dans les relevés antérieurs de ce document.
+
+### Workflows et commits
+- [Supabase replay #45148647452](https://github.com/martinot-svg/MAGNISA/actions/runs/45148647452) : **success**, commit `752ce5c6a803dbc3ee99acb469c5a4b286a3f925`. Le job `replay` est terminé avec succès ; toutes les étapes exécutées sont réussies, à l'exception d'une étape de diagnostic conditionnelle explicitement ignorée.
+- [MAGNISA CI #45148647430](https://github.com/martinot-svg/MAGNISA/actions/runs/45148647430) : **success**, même commit ; jobs `build` et `magnibox-local-e2e` réussis.
+- [MAGNISA CI #45149985742](https://github.com/martinot-svg/MAGNISA/actions/runs/45149985742) : **success**, commit `35b23686f02efa77d7a71b30c6a796f0a5194e8f` de PR #354 ; jobs `build` et `magnibox-local-e2e` réussis.
+- [MAGNISA CI #45149183974](https://github.com/martinot-svg/MAGNISA/actions/runs/45149183974) : **success** sur `main`, commit `e0e56c05b4cdeae5db77d9cb358c85ccf8493faf`.
+
+PR #353 et PR #354 demeurent ouvertes et non fusionnées. Aucune fusion ni aucun déploiement n'a été effectué.
+
+### Actualisation comptable en lecture seule
+Une nouvelle lecture de la base active (PostgreSQL 17) corrige plusieurs constats devenus obsolètes dans l'audit du 7 novembre :
+- un exercice 2026 existe désormais, mais son statut est `open` ; il ne constitue donc pas un exercice clôturé validable ;
+- le grand livre consulté contient 83 écritures et 172 lignes ; les 83 écritures ressortent équilibrées dans la vue d'intégrité ;
+- la vue effective `pcg2005_journal_lines` ne laisse que deux lignes de factures fournisseurs au statut `a_mapper` ; deux autres lignes comparables ont une correspondance provisoire au compte 606, avec pièces justificatives toujours requises ;
+- les deux lignes non mappées ne disposent pas de code de compte de charge explicite, de pièce jointe ni de justificatif fiscal exploitable. Leur nature exacte ne permet pas de choisir sans preuve entre achats de prestations, fournitures non stockées ou sous-traitance. **Aucune correspondance n'est inventée** ;
+- aucun actif immobilisé n'est enregistré ;
+- le profil fiscal de l'entité reste incomplet/non confirmé ;
+- les vues de lacunes de règles de présentation du bilan actif et passif ne remontent pas de compte PCG sans règle, mais cela ne suffit pas à valider les états complets.
+
+Les deux verrous `operatingCashFlowReconciliationReady=false` et `pcgPresentationReady=false` restent fermés dans le code. L'exercice est ouvert, les justificatifs fournisseurs sont incomplets et le registre des immobilisations est vide : la certification comptable demeure donc bloquée. Aucune écriture, migration ou donnée de production n'a été modifiée pendant cette inspection.
+
+### Décision actualisée
+Les workflows listés ci-dessus sont verts sur leurs SHA exacts. Cela clôt le contrôle de la priorité 1 pour ces exécutions, mais **ne clôt pas la Phase 1**. Les critères comptables, les parcours métier complets, la matrice RBAC exhaustive, la recette paie/notifications et la validation professionnelle restent à satisfaire.
