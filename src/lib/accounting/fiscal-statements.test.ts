@@ -89,7 +89,11 @@ describe("classifyCashFlowCounterpart",()=>{
     expect(classifyCashFlowCounterpart("4051")).toBe("investing");
     expect(classifyCashFlowCounterpart("4621")).toBe("investing");
   });
-  it("does not misclassify inventory impairment accounts as operating",()=>{\n    expect(classifyCashFlowCounterpart("39")).toBeNull();\n    expect(classifyCashFlowCounterpart("391")).toBeNull();\n  });\n  it("does not misclassify inter-entity, suspense, accrual or impairment accounts as operating",()=>{
+  it("does not misclassify inventory impairment accounts as operating",()=>{
+    expect(classifyCashFlowCounterpart("39")).toBeNull();
+    expect(classifyCashFlowCounterpart("391")).toBeNull();
+  });
+  it("does not misclassify inter-entity, suspense, accrual or impairment accounts as operating",()=>{
     expect(classifyCashFlowCounterpart("451")).toBeNull();
     expect(classifyCashFlowCounterpart("471")).toBeNull();
     expect(classifyCashFlowCounterpart("486")).toBeNull();
