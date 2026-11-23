@@ -5,6 +5,8 @@ on:
     paths:
       - "supabase/**"
       - ".github/workflows/supabase-migration-replay.yml"
+      - ".github/workflows/backup-supabase-production.yml"
+      - "tests/integration/**"
       - "scripts/ci/**"
       - "scripts/qa/**"
       - "src/**"
@@ -348,6 +350,11 @@ jobs:
 
       - name: Verify isolation for two already-populated tenants
         run: node scripts/ci/existing-tenant-isolation-integration.mjs
+
+      - name: Smoke-test populated tenant upgrade preservation assertions
+        run: |
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f tests/integration/tenant-upgrade-preservation-capture.sql
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f tests/integration/tenant-upgrade-preservation-assert.sql
 
       - name: Verify MAGNIBOX browser workflows between authenticated collaborators
         run: node scripts/ci/magnibox-internal-ui-smoke.mjs
