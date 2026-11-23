@@ -68,7 +68,13 @@ export function isBalanceSheetReady(input: BalanceSheetReadinessInput): boolean 
 
 const n=(v:any)=>Number(v||0);
 const round=(v:number)=>Math.round((v+Number.EPSILON)*100)/100;
-const cashCodes=/^(?:51[1-8]|5[34])\\d*$/;\nconst transferCodes=/^58\\d*$/;\n\nfunction hasValidJournalLineAmounts(lines: CashFlowJournalLine[]): boolean {\n  return lines.every(line => Number.isFinite(line.debit) && Number.isFinite(line.credit)\n    && line.debit >= 0 && line.credit >= 0);\n}
+const cashCodes=/^(?:51[1-8]|5[34])\d*$/;
+const transferCodes=/^58\d*$/;
+
+function hasValidJournalLineAmounts(lines: CashFlowJournalLine[]): boolean {
+  return lines.every(line => Number.isFinite(line.debit) && Number.isFinite(line.credit)
+    && line.debit >= 0 && line.credit >= 0);
+}
 
 export function taxSocialObligationAccountCode(kind: "tax" | "social", code: string): string | null {
   const normalized = code.trim().toUpperCase();
