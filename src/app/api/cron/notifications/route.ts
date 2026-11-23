@@ -53,6 +53,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Prospect follow-up reminder engine failed" }, { status: 500 });
     }
 
+    const contractExpiryReminders = await supabase.rpc("run_recurring_contract_expiry_reminders", {
+      p_run_date: localRunDate,
+    });
+    if (contractExpiryReminders.error) {
+      console.error("recurring contract expiry reminder engine failed", contractExpiryReminders.error);
+      return NextResponse.json({ error: "Recurring contract expiry reminder engine failed" }, { status: 500 });
+    }
+
     // Reuse the existing daily free-tier cron (weekly TLD refresh).
     // Catalogue failure never interrupts accounting/notification processing.
     if(new Date().getUTCDay()===0){
@@ -72,7 +80,7 @@ export async function GET(request: Request) {
       }
       agendaReminders = agenda.data;
     }
-    return NextResponse.json({ ok: true, result: data, invoiceDueReminders: invoiceReminders.data, prospectFollowUpReminders: prospectFollowUps.data, agendaReminders });
+    return NextResponse.json({ ok: true, result: data, invoiceDueReminders: invoiceReminders.data, prospectFollowUpReminders: prospectFollowUps.data, contractExpiryReminders: contractExpiryReminders.data, agendaReminders });
   } catch (error) {
     console.error("notification cron error", error);
     return NextResponse.json({ error: "Notification engine failed" }, { status: 500 });
