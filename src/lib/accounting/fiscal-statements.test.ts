@@ -79,6 +79,21 @@ describe("classifyCashFlowCounterpart",()=>{
     expect(classifyCashFlowCounterpart("164")).toBe("financing");
     expect(classifyCashFlowCounterpart("516")).toBe("financing");
   });
+  it("keeps cash and internal-transfer accounts out of counterpart classification",()=>{
+    expect(classifyCashFlowCounterpart("512")).toBeNull();
+    expect(classifyCashFlowCounterpart("53")).toBeNull();
+    expect(classifyCashFlowCounterpart("581")).toBeNull();
+  });
+  it("preserves investing classifications for PCG subaccounts",()=>{
+    expect(classifyCashFlowCounterpart("4041")).toBe("investing");
+    expect(classifyCashFlowCounterpart("4051")).toBe("investing");
+    expect(classifyCashFlowCounterpart("4621")).toBe("investing");
+  });
+  it("does not classify unsupported account families by guessing",()=>{
+    expect(classifyCashFlowCounterpart("501")).toBeNull();
+    expect(classifyCashFlowCounterpart("80")).toBeNull();
+    expect(classifyCashFlowCounterpart("")).toBeNull();
+  });
 });
 
 
