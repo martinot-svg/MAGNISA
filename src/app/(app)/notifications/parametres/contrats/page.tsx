@@ -19,7 +19,7 @@ async function saveContractExpiryRule(fd: FormData) {
   const { error } = await ctx.supabase.from("notification_rules").upsert({
     organization_id: ctx.organizationId,
     rule_key: "recurring_contract_end",
-    category: "sales",
+    category: "service",
     enabled,
     reminder_offsets_days: offsets,
     channels: { in_app: true, email: false, push: false },
@@ -60,7 +60,7 @@ export default async function RecurringContractExpirySettingsPage() {
           <h2>Règle de fin de contrat</h2>
           <p>Configuration actuelle : <strong>{enabled ? "Activée" : "Désactivée"}</strong></p>
           <p>Décalages en jours : <strong>{displayOffsets}</strong></p>
-          <p className="muted">Un nombre positif déclenche un rappel avant la date de fin, zéro le jour même et un nombre négatif après la date de fin. Les notifications sont internes et respectent les préférences sales des membres. Le statut du contrat n’est pas modifié automatiquement.</p>
+          <p className="muted">Un nombre positif déclenche un rappel avant la date de fin, zéro le jour même et un nombre négatif après la date de fin. Les notifications sont internes et respectent les préférences service des membres. Le statut du contrat n’est pas modifié automatiquement.</p>
           <FormDialog title="Configurer les rappels de fin de contrat" buttonLabel="Modifier la règle">
             <form action={saveContractExpiryRule} className="form">
               <label className="checkRow"><input type="checkbox" name="enabled" defaultChecked={enabled}/> Activer les rappels automatiques</label>
