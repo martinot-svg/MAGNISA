@@ -107,7 +107,7 @@ export function isLoanRepaymentEffectiveAtDate(
 
 export function classifyCashFlowCounterpart(code:string):"operating"|"investing"|"financing"|null {
   const normalized = code.trim();
-  if (!/^\\d+$/.test(normalized)) return null;
+  if (!/^\d+$/.test(normalized)) return null;
   // Depreciation and impairment accounts (28/29) are non-cash adjustments,
   // not direct investing cash-flow counterparties.
   if(/^(28|29)/.test(normalized))return null;
