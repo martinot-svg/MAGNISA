@@ -68,7 +68,7 @@ export function isBalanceSheetReady(input: BalanceSheetReadinessInput): boolean 
 
 const n=(v:any)=>Number(v||0);
 const round=(v:number)=>Math.round((v+Number.EPSILON)*100)/100;
-const cashCodes=/^(511|512|513|514|515|517|518|53|54)/;
+const cashCodes=/^(?:51[1-8]|5[34])\\d*$/;\nconst transferCodes=/^58\\d*$/;\n\nfunction hasValidJournalLineAmounts(lines: CashFlowJournalLine[]): boolean {\n  return lines.every(line => Number.isFinite(line.debit) && Number.isFinite(line.credit)\n    && line.debit >= 0 && line.credit >= 0);\n}
 
 export function taxSocialObligationAccountCode(kind: "tax" | "social", code: string): string | null {
   const normalized = code.trim().toUpperCase();
@@ -132,7 +132,7 @@ export type CashFlowJournalLine = { pcg_code: string | null; debit: number; cred
  */
 export function isInternalCashTransferJournalEntry(lines: CashFlowJournalLine[]): boolean {
   const eligible = lines.filter(line => line.source_type !== "fiscal_year_opening");
-  if (eligible.length < 2 || eligible.some(line => !line.pcg_code)) return false;
+  if (eligible.length < 2 || eligible.some(line => !line.pcg_code) || !hasValidJournalLineAmounts(eligible)) return false;
   const codes = eligible.map(line => String(line.pcg_code));
   const hasCash = codes.some(code => cashCodes.test(code));
   const hasTransferAccount = codes.some(code => /^58/.test(code));
