@@ -19,9 +19,22 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
  const {id}=await params;const ctx=await requireOrganization();
  await requirePermission(ctx,"accounting.view");await requirePermission(ctx,"reports.export");
  const s=await loadFiscalStatements(ctx,id);
+ const profile=s.organization?.onboarding_profile&&typeof s.organization.onboarding_profile==="object"?s.organization.onboarding_profile:{};
+ const generatedAt=new Date().toISOString();
  const bilan=[
   row([str("BILAN • "+(s.organization?.trade_name||s.organization?.legal_name||s.organization?.name||"Entreprise"))]),
   row([str("Exercice"),str(s.year.label),str("Période"),str(s.year.period_start+" au "+s.year.period_end)]),
+  row([str("Adresse"),str(s.organization?.address||"Non renseignée")]),
+  row([str("Pays déclaré"),str(profile.country||"Non renseigné"),str("Localité déclarée"),str(profile.localityName||"Non renseignée")]),
+  row([str("Forme juridique déclarée"),str(profile.legalForm||"Non renseignée")]),
+  row([str("Activité principale déclarée"),str(profile.primaryActivity||"Non renseignée")]),
+  row([str("Secteur d’activité"),str(s.organization?.activity_sector||profile.sectorCode||"Non renseigné")]),
+  row([str("NIF"),str(s.organization?.tax_id||"Non renseigné"),str("STAT"),str(s.organization?.stat_id||"Non renseigné"),str("RCS"),str(s.organization?.registry_id||"Non renseigné")]),
+  row([str("Régime fiscal déclaré"),str(s.organization?.income_tax_regime||"À confirmer"),str("TVA déclarée"),str(s.organization?.vat_status||"À confirmer")]),
+  row([str("Profil fiscal confirmé"),str(s.organization?.fiscal_profile_confirmed?"Oui":"Non — à confirmer"),str("Source"),str(s.organization?.fiscal_profile_source||"Non renseignée")]),
+  row([str("Devise"),str(s.currency)]),
+  row([str("Généré le (UTC)"),str(generatedAt)]),
+  row([str("Statut de validation"),str(s.controls.ready?"Contrôles techniques prêts — revue professionnelle requise":"PROJET / NON VALIDÉ")]),
   row([str("ACTIF")]),
   row([str("Inventaire physique"),str(s.inventoryValuation.count_available?"Approuvé le "+s.inventoryValuation.count_date+" • "+s.inventoryValuation.valuation_method:"Absent / non approuvé")]),
   row([str("Écart inventaire brut / grand livre"),num(s.inventoryValuation.gross_ledger_gap)]),
@@ -80,7 +93,7 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
  row([str("Rapprochement trésorerie"),str(s.controls.cashReconciliationReady?"Validé":"À compléter")]),
  row([str("Inventaire physique à la clôture"),str(s.controls.inventoryCountReady?"Validé":"À compléter")]),row([str("Rapprochement flux opérationnel / résultat avant impôt"),str(s.controls.operatingCashFlowReconciliationReady?"Validé":"À construire")]),row([str("Présentation PCG complète"),str(s.controls.pcgPresentationReady?"Validée":"À compléter")]),
  row([str("Prêt à être arrêté"),str(s.controls.ready?"Oui":"Non")]),
- row([str("Statut"),str(s.controls.ready?"États financiers arrêtés":"PROJET / NON VALIDÉ")])];
+ row([str("Statut"),str(s.controls.ready?"Contrôles techniques prêts — revue professionnelle requise":"PROJET / NON VALIDÉ")])];
  const workbook=buildXlsxWorkbook([
   sheet("Bilan",bilan),
   sheet("Compte résultat",result),
