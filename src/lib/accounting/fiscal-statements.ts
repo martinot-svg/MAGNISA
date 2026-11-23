@@ -68,7 +68,13 @@ export function isBalanceSheetReady(input: BalanceSheetReadinessInput): boolean 
 
 const n=(v:any)=>Number(v||0);
 const round=(v:number)=>Math.round((v+Number.EPSILON)*100)/100;
-const cashCodes=/^(511|512|513|514|515|517|518|53|54|58)/;
+const cashCodes=/^(?:51[1-8]|5[34])\d*$/;
+const transferCodes=/^58\d*$/;
+
+function hasValidJournalLineAmounts(lines: CashFlowJournalLine[]): boolean {
+  return lines.every(line => Number.isFinite(line.debit) && Number.isFinite(line.credit)
+    && line.debit >= 0 && line.credit >= 0);
+}
 
 export function taxSocialObligationAccountCode(kind: "tax" | "social", code: string): string | null {
   const normalized = code.trim().toUpperCase();
@@ -106,10 +112,61 @@ export function isLoanRepaymentEffectiveAtDate(
 }
 
 export function classifyCashFlowCounterpart(code:string):"operating"|"investing"|"financing"|null {
-  if(/^(2|404|405|462)/.test(code))return "investing";
-  if(/^(10|11|12|13|14|15|16|17|516)/.test(code))return "financing";
-  if(/^(3|4|6|7)/.test(code))return "operating";
+  const normalized = code.trim();
+  if (!/^\d+$/.test(normalized)) return null;
+  // Depreciation and impairment accounts (28/29) are non-cash adjustments,
+  // not direct investing cash-flow counterparties.
+  if(/^(28|29)/.test(normalized))return null;
+  // Acquisition/disposal accounts and their dedicated settlement accounts
+  // are investing flows.
+  if(/^(2[0-7]|404|405|462)/.test(normalized))return "investing";
+  // Equity, provisions and financial debt (including current maturities) are financing.
+  if(/^(10|11|12|13|14|15|16|17|516)/.test(normalized))return "financing";
+  // Only the ordinary third-party families are safely classifiable as operating.
+  // Inter-entity, miscellaneous, suspense, accrual and impairment accounts need
+  // their own documented nature and must not be guessed from the first digit.
+  if(/^(3[0-8]|40|41|42|43|44|6|7)/.test(normalized))return "operating";
   return null;
+}
+
+export type CashFlowJournalLine = { pcg_code: string | null; debit: number; credit: number; source_type?: string | null };
+
+/**
+ * Internal transfers between cash accounts (including PCG 58 clearing lines)
+ * change the composition of cash, not total cash. They must not be reported as
+ * operating, investing or financing flows, nor counted as unclassified flows.
+ */
+export function isInternalCashTransferJournalEntry(lines: CashFlowJournalLine[]): boolean {
+  const eligible = lines.filter(line => line.source_type !== "fiscal_year_opening");
+  if (eligible.length < 2 || eligible.some(line => !line.pcg_code) || !hasValidJournalLineAmounts(eligible)) return false;
+  const codes = eligible.map(line => String(line.pcg_code));
+  const hasCash = codes.some(code => cashCodes.test(code));
+  const hasTransferAccount = codes.some(code => transferCodes.test(code));
+  const onlyCashAndTransfer = codes.every(code => cashCodes.test(code) || transferCodes.test(code));
+  const cashAccountCount = codes.filter(code => cashCodes.test(code)).length;
+  const balanced = Math.abs(round(eligible.reduce((sum, line) => sum + n(line.debit) - n(line.credit), 0))) < 0.01;
+  return hasCash && onlyCashAndTransfer && balanced
+    && (cashAccountCount >= 2 || (cashAccountCount === 1 && hasTransferAccount));
+}
+
+/**
+ * Classifies a cash journal entry only when its single cash line is fully
+ * supported by one unambiguous counterpart category and the entry balances.
+ * Multiple counterpart lines are allowed when they share the same category.
+ */
+export function classifyCashFlowJournalEntry(lines: CashFlowJournalLine[]): { bucket: "operating" | "investing" | "financing"; cashAmount: number } | null {
+  const eligible = lines.filter(line => line.source_type !== "fiscal_year_opening");
+  if (eligible.length === 0 || !hasValidJournalLineAmounts(eligible)) return null;
+  const cash = eligible.filter(line => !!line.pcg_code && cashCodes.test(line.pcg_code));
+  if (cash.length !== 1) return null;
+  const counterparts = eligible.filter(line => !line.pcg_code || !cashCodes.test(line.pcg_code));
+  if (counterparts.length === 0) return null;
+  const buckets = counterparts.map(line => classifyCashFlowCounterpart(String(line.pcg_code ?? "")));
+  if (buckets.some(bucket => bucket === null) || new Set(buckets).size !== 1) return null;
+  const cashAmount = round(n(cash[0].debit) - n(cash[0].credit));
+  const counterpartNet = round(counterparts.reduce((sum, line) => sum + n(line.debit) - n(line.credit), 0));
+  if (Math.abs(cashAmount + counterpartNet) >= 0.01) return null;
+  return { bucket: buckets[0] as "operating" | "investing" | "financing", cashAmount };
 }
 
 export async function loadFiscalStatements(ctx:any, yearId:string):Promise<FiscalStatements>{
@@ -841,18 +898,12 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     }
   }
   for(const entryLines of byEntry.values()){
-    const cashLines=entryLines.filter(l=>l.pcg_code&&cashCodes.test(l.pcg_code));
-    if(!cashLines.length||cashLines.every(l=>l.source_type==="fiscal_year_opening"))continue;
-    const counterparts=entryLines.filter(l=>l.pcg_code&&!cashCodes.test(l.pcg_code||"")&&l.source_type!=="fiscal_year_opening");
-    if(cashLines.length!==1||counterparts.length!==1){
-      unclassifiedCashFlowEntries++;
-      continue;
-    }
-    const bucket=classifyCashFlowCounterpart(String(counterparts[0].pcg_code));
-    if(!bucket){unclassifiedCashFlowEntries++;continue;}
-    const amount=n(cashLines[0].debit)-n(cashLines[0].credit);
-    if(amount>=0)flows[bucket].receipts+=amount;
-    else flows[bucket].payments+=Math.abs(amount);
+    if(entryLines.every((line:any)=>line.source_type==="fiscal_year_opening"))continue;
+    if(isInternalCashTransferJournalEntry(entryLines))continue;
+    const classified=classifyCashFlowJournalEntry(entryLines);
+    if(!classified){unclassifiedCashFlowEntries++;continue;}
+    if(classified.cashAmount>=0)flows[classified.bucket].receipts+=classified.cashAmount;
+    else flows[classified.bucket].payments+=Math.abs(classified.cashAmount);
   }
   const netOperating=round(flows.operating.receipts-flows.operating.payments);
   const netInvesting=round(flows.investing.receipts-flows.investing.payments);

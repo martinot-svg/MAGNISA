@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyCashFlowCounterpart, isBalanceSheetReady, isFiscalStatementReady, isInventoryCountReady, isLoanRepaymentEffectiveAtDate, isObligationBalanceReconstructable, taxSocialObligationAccountCode, type FiscalStatementReadinessInput } from "./fiscal-statements";
+import { classifyCashFlowJournalEntry, classifyCashFlowCounterpart, isInternalCashTransferJournalEntry, isBalanceSheetReady, isFiscalStatementReady, isInventoryCountReady, isLoanRepaymentEffectiveAtDate, isObligationBalanceReconstructable, taxSocialObligationAccountCode, type FiscalStatementReadinessInput } from "./fiscal-statements";
 
 const valid: FiscalStatementReadinessInput = {
   isClosed:true,
@@ -79,8 +79,131 @@ describe("classifyCashFlowCounterpart",()=>{
     expect(classifyCashFlowCounterpart("164")).toBe("financing");
     expect(classifyCashFlowCounterpart("516")).toBe("financing");
   });
+  it("keeps cash and internal-transfer accounts out of counterpart classification",()=>{
+    expect(classifyCashFlowCounterpart("512")).toBeNull();
+    expect(classifyCashFlowCounterpart("53")).toBeNull();
+    expect(classifyCashFlowCounterpart("581")).toBeNull();
+  });
+  it("preserves investing classifications for PCG subaccounts",()=>{
+    expect(classifyCashFlowCounterpart("4041")).toBe("investing");
+    expect(classifyCashFlowCounterpart("4051")).toBe("investing");
+    expect(classifyCashFlowCounterpart("4621")).toBe("investing");
+  });
+  it("does not treat depreciation and fixed-asset impairment accounts as investing cash flows",()=>{
+    expect(classifyCashFlowCounterpart("28")).toBeNull();
+    expect(classifyCashFlowCounterpart("281")).toBeNull();
+    expect(classifyCashFlowCounterpart("29")).toBeNull();
+    expect(classifyCashFlowCounterpart("291")).toBeNull();
+  });
+  it("does not misclassify inventory impairment accounts as operating",()=>{
+    expect(classifyCashFlowCounterpart("39")).toBeNull();
+    expect(classifyCashFlowCounterpart("391")).toBeNull();
+  });
+  it("does not misclassify inter-entity, suspense, accrual or impairment accounts as operating",()=>{
+    expect(classifyCashFlowCounterpart("451")).toBeNull();
+    expect(classifyCashFlowCounterpart("471")).toBeNull();
+    expect(classifyCashFlowCounterpart("486")).toBeNull();
+    expect(classifyCashFlowCounterpart("491")).toBeNull();
+  });
+  it("keeps ordinary third-party control accounts operating",()=>{
+    expect(classifyCashFlowCounterpart("401")).toBe("operating");
+    expect(classifyCashFlowCounterpart("411")).toBe("operating");
+    expect(classifyCashFlowCounterpart("431")).toBe("operating");
+    expect(classifyCashFlowCounterpart("445")).toBe("operating");
+  });
+  it("rejects malformed cash account codes instead of accepting a numeric prefix",()=>{
+    expect(classifyCashFlowCounterpart("512ABC")).toBeNull();
+    expect(classifyCashFlowCounterpart("512.1")).toBeNull();
+  });
+  it("does not classify unsupported account families by guessing",()=>{
+    expect(classifyCashFlowCounterpart("501")).toBeNull();
+    expect(classifyCashFlowCounterpart("80")).toBeNull();
+    expect(classifyCashFlowCounterpart("")).toBeNull();
+    expect(classifyCashFlowCounterpart("401abc")).toBeNull();
+    expect(classifyCashFlowCounterpart(" 401 ")).toBe("operating");
+  });
 });
 
+
+describe("isInternalCashTransferJournalEntry", () => {
+  it("excludes bank-to-cash transfers from cash-flow activity totals", () => {
+    expect(isInternalCashTransferJournalEntry([
+      {pcg_code:"512",debit:0,credit:250},
+      {pcg_code:"53",debit:250,credit:0},
+    ])).toBe(true);
+  });
+  it("excludes transfers routed through PCG 58 clearing accounts", () => {
+    expect(isInternalCashTransferJournalEntry([
+      {pcg_code:"512",debit:0,credit:250},
+      {pcg_code:"581",debit:250,credit:0},
+    ])).toBe(true);
+  });
+  it("does not hide genuine operating flows that also contain a PCG 58 line", () => {
+    expect(isInternalCashTransferJournalEntry([
+      {pcg_code:"512",debit:0,credit:250},
+      {pcg_code:"581",debit:200,credit:0},
+      {pcg_code:"401",debit:50,credit:0},
+    ])).toBe(false);
+  });
+  it("rejects malformed transfer account codes", () => {
+    expect(isInternalCashTransferJournalEntry([
+      {pcg_code:"512",debit:0,credit:250},
+      {pcg_code:"58ABC",debit:250,credit:0},
+    ])).toBe(false);
+  });
+  it("rejects negative or non-finite line amounts", () => {
+    expect(isInternalCashTransferJournalEntry([
+      {pcg_code:"512",debit:0,credit:250},
+      {pcg_code:"53",debit:Number.NaN,credit:0},
+    ])).toBe(false);
+  });
+  it("rejects unbalanced cash-transfer entries", () => {
+    expect(isInternalCashTransferJournalEntry([
+      {pcg_code:"512",debit:0,credit:250},
+      {pcg_code:"53",debit:249,credit:0},
+    ])).toBe(false);
+  });
+});
+
+describe("classifyCashFlowJournalEntry", () => {
+  it("accepts several counterpart lines in the same category when the entry balances", () => {
+    expect(classifyCashFlowJournalEntry([
+      {pcg_code:"512",debit:0,credit:100},
+      {pcg_code:"401",debit:60,credit:0},
+      {pcg_code:"445",debit:40,credit:0},
+    ])).toEqual({bucket:"operating",cashAmount:-100});
+  });
+  it("rejects mixed categories, unmapped counterparts and unbalanced entries", () => {
+    expect(classifyCashFlowJournalEntry([
+      {pcg_code:"512",debit:100,credit:0},
+      {pcg_code:"401",debit:0,credit:70},
+      {pcg_code:"404",debit:0,credit:30},
+    ])).toBeNull();
+    expect(classifyCashFlowJournalEntry([
+      {pcg_code:"512",debit:100,credit:0},
+      {pcg_code:null,debit:0,credit:100},
+    ])).toBeNull();
+    expect(classifyCashFlowJournalEntry([
+      {pcg_code:"512",debit:100,credit:0},
+      {pcg_code:"401",debit:0,credit:99},
+    ])).toBeNull();
+  });
+  it("rejects non-finite and negative amounts instead of producing a NaN flow", () => {
+    expect(classifyCashFlowJournalEntry([
+      {pcg_code:"512",debit:Number.NaN,credit:0},
+      {pcg_code:"401",debit:0,credit:100},
+    ])).toBeNull();
+    expect(classifyCashFlowJournalEntry([
+      {pcg_code:"512",debit:100,credit:0},
+      {pcg_code:"401",debit:-100,credit:0},
+    ])).toBeNull();
+  });
+  it("ignores fiscal-year opening entries", () => {
+    expect(classifyCashFlowJournalEntry([
+      {pcg_code:"512",debit:100,credit:0,source_type:"fiscal_year_opening"},
+    ])).toBeNull();
+  });
+});
 
 describe("isLoanRepaymentEffectiveAtDate", () => {
   it("includes posted principal repayments made by fiscal close", () => {
