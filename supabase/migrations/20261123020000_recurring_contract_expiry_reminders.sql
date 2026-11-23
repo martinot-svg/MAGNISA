@@ -45,7 +45,8 @@ begin
         continue;
       end if;
 
-      v_event_key := 'recurring-contract-end:' || v_contract.id::text || ':' || v_offset::text;
+      v_event_key := 'recurring-contract-end:' || v_contract.id::text || ':' ||
+        to_char(v_contract.end_date,'YYYYMMDD') || ':' || v_offset::text;
       v_event_id := null;
 
       insert into public.notification_events(
