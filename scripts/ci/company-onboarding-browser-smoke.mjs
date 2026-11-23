@@ -74,6 +74,30 @@ try{
   const {data:settings,error:settingsError}=await admin.from("company_settings")
     .select("onboarding_profile,income_tax_regime,vat_status,logo_storage_path,logo_inverse_storage_path,document_theme").eq("organization_id",created.id).single();
   if(settingsError||!settings)throw settingsError??new Error("Company settings missing");
+  // A newly provisioned tenant must receive its own owner membership and
+  // complete document-number sequences from the shared SaaS provisioning path.
+  const {data:ownerMembership,error:membershipError}=await admin.from("organization_members")
+    .select("role,status").eq("organization_id",created.id)
+    .eq("user_id",createdUser.user.id).single();
+  if(membershipError||!ownerMembership)throw membershipError??new Error("New organization owner membership missing");
+  if(ownerMembership.role!=="owner"||ownerMembership.status!=="active")
+    throw new Error("New organization owner membership is not active");
+
+  const {data:sequences,error:sequenceError}=await admin.from("number_sequences")
+    .select("document_type,prefix,next_value,padding").eq("organization_id",created.id);
+  if(sequenceError)throw sequenceError;
+  const expectedSequences={
+    quote:"DEV-",order:"CMD-",invoice:"FAC-",
+    credit_note:"AV-",payment:"PAY-",expense:"DEP-",
+  };
+  const sequenceByType=new Map((sequences||[]).map(row=>[row.document_type,row]));
+  const missingSequences=Object.entries(expectedSequences).filter(([type,prefix])=>{
+    const row=sequenceByType.get(type);
+    return !row||row.prefix!==prefix||row.next_value!==1||row.padding!==5;
+  }).map(([type])=>type);
+  if(missingSequences.length)
+    throw new Error("New organization provisioning defaults missing or incorrect: "+missingSequences.join(", "));
+
   const fields={
     tax:settings.income_tax_regime==="IS",
     region:settings.onboarding_profile?.regionCode==="908",
