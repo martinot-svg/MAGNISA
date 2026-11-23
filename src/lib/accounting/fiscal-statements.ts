@@ -117,6 +117,27 @@ export function classifyCashFlowCounterpart(code:string):"operating"|"investing"
   return null;
 }
 
+export type CashFlowJournalLine = { pcg_code: string | null; debit: number; credit: number; source_type?: string | null };
+
+/**
+ * Classifies a cash journal entry only when its single cash line is fully
+ * supported by one unambiguous counterpart category and the entry balances.
+ * Multiple counterpart lines are allowed when they share the same category.
+ */
+export function classifyCashFlowJournalEntry(lines: CashFlowJournalLine[]): { bucket: "operating" | "investing" | "financing"; cashAmount: number } | null {
+  const eligible = lines.filter(line => line.source_type !== "fiscal_year_opening");
+  const cash = eligible.filter(line => !!line.pcg_code && cashCodes.test(line.pcg_code));
+  if (cash.length !== 1) return null;
+  const counterparts = eligible.filter(line => !line.pcg_code || !cashCodes.test(line.pcg_code));
+  if (counterparts.length === 0) return null;
+  const buckets = counterparts.map(line => classifyCashFlowCounterpart(String(line.pcg_code ?? "")));
+  if (buckets.some(bucket => bucket === null) || new Set(buckets).size !== 1) return null;
+  const cashAmount = round(n(cash[0].debit) - n(cash[0].credit));
+  const counterpartNet = round(counterparts.reduce((sum, line) => sum + n(line.debit) - n(line.credit), 0));
+  if (Math.abs(cashAmount + counterpartNet) >= 0.01) return null;
+  return { bucket: buckets[0] as "operating" | "investing" | "financing", cashAmount };
+}
+
 export async function loadFiscalStatements(ctx:any, yearId:string):Promise<FiscalStatements>{
   await requirePermission(ctx,"accounting.view");
   const {supabase,organizationId}=ctx;
@@ -846,18 +867,11 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
     }
   }
   for(const entryLines of byEntry.values()){
-    const cashLines=entryLines.filter(l=>l.pcg_code&&cashCodes.test(l.pcg_code));
-    if(!cashLines.length||cashLines.every(l=>l.source_type==="fiscal_year_opening"))continue;
-    const counterparts=entryLines.filter(l=>l.pcg_code&&!cashCodes.test(l.pcg_code||"")&&l.source_type!=="fiscal_year_opening");
-    if(cashLines.length!==1||counterparts.length!==1){
-      unclassifiedCashFlowEntries++;
-      continue;
-    }
-    const bucket=classifyCashFlowCounterpart(String(counterparts[0].pcg_code));
-    if(!bucket){unclassifiedCashFlowEntries++;continue;}
-    const amount=n(cashLines[0].debit)-n(cashLines[0].credit);
-    if(amount>=0)flows[bucket].receipts+=amount;
-    else flows[bucket].payments+=Math.abs(amount);
+    if(entryLines.every((line:any)=>line.source_type==="fiscal_year_opening"))continue;
+    const classified=classifyCashFlowJournalEntry(entryLines);
+    if(!classified){unclassifiedCashFlowEntries++;continue;}
+    if(classified.cashAmount>=0)flows[classified.bucket].receipts+=classified.cashAmount;
+    else flows[classified.bucket].payments+=Math.abs(classified.cashAmount);
   }
   const netOperating=round(flows.operating.receipts-flows.operating.payments);
   const netInvesting=round(flows.investing.receipts-flows.investing.payments);
