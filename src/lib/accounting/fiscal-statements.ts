@@ -106,8 +106,12 @@ export function isLoanRepaymentEffectiveAtDate(
 }
 
 export function classifyCashFlowCounterpart(code:string):"operating"|"investing"|"financing"|null {
-  // Fixed assets and their dedicated settlement accounts are investing flows.
-  if(/^(2|404|405|462)/.test(code))return "investing";
+  // Depreciation and impairment accounts (28/29) are non-cash adjustments,
+  // not direct investing cash-flow counterparties.
+  if(/^(28|29)/.test(code))return null;
+  // Acquisition/disposal accounts and their dedicated settlement accounts
+  // are investing flows.
+  if(/^(2[0-7]|404|405|462)/.test(code))return "investing";
   // Equity, provisions and financial debt (including current maturities) are financing.
   if(/^(10|11|12|13|14|15|16|17|516)/.test(code))return "financing";
   // Only the ordinary third-party families are safely classifiable as operating.
