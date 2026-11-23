@@ -87,10 +87,9 @@ try {
 
   console.log("PASS TENANT ISOLATION: populated tenants, scoped reads, rejected cross-tenant insert/update/delete, preserved tenant B row, allowed own-tenant insert");
 } finally {
-  for (const orgId of organizations) {
-    const { error } = await admin.from("organizations").delete().eq("id", orgId);
-    if (error) console.error("Fixture organization cleanup failed:", error.message);
-  }
+  // The local replay database is disposable. Keep the QA organization records:
+  // immutable audit-log references make deleting these fixtures invalid.
+  // Remove their temporary Auth users; no production project is touched.
   for (const userId of users) {
     const { error } = await admin.auth.admin.deleteUser(userId);
     if (error) console.error("Fixture auth cleanup failed:", error.message);
