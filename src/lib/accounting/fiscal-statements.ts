@@ -886,7 +886,8 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   }
   for(const entryLines of byEntry.values()){
     if(entryLines.every((line:any)=>line.source_type==="fiscal_year_opening"))continue;
-    if(isInternalCashTransferJournalEntry(entryLines))continue;\n    const classified=classifyCashFlowJournalEntry(entryLines);
+    if(isInternalCashTransferJournalEntry(entryLines))continue;
+    const classified=classifyCashFlowJournalEntry(entryLines);
     if(!classified){unclassifiedCashFlowEntries++;continue;}
     if(classified.cashAmount>=0)flows[classified.bucket].receipts+=classified.cashAmount;
     else flows[classified.bucket].payments+=Math.abs(classified.cashAmount);
