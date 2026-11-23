@@ -89,6 +89,12 @@ describe("classifyCashFlowCounterpart",()=>{
     expect(classifyCashFlowCounterpart("4051")).toBe("investing");
     expect(classifyCashFlowCounterpart("4621")).toBe("investing");
   });
+  it("does not treat depreciation and fixed-asset impairment accounts as investing cash flows",()=>{
+    expect(classifyCashFlowCounterpart("28")).toBeNull();
+    expect(classifyCashFlowCounterpart("281")).toBeNull();
+    expect(classifyCashFlowCounterpart("29")).toBeNull();
+    expect(classifyCashFlowCounterpart("291")).toBeNull();
+  });
   it("does not misclassify inventory impairment accounts as operating",()=>{
     expect(classifyCashFlowCounterpart("39")).toBeNull();
     expect(classifyCashFlowCounterpart("391")).toBeNull();
