@@ -32,12 +32,19 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
  await requirePermission(ctx,"accounting.view");
  await requirePermission(ctx,"reports.export");
  const s=await loadFiscalStatements(ctx,id);
+ const profile=s.organization?.onboarding_profile&&typeof s.organization.onboarding_profile==="object"?s.organization.onboarding_profile:{};
+ const generatedAt=new Date().toISOString();
  const title=s.organization?.trade_name||s.organization?.legal_name||s.organization?.name||"Entreprise";
  const doc=<Document>
   <Page size="A4" style={styles.page} wrap>
    <Text style={styles.title}>{title}</Text>
    <Text style={styles.subtitle}>États financiers annuels • PCG 2005 Madagascar • {s.year.label} • {formatDateDisplay(s.year.period_start)} au {formatDateDisplay(s.year.period_end)} • Comparatif : {s.priorYearLabel||"Non disponible"}</Text>
-   <Text style={styles.warning}>{s.controls.ready?"ÉTATS FINANCIERS ARRÊTÉS":"PROJET / NON VALIDÉ — "+(s.controls.isClosed?"Contrôles incomplets":"Exercice non clôturé")}</Text>
+   <Text style={styles.note}>Adresse : {s.organization?.address||"Non renseignée"} • Pays déclaré : {profile.country||"Non renseigné"} • Localité : {profile.localityName||"Non renseignée"}</Text>
+   <Text style={styles.note}>Forme juridique déclarée : {profile.legalForm||"Non renseignée"} • Activité principale : {profile.primaryActivity||"Non renseignée"} • Secteur : {s.organization?.activity_sector||profile.sectorCode||"Non renseigné"}</Text>
+   <Text style={styles.note}>NIF : {s.organization?.tax_id||"Non renseigné"} • STAT : {s.organization?.stat_id||"Non renseigné"} • RCS : {s.organization?.registry_id||"Non renseigné"}</Text>
+   <Text style={styles.note}>Régime fiscal déclaré : {s.organization?.income_tax_regime||"À confirmer"} • TVA : {s.organization?.vat_status||"À confirmer"} • Profil fiscal confirmé : {s.organization?.fiscal_profile_confirmed?"Oui":"Non — à confirmer"} • Source : {s.organization?.fiscal_profile_source||"Non renseignée"}</Text>
+   <Text style={styles.note}>Devise : {s.currency} • Généré le (UTC) : {generatedAt}</Text>
+   <Text style={styles.warning}>{s.controls.ready?"CONTRÔLES TECHNIQUES PRÊTS — REVUE PROFESSIONNELLE REQUISE":"PROJET / NON VALIDÉ — "+(s.controls.isClosed?"Contrôles incomplets":"Exercice non clôturé")}</Text>
    <Text style={styles.section}>1. BILAN</Text>
    <Text>Actif : {money(s.totals.assets,s.currency)} • Passifs : {money(s.totals.liabilities,s.currency)} • Capitaux propres : {money(s.totals.equity,s.currency)}</Text>
    <Table title="Actifs • détail du grand livre" rows={s.assets} currency={s.currency}/>
