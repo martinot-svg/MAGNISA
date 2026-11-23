@@ -115,6 +115,8 @@ describe("classifyCashFlowCounterpart",()=>{
     expect(classifyCashFlowCounterpart("501")).toBeNull();
     expect(classifyCashFlowCounterpart("80")).toBeNull();
     expect(classifyCashFlowCounterpart("")).toBeNull();
+    expect(classifyCashFlowCounterpart("401abc")).toBeNull();
+    expect(classifyCashFlowCounterpart(" 401 ")).toBe("operating");
   });
 });
 
