@@ -1,8 +1,8 @@
 # MAGNISA — Recette de clôture Phase 1
 Date du relevé : 23 novembre 2026
 Dépôt : `martinot-svg/MAGNISA`
-Branche de référence contrôlée : `main` après fusion des PR #347, #348, #350 et #351 (voir les commits de fusion ci-dessous).
-Branche de travail du présent dossier : `qa/phase1-acceptance-recipe`
+Branche de référence contrôlée : `main` à `e0e56c05b4cdeae5db77d9cb358c85ccf8493faf`, après fusion des PR #347, #348, #350, #351 et #352.
+Branche de travail du présent dossier : `qa/phase1-evidence-refresh-final-20261123`
 
 ## 1. Statut du procès-verbal
 
@@ -90,7 +90,7 @@ Preuve disponible : tests d'authentification du canal realtime et fondations du 
 2. **Données comptables de production : bloquant pour une recette annuelle réelle.** L'audit cité constatait l'absence d'exercice et de période enregistrés, quatre lignes PCG à mapper, et aucun registre d'immobilisations renseigné à la date de l'audit. Ces constats doivent être actualisés en lecture seule avant toute conclusion.
 3. **Rôles Auth réels : bloquant.** Aucune exécution E2E multi-comptes/multi-organisations n'a été démontrée dans les workflows examinés.
 4. **Scénarios transversaux : bloquant.** Les PR fonctionnelles et les tests unitaires/SQL ne remplacent pas la preuve des parcours complets des huit modules.
-5. **Responsive : bloquant à la certification.** Le script Playwright multi-module existe, mais son exécution réussie n'est pas démontrée dans le run CI contrôlé.
+5. **Responsive : preuve automatisée obtenue, recette fonctionnelle complète encore requise.** Le replay #45146802811 sur `main` a réussi les tests à 13 tailles et l'audit responsive des modules accessibles à trois classes d'écran ; cela ne certifie pas chaque action et chaque rôle.
 6. **Exports et notifications : validation partielle.** Tests de composants et inspection de PDF existent, mais la recette métier avec données et rôles dédiés reste à produire.
 7. **Validation professionnelle : bloquant.** La présentation PCG et les états financiers doivent être revus par une personne compétente au regard du référentiel et de la réglementation applicables à l'entité.
 
@@ -139,3 +139,14 @@ Nouvelles exécutions observées sur la tête corrigée de la PR #348 (`4907b4c5
 La correction de l'export Excel est intégrée par PR #351 et le classeur est généré au format XLSX natif. La validation du contenu métier, des données d'identification et des permissions d'export reste à effectuer.
 
 La fusion des PR ne clôture pas la Phase 1 : les scénarios transversaux complets, les états financiers PCG, les rapprochements, la recette exhaustive des rôles, la paie et la validation professionnelle restent des critères distincts.
+
+
+## 9. Actualisation du 23 novembre 2026 — exécutions récentes
+
+- PR #352 est fusionnée dans `main` : merge commit `e0e56c05b4cdeae5db77d9cb358c85ccf8493faf`.
+- [MAGNISA CI #45148301656](https://github.com/martinot-svg/MAGNISA/actions/runs/45148301656) : succès sur la PR #352.
+- [Supabase replay #45146802811](https://github.com/martinot-svg/MAGNISA/actions/runs/45146802811) : succès sur `main` à `f3a6926fd407dc4cb954a76e24d09fdb5d4873d3`, incluant le rejeu des migrations, les scénarios Auth locaux ciblés et l'audit responsive des modules accessibles.
+- PR #353 reste ouverte et non fusionnée. [MAGNISA CI #45148647430](https://github.com/martinot-svg/MAGNISA/actions/runs/45148647430) : deux jobs réussis sur son commit `752ce5c6a803dbc3ee99acb469c5a4b286a3f925`.
+- [Supabase replay #45148647452](https://github.com/martinot-svg/MAGNISA/actions/runs/45148647452) : encore en cours au dernier relevé, 71 étapes réussies sur 80 et audit responsive final module par module en cours. Aucun succès final n'est revendiqué pour ce run.
+
+La recette des exports métier avec jeu de données de référence et permissions par rôle reste à exécuter. La réussite du build et des tests automatisés de PR #353 n'est pas une preuve d'exactitude comptable des PDF/XLSX.
