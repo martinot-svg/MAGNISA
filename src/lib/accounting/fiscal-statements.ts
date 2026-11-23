@@ -141,8 +141,8 @@ export function isInternalCashTransferJournalEntry(lines: CashFlowJournalLine[])
   if (eligible.length < 2 || eligible.some(line => !line.pcg_code) || !hasValidJournalLineAmounts(eligible)) return false;
   const codes = eligible.map(line => String(line.pcg_code));
   const hasCash = codes.some(code => cashCodes.test(code));
-  const hasTransferAccount = codes.some(code => /^58/.test(code));
-  const onlyCashAndTransfer = codes.every(code => cashCodes.test(code) || /^58/.test(code));
+  const hasTransferAccount = codes.some(code => transferCodes.test(code));
+  const onlyCashAndTransfer = codes.every(code => cashCodes.test(code) || transferCodes.test(code));
   const cashAccountCount = codes.filter(code => cashCodes.test(code)).length;
   const balanced = Math.abs(round(eligible.reduce((sum, line) => sum + n(line.debit) - n(line.credit), 0))) < 0.01;
   return hasCash && onlyCashAndTransfer && balanced
@@ -156,6 +156,7 @@ export function isInternalCashTransferJournalEntry(lines: CashFlowJournalLine[])
  */
 export function classifyCashFlowJournalEntry(lines: CashFlowJournalLine[]): { bucket: "operating" | "investing" | "financing"; cashAmount: number } | null {
   const eligible = lines.filter(line => line.source_type !== "fiscal_year_opening");
+  if (eligible.length === 0 || !hasValidJournalLineAmounts(eligible)) return null;
   const cash = eligible.filter(line => !!line.pcg_code && cashCodes.test(line.pcg_code));
   if (cash.length !== 1) return null;
   const counterparts = eligible.filter(line => !line.pcg_code || !cashCodes.test(line.pcg_code));
