@@ -78,7 +78,7 @@ begin
         where om.organization_id = v_contract.organization_id
           and om.status = 'active'
           and coalesce(np.in_app_enabled, true)
-          and not coalesce(np.category_preferences, '{}'::jsonb) @> jsonb_build_object('sales', false)
+          and not coalesce(np.category_preferences, '{}'::jsonb) @> jsonb_build_object('service', false)
       loop
         insert into public.notifications(
           organization_id, recipient_user_id, category, priority, title, body,
@@ -86,8 +86,8 @@ begin
         ) values (
           v_contract.organization_id,
           v_member.user_id,
-          'sales',
-          case when v_offset <= 0 then 'attention' else 'normal' end,
+          'service',
+          case when v_offset <= 0 then 'attention' else 'info' end,
           case
             when v_offset = 0 then 'Contrat récurrent arrivant à échéance'
             when v_offset < 0 then 'Contrat récurrent arrivé à échéance'
