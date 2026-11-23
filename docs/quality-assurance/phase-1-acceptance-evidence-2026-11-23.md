@@ -244,3 +244,18 @@ La revue de PR #355 est de type `COMMENTED`, pas `APPROVED`. Elle ne vaut ni app
 Les correctifs exports #353 et #355 sont intégrés ; le dossier de recette #354 est intégré ; les exécutions automatisées citées sont vertes. La Phase 1 reste **NON CLÔTURÉE** tant que les validations métier transversales, la matrice RBAC exhaustive, les rapprochements et états financiers PCG, la recette complète des exports/notifications, la certification paie requise et le PV signé ne sont pas établis.
 
 Aucune donnée réelle, écriture comptable, migration de production ou readiness flag n'a été modifié pour cet addendum.
+
+
+## 12. Contrôle de provisionnement des nouveaux tenants — ajouté, CI en attente
+
+Le test navigateur `scripts/ci/company-onboarding-browser-smoke.mjs` a été renforcé sur cette branche. Après création d'une organisation de test isolée, il vérifie désormais :
+- que l'utilisateur créateur possède une adhésion active au rôle `owner` ;
+- que les six séquences de documents propres au tenant existent (`quote`, `order`, `invoice`, `credit_note`, `payment`, `expense`) ;
+- que les préfixes, la prochaine valeur initiale et le padding correspondent à la configuration de provisionnement attendue.
+
+Ce test est ajouté au parcours d'onboarding déjà exécuté dans le workflow de replay Supabase. Son résultat doit être considéré **EN ATTENTE** jusqu'à la conclusion verte du workflow déclenché par cette branche.
+
+### Limite importante — comptes existants
+Le modèle actuel utilise une application et un schéma Supabase partagés, avec cloisonnement des données par `organization_id`. Le replay propre valide le chemin de migration sur une base vide ; il ne démontre pas à lui seul la compatibilité de chaque migration sur une base déjà peuplée de tenants existants. La clôture doit donc aussi inclure un test d'upgrade sur une base de recette contenant au moins deux organisations préexistantes, puis vérifier que leurs données, memberships et paramètres sont conservés, que les nouvelles fonctionnalités sont disponibles après mise à jour centrale et qu'aucune donnée ne traverse les tenants.
+
+**Statut architecture SaaS : PARTIELLEMENT PROUVÉ.** Provisionnement d'une nouvelle organisation et isolation multi-tenant sont couverts par plusieurs tests ciblés ; parité de mise à jour entre tenants existants et nouveaux tenants, sur une base peuplée et après évolution de schéma, reste à démontrer.
