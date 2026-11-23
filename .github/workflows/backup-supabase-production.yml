@@ -243,9 +243,19 @@ jobs:
           diff -u backup/production-counts.tsv backup/restored-counts.tsv
           echo "Restore test passed: exact PostgreSQL row counts for application and restorable Supabase schemas, plus Storage binary SHA-256 hashes, match. The encrypted dump retains the platform-managed Realtime, Vault and Cron schemas."
 
+          # Record every existing organization and every tenant-scoped table's
+          # primary-key membership before migrations. The snapshot is disposable.
+          docker run --rm --network host -i postgres:17 \
+            psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 < tests/integration/tenant-upgrade-preservation-capture.sql
+
           # Exercise the exact reviewed production migration set against the
           # freshly restored production snapshot. Production remains untouched.
           PGSSLMODE=disable SUPABASE_DB_URL="$RESTORE_DB_URL" bash scripts/ci/apply-production-allowlist.sh apply
+
+          # Prove that no existing tenant, membership, or tenant-scoped row
+          # identity/count was removed or reassigned by the migration set.
+          docker run --rm --network host -i postgres:17 \
+            psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 < tests/integration/tenant-upgrade-preservation-assert.sql
           docker run --rm --network host postgres:17 \
             psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 -At <<'SQL'
           DO $$
