@@ -346,6 +346,9 @@ jobs:
       - name: Verify five-step company onboarding in an isolated browser
         run: node scripts/ci/company-onboarding-browser-smoke.mjs
 
+      - name: Verify isolation for two already-populated tenants
+        run: node scripts/ci/existing-tenant-isolation-integration.mjs
+
       - name: Verify MAGNIBOX browser workflows between authenticated collaborators
         run: node scripts/ci/magnibox-internal-ui-smoke.mjs
 
