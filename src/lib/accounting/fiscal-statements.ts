@@ -106,18 +106,20 @@ export function isLoanRepaymentEffectiveAtDate(
 }
 
 export function classifyCashFlowCounterpart(code:string):"operating"|"investing"|"financing"|null {
+  const normalized = code.trim();
+  if (!/^\\d+$/.test(normalized)) return null;
   // Depreciation and impairment accounts (28/29) are non-cash adjustments,
   // not direct investing cash-flow counterparties.
-  if(/^(28|29)/.test(code))return null;
+  if(/^(28|29)/.test(normalized))return null;
   // Acquisition/disposal accounts and their dedicated settlement accounts
   // are investing flows.
-  if(/^(2[0-7]|404|405|462)/.test(code))return "investing";
+  if(/^(2[0-7]|404|405|462)/.test(normalized))return "investing";
   // Equity, provisions and financial debt (including current maturities) are financing.
-  if(/^(10|11|12|13|14|15|16|17|516)/.test(code))return "financing";
+  if(/^(10|11|12|13|14|15|16|17|516)/.test(normalized))return "financing";
   // Only the ordinary third-party families are safely classifiable as operating.
   // Inter-entity, miscellaneous, suspense, accrual and impairment accounts need
   // their own documented nature and must not be guessed from the first digit.
-  if(/^(3[0-8]|40|41|42|43|44|6|7)/.test(code))return "operating";
+  if(/^(3[0-8]|40|41|42|43|44|6|7)/.test(normalized))return "operating";
   return null;
 }
 
