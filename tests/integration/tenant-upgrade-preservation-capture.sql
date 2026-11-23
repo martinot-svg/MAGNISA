@@ -38,7 +38,7 @@ BEGIN
     FROM information_schema.columns c
     WHERE c.table_schema = 'public'
       AND c.column_name = 'organization_id'
-      AND c.table_name <> 'organization_features'
+      AND c.table_name NOT IN ('organization_features', 'company_settings', 'number_sequences')
       AND EXISTS (
         SELECT 1
         FROM pg_index i
@@ -105,6 +105,44 @@ BEGIN
       GROUP BY organization_id,
                CASE WHEN feature_key = legacy_feature_key THEN 'magnibox' ELSE feature_key END
     ) effective_features
+    GROUP BY organization_id;
+  END IF;
+
+  -- Preserve company configuration values, not only its organization key.
+  IF to_regclass('public.company_settings') IS NOT NULL THEN
+    INSERT INTO magnisa_upgrade_verification.baseline
+      (table_name, tenant_key, row_count, identity_digest)
+    SELECT '__company_settings__', organization_id::text, 1,
+           md5(jsonb_build_object(
+             'legal_name', legal_name,
+             'trade_name', trade_name,
+             'logo_url', logo_url,
+             'address', address,
+             'phone', phone,
+             'email', email,
+             'website', website,
+             'tax_id', tax_id,
+             'stat_id', stat_id,
+             'registry_id', registry_id,
+             'bank_details', bank_details,
+             'payment_terms', payment_terms,
+             'legal_mentions', legal_mentions,
+             'default_payment_days', default_payment_days
+           )::text)
+    FROM public.company_settings;
+  END IF;
+
+  -- Document numbering is business-critical tenant configuration: preserve
+  -- each document type, prefix, next value and padding across the upgrade.
+  IF to_regclass('public.number_sequences') IS NOT NULL THEN
+    INSERT INTO magnisa_upgrade_verification.baseline
+      (table_name, tenant_key, row_count, identity_digest)
+    SELECT '__number_sequences__', organization_id::text, count(*),
+           md5(string_agg(
+             jsonb_build_array(document_type, prefix, next_value, padding)::text,
+             E'\\n' ORDER BY document_type
+           ))
+    FROM public.number_sequences
     GROUP BY organization_id;
   END IF;
 
