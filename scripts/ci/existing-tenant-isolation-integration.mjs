@@ -57,6 +57,22 @@ try {
     .insert({ organization_id: b.orgId, name: `Forbidden cross-tenant write ${suffix}` });
   assert(Boolean(crossInsertError), "Tenant A unexpectedly inserted a customer into Tenant B");
 
+  // RLS may reject UPDATE/DELETE by returning zero affected rows rather than an error.
+  const { data: crossUpdate, error: crossUpdateError } = await a.client.from("customers")
+    .update({ name: `Tampered by tenant A ${suffix}` }).eq("id", b.customer.id).select("id");
+  if (crossUpdateError) throw crossUpdateError;
+  assert(crossUpdate?.length === 0, "Tenant A unexpectedly updated Tenant B's customer");
+
+  const { data: crossDelete, error: crossDeleteError } = await a.client.from("customers")
+    .delete().eq("id", b.customer.id).select("id");
+  if (crossDeleteError) throw crossDeleteError;
+  assert(crossDelete?.length === 0, "Tenant A unexpectedly deleted Tenant B's customer");
+
+  const { data: intactB, error: intactBError } = await b.client.from("customers").select("id,name");
+  if (intactBError) throw intactBError;
+  assert(intactB?.length === 1 && intactB[0].id === b.customer.id && intactB[0].name === b.customer.name,
+    "Tenant B's persisted customer was changed or deleted by Tenant A");
+
   const { data: ownInsert, error: ownInsertError } = await a.client.from("customers")
     .insert({ organization_id: a.orgId, name: `Allowed own tenant write ${suffix}` }).select("id").single();
   if (ownInsertError || !ownInsert) throw ownInsertError ?? new Error("Own-tenant write was unexpectedly denied");
@@ -66,7 +82,7 @@ try {
   assert(afterA?.length === 2 && afterA.some(row => row.id === ownInsert.id),
     "Tenant A did not retain its own isolated persisted rows");
 
-  console.log("PASS TENANT ISOLATION: two populated tenants, scoped reads, rejected cross-tenant insert, allowed own-tenant insert");
+  console.log("PASS TENANT ISOLATION: populated tenants, scoped reads, rejected cross-tenant insert/update/delete, preserved tenant B row, allowed own-tenant insert");
 } finally {
   for (const orgId of organizations) {
     const { error } = await admin.from("organizations").delete().eq("id", orgId);
