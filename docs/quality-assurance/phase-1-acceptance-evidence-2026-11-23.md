@@ -2,8 +2,8 @@
 
 - Dépôt : `martinot-svg/MAGNISA`
 - Branche de ce dossier : `qa/phase1-acceptance-evidence-20261123`
-- Référence principale examinée : `main` après fusion des PR #347, #348, #350 et #351
-- Référence CI complémentaire : tête corrigée de PR #348, `4907b4c53a49ca0cf6a1cfe7b4536e0e7fdb28f7`
+- Référence principale examinée : `main` à `e0e56c05b4cdeae5db77d9cb358c85ccf8493faf`, après fusion des PR #347, #348, #350, #351 et #352
+- Référence CI complémentaire : tête corrigée de PR #348 `4907b4c53a49ca0cf6a1cfe7b4536e0e7fdb28f7` et PR #353 `752ce5c6a803dbc3ee99acb469c5a4b286a3f925`
 - Décision : **RECETTE PARTIELLE — PHASE 1 NON CLÔTURÉE**.
 
 Ce document distingue les tests effectivement exécutés dans GitHub Actions, les contrôles unitaires/SQL, et les scénarios qui restent à prouver. La réussite d'un workflow ne vaut pas validation générale des huit modules.
@@ -17,7 +17,11 @@ Les jobs et étapes ci-dessous ont été relus dans le détail via l'API GitHub 
 | [CI MAGNISA #45135101154](https://github.com/martinot-svg/MAGNISA/actions/runs/45135101154) | 2 jobs terminés avec succès | Build, Vitest, vérification de 33 fichiers PDF, contrôles MAGNIBOX locaux |
 | [Replay Supabase #45135101272](https://github.com/martinot-svg/MAGNISA/actions/runs/45135101272) | Job `replay` terminé avec succès | Rejeu migrations PostgreSQL 17, contrats SQL, utilisateur Auth local, scénarios authentifiés, navigateur et responsive |
 | [MAGNISA CI #45146222368](https://github.com/martinot-svg/MAGNISA/actions/runs/45146222368) | 2 jobs terminés avec succès | Build, Vitest et MAGNIBOX local E2E sur la tête corrigée de PR #348 |
-| [Replay Supabase #45146222356](https://github.com/martinot-svg/MAGNISA/actions/runs/45146222356) | **En cours au dernier contrôle** | 71 étapes réussies ; audit responsive module par module encore en cours ; aucune conclusion finale revendiquée |
+| [Replay Supabase #45146222356](https://github.com/martinot-svg/MAGNISA/actions/runs/45146222356) | Succès | Rejeu migrations, contrats SQL, parcours authentifiés ciblés et responsive sur la tête corrigée de PR #348 |
+| [MAGNISA CI #45148301656](https://github.com/martinot-svg/MAGNISA/actions/runs/45148301656) | Succès | Build et MAGNIBOX local E2E sur PR #352 |
+| [Supabase replay #45146802811](https://github.com/martinot-svg/MAGNISA/actions/runs/45146802811) | Succès | Replay sur main, scénarios Auth UI ciblés et audit responsive des modules accessibles |
+| [MAGNISA CI #45148647430](https://github.com/martinot-svg/MAGNISA/actions/runs/45148647430) | Succès | Build/Vitest et MAGNIBOX local E2E sur PR #353 |
+| [Supabase replay #45148647452](https://github.com/martinot-svg/MAGNISA/actions/runs/45148647452) | En cours au dernier relevé : 71/80 étapes | Audit responsive final en cours ; ne pas qualifier ce run de succès avant sa conclusion |
 
 Étapes authentifiées explicitement réussies dans le replay :
 - création d'un utilisateur Auth local de test et amorçage de données isolées ;
@@ -110,13 +114,13 @@ Les anomalies ci-dessous sont issues des audits et preuves examinés. Leur statu
 |---|---|---|---|
 | QA-01 | Bloquante | Matrice RBAC authentifiée non exhaustive sur les huit modules | Scénarios positifs/négatifs pour chaque rôle, module et permission sensible |
 | QA-02 | Bloquante | Chaînes métier E2E des huit modules non démontrées | Scénarios 1 à 6 exécutés et preuves conservées |
-| QA-03 | Bloquante | Export Excel corrigé en XLSX natif par PR #351 ; contenu métier, champs d'identification et permissions d'export encore à certifier | Tests de contenu, rapprochement aux sources et autorisations réussis |
+| QA-03 | Bloquante | XLSX natif livré par PR #351 ; PR #353 ajoute les métadonnées d'identité et de statut aux exports PDF/XLSX, CI réussie mais PR non fusionnée et replay encore en cours | Fusion autorisée séparément ; tests de contenu, rapprochement aux sources et autorisations réussis |
 | QA-04 | Bloquante | Notifications métier non couvertes exhaustivement | Matrice événements/destinataires/canaux et tests multi-tenant réussis |
 | QA-05 | Bloquante | États financiers PCG non terminés ; verrous `pcgPresentationReady` et rapprochement des flux opérationnels maintenus fermés dans l'état examiné | Calculs PCG complets, jeu de référence, revue professionnelle et critères de readiness satisfaits |
 | QA-06 | Bloquante | L'audit du 07/11 constatait zéro exercice/période comptable en production et 4 lignes PCG non mappées | Nouvelle requête de lecture seule, exercice de test contrôlé et zéro ligne non justifiée |
 | QA-07 | Bloquante | Paie non certifiée dans l'audit de recette du 18/10 | Règles réglementaires datées, bulletins de référence, rôles réels, recette E2E et revue indépendante |
-| QA-08 | Majeure | Les preuves de responsive ne valent pas validation fonctionnelle de chaque écran et action | Captures, rapports et tests interactifs par module et rôle |
-| QA-09 | Résolue | PR #348 fusionnée dans `main` (merge commit `f3a6926fd407dc4cb954a76e24d09fdb5d4873d3`) ; la CI sur sa tête corrigée #45146222368 est réussie | Fusion vérifiée ; replay Supabase #45146222356 encore en cours au dernier contrôle |
+| QA-08 | Majeure | Tests responsive automatisés réussis sur 13 tailles et audit des modules accessibles à trois classes d'écran ; actions et rôles restent à certifier | Captures et tests interactifs par module et rôle |
+| QA-09 | Résolue | PR #348 fusionnée dans `main` (merge commit `f3a6926fd407dc4cb954a76e24d09fdb5d4873d3`) ; CI #45146222368 et replay #45146222356 réussis | Fusion et validations automatisées vérifiées |
 | QA-10 | Bloquante | Absence de procès-verbal final signé par le responsable métier/comptable | Validation et signature des responsables désignés |
 
 Aucun écart financier ne doit être régularisé automatiquement pour faire passer un test. Chaque écart doit être expliqué, justifié par pièce et approuvé.
@@ -175,3 +179,40 @@ Sur un runner CI isolé, après fourniture des secrets de recette par GitHub Act
 PR fusionnées dans `main` : #347 (`5cbb3292b57de511b3350c9d9ca9af6b310ef77b4`), #348 (`f3a6926fd407dc4cb954a76e24d09fdb5d4873d3`), #350 (`0a7acea34d0422477c0dfb4e3aa1e1ff8c0acf8c`) et #351 (`bd88e1c94549816a312bcfbd10e335a30d5a7766`).
 
 Le run [MAGNISA CI #45146222368](https://github.com/martinot-svg/MAGNISA/actions/runs/45146222368) est réussi sur le commit corrigé `4907b4c53a49ca0cf6a1cfe7b4536e0e7fdb28f7`. Le replay [Supabase #45146222356](https://github.com/martinot-svg/MAGNISA/actions/runs/45146222356) était encore en cours lors de l'actualisation : 71 étapes étaient réussies, y compris les tests UI Auth ciblés et le responsive à 13 tailles ; l'audit responsive module par module n'avait pas encore terminé. La Phase 1 reste ouverte.
+
+
+## 9. Mise à jour des preuves et de l'état des PR
+
+- PR #352 est fusionnée dans `main` au merge commit `e0e56c05b4cdeae5db77d9cb358c85ccf8493faf` ; sa CI #45148301656 est réussie.
+- Le replay [#45146802811](https://github.com/martinot-svg/MAGNISA/actions/runs/45146802811) sur `main` est terminé avec succès, incluant l'audit responsive des modules accessibles.
+- PR #353 est ouverte, non fusionnée, et sa CI [#45148647430](https://github.com/martinot-svg/MAGNISA/actions/runs/45148647430) est réussie sur `752ce5c6a803dbc3ee99acb469c5a4b286a3f925`.
+- Le replay [#45148647452](https://github.com/martinot-svg/MAGNISA/actions/runs/45148647452) était encore en cours au dernier relevé, avec 71/80 étapes réussies. Aucun succès final n'est revendiqué.
+
+La recette métier des exports, la cohérence des montants, les permissions de téléchargement et la revue professionnelle restent obligatoires. La Phase 1 reste non clôturée.
+
+
+## 10. Addendum de clôture des workflows et audit comptable actualisé — 23 novembre 2026
+
+Les statuts « en cours » des exécutions #45148647452 et #45149985742 dans les sections précédentes sont historiques et sont remplacés par les résultats finaux ci-dessous.
+
+| Exécution | SHA contrôlé | Conclusion finale |
+|---|---|---|
+| [Supabase replay #45148647452](https://github.com/martinot-svg/MAGNISA/actions/runs/45148647452) | `752ce5c6a803dbc3ee99acb469c5a4b286a3f925` | **success** |
+| [MAGNISA CI #45148647430](https://github.com/martinot-svg/MAGNISA/actions/runs/45148647430) | `752ce5c6a803dbc3ee99acb469c5a4b286a3f925` | **success** |
+| [MAGNISA CI #45149985742](https://github.com/martinot-svg/MAGNISA/actions/runs/45149985742) | `35b23686f02efa77d7a71b30c6a796f0a5194e8f` | **success** |
+| [MAGNISA CI #45149183974](https://github.com/martinot-svg/MAGNISA/actions/runs/45149183974) | `e0e56c05b4cdeae5db77d9cb358c85ccf8493faf` | **success** |
+
+Le replay #45148647452 a terminé son job unique `replay` avec succès ; le contrôle des migrations, contrats SQL, parcours Auth locaux, tests paie/immobilisations/CRM/stock, isolation multi-tenant et responsive figure dans les étapes réussies. Une étape conditionnelle de diagnostic a été ignorée, sans échec du job. La CI #45149985742 a terminé avec succès ses deux jobs : build (incluant production build, Vitest et inspection des PDF) et MAGNIBOX local E2E.
+
+### Actualisation des données comptables (requêtes en lecture seule)
+- 1 exercice 2026 est présent en base, mais reste au statut `open` ; l'audit du 7 novembre qui indiquait zéro exercice est donc historique.
+- Le grand livre interrogé comporte 83 écritures et 172 lignes ; les 83 écritures sont équilibrées selon `pcg2005_journal_integrity`.
+- La vue effective de classification laisse deux lignes fournisseur au statut `a_mapper`. Deux autres lignes fournisseurs ont une affectation provisoire 606 en mode `record_only`, avec pièces obligatoires non fournies.
+- Les deux lignes non mappées n'ont ni code de charge explicite ni justificatifs suffisants pour déterminer si elles relèvent du compte 604, 606 ou 611. Ne pas les classer par supposition.
+- Le registre des immobilisations est vide. Le profil fiscal est non confirmé et des champs de secteur/régime ne sont pas renseignés.
+- Les vues SQL de lacunes des règles de présentation actif/passif ne renvoient pas de compte non paramétré ; ce contrôle isolé ne certifie pas le bilan, le compte de résultat, le tableau de flux ou l'annexe.
+
+Les indicateurs `operatingCashFlowReconciliationReady` et `pcgPresentationReady` restent volontairement à `false`. L'exercice n'est pas clôturé et les preuves comptables manquent ; aucun indicateur ne doit être forcé à `true`. Aucune donnée réelle, écriture ou migration de production n'a été modifiée.
+
+### Verdict
+La priorité 1 est vérifiée pour les quatre exécutions ci-dessus. La Phase 1 reste **NON CLÔTURÉE** : les contrôles financiers et les parcours métier exhaustifs ne sont pas démontrés. PR #353 et #354 restent ouvertes ; aucune fusion n'a été réalisée.
