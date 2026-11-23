@@ -1,0 +1,124 @@
+# MAGNISA — Recette de clôture Phase 1
+Date du relevé : 23 novembre 2026
+Dépôt : `martinot-svg/MAGNISA`
+Branche de référence contrôlée : `main` — `5cbb3292b57de511b3350c9d9ca9af6b310ef77b4`
+Branche de travail du présent dossier : `qa/phase1-acceptance-recipe`
+
+## 1. Statut du procès-verbal
+
+**PV DE RECETTE INTERMÉDIAIRE — PHASE 1 NON CLÔTURÉE.**
+
+Ce document enregistre les preuves réellement consultées et les validations encore nécessaires. Il ne constitue pas une certification métier, comptable, fiscale ou de sécurité. Aucun résultat non exécuté n'est présenté comme réussi.
+
+## 2. Exécutions GitHub Actions vérifiées
+
+### MAGNISA CI
+- Run : [45135101154](https://github.com/martinot-svg/MAGNISA/actions/runs/45135101154)
+- Commit contrôlé : `ac27964b3abcf5e091a23601a26390b722be547a` (tête de la PR #348, non fusionnée).
+- Conclusion du run : **success**.
+- Étapes vérifiées comme réussies :
+  - compilation Next.js de production ;
+  - suite Vitest ;
+  - génération du registre statique des interactions et contrôle des contrats boutons/formulaires ;
+  - inspection automatisée des 33 PDF et rendu des premières pages ;
+  - contrôles de scripts de migration et fixtures d'historique.
+- Limite : ces contrôles ne prouvent pas que chaque export métier produit avec des données réelles est exact, ni que tous les parcours sont utilisables par chaque rôle.
+
+### Supabase migration replay
+- Run : [45135101272](https://github.com/martinot-svg/MAGNISA/actions/runs/45135101272)
+- Commit : `ac27964b3abcf5e091a23601a26390b722be547a`.
+- Conclusion du run : **success**.
+- Étapes vérifiées : démarrage d'un Supabase isolé, rejeu des migrations, tests SQL d'invariants et tests de sécurité configurés dans ce workflow.
+- Limite : un replay local et des tests SQL de politiques ne remplacent pas une recette navigateur avec plusieurs comptes Auth réels et plusieurs organisations.
+
+### Périmètre non couvert par ces runs
+Le workflow CI consulté n'exécute pas le script Playwright `scripts/ci/modules-responsive-ui-smoke.mjs` dans le run ci-dessus. Ce script existe et nécessite `TEST_EMAIL` et `TEST_PASSWORD`, mais aucune preuve d'exécution réussie de ce parcours n'a été retrouvée dans les runs consultés.
+
+## 3. Matrice de recette — rôles et permissions
+
+| Contrôle | Preuve existante | État |
+|---|---|---|
+| Accès anonyme aux ressources protégées | tests SQL de privilèges anonymes et tests unitaires | Tests automatisés présents ; dernière exécution à confirmer dans le run de replay |
+| Utilisateur authentifié sans appartenance à l'organisation | recette RBAC historique et tests SQL | Partiel ; recette Auth réelle multi-tenant à refaire |
+| Membre avec permission de lecture | tests de permissions/RLS existants | Partiel ; couverture par rôle à consolider |
+| Membre sans permission d'écriture | tests de permissions et contrats SQL | Partiel ; scénario UI authentifié manquant |
+| Rôle comptable / gestionnaire | tests ciblés présents | Partiel ; matrice complète par rôle et module manquante |
+| Révocation/changement de rôle pendant une session | aucune preuve de recette E2E complète identifiée | À exécuter |
+
+**Critère d'acceptation :** exécuter les scénarios avec comptes de test dédiés, non-production, au minimum administrateur d'organisation, gestionnaire, comptable, opérateur sans permission financière et utilisateur sans appartenance. Vérifier lecture, création, modification, validation, paiement, export et refus d'accès. Vérifier aussi l'isolation entre deux organisations. Ne jamais utiliser un compte ou des données réelles de production pour ces essais.
+
+## 4. Scénarios métier transversaux à exécuter
+
+| Scénario | Modules traversés | Contrôle de sortie | État |
+|---|---|---|---|
+| Prospect converti en client puis devis/commande | Prospects → Clients → Services | identité, historique, statut, absence de doublon | Partiellement couvert par les PR CRM ; E2E à exécuter |
+| Contrat/abonnement et facture récurrente | Clients → Services → Abonnements → Facturation | échéance, montant, unicité de facture, journalisation | Automatisations livrées ; E2E à exécuter |
+| Paiement client et notification | Facturation → Trésorerie → Notifications | paiement confirmé, solde exact, notification non dupliquée | À exécuter |
+| Réservation et prestation | Réservations → Clients → Services | disponibilité, statut, rattachement et historique | À exécuter |
+| Facture fournisseur et paiement | Fournisseurs → Trésorerie → Comptabilité | rapprochement facture/paiement/écriture | Invariants SQL présents ; parcours UI E2E à exécuter |
+| Paie et paiement | Paie → Trésorerie → Comptabilité → Notifications | bulletin, retenues, paiement idempotent, écriture | Tests de calcul/SQL présents ; recette complète non certifiée |
+| Immobilisation et amortissement | Achats/Fournisseurs → Immobilisations → Comptabilité | valeur brute, amortissement, valeur nette et journal | Tests ciblés présents ; jeu métier complet à exécuter |
+| Tableau de bord | Modules opérationnels → Analytique | agrégats comparés aux sources et à la balance | À exécuter |
+
+Pour chaque scénario, conserver identifiant du jeu de test, rôle utilisé, étapes, résultat attendu/obtenu, captures ou logs expurgés, et référence du run CI. Les notifications doivent être vérifiées sur les événements, destinataires, préférences, idempotence et absence de fuite inter-organisation.
+
+## 5. Exports et notifications
+
+### Exports
+Preuve disponible : le run CI inspecte 33 fichiers PDF et génère des aperçus. Les tests unitaires des rendus PDF et des presets sont présents.
+
+À compléter :
+- produire les exports depuis des dossiers de test avec données métier représentatives ;
+- vérifier identité légale, période, devise, totaux, pagination et mentions attendues ;
+- comparer les totaux exportés aux écrans et aux sources comptables ;
+- tester les permissions de téléchargement ;
+- contrôler les formats réels PDF et XLSX (ne pas assimiler un XML Spreadsheet renommé en .xls à un XLSX natif).
+
+### Notifications
+Preuve disponible : tests d'authentification du canal realtime et fondations du centre de notifications ; migrations et fonctionnalités de notifications présentes.
+
+À compléter :
+- déclencher chaque événement métier attendu ;
+- vérifier le destinataire, le tenant, le contenu, le lien et le statut lu/non lu ;
+- vérifier les préférences, les échecs et les reprises ;
+- vérifier l'absence de doublons lors des retries ;
+- vérifier qu'un utilisateur d'une organisation ne reçoit aucune donnée d'une autre.
+
+## 6. Anomalies résiduelles et blocages connus
+
+1. **États financiers PCG 2005 : bloquant.** Le dossier d'audit `docs/audits/fiscal-statements-audit-2026-11-07.md` indique que la présentation PCG, le tableau des flux, les capitaux propres, les annexes et les contrôles de clôture n'étaient pas complets. Les verrous `operatingCashFlowReconciliationReady` et `pcgPresentationReady` doivent rester bloquants jusqu'à preuve du contraire.
+2. **Données comptables de production : bloquant pour une recette annuelle réelle.** L'audit cité constatait l'absence d'exercice et de période enregistrés, quatre lignes PCG à mapper, et aucun registre d'immobilisations renseigné à la date de l'audit. Ces constats doivent être actualisés en lecture seule avant toute conclusion.
+3. **Rôles Auth réels : bloquant.** Aucune exécution E2E multi-comptes/multi-organisations n'a été démontrée dans les workflows examinés.
+4. **Scénarios transversaux : bloquant.** Les PR fonctionnelles et les tests unitaires/SQL ne remplacent pas la preuve des parcours complets des huit modules.
+5. **Responsive : bloquant à la certification.** Le script Playwright multi-module existe, mais son exécution réussie n'est pas démontrée dans le run CI contrôlé.
+6. **Exports et notifications : validation partielle.** Tests de composants et inspection de PDF existent, mais la recette métier avec données et rôles dédiés reste à produire.
+7. **Validation professionnelle : bloquant.** La présentation PCG et les états financiers doivent être revus par une personne compétente au regard du référentiel et de la réglementation applicables à l'entité.
+
+## 7. Conditions de clôture Phase 1
+
+La clôture est refusée tant que les conditions suivantes ne sont pas toutes documentées :
+- les 12 chantiers de Phase 1 atteignent leurs critères de sortie ;
+- les tests automatisés pertinents passent sur le commit candidat ;
+- les huit modules sont parcourus dans des scénarios transversaux authentifiés ;
+- les rapprochements financiers ne présentent aucun écart inexpliqué ;
+- les cinq composantes des états financiers applicables sont revues selon le référentiel applicable ;
+- aucune anomalie bloquante ou critique ne reste ouverte ;
+- les exports et notifications sont vérifiés avec des jeux de test ;
+- le responsive et les permissions sont validés ;
+- le PV final contient les preuves et la liste des anomalies résiduelles ;
+- les validations externes requises sont obtenues.
+
+## 8. Plan d'exécution immédiat
+
+1. Mettre à disposition un environnement de recette isolé, deux organisations fictives et les comptes de test par rôle ; stocker les identifiants uniquement dans les secrets GitHub, jamais dans le dépôt.
+2. Exécuter le script Playwright multi-module avec ces comptes et publier les rapports/captures expurgés comme artefacts CI.
+3. Ajouter les scénarios E2E de conversion prospect-client, abonnement-facturation, réservation, paiement, fournisseur, paie et analytique.
+4. Générer les exports depuis les jeux de données et comparer automatiquement les totaux aux données sources.
+5. Déclencher et vérifier les notifications par événement, tenant et rôle.
+6. Actualiser l'audit comptable sur l'environnement de recette ; corriger les écarts et obtenir la revue professionnelle.
+7. Réexécuter toute la suite sur un même commit candidat et signer le PV final.
+
+## 9. Décision
+
+**Décision à cette date : PHASE 1 NON CLÔTURÉE.**
+Les workflows verts consultés prouvent une compilation, une suite de tests automatisés et un rejeu de migrations réussis sur le commit de la PR #348. Ils ne prouvent pas encore les scénarios métier authentifiés, la recette complète des exports/notifications ni la conformité finale des états financiers.
