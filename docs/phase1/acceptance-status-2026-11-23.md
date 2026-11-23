@@ -211,3 +211,16 @@ Un contrôle supplémentaire a été ajouté au test navigateur `scripts/ci/comp
 La base MAGNISA utilise un schéma Supabase partagé et un cloisonnement par `organization_id`. Les scénarios multi-tenant existants vérifient certains refus d'accès entre organisations. Il manque encore une recette d'upgrade d'une base contenant plusieurs tenants déjà existants : conservation de leurs données et paramètres, application des nouvelles fonctionnalités après déploiement central, compatibilité des migrations et absence de fuite entre tenants.
 
 Ce point est un critère obligatoire de l'architecture SaaS centrale. La Phase 1 reste NON CLÔTURÉE tant que cette preuve n'est pas obtenue.
+
+
+## 12. Addendum — preuve SaaS après fusion des PR #356 et #357 (23 novembre 2026)
+
+Contrôle GitHub réalisé après fusion :
+- PR #356 (onboarding/provisionnement des nouveaux tenants) : fusionnée dans la branche de recette, puis intégrée à la référence de travail.
+- PR #357 (isolation de deux tenants déjà peuplés) : fusionnée ; merge commit `7baa0aa9ef7248082ab6ec61c14c8e799f9cb319`.
+- [Supabase migration replay #45233457053](https://github.com/martinot-svg/MAGNISA/actions/runs/45233457053) : **success**. L'étape « Verify isolation for two already-populated tenants » est explicitement **success**. Le replay complet des migrations et les autres étapes exécutées de ce job ont réussi.
+- [MAGNISA CI #45233455698](https://github.com/martinot-svg/MAGNISA/actions/runs/45233455698) : **success**, jobs `build` et `magnibox-local-e2e`.
+
+Ces résultats démontrent, dans un Supabase local éphémère de CI, le provisionnement vérifié des tenants et le contrôle d'accès entre deux tenants synthétiques déjà peuplés. Ils ne prouvent pas encore l'application d'un historique de migrations sur un snapshot ancien et peuplé, ni la conservation de toutes les données d'un tenant existant lors d'une véritable mise à niveau. Ce test d'upgrade historique reste à exécuter.
+
+**Décision : Phase 1 toujours NON CLÔTURÉE.** Les critères métier, RBAC exhaustif, exports/notifications, rapprochements et états PCG, validation professionnelle et PV final signé restent requis. Aucun déploiement ni changement de données de production n'est inclus dans ces preuves.
