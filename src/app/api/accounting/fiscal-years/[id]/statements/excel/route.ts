@@ -33,7 +33,7 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
   row([str("NIF"),str(identity.taxId),str("STAT"),str(identity.statId),str("RCS"),str(identity.registryId)]),
   row([str("Régime fiscal déclaré"),str(identity.incomeTaxRegime),str("TVA déclarée"),str(identity.vatStatus)]),
   row([str("Profil fiscal confirmé"),str(identity.fiscalProfileConfirmed),str("Source"),str(identity.fiscalProfileSource)]),
-  row([str("Devise"),str(s.currency)]),
+  row([str("Devise"),str(identity.currency)]),
   row([str("Généré le (UTC)"),str(identity.generatedAt)]),
   row([str("Statut de validation"),str(s.controls.ready?"Contrôles techniques prêts — revue professionnelle requise":"PROJET / NON VALIDÉ")]),
   row([str("ACTIF")]),
