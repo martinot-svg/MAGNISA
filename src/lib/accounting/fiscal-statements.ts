@@ -68,7 +68,7 @@ export function isBalanceSheetReady(input: BalanceSheetReadinessInput): boolean 
 
 const n=(v:any)=>Number(v||0);
 const round=(v:number)=>Math.round((v+Number.EPSILON)*100)/100;
-const cashCodes=/^(511|512|513|514|515|517|518|53|54|58)/;
+const cashCodes=/^(511|512|513|514|515|517|518|53|54)/;
 
 export function taxSocialObligationAccountCode(kind: "tax" | "social", code: string): string | null {
   const normalized = code.trim().toUpperCase();
@@ -118,6 +118,24 @@ export function classifyCashFlowCounterpart(code:string):"operating"|"investing"
 }
 
 export type CashFlowJournalLine = { pcg_code: string | null; debit: number; credit: number; source_type?: string | null };
+
+/**
+ * Internal transfers between cash accounts (including PCG 58 clearing lines)
+ * change the composition of cash, not total cash. They must not be reported as
+ * operating, investing or financing flows, nor counted as unclassified flows.
+ */
+export function isInternalCashTransferJournalEntry(lines: CashFlowJournalLine[]): boolean {
+  const eligible = lines.filter(line => line.source_type !== "fiscal_year_opening");
+  if (eligible.length < 2 || eligible.some(line => !line.pcg_code)) return false;
+  const codes = eligible.map(line => String(line.pcg_code));
+  const hasCash = codes.some(code => cashCodes.test(code));
+  const hasTransferAccount = codes.some(code => /^58/.test(code));
+  const onlyCashAndTransfer = codes.every(code => cashCodes.test(code) || /^58/.test(code));
+  const cashAccountCount = codes.filter(code => cashCodes.test(code)).length;
+  const balanced = Math.abs(round(eligible.reduce((sum, line) => sum + n(line.debit) - n(line.credit), 0))) < 0.01;
+  return hasCash && onlyCashAndTransfer && balanced
+    && (cashAccountCount >= 2 || (cashAccountCount === 1 && hasTransferAccount));
+}
 
 /**
  * Classifies a cash journal entry only when its single cash line is fully
@@ -868,7 +886,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   }
   for(const entryLines of byEntry.values()){
     if(entryLines.every((line:any)=>line.source_type==="fiscal_year_opening"))continue;
-    const classified=classifyCashFlowJournalEntry(entryLines);
+    if(isInternalCashTransferJournalEntry(entryLines))continue;\n    const classified=classifyCashFlowJournalEntry(entryLines);
     if(!classified){unclassifiedCashFlowEntries++;continue;}
     if(classified.cashAmount>=0)flows[classified.bucket].receipts+=classified.cashAmount;
     else flows[classified.bucket].payments+=Math.abs(classified.cashAmount);
