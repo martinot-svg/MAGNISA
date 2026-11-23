@@ -54,14 +54,14 @@ begin
       where om.organization_id=v_prospect.organization_id
         and om.status='active'
         and coalesce(np.in_app_enabled,true)
-        and not coalesce(np.category_preferences,'{}'::jsonb) @> jsonb_build_object('sales',false)
+        and not coalesce(np.category_preferences,'{}'::jsonb) @> jsonb_build_object('service',false)
         and (v_prospect.current_owner_id is null or om.user_id=v_prospect.current_owner_id)
     loop
       insert into public.notifications(
         organization_id,recipient_user_id,category,priority,title,body,
         action_url,entity_type,entity_id,metadata,dedupe_key
       ) values (
-        v_prospect.organization_id,v_member.user_id,'sales','attention',
+        v_prospect.organization_id,v_member.user_id,'service','attention',
         'Relance prospect à effectuer',
         'Le suivi prévu pour ' || v_prospect.name || ' est arrivé à échéance.' ||
           case when coalesce(v_prospect.follow_up_note,'')='' then ''
