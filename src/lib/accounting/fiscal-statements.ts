@@ -113,7 +113,7 @@ export function classifyCashFlowCounterpart(code:string):"operating"|"investing"
   // Only the ordinary third-party families are safely classifiable as operating.
   // Inter-entity, miscellaneous, suspense, accrual and impairment accounts need
   // their own documented nature and must not be guessed from the first digit.
-  if(/^(3|40|41|42|43|44|6|7)/.test(code))return "operating";
+  if(/^(3[0-8]|40|41|42|43|44|6|7)/.test(code))return "operating";
   return null;
 }
 
