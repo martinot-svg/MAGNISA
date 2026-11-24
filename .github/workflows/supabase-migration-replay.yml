@@ -241,10 +241,15 @@ jobs:
       - name: Install app and browser test dependencies
         run: |
           npm ci --no-audit --no-fund
-          npx --yes npm@11.19.1 install --no-save --package-lock=false playwright
+          # Keep Playwright isolated from the app dependency graph. npm 11 attempts
+          # to re-resolve the lockfile and fails on the upstream @react-pdf/hyphenate
+          # range (^0.1.1), although npm ci correctly installs the committed lock.
+          PLAYWRIGHT_DIR="$RUNNER_TEMP/magnisa-playwright"
+          mkdir -p "$PLAYWRIGHT_DIR"
+          npm install --prefix "$PLAYWRIGHT_DIR" --no-save playwright@1.56.1
+          ln -s "$PLAYWRIGHT_DIR/node_modules/playwright" node_modules/playwright
           # GitHub-hosted Ubuntu runners already include Chromium system libraries.
-          # Avoid apt repository dependency here; install only the pinned browser binary.
-          npx playwright install chromium
+          node "$PLAYWRIGHT_DIR/node_modules/playwright/cli.js" install chromium
 
       - name: Syntax-check encrypted backup and Storage restore scripts
         run: |
