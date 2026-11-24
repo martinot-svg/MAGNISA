@@ -7,80 +7,51 @@ import { NotificationBell } from "@/components/notification-bell";
 import { AppWorkspace, type WorkspaceLink } from "@/components/app-workspace";
 
 const featurePermission: Partial<Record<FeatureKey, Permission>> = {
-  prospects: "sales.view",
-  clients: "billing.view",
-  services: "sales.view",
-  projects: "sales.view",
-  quotes: "sales.view",
-  orders: "sales.view",
-  recurring_services: "sales.view",
-  invoices: "billing.view",
-  payments: "treasury.view",
-  expenses: "treasury.view",
-  treasury: "treasury.view",
-  debts: "finance.view",
-  partner_accounts: "finance.view",
-  loans: "finance.view",
-  payroll: "payroll.view",
-  tax_social: "finance.view",
-  budget: "finance.view",
-  smart_analysis: "finance.view",
-  suppliers: "suppliers.view",
-  customer_mandates: "suppliers.view",
-  accounting: "accounting.view",
-  immobilisations: "accounting.view",
-  financial_statements: "accounting.view",
-  reports: "reports.view",
-  document_templates: "settings.manage",
-  audit: "audit.view",
-  users: "users.manage",
-  settings: "settings.manage",
+  prospects: "sales.view", clients: "billing.view", services: "sales.view",
+  projects: "sales.view", quotes: "sales.view", orders: "sales.view",
+  recurring_services: "sales.view", invoices: "billing.view", payments: "treasury.view",
+  expenses: "treasury.view", treasury: "treasury.view", debts: "finance.view",
+  partner_accounts: "finance.view", loans: "finance.view", payroll: "payroll.view",
+  tax_social: "finance.view", budget: "finance.view", smart_analysis: "finance.view",
+  suppliers: "suppliers.view", customer_mandates: "suppliers.view",
+  accounting: "accounting.view", immobilisations: "accounting.view",
+  financial_statements: "accounting.view", reports: "reports.view",
+  document_templates: "settings.manage", audit: "audit.view",
+  users: "users.manage", settings: "settings.manage",
 };
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const ctx = await requireOrganization();
   const { supabase, organizationId, user } = ctx;
-
   const [{ data: rows = [] }, permissions, { count: unreadCount = 0 }] =
     await Promise.all([
-      supabase
-        .from("organization_features")
-        .select("feature_key,enabled")
-        .eq("organization_id", organizationId),
+      supabase.from("organization_features").select("feature_key,enabled").eq("organization_id", organizationId),
       getEffectivePermissions(ctx),
-      supabase
-        .from("notifications")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", organizationId)
-        .eq("recipient_user_id", user.id)
-        .is("read_at", null)
-        .is("archived_at", null),
+      supabase.from("notifications").select("id", { count: "exact", head: true })
+        .eq("organization_id", organizationId).eq("recipient_user_id", user.id)
+        .is("read_at", null).is("archived_at", null),
     ]);
-
   const enabled = new Map(rows.map((row: any) => [row.feature_key, row.enabled]));
   const visible = FEATURE_CATALOG.filter((feature) => {
-    const featureEnabled =
-      feature.required ||
-      feature.key === "settings" ||
-      enabled.get(feature.key) !== false;
-
+    const featureEnabled = feature.required || feature.key === "settings" || enabled.get(feature.key) !== false;
     if (!featureEnabled) return false;
-
-    if (feature.key === "prospects") {
-      return permissions.has("sales.view") || permissions.has("commissions.contribute");
-    }
-    if (feature.key === "commissions") {
-      return permissions.has("commissions.view_own") ||
-        permissions.has("commissions.view_team") ||
-        permissions.has("commissions.policy.manage");
-    }
+    if (feature.key === "prospects") return permissions.has("sales.view") || permissions.has("commissions.contribute");
+    if (feature.key === "commissions") return permissions.has("commissions.view_own") || permissions.has("commissions.view_team") || permissions.has("commissions.policy.manage");
     const requiredPermission = featurePermission[feature.key];
     return !requiredPermission || permissions.has(requiredPermission);
   });
-
   const links: WorkspaceLink[] = visible.map(feature => ({
     key: feature.key, label: feature.label, href: feature.href, group: feature.group,
   }));
+  const servicesIndex = links.findIndex(link => link.key === "services");
+  if (servicesIndex >= 0 && permissions.has("sales.view")) {
+    links.splice(servicesIndex + 1, 0, {
+      key: "service_catalogue",
+      label: "Catalogue de prestations",
+      href: "/catalogue-prestations",
+      group: "Clients & ventes",
+    });
+  }
   const accounting = links.findIndex(link => link.key === "accounting");
   if (accounting >= 0) links.splice(accounting + 1, 0, {
     key: "fiscal_years", label: "Exercices comptables",
@@ -91,9 +62,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <AppWorkspace
       links={links}
-      notifications={<NotificationBell
-        userId={user.id} organizationId={organizationId} initialUnread={unreadCount ?? 0}
-      />}
+      notifications={<NotificationBell userId={user.id} organizationId={organizationId} initialUnread={unreadCount ?? 0} />}
       signOut={
         <FormDialog title="Se déconnecter" buttonLabel="Se déconnecter" buttonClassName="button ghost">
           <form action={signOut}>
