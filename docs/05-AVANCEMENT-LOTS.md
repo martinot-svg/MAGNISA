@@ -2,6 +2,8 @@
 
 État vérifié sur la branche `feat/magnisa-six-workstreams`. Ce document distingue les fonctions présentes des intégrations qui restent à réaliser.
 
+Le lot 1–2 a été intégré via le PR #372. Les compléments présentés ici sont isolés dans le PR brouillon #373 : https://github.com/martinot-svg/MAGNISA/pull/373.
+
 | Lot | État | Réalisé dans le dépôt | À terminer avant clôture |
 |---|---|---|---|
 | 1. Catalogue et tarifs | En cours | Catégories organisationnelles, unités contrôlées, création/mise à jour transactionnelle, historique des prix | Rejouer la migration sur une base de test et vérifier les parcours avec données historiques |
