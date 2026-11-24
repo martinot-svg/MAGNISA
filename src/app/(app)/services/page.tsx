@@ -47,6 +47,7 @@ export default async function Services({
   ]);
 
   const currency = org?.currency || "MGA";
+  const categoryNames = new Map((categories as any[]).map((category) => [category.id, category.name]));
   const serviceIds = data.map((service: any) => service.id);
   const { data: priceVersions = [] } = serviceIds.length
     ? await supabase.from("service_price_versions")
@@ -172,7 +173,7 @@ export default async function Services({
                     <div>
                       <h2>{s.name}</h2>
                       <p className="muted">
-                        <code>{s.magnisa_reference || "-"}</code> Code service ·{" "}
+                        <code>{s.magnisa_reference || "-"}</code> Code service · {categoryNames.get(s.category_id) ? `Catégorie : ${categoryNames.get(s.category_id)} · ` : ""}{" "}
                         {s.service_type === "recurring"
                           ? "Récurrente"
                           : "Ponctuelle"}
