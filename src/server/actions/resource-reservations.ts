@@ -18,7 +18,7 @@ export async function createReservableResource(formData: FormData) {
     resource_type: resourceType,
     description: z.string().trim().max(2000).optional(),
     capacity: z.coerce.number().int().positive().optional().or(z.literal("")),
-  }).safeParse(Object.fromEntries(formData));
+  }).safeParse(raw);
   if (!parsed.success) throw new Error("Informations de ressource invalides.");
   const { error } = await ctx.supabase.rpc("create_reservable_resource", {
     p_org: ctx.organizationId,
