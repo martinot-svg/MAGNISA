@@ -74,7 +74,7 @@ export async function createCatalogService(formData: FormData) {
 export async function updateCatalogService(formData: FormData) {
   const ctx = await requireOrganization();
   await assertPermission(ctx, "services.create");
-  const raw = Object.fromEntries(formData);
+  const raw = normalizedForm(formData);
   const id = uuid.safeParse(raw.id);
   const parsed = serviceInput.safeParse(raw);
   if (!id.success || !parsed.success) throw new Error("Les informations de la prestation sont invalides.");
