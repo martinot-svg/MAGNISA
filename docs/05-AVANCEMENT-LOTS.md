@@ -2,7 +2,7 @@
 
 État vérifié sur la branche `feat/magnisa-six-workstreams`. Ce document distingue les fonctions présentes des intégrations qui restent à réaliser.
 
-Le lot 1–2 a été intégré via le PR #372. Les compléments présentés ici sont isolés dans le PR brouillon #373 : https://github.com/martinot-svg/MAGNISA/pull/373.
+Le lot 1–2 a été intégré via le PR #372. Les compléments des lots CRM, automatisation, analytics et sécurité ont été intégrés dans le PR #373 : https://github.com/martinot-svg/MAGNISA/pull/373. La poursuite analytique est proposée dans le PR brouillon #374 : https://github.com/martinot-svg/MAGNISA/pull/374.
 
 | Lot | État | Réalisé dans le dépôt | À terminer avant clôture |
 |---|---|---|---|
@@ -10,7 +10,7 @@ Le lot 1–2 a été intégré via le PR #372. Les compléments présentés ici 
 | 2. Réservations | En cours | Ressources, fenêtres temporelles, prévention des chevauchements, actions et page de réservation | Valider les tests de concurrence et la migration sur base restaurée |
 | 3. CRM approfondi | Partiellement couvert par l'existant | Pipeline prospects, transitions contrôlées, conversion, interventions collaboratives, relances, notifications, prévention de doublons client | Vérifier les contacts multiples, l'historique unifié et les KPI CRM; compléter les tests multi-organisation |
 | 4. Automatisation fiable | Contrat applicatif renforcé | Clé d'idempotence, validation tenant/événement, états de reprise, backoff exponentiel plafonné et dead-letter dans le modèle pur | Persistance transactionnelle des jobs, worker/claim concurrent, observabilité et alertes; preuve E2E des actions externes |
-| 5. Analytics consolidés | Calculs enrichis, intégration partielle | Tableau de bord financier existant; agrégation du solde restant en retard et comparaison de périodes dans les fonctions pures | Brancher les fonctions aux requêtes serveur, confirmer devise/périodes, réconcilier avec les états comptables et ajouter exports |
+| 5. Analytics consolidés | Calculs enrichis, intégration partielle | Tableau de bord financier existant; calcul testé du solde restant échu désormais branché à la vue d'ensemble avec lien vers les factures en retard; comparaison de périodes disponible en fonction pure | Brancher les autres agrégats aux requêtes serveur, confirmer devise/périodes, réconcilier avec les états comptables et ajouter exports |
 | 6. Portail client, signature et paiements | Préparation sécurité uniquement | Vérificateur HMAC générique avec horodatage et tests de signature | Choisir fournisseur de signature et paiement, modèle d'identité client, routes/webhooks propres au fournisseur, idempotence persistée, rapprochement facture/devise, remboursements et révocation |
 | 7. Assistant IA | Non démarré | Aucun assistant activé par ce lot | Définir fournisseur/modèle, accès strictement lecture seule aux KPI agrégés, provenance/période affichées, confirmation des actions et tests anti-fuite/prompt injection |
 
