@@ -244,7 +244,7 @@ jobs:
           echo "Restore test passed: exact PostgreSQL row counts for application and restorable Supabase schemas, plus Storage binary SHA-256 hashes, match. The encrypted dump retains the platform-managed Realtime, Vault and Cron schemas."
 
           # Fingerprint stable tenant/business rows before the allowlisted upgrade.
-          # The inventory stores only per-tenant counts and SHA-256 hashes, never row contents.
+          # The inventory stores only per-tenant counts and row fingerprints, never row contents.
           capture_tenant_core_state() {
             docker run --rm --network host postgres:17 psql "$RESTORE_DB_URL" \
               -X -qAt -F '|' -v ON_ERROR_STOP=1 <<'SQL'
