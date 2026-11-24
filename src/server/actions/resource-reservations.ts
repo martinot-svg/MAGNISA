@@ -11,6 +11,8 @@ const resourceType = z.enum(["room","vehicle","equipment","staff","other"]);
 export async function createReservableResource(formData: FormData) {
   const ctx = await requireOrganization();
   await assertPermission(ctx, "orders.manage");
+  const raw: Record<string, unknown> = Object.fromEntries(formData);
+  if (raw.capacity === "") raw.capacity = undefined;
   const parsed = z.object({
     name: z.string().trim().min(2).max(180),
     resource_type: resourceType,
