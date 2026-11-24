@@ -211,7 +211,7 @@ begin
   if p_unit is null or not (p_unit = any(v_allowed_units))
      or p_unit_price is null or p_unit_price < 0
      or p_tax_rate is null or p_tax_rate < 0 or p_tax_rate > 100
-     or p_effective_from is null then
+     or p_effective_from is null or p_effective_from > now() then
     raise exception 'Nouveau tarif ou unité invalide';
   end if;
 
