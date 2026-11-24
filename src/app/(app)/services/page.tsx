@@ -47,6 +47,20 @@ export default async function Services({
   ]);
 
   const currency = org?.currency || "MGA";
+  const serviceIds = data.map((service: any) => service.id);
+  const { data: priceVersions = [] } = serviceIds.length
+    ? await supabase.from("service_price_versions")
+        .select("id,service_id,unit,unit_price,tax_rate,effective_from,effective_until")
+        .eq("organization_id", organizationId).in("service_id", serviceIds)
+        .order("effective_from", { ascending: false })
+        .limit(Math.min(serviceIds.length * 10, 1000))
+    : { data: [] };
+  const pricesByService = new Map<string, any[]>();
+  for (const version of priceVersions as any[]) {
+    const list = pricesByService.get(version.service_id) ?? [];
+    if (list.length < 5) list.push(version);
+    pricesByService.set(version.service_id, list);
+  }
 
   return (
     <>
@@ -264,6 +278,23 @@ export default async function Services({
                       {archived ? "Réactiver" : "Supprimer / archiver"}
                     </button>
                   </form></FormDialog>
+                  <details className="section">
+                    <summary style={{ cursor: "pointer", fontWeight: 600 }}>Historique des tarifs</summary>
+                    <div className="tableWrap" style={{ marginTop: 8 }}>
+                      <table><thead><tr><th>Tarif</th><th>Unité</th><th>Taxe</th><th>Début d’effet</th><th>Fin d’effet</th></tr></thead>
+                        <tbody>{(pricesByService.get(s.id) ?? []).map((version: any) => (
+                          <tr key={version.id}>
+                            <td>{money(Number(version.unit_price), currency)}</td>
+                            <td>{BILLING_UNITS.find((unit) => unit.value === version.unit)?.label ?? version.unit}</td>
+                            <td>{version.tax_rate}%</td>
+                            <td>{new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(version.effective_from))}</td>
+                            <td>{version.effective_until ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(version.effective_until)) : "Tarif actuel"}</td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                    {(pricesByService.get(s.id) ?? []).length === 0 && <p className="muted">Aucun historique de tarif disponible.</p>}
+                  </details>
                   {!archived && (
                     <p
                       className="muted"
