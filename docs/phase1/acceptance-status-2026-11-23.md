@@ -226,22 +226,14 @@ Ces résultats démontrent, dans un Supabase local éphémère de CI, le provisi
 **Décision : Phase 1 toujours NON CLÔTURÉE.** Les critères métier, RBAC exhaustif, exports/notifications, rapprochements et états PCG, validation professionnelle et PV final signé restent requis. Aucun déploiement ni changement de données de production n'est inclus dans ces preuves.
 
 
-## 14. Contrôle de conservation lors d'un upgrade de snapshot peuplé — instrumentation ajoutée (23 novembre 2026)
+## 14. Conservation des tenants lors d’un upgrade sur snapshot peuplé — instrumentation
 
-Un contrôle automatisé a été ajouté au parcours de restauration chiffrée, avant et après l'application de l'allowlist de migrations sur la base jetable restaurée :
-- capture de chaque identifiant d'organisation existant ;
-- inventaire, par organisation, des tables publiques possédant `organization_id` et une clé primaire ;
-- comparaison avant/après du nombre de lignes et de l'empreinte déterministe des clés primaires ;
-- pour `organization_members`, inclusion du rôle et du statut dans l'empreinte afin de détecter une perte ou une modification d'adhésion ;
-- conservation des paramètres `company_settings` (identité légale, coordonnées, fiscalité et conditions) ;
-- conservation des séquences documentaires `number_sequences` (type, préfixe, prochaine valeur et padding) ;
-- normalisation contrôlée du renommage historique des tables MAGNIBOX et de la fusion de la clé d'entitlement, sans confondre ces transformations approuvées avec une perte de données ;
-- échec fermé si une table préexistante disparaît sans renommage reconnu, perd `organization_id` ou sa clé primaire, ou si ses lignes sont supprimées, ajoutées ou réaffectées.
+Les contrôles d’empreintes de la PR #361 sont réappliqués après la fusion de la PR #362 sur la branche principale :
+- capture des organisations et des clés primaires des tables tenant-scoped ;
+- vérification des memberships, rôles/statuts, paramètres de société et séquences de numérotation ;
+- comparaison avant/après l’allowlist dans la base de restauration jetable uniquement ;
+- smoke test des deux scripts dans le replay Supabase CI.
 
-Les contrôles sont exécutés uniquement dans la base temporaire `magnisa_restore`. Le schéma d'empreinte est supprimé après validation. Aucun SQL d'écriture n'est exécuté sur la base de production par ce contrôle.
+**Statut : code et smoke test CI à valider.** La conservation sur un snapshot de production restauré ne sera confirmée qu’après un lancement autorisé et réussi du workflow de sauvegarde/restauration. Ce contrôle ne prouve pas à lui seul une migration historique complète.
 
-Un smoke test de ces deux scripts a également été branché sur le replay Supabase local, après le test de deux tenants peuplés. Ce smoke test vérifie le calcul et la comparaison des empreintes sur la base CI ; il ne constitue pas encore une preuve d'upgrade de snapshot historique.
-
-**Statut : INSTRUMENTATION AJOUTÉE — EXÉCUTION SUR SNAPSHOT DE PRODUCTION EN ATTENTE.** Le parcours chiffré nécessite un lancement autorisé du workflow de sauvegarde et une validation de son environnement `production`. Tant que ce workflow n'a pas réussi, la conservation des données historiques multi-tenant n'est pas déclarée démontrée.
-
-**Décision : PHASE 1 NON CLÔTURÉE.**
+**Phase 1 : NON CLÔTURÉE.**
