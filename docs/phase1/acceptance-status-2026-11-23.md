@@ -226,6 +226,18 @@ Ces résultats démontrent, dans un Supabase local éphémère de CI, le provisi
 **Décision : Phase 1 toujours NON CLÔTURÉE.** Les critères métier, RBAC exhaustif, exports/notifications, rapprochements et états PCG, validation professionnelle et PV final signé restent requis. Aucun déploiement ni changement de données de production n'est inclus dans ces preuves.
 
 
+## 13. Addendum — refus inter-tenant UPDATE/DELETE (23 novembre 2026)
+
+- PR [#359](https://github.com/martinot-svg/MAGNISA/pull/359) : **fusionnée** dans `main`, merge commit `1e15dcc66eb7fa2abf6ce7369f6453a3d7cd0740`.
+- [Supabase migration replay #45238065135](https://github.com/martinot-svg/MAGNISA/actions/runs/45238065135) : **success**. Les 78 étapes du job `replay` ont été exécutées avec succès, dont le rejeu complet des migrations, les contrôles SQL/RLS, les scénarios authentifiés et l'étape « Verify isolation for two already-populated tenants ».
+- [MAGNISA CI #45238065182](https://github.com/martinot-svg/MAGNISA/actions/runs/45238065182) : **success**. Les jobs `build` et `magnibox-local-e2e` ont réussi.
+- Le test inter-tenant vérifie désormais le refus de l'UPDATE et du DELETE par le tenant A sur la ligne client du tenant B, puis confirme depuis le client B que sa ligne existe toujours et que son nom n'a pas changé. Il tient compte du refus SQL `42501` lorsque le rôle ne possède pas le privilège DELETE au niveau table.
+- Les fixtures d'organisations sont conservées dans la base locale jetable, car les journaux d'audit sont append-only ; les utilisateurs Auth temporaires sont supprimés. Aucun projet ni jeu de données de production n'est modifié.
+
+Cette preuve renforce la sécurité multi-tenant dans l'environnement isolé de CI. Elle ne remplace pas le test d'upgrade d'un snapshot ancien et peuplé : la conservation des données et paramètres de plusieurs organisations au travers d'une mise à niveau historique reste à démontrer.
+
+**Décision : PHASE 1 NON CLÔTURÉE.** Les autres critères de recette métier, RBAC exhaustif, exports/notifications, rapprochements, états PCG, paie et PV final signé restent ouverts.
+
 ## 14. Conservation des tenants lors d’un upgrade sur snapshot peuplé — instrumentation
 
 Les contrôles d’empreintes de la PR #361 sont réappliqués après la fusion de la PR #362 sur la branche principale :
