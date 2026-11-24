@@ -284,9 +284,9 @@ begin
   if p_name is null or length(trim(p_name))<2 or length(trim(p_name))>180 then raise exception 'Nom de prestation invalide'; end if;
   if p_unit is null or not (p_unit=any(v_units)) then raise exception 'Unité de facturation invalide'; end if;
   if p_unit_price is null or p_unit_price<0 or p_tax_rate is null or p_tax_rate<0 or p_tax_rate>100 then raise exception 'Tarif ou taxe invalide'; end if;
-  if p_service_type not in ('one_off','recurring') then raise exception 'Type de prestation invalide'; end if;
+  if p_service_type is null or p_service_type not in ('one_off','recurring') then raise exception 'Type de prestation invalide'; end if;
   if p_category is not null and not exists(select 1 from public.service_categories where id=p_category and organization_id=p_org and is_active) then raise exception 'Catégorie invalide'; end if;
-  if p_service_type='recurring' and p_recurrence_frequency not in ('daily','weekly','monthly','quarterly','semiannual','annual','custom') then raise exception 'Fréquence récurrente invalide'; end if;
+  if p_service_type='recurring' and (p_recurrence_frequency is null or p_recurrence_frequency not in ('daily','weekly','monthly','quarterly','semiannual','annual','custom')) then raise exception 'Fréquence récurrente invalide'; end if;
   if p_service_type='recurring' and p_recurrence_frequency='custom' and (p_custom_interval_days is null or p_custom_interval_days not between 1 and 365) then raise exception 'Intervalle personnalisé invalide'; end if;
 
   insert into public.services(organization_id,category_id,name,description,unit,unit_price,tax_rate,service_type,recurrence_frequency,custom_interval_days)
@@ -319,7 +319,7 @@ begin
   if p_unit is null or not (p_unit=any(v_units)) or p_unit_price is null or p_unit_price<0 or p_tax_rate is null or p_tax_rate<0 or p_tax_rate>100 then raise exception 'Unité ou prix invalide'; end if;
   if p_service_type not in ('one_off','recurring') then raise exception 'Type de prestation invalide'; end if;
   if p_category is not null and not exists(select 1 from public.service_categories where id=p_category and organization_id=p_org and is_active) then raise exception 'Catégorie invalide'; end if;
-  if p_service_type='recurring' and p_recurrence_frequency not in ('daily','weekly','monthly','quarterly','semiannual','annual','custom') then raise exception 'Fréquence invalide'; end if;
+  if p_service_type='recurring' and (p_recurrence_frequency is null or p_recurrence_frequency not in ('daily','weekly','monthly','quarterly','semiannual','annual','custom')) then raise exception 'Fréquence invalide'; end if;
   if p_service_type='recurring' and p_recurrence_frequency='custom' and (p_custom_interval_days is null or p_custom_interval_days not between 1 and 365) then raise exception 'Intervalle personnalisé invalide'; end if;
 
   select * into v_old from public.services where id=p_service and organization_id=p_org for update;
