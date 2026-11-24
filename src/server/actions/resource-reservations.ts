@@ -87,3 +87,26 @@ export async function cancelResourceReservation(formData: FormData) {
   if (error) throw new Error("Annulation impossible : " + error.message);
   revalidatePath("/reservations");
 }
+
+export async function updateResourceReservationPeriod(formData: FormData) {
+  const ctx = await requireOrganization();
+  await assertPermission(ctx, "orders.manage");
+  const raw = Object.fromEntries(formData);
+  const parsed = z.object({
+    id: z.string().uuid(),
+    timezone_name: timezone,
+  }).safeParse(raw);
+  if (!parsed.success) throw new Error("Informations de modification invalides.");
+  const start = parseDateWithOffset(raw.start_at, "Début");
+  const end = parseDateWithOffset(raw.end_at, "Fin");
+  if (new Date(end) <= new Date(start)) throw new Error("La fin doit être postérieure au début.");
+  const { error } = await ctx.supabase.rpc("update_resource_reservation_period", {
+    p_org: ctx.organizationId,
+    p_reservation: parsed.data.id,
+    p_start_at: start,
+    p_end_at: end,
+    p_timezone: parsed.data.timezone_name,
+  });
+  if (error) throw new Error("Modification impossible : " + error.message);
+  revalidatePath("/reservations");
+}
