@@ -10,6 +10,7 @@ const featurePermission: Partial<Record<FeatureKey, Permission>> = {
   prospects: "sales.view",
   clients: "billing.view",
   services: "sales.view",
+  resource_reservations: "orders.manage",
   projects: "sales.view",
   quotes: "sales.view",
   orders: "sales.view",
