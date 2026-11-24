@@ -1,6 +1,8 @@
 export type InvoiceMetricRow = {
   status: string;
   total: number | string | null;
+  /** Remaining amount from the invoice ledger, when available. */
+  balanceDue?: number | string | null;
   dueDate?: string | null;
 };
 
@@ -17,7 +19,7 @@ export type ReceivablesSummary = {
   overdueTotal: number;
 };
 
-function amount(value: number | string | null): number {
+function amount(value: number | string | null | undefined): number {
   const parsed = typeof value === "number" ? value : Number(value ?? 0);
   if (!Number.isFinite(parsed)) {
     throw new Error("Montant analytique invalide.");
@@ -42,15 +44,21 @@ export function summarizeReceivables(
   const issued = invoices.filter((row) =>
     ["issued", "sent", "partially_paid", "paid", "overdue"].includes(row.status),
   );
+  const openInvoices = issued.filter((row) =>
+    !["paid", "cancelled", "void"].includes(row.status),
+  );
 
   const invoicedTotal = issued.reduce((sum, row) => sum + amount(row.total), 0);
   const paidTotal = payments.reduce((sum, row) => sum + amount(row.amount), 0);
-  const outstandingTotal = Math.max(0, invoicedTotal - paidTotal);
+  // Prefer authoritative invoice balances when the caller supplies them for
+  // every issued invoice; retain compatibility with older aggregate callers.
+  const hasCompleteBalances = issued.every((row) => row.balanceDue !== undefined);
+  const outstandingTotal = hasCompleteBalances
+    ? openInvoices.reduce((sum, row) => sum + Math.max(0, amount(row.balanceDue)), 0)
+    : Math.max(0, invoicedTotal - paidTotal);
 
-  const overdue = issued.filter((row) =>
-    row.dueDate != null &&
-    row.dueDate < asOfDate &&
-    !["paid", "cancelled", "void"].includes(row.status),
+  const overdue = openInvoices.filter((row) =>
+    row.dueDate != null && row.dueDate < asOfDate,
   );
 
   return {
@@ -59,7 +67,61 @@ export function summarizeReceivables(
     paidTotal: money(paidTotal),
     outstandingTotal: money(outstandingTotal),
     overdueCount: overdue.length,
-    overdueTotal: money(overdue.reduce((sum, row) => sum + amount(row.total), 0)),
+    // A partially paid overdue invoice contributes only its remaining balance.
+    overdueTotal: money(overdue.reduce(
+      (sum, row) => sum + Math.max(0, amount(row.balanceDue ?? row.total)),
+      0,
+    )),
+  };
+}
+
+export type PeriodTotals = {
+  revenue: number | string | null;
+  receipts: number | string | null;
+  expenses: number | string | null;
+};
+
+export type PeriodComparison = {
+  current: { revenue: number; receipts: number; expenses: number };
+  previous: { revenue: number; receipts: number; expenses: number };
+  changePercent: { revenue: number | null; receipts: number | null; expenses: number | null };
+};
+
+/** Compare deux périodes de même durée, sans mélanger leurs devises. */
+export function comparePeriods(
+  current: PeriodTotals,
+  previous: PeriodTotals,
+): PeriodComparison {
+  const currentValues = {
+    revenue: amount(current.revenue),
+    receipts: amount(current.receipts),
+    expenses: amount(current.expenses),
+  };
+  const previousValues = {
+    revenue: amount(previous.revenue),
+    receipts: amount(previous.receipts),
+    expenses: amount(previous.expenses),
+  };
+
+  const change = (now: number, before: number): number | null =>
+    before === 0 ? (now === 0 ? 0 : null) : money(((now - before) / Math.abs(before)) * 100);
+
+  return {
+    current: {
+      revenue: money(currentValues.revenue),
+      receipts: money(currentValues.receipts),
+      expenses: money(currentValues.expenses),
+    },
+    previous: {
+      revenue: money(previousValues.revenue),
+      receipts: money(previousValues.receipts),
+      expenses: money(previousValues.expenses),
+    },
+    changePercent: {
+      revenue: change(currentValues.revenue, previousValues.revenue),
+      receipts: change(currentValues.receipts, previousValues.receipts),
+      expenses: change(currentValues.expenses, previousValues.expenses),
+    },
   };
 }
 
