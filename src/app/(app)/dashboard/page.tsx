@@ -36,6 +36,11 @@ export default async function Dashboard(){
     {label:"Dû aux associés",value:[...balances.values()].reduce((s,x)=>s+Math.max(0,x),0)}
   ];
   const hasData=(m.invoice_count??0)+(m.payment_count??0)+(m.expense_count??0)>0;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Antananarivo", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const overdueAmount = openInvoices.reduce((sum: number, invoice: any) =>
+    invoice.due_date && String(invoice.due_date).slice(0, 10) < today
+      ? sum + Math.max(0, Number(invoice.balance_due || 0))
+      : sum, 0);
   const items=[
     {id:"revenue",label:"Chiffre d'affaires facturé",value:money(Number(m.revenue||0),currency)},
     {id:"receipts",label:"Encaissements confirmés",value:money(Number(m.receipts||0),currency)},
@@ -43,6 +48,7 @@ export default async function Dashboard(){
     {id:"receivables",label:"Créances clients",value:money(Number(m.receivables||0),currency)},
     {id:"cash",label:"Trésorerie disponible",value:money(Number(m.cash_available||0),currency)},
     {id:"overdue",label:"Factures en retard",value:String(m.overdue_invoice_count??0)},
+    {id:"overdue_amount",label:"Montant restant en retard",value:money(overdueAmount,currency)},
     {id:"quotes",label:"Devis acceptés",value:String(m.accepted_quote_count??0)},
     {id:"debts",label:"Dettes et engagements",value:money(debtBreakdown.reduce((s,x)=>s+x.value,0),currency)}
   ];
