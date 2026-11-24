@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/permissions";
 import { requireOrganization } from "@/lib/current-org";
+import { setServiceActive } from "@/server/actions/core";
 import {
-  createService,
-  setServiceActive,
-  updateService,
-} from "@/server/actions/core";
+  createCatalogCategory,
+  createCatalogService,
+  updateCatalogService,
+} from "@/server/actions/service-catalog";
+import { BILLING_UNITS } from "@/lib/magnisa-next/billing-units";
 import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
 import { ServiceRecurrenceFields } from "@/components/service-recurrence-fields";
@@ -31,7 +33,7 @@ export default async function Services({
   await requirePermission(ctx, "sales.view");
   const { supabase, organizationId } = ctx;
 
-  const [{ data = [] }, { data: org }] = await Promise.all([
+  const [{ data = [] }, { data: org }, { data: categories = [] }] = await Promise.all([
     supabase
       .from("services")
       .select("*")
@@ -43,6 +45,12 @@ export default async function Services({
       .select("currency")
       .eq("id", organizationId)
       .single(),
+    supabase
+      .from("service_categories")
+      .select("id,name")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true)
+      .order("name"),
   ]);
 
   const currency = org?.currency || "MGA";
@@ -71,10 +79,17 @@ export default async function Services({
               title="Nouvelle prestation"
               buttonLabel="+ Nouvelle prestation"
             >
-              <form action={createService} className="form">
+              <form action={createCatalogService} className="form">
                 <div className="field">
                   <label>Nom</label>
                   <input name="name" required minLength={2} />
+                </div>
+                <div className="field">
+                  <label>Catégorie</label>
+                  <select name="category_id" defaultValue="">
+                    <option value="">Sans catégorie</option>
+                    {categories.map((category: any) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                  </select>
                 </div>
                 <div className="field">
                   <label>Description</label>
@@ -82,8 +97,10 @@ export default async function Services({
                 </div>
                 <ServiceRecurrenceFields />
                 <div className="field">
-                  <label>Unité</label>
-                  <input name="unit" defaultValue="forfait" required />
+                  <label>Unité de facturation</label>
+                  <select name="unit" defaultValue="forfait" required>
+                    {BILLING_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
+                  </select>
                 </div>
                 <div className="field">
                   <label>Prix unitaire</label>
@@ -110,6 +127,13 @@ export default async function Services({
                 <button className="button primary" type="submit">
                   Créer la prestation
                 </button>
+              </form>
+            </FormDialog>
+            <FormDialog title="Nouvelle catégorie" buttonLabel="+ Nouvelle catégorie">
+              <form action={createCatalogCategory} className="form">
+                <div className="field"><label>Nom de la catégorie</label><input name="name" required minLength={2} maxLength={120} placeholder="Ex. Communication & Marketing" /></div>
+                <div className="field"><label>Description</label><textarea name="description" maxLength={2000} /></div>
+                <button className="button primary" type="submit">Créer la catégorie</button>
               </form>
             </FormDialog>
           )}
@@ -167,7 +191,7 @@ export default async function Services({
                       Modifier la prestation
                     </summary>
                     <FormDialog title="Modifier une prestation" buttonLabel="Modifier la prestation"><form
-                      action={updateService}
+                      action={updateCatalogService}
                       className="form"
                       style={{ marginTop: 12 }}
                     >
@@ -182,6 +206,13 @@ export default async function Services({
                         />
                       </div>
                       <div className="field">
+                        <label>Catégorie</label>
+                        <select name="category_id" defaultValue={s.category_id || ""}>
+                          <option value="">Sans catégorie</option>
+                          {categories.map((category: any) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                        </select>
+                      </div>
+                      <div className="field">
                         <label>Description</label>
                         <textarea
                           name="description"
@@ -194,8 +225,10 @@ export default async function Services({
                         defaultCustomIntervalDays={s.custom_interval_days}
                       />
                       <div className="field">
-                        <label>Unité</label>
-                        <input name="unit" defaultValue={s.unit} required />
+                        <label>Unité de facturation</label>
+                        <select name="unit" defaultValue={s.unit} required>
+                          {BILLING_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
+                        </select>
                       </div>
                       <div className="field">
                         <label>Prix unitaire</label>
