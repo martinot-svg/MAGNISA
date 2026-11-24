@@ -15,3 +15,10 @@ describe("windowsOverlap", () => {
     )).toBe(false);
   });
 });
+
+  it("rejects windows with zero or negative duration", () => {
+    expect(() => windowsOverlap(
+      { startsAt: new Date("2026-01-01T11:00:00Z"), endsAt: new Date("2026-01-01T11:00:00Z") },
+      { startsAt: new Date("2026-01-01T12:00:00Z"), endsAt: new Date("2026-01-01T13:00:00Z") },
+    )).toThrow("Reservation windows must have positive duration");
+  });
