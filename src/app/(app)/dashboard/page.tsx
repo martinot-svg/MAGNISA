@@ -2,6 +2,7 @@ import {requireOrganization} from "@/lib/current-org";
 import {money} from "@/lib/money";
 import {EmptyState} from "@/components/empty-state";
 import {DashboardView} from "@/components/dashboard-view";
+import {sumOverdueBalance} from "@/lib/magnisa-next/analytics";
 
 function monthKey(d:Date){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`}
 function labelMonth(d:Date){return new Intl.DateTimeFormat("fr-FR",{month:"short"}).format(d).replace(".","")}
@@ -37,10 +38,12 @@ export default async function Dashboard(){
   ];
   const hasData=(m.invoice_count??0)+(m.payment_count??0)+(m.expense_count??0)>0;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Antananarivo", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-  const overdueAmount = openInvoices.reduce((sum: number, invoice: any) =>
-    invoice.due_date && String(invoice.due_date).slice(0, 10) < today
-      ? sum + Math.max(0, Number(invoice.balance_due || 0))
-      : sum, 0);
+  const overdueAmount = sumOverdueBalance(openInvoices.map((invoice: any) => ({
+    status: String(invoice.status),
+    total: invoice.balance_due,
+    balanceDue: invoice.balance_due,
+    dueDate: invoice.due_date,
+  })), today);
   const items=[
     {id:"revenue",label:"Chiffre d'affaires facturé",value:money(Number(m.revenue||0),currency)},
     {id:"receipts",label:"Encaissements confirmés",value:money(Number(m.receipts||0),currency)},
