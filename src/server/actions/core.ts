@@ -5,6 +5,7 @@ import { z } from "zod";
 import { calculateMobileMoneyTransfer, normalizeMobileMoneyOperator } from "@/lib/mobile-money-tariffs";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
+import { isBillingUnit } from "@/lib/magnisa-next/billing-units";
 
 const clientSchema = z.object({
   name: z.string().trim().min(2, "Le nom doit contenir au moins 2 caractères."),
@@ -81,7 +82,7 @@ export async function setCustomerActive(formData: FormData) {
 const serviceSchema = z.object({
   name: z.string().trim().min(2),
   description: z.string().trim().optional(),
-  unit: z.string().trim().min(1),
+  unit: z.string().trim().refine(isBillingUnit, "Choisis une unité dans la liste normalisée."),
   unit_price: z.coerce.number().finite().nonnegative(),
   tax_rate: z.coerce.number().finite().nonnegative().max(100),
   service_type: z.enum(["one_off", "recurring"]).default("one_off"),
