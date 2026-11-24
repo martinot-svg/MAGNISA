@@ -243,9 +243,61 @@ jobs:
           diff -u backup/production-counts.tsv backup/restored-counts.tsv
           echo "Restore test passed: exact PostgreSQL row counts for application and restorable Supabase schemas, plus Storage binary SHA-256 hashes, match. The encrypted dump retains the platform-managed Realtime, Vault and Cron schemas."
 
+          # Fingerprint stable tenant/business rows before the allowlisted upgrade.
+          # The inventory stores only per-tenant counts and SHA-256 hashes, never row contents.
+          capture_tenant_core_state() {
+            docker run --rm --network host postgres:17 psql "$RESTORE_DB_URL" \
+              -X -qAt -F '|' -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT 'organizations', id::text, count(*), md5(string_agg(to_jsonb(o)::text, E'\\n' ORDER BY to_jsonb(o)::text))
+          FROM public.organizations o GROUP BY id
+          UNION ALL
+          SELECT 'organization_members', organization_id::text, count(*), md5(string_agg(to_jsonb(m)::text, E'\\n' ORDER BY to_jsonb(m)::text))
+          FROM public.organization_members m GROUP BY organization_id
+          UNION ALL
+          SELECT 'customers', organization_id::text, count(*), md5(string_agg(to_jsonb(t)::text, E'\\n' ORDER BY to_jsonb(t)::text))
+          FROM public.customers t GROUP BY organization_id
+          UNION ALL
+          SELECT 'suppliers', organization_id::text, count(*), md5(string_agg(to_jsonb(t)::text, E'\\n' ORDER BY to_jsonb(t)::text))
+          FROM public.suppliers t GROUP BY organization_id
+          UNION ALL
+          SELECT 'supplier_invoices', organization_id::text, count(*), md5(string_agg(to_jsonb(t)::text, E'\\n' ORDER BY to_jsonb(t)::text))
+          FROM public.supplier_invoices t GROUP BY organization_id
+          UNION ALL
+          SELECT 'supplier_payments', organization_id::text, count(*), md5(string_agg(to_jsonb(t)::text, E'\\n' ORDER BY to_jsonb(t)::text))
+          FROM public.supplier_payments t GROUP BY organization_id
+          UNION ALL
+          SELECT 'expenses', organization_id::text, count(*), md5(string_agg(to_jsonb(t)::text, E'\\n' ORDER BY to_jsonb(t)::text))
+          FROM public.expenses t GROUP BY organization_id
+          UNION ALL
+          SELECT 'financial_accounts', organization_id::text, count(*), md5(string_agg(to_jsonb(t)::text, E'\\n' ORDER BY to_jsonb(t)::text))
+          FROM public.financial_accounts t GROUP BY organization_id
+          UNION ALL
+          SELECT 'financial_transactions', organization_id::text, count(*), md5(string_agg(to_jsonb(t)::text, E'\\n' ORDER BY to_jsonb(t)::text))
+          FROM public.financial_transactions t GROUP BY organization_id
+          UNION ALL
+          SELECT 'journal_entries', organization_id::text, count(*), md5(string_agg(to_jsonb(t)::text, E'\\n' ORDER BY to_jsonb(t)::text))
+          FROM public.journal_entries t GROUP BY organization_id
+          ORDER BY 1, 2;
+          SQL
+          }
+
+          capture_tenant_core_state > backup/tenant-core-state-before.tsv
+          test -s backup/tenant-core-state-before.tsv || {
+            echo "::error::Tenant preservation inventory is empty; refusing to claim historical upgrade coverage."
+            exit 1
+          }
+          echo "Captured per-tenant fingerprints for organizations, memberships, customers, suppliers, invoices, payments, expenses, treasury accounts/movements and journal entries."
+
           # Exercise the exact reviewed production migration set against the
           # freshly restored production snapshot. Production remains untouched.
           PGSSLMODE=disable SUPABASE_DB_URL="$RESTORE_DB_URL" bash scripts/ci/apply-production-allowlist.sh apply
+
+          capture_tenant_core_state > backup/tenant-core-state-after.tsv
+          diff -u backup/tenant-core-state-before.tsv backup/tenant-core-state-after.tsv || {
+            echo "::error::Allowlisted migration replay changed or removed tenant/core business rows on the disposable production snapshot."
+            exit 1
+          }
+          echo "Tenant preservation verified: all inventoried per-tenant row counts and complete row fingerprints match before/after the allowlisted migration replay."
           docker run --rm --network host postgres:17 \
             psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 -At <<'SQL'
           DO $$
