@@ -8,6 +8,7 @@ export const FEATURE_CATALOG=[
   {key:"quotes",label:"Devis",href:"/devis",required:false,group:"Clients & ventes",description:"Propositions commerciales, versions et acceptation."},
   {key:"orders",label:"Commandes",href:"/commandes",required:false,group:"Clients & ventes",description:"Engagement après acceptation d'un devis."},
   {key:"services",label:"Services & prestations",href:"/services",required:true,group:"Clients & ventes",description:"Catalogue des prestations vendues."},
+  {key:"resource_reservations",label:"Réservations",href:"/reservations",required:false,group:"Clients & ventes",description:"Calendrier des salles, véhicules, équipements et autres ressources."},
   {key:"projects",label:"Projets & missions",href:"/projets",required:false,group:"Clients & ventes",description:"Relie ventes, coûts directs et rentabilité par mission."},
   {key:"recurring_services",label:"Prestations récurrentes",href:"/prestations-recurrentes",required:false,group:"Clients & ventes",description:"Contrats périodiques, échéances et factures en brouillon."},
   {key:"invoices",label:"Factures clients",href:"/factures",required:false,group:"Clients & ventes",description:"Facturation directe ou issue d'un devis/commande."},

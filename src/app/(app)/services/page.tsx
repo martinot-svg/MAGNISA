@@ -2,10 +2,9 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/permissions";
 import { requireOrganization } from "@/lib/current-org";
 import {
-  createService,
   setServiceActive,
-  updateService,
 } from "@/server/actions/core";
+import { createCatalogCategory, createCatalogService, updateCatalogService } from "@/server/actions/service-catalog";
 import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
 import { ServiceRecurrenceFields } from "@/components/service-recurrence-fields";
@@ -32,7 +31,7 @@ export default async function Services({
   await requirePermission(ctx, "sales.view");
   const { supabase, organizationId } = ctx;
 
-  const [{ data = [] }, { data: org }] = await Promise.all([
+  const [{ data = [] }, { data: org }, { data: categories = [] }] = await Promise.all([
     supabase
       .from("services")
       .select("*")
@@ -44,9 +43,26 @@ export default async function Services({
       .select("currency")
       .eq("id", organizationId)
       .single(),
+    supabase.from("service_categories").select("id,name,is_active").eq("organization_id",organizationId).order("name"),
   ]);
 
   const currency = org?.currency || "MGA";
+  const categoryNames = new Map((categories as any[]).map((category) => [category.id, category.name]));
+  const activeCategories = (categories as any[]).filter((category) => category.is_active);
+  const serviceIds = data.map((service: any) => service.id);
+  const { data: priceVersions = [] } = serviceIds.length
+    ? await supabase.from("service_price_versions")
+        .select("id,service_id,unit,unit_price,tax_rate,effective_from,effective_until")
+        .eq("organization_id", organizationId).in("service_id", serviceIds)
+        .order("effective_from", { ascending: false })
+        .limit(Math.min(serviceIds.length * 10, 1000))
+    : { data: [] };
+  const pricesByService = new Map<string, any[]>();
+  for (const version of priceVersions as any[]) {
+    const list = pricesByService.get(version.service_id) ?? [];
+    if (list.length < 5) list.push(version);
+    pricesByService.set(version.service_id, list);
+  }
 
   return (
     <>
@@ -68,11 +84,19 @@ export default async function Services({
               : "Voir les prestations archivées"}
           </Link>
           {!archived && (
+            <>
+            <FormDialog title="Nouvelle catégorie" buttonLabel="+ Catégorie">
+              <form action={createCatalogCategory} className="form">
+                <div className="field"><label>Nom de la catégorie</label><input name="name" required minLength={2} maxLength={120} /></div>
+                <div className="field"><label>Description</label><textarea name="description" maxLength={2000} /></div>
+                <button className="button primary" type="submit">Créer la catégorie</button>
+              </form>
+            </FormDialog>
             <FormDialog
               title="Nouvelle prestation"
               buttonLabel="+ Nouvelle prestation"
             >
-              <form action={createService} className="form">
+              <form action={createCatalogService} className="form">
                 <div className="field">
                   <label>Nom</label>
                   <input name="name" required minLength={2} />
@@ -81,6 +105,7 @@ export default async function Services({
                   <label>Description</label>
                   <textarea name="description" />
                 </div>
+                <div className="field"><label>Catégorie</label><select name="category_id" defaultValue=""><option value="">— Aucune —</option>{activeCategories.map((cat:any)=><option key={cat.id} value={cat.id}>{cat.name}</option>)}</select></div>
                 <ServiceRecurrenceFields />
                 <div className="field">
                   <label>Unité</label>
@@ -117,6 +142,7 @@ export default async function Services({
                 </button>
               </form>
             </FormDialog>
+            </>
           )}
         </div>
       </div>
@@ -148,7 +174,7 @@ export default async function Services({
                     <div>
                       <h2>{s.name}</h2>
                       <p className="muted">
-                        <code>{s.magnisa_reference || "-"}</code> Code service ·{" "}
+                        <code>{s.magnisa_reference || "-"}</code> Code service · {categoryNames.get(s.category_id) ? `Catégorie : ${categoryNames.get(s.category_id)} · ` : ""}{" "}
                         {s.service_type === "recurring"
                           ? "Récurrente"
                           : "Ponctuelle"}
@@ -172,7 +198,7 @@ export default async function Services({
                       Modifier la prestation
                     </summary>
                     <FormDialog title="Modifier une prestation" buttonLabel="Modifier la prestation"><form
-                      action={updateService}
+                      action={updateCatalogService}
                       className="form"
                       style={{ marginTop: 12 }}
                     >
@@ -193,6 +219,7 @@ export default async function Services({
                           defaultValue={s.description || ""}
                         />
                       </div>
+                      <div className="field"><label>Catégorie</label><select name="category_id" defaultValue={s.category_id || ""}><option value="">— Aucune —</option>{[...activeCategories, ...(s.category_id && !activeCategories.some((cat:any)=>cat.id===s.category_id) ? (categories as any[]).filter((cat)=>cat.id===s.category_id) : [])].map((cat:any)=><option key={cat.id} value={cat.id}>{cat.name}{!cat.is_active ? " (archivée)" : ""}</option>)}</select></div>
                       <ServiceRecurrenceFields
                         defaultServiceType={s.service_type || "one_off"}
                         defaultFrequency={s.recurrence_frequency || "monthly"}
@@ -253,6 +280,23 @@ export default async function Services({
                       {archived ? "Réactiver" : "Supprimer / archiver"}
                     </button>
                   </form></FormDialog>
+                  <details className="section">
+                    <summary style={{ cursor: "pointer", fontWeight: 600 }}>Historique des tarifs</summary>
+                    <div className="tableWrap" style={{ marginTop: 8 }}>
+                      <table><thead><tr><th>Tarif</th><th>Unité</th><th>Taxe</th><th>Début d’effet</th><th>Fin d’effet</th></tr></thead>
+                        <tbody>{(pricesByService.get(s.id) ?? []).map((version: any) => (
+                          <tr key={version.id}>
+                            <td>{money(Number(version.unit_price), currency)}</td>
+                            <td>{BILLING_UNITS.find((unit) => unit.value === version.unit)?.label ?? version.unit}</td>
+                            <td>{version.tax_rate}%</td>
+                            <td>{new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(version.effective_from))}</td>
+                            <td>{version.effective_until ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(version.effective_until)) : "Tarif actuel"}</td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                    {(pricesByService.get(s.id) ?? []).length === 0 && <p className="muted">Aucun historique de tarif disponible.</p>}
+                  </details>
                   {!archived && (
                     <p
                       className="muted"
