@@ -19,7 +19,14 @@ const serviceInput = z.object({
   custom_interval_days: z.coerce.number().int().min(1).max(365).optional().or(z.literal("")),
 });
 
-const uuid = z.string().uuid();\n\nfunction normalizedForm(formData: FormData) {\n  const raw = Object.fromEntries(formData);\n  if (raw.custom_interval_days === "") raw.custom_interval_days = undefined;\n  if (raw.recurrence_frequency === "") raw.recurrence_frequency = undefined;\n  return raw;\n}
+const uuid = z.string().uuid();
+
+function normalizedForm(formData: FormData) {
+  const raw: Record<string, unknown> = Object.fromEntries(formData);
+  if (raw.custom_interval_days === "") raw.custom_interval_days = undefined;
+  if (raw.recurrence_frequency === "") raw.recurrence_frequency = undefined;
+  return raw;
+}
 
 export async function createCatalogCategory(formData: FormData) {
   const ctx = await requireOrganization();
