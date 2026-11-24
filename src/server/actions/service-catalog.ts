@@ -44,7 +44,6 @@ export async function createCatalogCategory(formData: FormData) {
   });
   if (error) throw new Error("Création de catégorie impossible : " + error.message);
   revalidatePath("/services");
-  return data as string;
 }
 
 export async function createCatalogService(formData: FormData) {
