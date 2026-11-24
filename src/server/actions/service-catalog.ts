@@ -19,7 +19,7 @@ const serviceInput = z.object({
   custom_interval_days: z.coerce.number().int().min(1).max(365).optional().or(z.literal("")),
 });
 
-const uuid = z.string().uuid();
+const uuid = z.string().uuid();\n\nfunction normalizedForm(formData: FormData) {\n  const raw = Object.fromEntries(formData);\n  if (raw.custom_interval_days === "") raw.custom_interval_days = undefined;\n  if (raw.recurrence_frequency === "") raw.recurrence_frequency = undefined;\n  return raw;\n}
 
 export async function createCatalogCategory(formData: FormData) {
   const ctx = await requireOrganization();
@@ -43,7 +43,7 @@ export async function createCatalogCategory(formData: FormData) {
 export async function createCatalogService(formData: FormData) {
   const ctx = await requireOrganization();
   await assertPermission(ctx, "services.create");
-  const parsed = serviceInput.safeParse(Object.fromEntries(formData));
+  const parsed = serviceInput.safeParse(normalizedForm(formData));
   if (!parsed.success) throw new Error("Vérifie les informations de la prestation et son unité.");
   const v = parsed.data;
   if (v.service_type === "recurring" && !v.recurrence_frequency) throw new Error("Choisis la fréquence de récurrence.");
