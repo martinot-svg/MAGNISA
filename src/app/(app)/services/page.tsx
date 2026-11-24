@@ -175,7 +175,7 @@ export default async function Services({
                         s.recurrence_frequency
                           ? ` · ${freqLabel}`
                           : ""}{" "}
-                        · {s.unit} · Taxe {s.tax_rate}%
+                        · {categories.find((category: any) => category.id === s.category_id)?.name || "Sans catégorie"} · {s.unit} · Taxe {s.tax_rate}%
                       </p>
                       <strong>{money(Number(s.unit_price), currency)}</strong>
                     </div>
