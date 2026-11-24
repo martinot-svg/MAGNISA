@@ -16,5 +16,13 @@ export function calculatePrice(input: PriceInput): number {
     throw new Error("quantity must be a finite non-negative number");
   }
   const multiplier = input.unit === "fixed" ? 1 : input.quantity;
-  return Math.round(input.amount * multiplier * 100) / 100;
+  const total = input.amount * multiplier;
+  if (!Number.isFinite(total)) {
+    throw new Error("calculated price exceeds the supported numeric range");
+  }
+  const rounded = Math.round((total + Number.EPSILON) * 100) / 100;
+  if (!Number.isFinite(rounded)) {
+    throw new Error("calculated price exceeds the supported numeric range");
+  }
+  return rounded;
 }

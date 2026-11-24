@@ -11,4 +11,7 @@ describe("calculatePrice", () => {
   it("rejects negative amounts", () => {
     expect(() => calculatePrice({ amount: -1, quantity: 1, unit: "fixed" })).toThrow();
   });
+  it("rejects a finite input whose multiplication overflows", () => {
+    expect(() => calculatePrice({ amount: Number.MAX_VALUE, quantity: 2, unit: "hourly" })).toThrow(/numeric range/);
+  });
 });
