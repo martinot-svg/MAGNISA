@@ -6,6 +6,7 @@ import {
   cancelResourceReservation,
   createReservableResource,
   createResourceReservation,
+  updateResourceReservationPeriod,
 } from "@/server/actions/resource-reservations";
 
 const TYPE_LABELS: Record<string,string> = {
