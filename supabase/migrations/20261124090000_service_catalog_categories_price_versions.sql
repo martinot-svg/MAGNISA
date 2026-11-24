@@ -265,3 +265,92 @@ revoke all on function public.create_service_category_with_services(uuid,text,te
 grant execute on function public.create_service_category_with_services(uuid,text,text,jsonb) to authenticated;
 revoke all on function public.update_service_price(uuid,uuid,text,numeric,numeric,timestamptz) from public, anon;
 grant execute on function public.update_service_price(uuid,uuid,text,numeric,numeric,timestamptz) to authenticated;
+
+
+-- Atomic individual service creation with its first price snapshot.
+create or replace function public.create_service_catalog_item(
+  p_org uuid, p_name text, p_description text, p_category uuid,
+  p_unit text, p_unit_price numeric, p_tax_rate numeric,
+  p_service_type text default 'one_off',
+  p_recurrence_frequency text default null,
+  p_custom_interval_days integer default null
+) returns uuid
+language plpgsql security definer set search_path=public as $function$
+declare v_service uuid;
+  v_units text[] := array['forfait','unite','heure','demi_journee','jour','nuitee','semaine','mois','annee','minute','seance','intervention','trajet','colis','personne','dossier','m2'];
+begin
+  perform public.assert_org_access(p_org);
+  perform public.assert_org_permission(p_org,'services.create');
+  if p_name is null or length(trim(p_name))<2 or length(trim(p_name))>180 then raise exception 'Nom de prestation invalide'; end if;
+  if p_unit is null or not (p_unit=any(v_units)) then raise exception 'Unité de facturation invalide'; end if;
+  if p_unit_price is null or p_unit_price<0 or p_tax_rate is null or p_tax_rate<0 or p_tax_rate>100 then raise exception 'Tarif ou taxe invalide'; end if;
+  if p_service_type not in ('one_off','recurring') then raise exception 'Type de prestation invalide'; end if;
+  if p_category is not null and not exists(select 1 from public.service_categories where id=p_category and organization_id=p_org and is_active) then raise exception 'Catégorie invalide'; end if;
+  if p_service_type='recurring' and p_recurrence_frequency not in ('daily','weekly','monthly','quarterly','semiannual','annual','custom') then raise exception 'Fréquence récurrente invalide'; end if;
+  if p_service_type='recurring' and p_recurrence_frequency='custom' and (p_custom_interval_days is null or p_custom_interval_days not between 1 and 365) then raise exception 'Intervalle personnalisé invalide'; end if;
+
+  insert into public.services(organization_id,category_id,name,description,unit,unit_price,tax_rate,service_type,recurrence_frequency,custom_interval_days)
+  values(p_org,p_category,trim(p_name),nullif(trim(coalesce(p_description,'')),''),p_unit,p_unit_price,p_tax_rate,p_service_type,
+    case when p_service_type='recurring' then p_recurrence_frequency else null end,
+    case when p_service_type='recurring' and p_recurrence_frequency='custom' then p_custom_interval_days else null end)
+  returning id into v_service;
+
+  insert into public.service_price_versions(organization_id,service_id,unit,unit_price,tax_rate,created_by)
+  values(p_org,v_service,p_unit,p_unit_price,p_tax_rate,auth.uid());
+  perform public.audit_event(p_org,'service.created','service',v_service,null,jsonb_build_object('name',trim(p_name),'category_id',p_category,'unit',p_unit,'unit_price',p_unit_price,'tax_rate',p_tax_rate));
+  return v_service;
+end;
+$function$;
+
+-- Atomic metadata + price update; the price history and service's current price stay synchronized.
+create or replace function public.update_service_catalog_item(
+  p_org uuid, p_service uuid, p_name text, p_description text, p_category uuid,
+  p_unit text, p_unit_price numeric, p_tax_rate numeric,
+  p_service_type text, p_recurrence_frequency text,
+  p_custom_interval_days integer
+) returns uuid
+language plpgsql security definer set search_path=public as $function$
+declare v_old public.services%rowtype; v_version uuid;
+  v_units text[] := array['forfait','unite','heure','demi_journee','jour','nuitee','semaine','mois','annee','minute','seance','intervention','trajet','colis','personne','dossier','m2'];
+begin
+  perform public.assert_org_access(p_org);
+  perform public.assert_org_permission(p_org,'services.create');
+  if p_name is null or length(trim(p_name))<2 or length(trim(p_name))>180 then raise exception 'Nom de prestation invalide'; end if;
+  if p_unit is null or not (p_unit=any(v_units)) or p_unit_price is null or p_unit_price<0 or p_tax_rate is null or p_tax_rate<0 or p_tax_rate>100 then raise exception 'Unité ou prix invalide'; end if;
+  if p_service_type not in ('one_off','recurring') then raise exception 'Type de prestation invalide'; end if;
+  if p_category is not null and not exists(select 1 from public.service_categories where id=p_category and organization_id=p_org and is_active) then raise exception 'Catégorie invalide'; end if;
+  if p_service_type='recurring' and p_recurrence_frequency not in ('daily','weekly','monthly','quarterly','semiannual','annual','custom') then raise exception 'Fréquence invalide'; end if;
+  if p_service_type='recurring' and p_recurrence_frequency='custom' and (p_custom_interval_days is null or p_custom_interval_days not between 1 and 365) then raise exception 'Intervalle personnalisé invalide'; end if;
+
+  select * into v_old from public.services where id=p_service and organization_id=p_org for update;
+  if not found then raise exception 'Prestation introuvable'; end if;
+
+  if v_old.unit is distinct from p_unit or v_old.unit_price is distinct from p_unit_price or v_old.tax_rate is distinct from p_tax_rate then
+    if exists(select 1 from public.service_price_versions where organization_id=p_org and service_id=p_service and effective_from>now()) then
+      raise exception 'Une version tarifaire future existe : modification bloquée pour préserver la chronologie';
+    end if;
+    update public.service_price_versions set effective_until=now()
+      where organization_id=p_org and service_id=p_service and effective_until is null;
+    insert into public.service_price_versions(organization_id,service_id,unit,unit_price,tax_rate,created_by)
+      values(p_org,p_service,p_unit,p_unit_price,p_tax_rate,auth.uid()) returning id into v_version;
+  end if;
+
+  update public.services set name=trim(p_name),description=nullif(trim(coalesce(p_description,'')),''),
+    category_id=p_category,unit=p_unit,unit_price=p_unit_price,tax_rate=p_tax_rate,
+    service_type=p_service_type,
+    recurrence_frequency=case when p_service_type='recurring' then p_recurrence_frequency else null end,
+    custom_interval_days=case when p_service_type='recurring' and p_recurrence_frequency='custom' then p_custom_interval_days else null end,
+    updated_at=now()
+  where id=p_service and organization_id=p_org;
+
+  perform public.audit_event(p_org,'service.updated','service',p_service,
+    jsonb_build_object('name',v_old.name,'unit',v_old.unit,'unit_price',v_old.unit_price,'tax_rate',v_old.tax_rate,'category_id',v_old.category_id),
+    jsonb_build_object('name',trim(p_name),'unit',p_unit,'unit_price',p_unit_price,'tax_rate',p_tax_rate,'category_id',p_category,'price_version_id',v_version));
+  return p_service;
+end;
+$function$;
+
+revoke all on function public.create_service_catalog_item(uuid,text,text,uuid,text,numeric,numeric,text,text,integer) from public,anon;
+grant execute on function public.create_service_catalog_item(uuid,text,text,uuid,text,numeric,numeric,text,text,integer) to authenticated;
+revoke all on function public.update_service_catalog_item(uuid,uuid,text,text,uuid,text,numeric,numeric,text,text,integer) from public,anon;
+grant execute on function public.update_service_catalog_item(uuid,uuid,text,text,uuid,text,numeric,numeric,text,text,integer) to authenticated;
