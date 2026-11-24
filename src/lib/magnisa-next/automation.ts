@@ -123,7 +123,7 @@ export function recordAutomationAttempt(
   }
 
   const attempts = job.attempts + 1;
-  if (result.ok) {
+  if (result.ok === true) {
     return {
       ...job,
       status: "succeeded",
