@@ -43,11 +43,12 @@ export default async function Services({
       .select("currency")
       .eq("id", organizationId)
       .single(),
-    supabase.from("service_categories").select("id,name").eq("organization_id",organizationId).eq("is_active",true).order("name"),
+    supabase.from("service_categories").select("id,name,is_active").eq("organization_id",organizationId).order("name"),
   ]);
 
   const currency = org?.currency || "MGA";
   const categoryNames = new Map((categories as any[]).map((category) => [category.id, category.name]));
+  const activeCategories = (categories as any[]).filter((category) => category.is_active);
   const serviceIds = data.map((service: any) => service.id);
   const { data: priceVersions = [] } = serviceIds.length
     ? await supabase.from("service_price_versions")
@@ -104,7 +105,7 @@ export default async function Services({
                   <label>Description</label>
                   <textarea name="description" />
                 </div>
-                <div className="field"><label>Catégorie</label><select name="category_id" defaultValue=""><option value="">— Aucune —</option>{categories.map((cat:any)=><option key={cat.id} value={cat.id}>{cat.name}</option>)}</select></div>
+                <div className="field"><label>Catégorie</label><select name="category_id" defaultValue=""><option value="">— Aucune —</option>{activeCategories.map((cat:any)=><option key={cat.id} value={cat.id}>{cat.name}</option>)}</select></div>
                 <ServiceRecurrenceFields />
                 <div className="field">
                   <label>Unité</label>
@@ -218,7 +219,7 @@ export default async function Services({
                           defaultValue={s.description || ""}
                         />
                       </div>
-                      <div className="field"><label>Catégorie</label><select name="category_id" defaultValue={s.category_id || ""}><option value="">— Aucune —</option>{categories.map((cat:any)=><option key={cat.id} value={cat.id}>{cat.name}</option>)}</select></div>
+                      <div className="field"><label>Catégorie</label><select name="category_id" defaultValue={s.category_id || ""}><option value="">— Aucune —</option>{[...activeCategories, ...(s.category_id && !activeCategories.some((cat:any)=>cat.id===s.category_id) ? (categories as any[]).filter((cat)=>cat.id===s.category_id) : [])].map((cat:any)=><option key={cat.id} value={cat.id}>{cat.name}{!cat.is_active ? " (archivée)" : ""}</option>)}</select></div>
                       <ServiceRecurrenceFields
                         defaultServiceType={s.service_type || "one_off"}
                         defaultFrequency={s.recurrence_frequency || "monthly"}
