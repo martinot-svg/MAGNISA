@@ -15,6 +15,10 @@ create table if not exists public.service_categories (
 create unique index if not exists service_categories_org_name_unique
   on public.service_categories (organization_id, lower(trim(name)));
 
+-- A composite unique key is required for tenant-scoped foreign keys below.
+create unique index if not exists services_org_id_id_unique
+  on public.services(organization_id,id);
+
 alter table public.services
   add column if not exists category_id uuid;
 
