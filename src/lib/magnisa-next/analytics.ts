@@ -75,6 +75,23 @@ export function summarizeReceivables(
   };
 }
 
+/** Somme les soldes réellement dus des factures échues, dans une devise unique. */
+export function sumOverdueBalance(
+  invoices: readonly InvoiceMetricRow[],
+  asOfDate: string,
+): number {
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(asOfDate) ||
+      new Date(asOfDate + "T00:00:00.000Z").toISOString().slice(0, 10) !== asOfDate) {
+    throw new Error("La date de référence doit être une date ISO valide.");
+  }
+  return money(invoices
+    .filter((row) =>
+      !["paid", "cancelled", "void", "draft"].includes(row.status) &&
+      row.dueDate != null && row.dueDate < asOfDate,
+    )
+    .reduce((sum, row) => sum + Math.max(0, amount(row.balanceDue ?? row.total)), 0));
+}
+
 export type PeriodTotals = {
   revenue: number | string | null;
   receipts: number | string | null;
