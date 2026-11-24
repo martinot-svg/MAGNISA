@@ -80,7 +80,7 @@ export function sumOverdueBalance(
   invoices: readonly InvoiceMetricRow[],
   asOfDate: string,
 ): number {
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(asOfDate) ||
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(asOfDate) ||
       new Date(asOfDate + "T00:00:00.000Z").toISOString().slice(0, 10) !== asOfDate) {
     throw new Error("La date de référence doit être une date ISO valide.");
   }
