@@ -123,27 +123,27 @@ export function recordAutomationAttempt(
   }
 
   const attempts = job.attempts + 1;
-  if (result.ok === true) {
+  if (result.ok === false) {
+    const lastError = result.error.trim().slice(0, 2000) || "Échec non détaillé.";
+    if (attempts >= job.maxAttempts) {
+      return { ...job, status: "dead", attempts, nextRunAt: null, lastError };
+    }
+
+    const delay = Math.min(maxDelayMs, baseDelayMs * 2 ** Math.min(attempts - 1, 30));
     return {
       ...job,
-      status: "succeeded",
+      status: "retry",
       attempts,
-      nextRunAt: null,
-      lastError: null,
+      nextRunAt: new Date(nowMs + delay).toISOString(),
+      lastError,
     };
   }
 
-  const lastError = result.error.trim().slice(0, 2000) || "Échec non détaillé.";
-  if (attempts >= job.maxAttempts) {
-    return { ...job, status: "dead", attempts, nextRunAt: null, lastError };
-  }
-
-  const delay = Math.min(maxDelayMs, baseDelayMs * 2 ** Math.min(attempts - 1, 30));
   return {
     ...job,
-    status: "retry",
+    status: "succeeded",
     attempts,
-    nextRunAt: new Date(nowMs + delay).toISOString(),
-    lastError,
+    nextRunAt: null,
+    lastError: null,
   };
 }
