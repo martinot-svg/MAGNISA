@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comparePeriods, summarizeReceivables } from "../../src/lib/magnisa-next/analytics";
+import { comparePeriods, summarizeReceivables, sumOverdueBalance } from "../../src/lib/magnisa-next/analytics";
 
 describe("summarizeReceivables", () => {
   it("agrège les factures émises, paiements et retards", () => {
@@ -66,5 +66,20 @@ describe("comparePeriods", () => {
       { revenue: "NaN", receipts: 0, expenses: 0 },
       { revenue: 0, receipts: 0, expenses: 0 },
     )).toThrow();
+  });
+});
+
+describe("sumOverdueBalance", () => {
+  it("somme uniquement les soldes des factures échues encore ouvertes", () => {
+    expect(sumOverdueBalance([
+      { status: "partially_paid", total: 1000, balanceDue: 250, dueDate: "2026-11-01" },
+      { status: "issued", total: 300, balanceDue: 300, dueDate: "2026-11-30" },
+      { status: "paid", total: 500, balanceDue: 0, dueDate: "2026-11-01" },
+      { status: "draft", total: 900, dueDate: "2026-11-01" },
+    ], "2026-11-24")).toBe(250);
+  });
+
+  it("rejette une date calendaire invalide", () => {
+    expect(() => sumOverdueBalance([], "2026-02-30")).toThrow();
   });
 });
