@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/empty-state";
 import { money } from "@/lib/money";
 import { ServiceRecurrenceFields } from "@/components/service-recurrence-fields";
 import { FormDialog } from "@/components/form-dialog";
+import { BILLING_UNITS } from "@/lib/magnisa-next/billing-units";
 
 const FREQUENCY_LABELS: Record<string, string> = {
   daily: "Quotidienne",
@@ -83,7 +84,11 @@ export default async function Services({
                 <ServiceRecurrenceFields />
                 <div className="field">
                   <label>Unité</label>
-                  <input name="unit" defaultValue="forfait" required />
+                  <select name="unit" defaultValue="forfait" required>
+                    {BILLING_UNITS.map((unit) => (
+                      <option key={unit.value} value={unit.value}>{unit.label}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="field">
                   <label>Prix unitaire</label>
@@ -195,7 +200,14 @@ export default async function Services({
                       />
                       <div className="field">
                         <label>Unité</label>
-                        <input name="unit" defaultValue={s.unit} required />
+                        <select name="unit" defaultValue={s.unit} required>
+                          {!BILLING_UNITS.some((unit) => unit.value === s.unit) && (
+                            <option value={s.unit}>{s.unit} (ancienne unité — sélectionne une unité normalisée)</option>
+                          )}
+                          {BILLING_UNITS.map((unit) => (
+                            <option key={unit.value} value={unit.value}>{unit.label}</option>
+                          ))}
+                        </select>
                       </div>
                       <div className="field">
                         <label>Prix unitaire</label>
