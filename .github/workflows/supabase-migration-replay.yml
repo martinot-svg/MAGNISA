@@ -46,7 +46,9 @@ concurrency:
 
 jobs:
   replay:
-    runs-on: ubuntu-latest
+    # Playwright's pinned browser build does not yet map ubuntu-latest (26.04).
+    # Use the supported 24.04 runner for deterministic browser installation.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
