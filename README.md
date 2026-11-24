@@ -1,27 +1,54 @@
-# MAGNISA_UPGRADE — extension pack
+# MAGNISA — Extension Catalogue des prestations
 
-Ce paquet est une base d'extension destinée à l'architecture Next.js / TypeScript / Supabase de MAGNISA.
-Il ne s'agit pas d'un remplacement de l'application ni d'une déclaration que les huit phases sont déjà intégrées en production.
+Pack d'intégration pour le dépôt `martinot-svg/MAGNISA` (Next.js / TypeScript / Supabase).
+
+> Extension isolée : elle ajoute ses propres tables et services. Elle ne remplace pas le catalogue existant et ne modifie aucune table métier existante. Les relations aux devis/factures doivent être raccordées après vérification des schémas réels de MAGNISA.
+
+## Fonctionnalités
+
+- Catégories de prestations par entreprise.
+- Prestations rattachées à une catégorie.
+- Unités : heure, nuit, jour, demi-journée, semaine, mois, forfait.
+- Prix stockés en MGA (Ariary), TVA paramétrable.
+- Activation/désactivation sans suppression physique.
+- Contrôles de cohérence et tests de logique métier.
+- Migration PostgreSQL avec index, contraintes et RLS.
+
+## Arborescence
+
+```text
+database/migrations/20261124000100_service_catalogue.sql
+src/lib/service-catalogue/types.ts
+src/lib/service-catalogue/units.ts
+src/lib/service-catalogue/validation.ts
+src/lib/service-catalogue/repository.ts
+src/lib/service-catalogue/price.ts
+tests/service-catalogue.test.ts
+docs/INTEGRATION.md
+```
 
 ## Installation
-1. Créer une branche dédiée.
-2. Comparer chaque fichier avec le dépôt actuel avant toute copie.
-3. Appliquer les migrations sur un environnement de test uniquement.
-4. Exécuter les tests et vérifier les politiques RLS avant toute fusion.
 
-Les migrations ci-dessous ajoutent des tables dédiées aux fonctionnalités manquantes sans modifier les tables existantes.
-Les relations vers les entités métier existantes sont volontairement documentées comme des points d'intégration à adapter après vérification des schémas exacts du dépôt.
+1. Créer une branche dédiée, par exemple `feat/service-catalogue-categories`.
+2. Comparer ce pack aux conventions et aux tables déjà présentes dans MAGNISA.
+3. Vérifier impérativement le modèle réel des entreprises et les politiques d'accès multi-utilisateurs.
+4. Appliquer la migration uniquement sur une base de test.
+5. Générer/mettre à jour les types Supabase du projet.
+6. Lancer les tests, le lint et le build.
+7. Raccorder le catalogue aux formulaires de devis/factures en conservant un instantané du libellé, de l'unité, du prix et du taux de TVA sur chaque ligne commerciale.
 
-## Prérequis
-- Next.js / TypeScript
-- Supabase PostgreSQL
-- Authentification Supabase
-- RLS activée et vérifiée
+## Point d'attention RLS
 
-## Contenu
-- `database/migrations/`: fondations SQL isolées par organisation
-- `src/lib/magnisa-upgrade/`: services TypeScript réutilisables
-- `tests/`: tests unitaires de logique pure
-- `docs/`: guide d'intégration et limites connues
+La migration fournie utilise `created_by = auth.uid()` comme politique minimale de propriétaire, faute de connaître le nom exact des tables d'appartenance entreprise/utilisateur dans la base MAGNISA. Ce n'est pas encore une politique multi-collaborateurs complète. Avant production, remplacer cette vérification par le mécanisme d'autorisation entreprise déjà utilisé dans MAGNISA.
 
-Ne pas déployer directement en production sans revue des migrations, des permissions et des intégrations existantes.
+## Commandes de vérification
+
+Adapter aux scripts déjà présents dans le `package.json` de MAGNISA :
+
+```bash
+npm run lint
+npm run test
+npm run build
+```
+
+Le pack n'affirme pas que la fonctionnalité est déjà intégrée ou déployée. Il constitue une extension à intégrer et à valider dans le dépôt réel.
