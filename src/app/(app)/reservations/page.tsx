@@ -27,7 +27,7 @@ export default async function Reservations() {
   const [{ data: resources = [] }, { data: reservations = [] }, { data: customers = [] }, { data: services = [] }] =
     await Promise.all([
       supabase.from("reservable_resources").select("*").eq("organization_id",organizationId).eq("is_active",true).order("name"),
-      supabase.from("resource_reservations").select("*").eq("organization_id",organizationId).in("status",["held","confirmed"]).order("start_at").limit(100),
+      supabase.from("resource_reservations").select("*").eq("organization_id",organizationId).in("status",["held","confirmed"]).gte("start_at",new Date().toISOString()).order("start_at").limit(100),
       supabase.from("customers").select("id,name").eq("organization_id",organizationId).eq("is_active",true).order("name").limit(500),
       supabase.from("services").select("id,name").eq("organization_id",organizationId).eq("is_active",true).order("name").limit(500),
     ]);
@@ -89,6 +89,15 @@ export default async function Reservations() {
               <p>{r.customer_id ? customerNames.get(r.customer_id) || "Client associé" : "Sans client"} · {r.status === "held" ? "En attente" : "Confirmée"}</p>
               {r.notes && <p className="muted">{r.notes}</p>}
             </div></div>
+            <FormDialog title="Modifier la période" buttonLabel="Modifier la période" buttonClassName="button">
+              <form action={updateResourceReservationPeriod} className="form">
+                <input type="hidden" name="id" value={r.id} />
+                <div className="field"><label>Nouveau début (ISO avec décalage UTC)</label><input name="start_at" type="text" required placeholder="2026-12-01T09:00:00+03:00" /></div>
+                <div className="field"><label>Nouvelle fin (ISO avec décalage UTC)</label><input name="end_at" type="text" required placeholder="2026-12-01T11:00:00+03:00" /></div>
+                <div className="field"><label>Fuseau de référence</label><input name="timezone_name" defaultValue={r.timezone_name} required /></div>
+                <button className="button primary" type="submit">Enregistrer la période</button>
+              </form>
+            </FormDialog>
             <FormDialog title="Annuler la réservation" buttonLabel="Annuler la réservation" buttonClassName="button ghost">
               <form action={cancelResourceReservation} className="form">
                 <input type="hidden" name="id" value={r.id} />
