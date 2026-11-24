@@ -37,7 +37,9 @@ export default async function Dashboard(){
     {label:"Dû aux associés",value:[...balances.values()].reduce((s,x)=>s+Math.max(0,x),0)}
   ];
   const hasData=(m.invoice_count??0)+(m.payment_count??0)+(m.expense_count??0)>0;
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Antananarivo", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const dateParts = new Intl.DateTimeFormat("en", { timeZone: "Indian/Antananarivo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+  const datePart = (type: string) => dateParts.find(part => part.type === type)?.value ?? "";
+  const today = `${datePart("year")}-${datePart("month")}-${datePart("day")}`;
   const overdueAmount = sumOverdueBalance(openInvoices.map((invoice: any) => ({
     status: String(invoice.status),
     total: invoice.balance_due,
