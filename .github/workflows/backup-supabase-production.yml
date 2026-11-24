@@ -288,9 +288,17 @@ jobs:
           }
           echo "Captured per-tenant fingerprints for organizations, memberships, customers, suppliers, invoices, payments, expenses, treasury accounts/movements and journal entries."
 
+          # Capture tenant identities before applying the reviewed migration set.
+          docker run --rm --network host -i postgres:17 \
+            psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 < tests/integration/tenant-upgrade-preservation-capture.sql
+
           # Exercise the exact reviewed production migration set against the
           # freshly restored production snapshot. Production remains untouched.
           PGSSLMODE=disable SUPABASE_DB_URL="$RESTORE_DB_URL" bash scripts/ci/apply-production-allowlist.sh apply
+
+          # Assert preservation on the disposable restored snapshot.
+          docker run --rm --network host -i postgres:17 \
+            psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 < tests/integration/tenant-upgrade-preservation-assert.sql
 
           capture_tenant_core_state > backup/tenant-core-state-after.tsv
           diff -u backup/tenant-core-state-before.tsv backup/tenant-core-state-after.tsv || {

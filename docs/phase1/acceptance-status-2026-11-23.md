@@ -237,3 +237,15 @@ Ces résultats démontrent, dans un Supabase local éphémère de CI, le provisi
 Cette preuve renforce la sécurité multi-tenant dans l'environnement isolé de CI. Elle ne remplace pas le test d'upgrade d'un snapshot ancien et peuplé : la conservation des données et paramètres de plusieurs organisations au travers d'une mise à niveau historique reste à démontrer.
 
 **Décision : PHASE 1 NON CLÔTURÉE.** Les autres critères de recette métier, RBAC exhaustif, exports/notifications, rapprochements, états PCG, paie et PV final signé restent ouverts.
+
+## 14. Conservation des tenants lors d’un upgrade sur snapshot peuplé — instrumentation
+
+Les contrôles d’empreintes de la PR #361 sont réappliqués après la fusion de la PR #362 sur la branche principale :
+- capture des organisations et des clés primaires des tables tenant-scoped ;
+- vérification des memberships, rôles/statuts, paramètres de société et séquences de numérotation ;
+- comparaison avant/après l’allowlist dans la base de restauration jetable uniquement ;
+- smoke test des deux scripts dans le replay Supabase CI.
+
+**Statut : code et smoke test CI à valider.** La conservation sur un snapshot de production restauré ne sera confirmée qu’après un lancement autorisé et réussi du workflow de sauvegarde/restauration. Ce contrôle ne prouve pas à lui seul une migration historique complète.
+
+**Phase 1 : NON CLÔTURÉE.**
