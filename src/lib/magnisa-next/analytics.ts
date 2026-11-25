@@ -27,6 +27,11 @@ function amount(value: number | string | null | undefined): number {
   return parsed;
 }
 
+function isValidIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    new Date(value + "T00:00:00.000Z").toISOString().slice(0, 10) === value;
+}
+
 /**
  * Agrégateur pur : les lignes doivent déjà être chargées côté serveur et
  * filtrées par organization_id. Cette fonction ne constitue pas un contrôle
@@ -37,8 +42,8 @@ export function summarizeReceivables(
   payments: readonly PaymentMetricRow[],
   asOfDate: string,
 ): ReceivablesSummary {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(asOfDate)) {
-    throw new Error("La date de référence doit être au format YYYY-MM-DD.");
+  if (!isValidIsoDate(asOfDate)) {
+    throw new Error("La date de référence doit être une date ISO valide.");
   }
 
   const issued = invoices.filter((row) =>
@@ -80,8 +85,7 @@ export function sumOverdueBalance(
   invoices: readonly InvoiceMetricRow[],
   asOfDate: string,
 ): number {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(asOfDate) ||
-      new Date(asOfDate + "T00:00:00.000Z").toISOString().slice(0, 10) !== asOfDate) {
+  if (!isValidIsoDate(asOfDate)) {
     throw new Error("La date de référence doit être une date ISO valide.");
   }
   return money(invoices
