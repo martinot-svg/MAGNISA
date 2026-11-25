@@ -46,6 +46,22 @@ export type AutomationAttemptResult =
   | { ok: true }
   | { ok: false; error: string };
 
+function parseStrictInstant(value: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    return null;
+  }
+
+  const date = value.slice(0, 10);
+  const calendarDate = new Date(date + "T00:00:00.000Z");
+  if (!Number.isFinite(calendarDate.getTime()) ||
+      calendarDate.toISOString().slice(0, 10) !== date) {
+    return null;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
 /**
  * Clé déterministe pour protéger les exécutions répétées.
  * La base doit imposer une contrainte UNIQUE sur cette clé dans la table
@@ -85,12 +101,12 @@ export function isAutomationJobDue(
   job: AutomationJobState,
   now: string,
 ): boolean {
-  const nowMs = Date.parse(now);
-  if (!Number.isFinite(nowMs)) throw new Error("Date de référence invalide.");
+  const nowMs = parseStrictInstant(now);
+  if (nowMs === null) throw new Error("Date de référence invalide.");
   if (job.status !== "queued" && job.status !== "retry") return false;
   if (job.nextRunAt === null) return job.status === "queued";
-  const dueMs = Date.parse(job.nextRunAt);
-  if (!Number.isFinite(dueMs)) throw new Error("Date de reprise invalide.");
+  const dueMs = parseStrictInstant(job.nextRunAt);
+  if (dueMs === null) throw new Error("Date de reprise invalide.");
   return dueMs <= nowMs;
 }
 
@@ -106,8 +122,8 @@ export function recordAutomationAttempt(
   baseDelayMs = 30_000,
   maxDelayMs = 6 * 60 * 60 * 1000,
 ): AutomationJobState {
-  const nowMs = Date.parse(now);
-  if (!Number.isFinite(nowMs)) throw new Error("Date de tentative invalide.");
+  const nowMs = parseStrictInstant(now);
+  if (nowMs === null) throw new Error("Date de tentative invalide.");
   if (!Number.isInteger(job.attempts) || job.attempts < 0) {
     throw new Error("Compteur de tentatives invalide.");
   }
