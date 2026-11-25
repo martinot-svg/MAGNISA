@@ -90,7 +90,7 @@ try {
         return element ? {
           expanded: element.getAttribute("aria-expanded"),
           hydrated: element.getAttribute("data-form-dialog-hydrated"),
-          disabled: (element as HTMLButtonElement).disabled,
+          disabled: element instanceof HTMLButtonElement ? element.disabled : null,
           connected: element.isConnected,
         } : null;
       })(),
