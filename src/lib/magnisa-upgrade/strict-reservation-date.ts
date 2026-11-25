@@ -33,7 +33,7 @@ export function parseReservationDateWithOffset(value: unknown, field = "Date"): 
     throw new Error(field + " est invalide.");
   }
 
-  const date = new Date(value);
+  const date = new Date(value as string);
   if (!Number.isFinite(date.getTime())) throw new Error(field + " est invalide.");
   return date.toISOString();
 }
