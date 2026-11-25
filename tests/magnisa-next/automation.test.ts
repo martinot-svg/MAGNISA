@@ -82,12 +82,31 @@ describe("automation", () => {
     expect(success).toMatchObject({ status: "succeeded", attempts: 2, nextRunAt: null, lastError: null });
   });
 
-  it("détermine si une reprise est due et refuse les dates invalides", () => {
+  it("détermine si une reprise est due et rejette les dates invalides", () => {
     const retry = { ...queued, status: "retry" as const, nextRunAt: "2026-11-24T10:00:00.000Z" };
     expect(isAutomationJobDue(retry, "2026-11-24T09:59:59.000Z")).toBe(false);
     expect(isAutomationJobDue(retry, "2026-11-24T10:00:00.000Z")).toBe(true);
     expect(isAutomationJobDue({ ...retry, status: "succeeded" }, "2026-11-24T11:00:00.000Z")).toBe(false);
     expect(() => isAutomationJobDue(retry, "invalid")).toThrow();
+    expect(() => isAutomationJobDue(retry, "November 24, 2026 10:00")).toThrow();
+    expect(() => isAutomationJobDue(retry, "2026-02-30T10:00:00.000Z")).toThrow();
+    expect(() => isAutomationJobDue(
+      { ...retry, nextRunAt: "2026-02-30T10:00:00.000Z" },
+      "2026-11-24T10:00:00.000Z",
+    )).toThrow();
+  });
+
+  it("refuse les dates non strictes lors de l'enregistrement d'une tentative", () => {
+    expect(() => recordAutomationAttempt(
+      queued,
+      { ok: true },
+      "2026-11-24",
+    )).toThrow();
+    expect(() => recordAutomationAttempt(
+      queued,
+      { ok: true },
+      "2026-02-30T10:00:00.000Z",
+    )).toThrow();
   });
 
   it("refuse de réexécuter un job terminal", () => {
