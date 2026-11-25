@@ -37,8 +37,9 @@ describe("summarizeReceivables", () => {
     expect(summary.overdueCount).toBe(1);
   });
 
-  it("rejette une date de référence invalide", () => {
+  it("rejette les dates de référence non ISO ou impossibles", () => {
     expect(() => summarizeReceivables([], [], "24/11/2026")).toThrow();
+    expect(() => summarizeReceivables([], [], "2026-02-30")).toThrow();
   });
 });
 
