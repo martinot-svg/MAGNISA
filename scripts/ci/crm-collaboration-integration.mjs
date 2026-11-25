@@ -150,7 +150,7 @@ const duplicateEmailProspect = await rpc(owner, "create_prospect_with_originator
 });
 await expectRpcErrorContaining(owner, "convert_prospect_to_customer", {
   p_org: organizationId, p_prospect: duplicateEmailProspect,
-}, "already owns this email", "Conversion must reject a duplicate email after case and whitespace normalization.");
+}, "client actif possède déjà cet e-mail ou ce numéro", "Conversion must reject a duplicate email after case and whitespace normalization");
 const duplicatePhoneProspect = await rpc(owner, "create_prospect_with_originator", {
   p_org: organizationId, p_name: `Duplicate phone prospect ${suffix}`,
   p_email: null, p_phone: `+261-34-12-${suffix}`,
@@ -158,7 +158,7 @@ const duplicatePhoneProspect = await rpc(owner, "create_prospect_with_originator
 });
 await expectRpcErrorContaining(owner, "convert_prospect_to_customer", {
   p_org: organizationId, p_prospect: duplicatePhoneProspect,
-}, "already owns this email or phone", "Conversion must reject a duplicate phone after punctuation normalization.");
+}, "client actif possède déjà cet e-mail ou ce numéro", "Conversion must reject a duplicate phone after punctuation normalization");
 
 const orderNumber = `CRM-ORDER-${suffix}`;
 const order = await admin.from("orders").insert({
