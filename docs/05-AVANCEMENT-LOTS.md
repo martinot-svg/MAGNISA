@@ -13,6 +13,7 @@
 - PR #381 — validation stricte des timestamps d'automatisation : https://github.com/martinot-svg/MAGNISA/pull/381 (fusionnée).
 - PR #382 — validation stricte des dates de réservation et tests : https://github.com/martinot-svg/MAGNISA/pull/382 (CI relancée après correction d'un défaut TypeScript; validation finale en attente).
 - PR #383 — garde contre les débordements numériques de tarification et d'analytics : https://github.com/martinot-svg/MAGNISA/pull/383 (CI en cours).
+- PR #385 — fondation de queue durable d'automatisation (jobs persistants, idempotence, claims atomiques, leases, retry/dead-letter) : https://github.com/martinot-svg/MAGNISA/pull/385. Le dispatcher et le worker cron restent à construire.
 - CI de la PR #378 : réussie (build et E2E Magnibox local).
 - Sur le commit main `cf837668ed024ebf4720566b59e3feb66fef9157`, les checks `build`, `magnibox-local-e2e` et `replay` sont tous réussis.
 - Le replay de migrations est réussi sur l'environnement CI isolé. Cela ne prouve pas que les migrations ont été appliquées en production.
