@@ -30,6 +30,11 @@ const expectRpcDenied = async (client, name, args, message) => {
   const result = await client.rpc(name, args);
   assert(!!result.error, message);
 };
+const expectRpcErrorContaining = async (client, name, args, expected, message) => {
+  const result = await client.rpc(name, args);
+  assert(!!result.error && result.error.message.toLowerCase().includes(expected.toLowerCase()),
+    message + (result.error ? ` (received: ${result.error.message})` : " (RPC unexpectedly succeeded)"));
+};
 
 const suffix = Date.now();
 const collaboratorEmail = `crm-contributor-${suffix}@magnisa.test`;
@@ -56,7 +61,8 @@ if (collaboratorAuth.error) throw collaboratorAuth.error;
 
 const prospectId = await rpc(owner, "create_prospect_with_originator", {
   p_org: organizationId, p_name: `CRM Commission Integration ${suffix}`,
-  p_email: null, p_phone: null, p_source: "Automated integration test", p_notes: "Disposable test fixture",
+  p_email: `crm-${suffix}@magnisa.test`, p_phone: `+261 34 12 ${suffix}`,
+  p_source: "Automated integration test", p_notes: "Disposable test fixture",
 });
 
 const record = async (type, role, description, contributor = collaboratorId, responsible = null, status = "completed") =>
@@ -135,6 +141,24 @@ if (rules.error) throw rules.error;
 
 const customerId = await rpc(owner, "convert_prospect_to_customer", { p_org: organizationId, p_prospect: prospectId });
 assert(!!customerId, "Conversion must create a linked customer.");
+const repeatedCustomerId = await rpc(owner, "convert_prospect_to_customer", { p_org: organizationId, p_prospect: prospectId });
+assert(repeatedCustomerId === customerId, "Repeating prospect conversion must return the existing customer without creating another.");
+const duplicateEmailProspect = await rpc(owner, "create_prospect_with_originator", {
+  p_org: organizationId, p_name: `Duplicate email prospect ${suffix}`,
+  p_email: ` CRM-${suffix}@MAGNISA.TEST `, p_phone: null,
+  p_source: "Dedup integration test", p_notes: null,
+});
+await expectRpcErrorContaining(owner, "convert_prospect_to_customer", {
+  p_org: organizationId, p_prospect: duplicateEmailProspect,
+}, "already owns this email", "Conversion must reject a duplicate email after case and whitespace normalization.");
+const duplicatePhoneProspect = await rpc(owner, "create_prospect_with_originator", {
+  p_org: organizationId, p_name: `Duplicate phone prospect ${suffix}`,
+  p_email: null, p_phone: `+261-34-12-${suffix}`,
+  p_source: "Dedup integration test", p_notes: null,
+});
+await expectRpcErrorContaining(owner, "convert_prospect_to_customer", {
+  p_org: organizationId, p_prospect: duplicatePhoneProspect,
+}, "already owns this email or phone", "Conversion must reject a duplicate phone after punctuation normalization.");
 
 const orderNumber = `CRM-ORDER-${suffix}`;
 const order = await admin.from("orders").insert({
