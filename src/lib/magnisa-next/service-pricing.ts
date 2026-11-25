@@ -53,11 +53,27 @@ export function calculateServicePrice(input: PricingInput): PricingResult {
     throw new Error("La remise doit être comprise entre 0 et 100.");
   }
 
-  const subtotal = roundMoney(input.quantity * input.unitPrice);
-  const discount = roundMoney(subtotal * (discountRate / 100));
+  const subtotalRaw = input.quantity * input.unitPrice;
+  if (!Number.isFinite(subtotalRaw)) {
+    throw new Error("Le montant de la ligne dépasse la capacité de calcul.");
+  }
+  const subtotal = roundMoney(subtotalRaw);
+  const discountRaw = subtotal * (discountRate / 100);
+  if (!Number.isFinite(discountRaw)) {
+    throw new Error("Le montant de la remise dépasse la capacité de calcul.");
+  }
+  const discount = roundMoney(discountRaw);
   const taxableAmount = roundMoney(subtotal - discount);
-  const tax = roundMoney(taxableAmount * (taxRate / 100));
-  const total = roundMoney(taxableAmount + tax);
+  const taxRaw = taxableAmount * (taxRate / 100);
+  if (!Number.isFinite(taxRaw)) {
+    throw new Error("Le montant de la taxe dépasse la capacité de calcul.");
+  }
+  const tax = roundMoney(taxRaw);
+  const totalRaw = taxableAmount + tax;
+  if (!Number.isFinite(totalRaw)) {
+    throw new Error("Le total dépasse la capacité de calcul.");
+  }
+  const total = roundMoney(totalRaw);
 
   return {
     quantity: input.quantity,
