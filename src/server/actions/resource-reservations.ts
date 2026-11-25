@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission } from "@/lib/permissions";
+import { parseReservationDateWithOffset } from "@/lib/magnisa-upgrade/strict-reservation-date";
 
 const timezone = z.string().trim().min(3).max(100);
 const resourceType = z.enum(["room","vehicle","equipment","staff","other"]);
@@ -31,14 +32,7 @@ export async function createReservableResource(formData: FormData) {
   revalidatePath("/reservations");
 }
 
-function parseDateWithOffset(value: unknown, field: string): string {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
-    throw new Error(field + " doit contenir un fuseau horaire explicite, par exemple 2026-12-01T09:00:00+03:00.");
-  }
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) throw new Error(field + " est invalide.");
-  return date.toISOString();
-}
+
 
 export async function createResourceReservation(formData: FormData) {
   const ctx = await requireOrganization();
@@ -53,8 +47,8 @@ export async function createResourceReservation(formData: FormData) {
     notes: z.string().trim().max(4000).optional(),
   }).safeParse(raw);
   if (!parsed.success) throw new Error("Informations de réservation invalides.");
-  const start = parseDateWithOffset(raw.start_at, "Début");
-  const end = parseDateWithOffset(raw.end_at, "Fin");
+  const start = parseReservationDateWithOffset(raw.start_at, "Début");
+  const end = parseReservationDateWithOffset(raw.end_at, "Fin");
   if (new Date(end) <= new Date(start)) throw new Error("La fin doit être postérieure au début.");
   const { error } = await ctx.supabase.rpc("create_resource_reservation", {
     p_org: ctx.organizationId,
@@ -97,8 +91,8 @@ export async function updateResourceReservationPeriod(formData: FormData) {
     timezone_name: timezone,
   }).safeParse(raw);
   if (!parsed.success) throw new Error("Informations de modification invalides.");
-  const start = parseDateWithOffset(raw.start_at, "Début");
-  const end = parseDateWithOffset(raw.end_at, "Fin");
+  const start = parseReservationDateWithOffset(raw.start_at, "Début");
+  const end = parseReservationDateWithOffset(raw.end_at, "Fin");
   if (new Date(end) <= new Date(start)) throw new Error("La fin doit être postérieure au début.");
   const { error } = await ctx.supabase.rpc("update_resource_reservation_period", {
     p_org: ctx.organizationId,
