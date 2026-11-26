@@ -14,7 +14,7 @@ async function saveDocumentTheme(fd:FormData){
  await assertDocumentAction(ctx,"branding.edit","report");
  if(!["owner","admin"].includes(ctx.role))throw new Error("Seul un administrateur peut modifier la charte de l'entreprise.");
  const document_theme=readDocumentThemeForm(fd);
- const {error}=await ctx.supabase.from("company_settings").upsert({organization_id:ctx.organizationId,document_theme},{onConflict:"organization_id"});
+ const {error}=await ctx.supabase.from("company_settings_member_view").upsert({organization_id:ctx.organizationId,document_theme},{onConflict:"organization_id"});
  if(error)throw new Error(error.message);
  revalidatePath("/identite-documents");revalidatePath("/modeles-documents");
 }
