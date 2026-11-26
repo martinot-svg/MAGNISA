@@ -7,7 +7,7 @@ export async function loadPayslip(id:string){
  const [{data:slip,error},{data:org},{data:settings},{data:pdfTemplate},{data:snapshot}]=await Promise.all([
   supabase.from("payslips").select("*,employees(first_name,last_name,email,employee_number,job_title),payroll_runs(period_start,period_end)").eq("organization_id",organizationId).eq("id",id).maybeSingle(),
   supabase.from("organizations").select("name,currency,smie_partner_name").eq("id",organizationId).single(),
-  supabase.from("company_settings").select("trade_name,legal_name,address,logo_url,logo_storage_path,document_theme").eq("organization_id",organizationId).maybeSingle(),
+  supabase.from("company_settings_member_view").select("trade_name,legal_name,address,logo_url,logo_storage_path,document_theme").eq("organization_id",organizationId).maybeSingle(),
   supabase.from("document_templates").select("configuration").eq("organization_id",organizationId).eq("document_type","payslip").eq("is_default",true).limit(1).maybeSingle(),
   supabase.from("document_appearance_snapshots").select("appearance").eq("organization_id",organizationId).eq("document_type","payslip").eq("document_id",id).maybeSingle()
  ]);
