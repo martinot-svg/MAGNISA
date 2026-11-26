@@ -93,26 +93,104 @@ Deno.serve(async (req: Request) => {
     return Response.json({ error: "Permission insuffisante" }, { status: 403 });
   }
 
-  const appUrl = Deno.env.get("APP_URL") || "https://magnisa.vercel.app";
-  const { data: invitation, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${appUrl}/auth/callback`,
-  });
+  // Existing accounts receive an in-app invitation. New accounts receive the
+  // Supabase Auth invitation email. In both cases, membership stays pending
+  // until the invited user explicitly accepts it from their personal space.
+  const { data: existingProfile, error: profileLookupError } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
 
-  if (inviteError || !invitation.user) {
-    return Response.json({ error: inviteError?.message || "Invitation impossible" }, { status: 400 });
+  if (profileLookupError) {
+    return Response.json({ error: "Vérification du compte destinataire impossible" }, { status: 500 });
+  }
+
+  let invitedUserId: string;
+  let invitationEmailSent = false;
+
+  if (existingProfile?.id) {
+    const { data: existingMembership, error: existingMembershipError } = await admin
+      .from("organization_members")
+      .select("status")
+      .eq("organization_id", organizationId)
+      .eq("user_id", existingProfile.id)
+      .maybeSingle();
+
+    if (existingMembershipError) {
+      return Response.json({ error: "Vérification de l'adhésion impossible" }, { status: 500 });
+    }
+    if (existingMembership?.status === "active") {
+      return Response.json({ error: "Ce compte appartient déjà à cette organisation" }, { status: 409 });
+    }
+    if (existingMembership?.status === "suspended") {
+      return Response.json({ error: "L'accès de ce compte est suspendu" }, { status: 409 });
+    }
+
+    invitedUserId = existingProfile.id;
+  } else {
+    const appUrl = Deno.env.get("APP_URL") || "https://magnisa.vercel.app";
+    const { data: invitation, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+      redirectTo: `${appUrl}/auth/callback?next=/reset-password`,
+    });
+
+    if (inviteError || !invitation.user) {
+      return Response.json({ error: inviteError?.message || "Invitation impossible" }, { status: 400 });
+    }
+
+    invitedUserId = invitation.user.id;
+    invitationEmailSent = true;
   }
 
   const { error: memberError } = await admin.from("organization_members").upsert(
     {
       organization_id: organizationId,
-      user_id: invitation.user.id,
+      user_id: invitedUserId,
       role,
-      status: "active",
+      status: "invited",
     },
     { onConflict: "organization_id,user_id" }
   );
 
-  if (memberError) return Response.json({ error: memberError.message }, { status: 500 });
+  if (memberError) return Response.json({ error: "Impossible d'enregistrer l'invitation" }, { status: 500 });
 
-  return Response.json({ ok: true, userId: invitation.user.id });
+  const { data: organization, error: organizationError } = await admin
+    .from("organizations")
+    .select("name")
+    .eq("id", organizationId)
+    .maybeSingle();
+
+  if (organizationError || !organization) {
+    return Response.json({ error: "Organisation introuvable après création de l'invitation" }, { status: 500 });
+  }
+
+  const { error: notificationError } = await admin.from("notifications").upsert(
+    {
+      organization_id: organizationId,
+      recipient_user_id: invitedUserId,
+      category: "system",
+      priority: "info",
+      title: "Invitation à rejoindre une équipe",
+      body: `Vous êtes invité(e) à rejoindre ${organization.name} sur MAGNISA. Consultez votre espace personnel pour accepter ou refuser cette invitation.`,
+      action_url: "/espace-personnel#invitations",
+      entity_type: "organization_invitation",
+      entity_id: organizationId,
+      metadata: { role },
+      dedupe_key: `organization-invitation:${organizationId}:${invitedUserId}`,
+      read_at: null,
+      archived_at: null,
+    },
+    { onConflict: "organization_id,recipient_user_id,dedupe_key" }
+  );
+
+  if (notificationError) {
+    return Response.json({ error: "Invitation créée, mais notification interne indisponible" }, { status: 500 });
+  }
+
+  return Response.json({
+    ok: true,
+    userId: invitedUserId,
+    emailSent: invitationEmailSent,
+    existingAccount: Boolean(existingProfile?.id),
+  });
 });
