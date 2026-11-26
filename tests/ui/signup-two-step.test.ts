@@ -12,7 +12,8 @@ describe("MAGNISA signup progression", () => {
   });
 
   it("validates identity fields before allowing the password step", () => {
-    expect(source).toContain("identityFieldsRef.current?.reportValidity()");
+    expect(source).toContain(`querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(":invalid")`);
+    expect(source).toContain("invalidField.reportValidity()");
     expect(source).toContain("setStep(2)");
   });
 
