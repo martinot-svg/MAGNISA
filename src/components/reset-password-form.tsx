@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { updatePassword } from "@/server/actions/auth";
 
 export function ResetPasswordForm() {
@@ -20,7 +21,7 @@ export function ResetPasswordForm() {
         <input id="confirm-password" name="confirm" type="password" minLength={10} autoComplete="new-password" required />
       </div>
       {state?.error && <p className="error">{state.error}</p>}
-      {state?.success && <p className="success">{state.success}</p>}
+      {state?.success && <><p className="success">{state.success}</p><p><Link href="/espace-personnel">Continuer vers mon espace personnel</Link></p></>}
       <button className="button primary" disabled={pending}>
         {pending ? "Modification…" : "Modifier le mot de passe"}
       </button>
