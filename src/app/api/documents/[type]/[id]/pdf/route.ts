@@ -11,7 +11,7 @@ export async function GET(_:Request,{params}:{params:Promise<{type:string;id:str
     supabase.from(table).select("*,customers(name)").eq("organization_id",organizationId).eq("id",id).maybeSingle(),
     supabase.from(lineTable).select("*").eq("organization_id",organizationId).eq(fk,id).order("sort_order"),
     supabase.from("organizations").select("name,currency").eq("id",organizationId).single(),
-    supabase.from("company_settings").select("*").eq("organization_id",organizationId).maybeSingle(),
+    supabase.from("company_settings_member_view").select("*").eq("organization_id",organizationId).maybeSingle(),
     supabase.from("document_templates").select("configuration").eq("organization_id",organizationId).eq("document_type",type).eq("is_default",true).limit(1).maybeSingle(),
     supabase.from("document_appearance_snapshots").select("appearance").eq("organization_id",organizationId).eq("document_type",type).eq("document_id",id).maybeSingle()
   ]);

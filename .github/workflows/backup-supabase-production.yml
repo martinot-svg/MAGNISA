@@ -434,11 +434,16 @@ jobs:
                 '20261107170000','20261109170000','20261109290000','20261109300000',
                 '20261110000000','20261110090000','20261110091500','20261110093000',
                 '20261110094000','20261110095000','20261110100000',
-                '20261112090000','20261112100000'
+                '20261112090000','20261112100000',
+                '20261126110000','20261126220000','20261127000000','20261129000000'
               )
-            ) <> 13 THEN
-              RAISE EXCEPTION 'The exact thirteen allowlisted migration versions were not recorded';
+            ) <> 17 THEN
+              RAISE EXCEPTION 'The exact seventeen approved migration versions were not recorded';
             END IF;
+
+
+
+
 
             IF NOT EXISTS (
               SELECT 1 FROM public.pcg2005_balance_sheet_rules
@@ -515,6 +520,8 @@ jobs:
 
           docker run --rm --network host postgres:17 \
             psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 \
+          psql "$RESTORE_DB_URL" -X -v ON_ERROR_STOP=1 < supabase/tests/production-release-schema-contract.sql
+
               -c "DROP DATABASE IF EXISTS magnisa_restore WITH (FORCE)"
           echo "Disposable restore database removed after successful verification."
 

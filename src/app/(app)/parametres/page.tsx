@@ -13,7 +13,7 @@ const adminRoles=new Set(["owner","admin"]);
 function assertAdmin(role:string){if(!adminRoles.has(role))throw new Error("Seul un administrateur peut modifier cette configuration.")}
 
 async function saveCompany(fd:FormData){"use server";const ctx=await requireOrganization();const {supabase,organizationId,role}=ctx;assertAdmin(role);await assertDocumentAction(ctx,"branding.edit","report");if((fd.get("logo") instanceof File&&(fd.get("logo") as File).size>0)||(fd.get("logo_inverse") instanceof File&&(fd.get("logo_inverse") as File).size>0)||fd.get("remove_logo")==="on"||fd.get("remove_inverse_logo")==="on")await assertDocumentAction(ctx,"branding.logo_manage","report");
-  const {data:existingLogo}=await supabase.from("company_settings").select("logo_url,logo_storage_path,logo_inverse_storage_path").eq("organization_id",organizationId).maybeSingle();const logo=fd.get("logo");let logo_url=String(existingLogo?.logo_url||"");let logo_storage_path=String(existingLogo?.logo_storage_path||"");
+  const {data:existingLogo}=await supabase.from("company_settings_member_view").select("logo_url,logo_storage_path,logo_inverse_storage_path").eq("organization_id",organizationId).maybeSingle();const logo=fd.get("logo");let logo_url=String(existingLogo?.logo_url||"");let logo_storage_path=String(existingLogo?.logo_storage_path||"");
   if(logo instanceof File&&logo.size>0){
     if(logo.size>50*1024*1024)throw new Error("Le logo dépasse la capacité technique de stockage de 50 Mo.");
     if(!["image/png","image/jpeg","image/webp"].includes(logo.type))throw new Error("Logo accepté : PNG, JPG ou WebP uniquement (SVG exclu pour la sécurité).");

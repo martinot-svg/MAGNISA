@@ -68,7 +68,7 @@ export async function POST(
           .eq("id", organizationId)
           .single(),
         supabase
-          .from("company_settings")
+          .from("company_settings_member_view")
           .select("*")
           .eq("organization_id", organizationId)
           .maybeSingle(),

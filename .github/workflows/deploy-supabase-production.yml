@@ -355,11 +355,16 @@ jobs:
                 '20261107170000','20261109170000','20261109290000','20261109300000',
                 '20261110000000','20261110090000','20261110091500','20261110093000',
                 '20261110094000','20261110095000','20261110100000',
-                '20261112090000','20261112100000'
+                '20261112090000','20261112100000',
+                '20261126110000','20261126220000','20261127000000','20261129000000'
               )
-            ) <> 13 THEN
-              RAISE EXCEPTION 'Production migration ledger does not contain all thirteen approved versions';
+            ) <> 17 THEN
+              RAISE EXCEPTION 'Production migration ledger does not contain all seventeen approved versions';
             END IF;
+
+
+
+
 
             IF NOT EXISTS (
               SELECT 1 FROM public.pcg2005_balance_sheet_rules
@@ -383,3 +388,7 @@ jobs:
             END IF;
           END $$;
           SQL
+
+      - name: Verify production release schema contract
+        shell: bash
+        run: psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 < supabase/tests/production-release-schema-contract.sql

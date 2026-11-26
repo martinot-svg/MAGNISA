@@ -36,7 +36,7 @@ export default async function Templates(){
  const {supabase,organizationId}=ctx;
  const [{data=[]},{data:settings}]=await Promise.all([
   supabase.from("document_templates").select("*").eq("organization_id",organizationId).eq("is_default",true),
-  supabase.from("company_settings").select("*").eq("organization_id",organizationId).maybeSingle()
+  supabase.from("company_settings_member_view").select("*").eq("organization_id",organizationId).maybeSingle()
  ]);
  const map=new Map(data.map((x:any)=>[x.document_type,x]));
  return <><div className="pageHead"><div><p className="eyebrow">Documents</p><h1>Modèles de documents</h1><Link href="/modeles-documents/historique" className="button">Historique et versions</Link><p>Modèles indépendants pour devis, factures, bulletins et rapports. Les options HT/TTC sont indépendantes pour chaque document commercial.</p></div></div>

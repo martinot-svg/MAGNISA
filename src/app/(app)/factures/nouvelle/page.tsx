@@ -12,7 +12,7 @@ export default async function NewInvoice({ searchParams }: { searchParams: Promi
   const [{ data: customers = [] }, { data: services = [] }, { data: settings }] = await Promise.all([
     supabase.from("customers").select("id,name").eq("organization_id", organizationId).eq("is_active", true).order("name"),
     supabase.from("services").select("id,name,unit_price,tax_rate").eq("organization_id", organizationId).eq("is_active", true).order("name"),
-    supabase.from("company_settings").select("default_payment_days").eq("organization_id", organizationId).maybeSingle(),
+    supabase.from("company_settings_member_view").select("default_payment_days").eq("organization_id", organizationId).maybeSingle(),
   ]);
   const orderId = params.orderId?.trim() || null;
   let initialCustomerId: string | undefined;
