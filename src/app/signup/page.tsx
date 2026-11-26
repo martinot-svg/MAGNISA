@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signUp } from "@/server/actions/auth";
 import { BrandMark } from "@/components/brand-mark";
@@ -12,6 +12,8 @@ export default function Signup() {
   const [state, action, pending] = useActionState<any, FormData>(async (_: any, data: FormData) => signUp(data), {});
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [step, setStep] = useState<1 | 2>(1);
+  const identityFieldsRef = useRef<HTMLFieldSetElement>(null);
   const [username, setUsername] = useState("");
   const [customized, setCustomized] = useState(false);
   const [region, setRegion] = useState("");
@@ -48,11 +50,14 @@ export default function Signup() {
     <main className="auth authPremium">
       <BrandMark />
       <div>
-        <p className="eyebrow">Créer votre espace personnel</p>
-        <h1>Bienvenue sur MAGNISA</h1>
-        <p className="muted">Un compte personnel unique, même si tu rejoins plusieurs entreprises. Ton identifiant public permanent à 14 chiffres ne dévoile pas ton lieu d'inscription.</p>
+        <p className="eyebrow">{step === 1 ? "Étape 1 sur 2 · Vos informations" : "Étape 2 sur 2 · Sécuriser votre compte"}</p>
+        <h1>{step === 1 ? "Bienvenue sur MAGNISA" : "Sécuriser votre compte"}</h1>
+        <p className="muted">{step === 1
+          ? "Créez votre compte personnel unique. Vos informations d'inscription restent confidentielles."
+          : "Choisissez un mot de passe d'au moins 10 caractères pour protéger votre compte."}</p>
       </div>
       <form action={action} className="form">
+        <fieldset ref={identityFieldsRef} hidden={step !== 1} style={{border:0,padding:0,margin:0,minWidth:0}}>
         <div className="field">
           <label htmlFor="signup-first-name">Prénom</label>
           <input id="signup-first-name" name="first_name" required maxLength={60} autoComplete="given-name"
@@ -86,6 +91,8 @@ export default function Signup() {
             placeholder="prenom@exemple.com" aria-describedby="signup-email-help" />
           <small id="signup-email-help">Gmail, Outlook, Yahoo, iCloud, Proton, adresse professionnelle et autres fournisseurs sont acceptés : aucun fournisseur n'est obligatoire.</small>
         </div>
+        </fieldset>
+        <fieldset hidden={step !== 2} style={{border:0,padding:0,margin:0,minWidth:0}}>
         <div className="field">
           <label htmlFor="signup-password">Mot de passe</label>
           <input id="signup-password" name="password" type="password" minLength={10} required autoComplete="new-password" />
@@ -95,6 +102,7 @@ export default function Signup() {
           <label htmlFor="signup-password-confirm">Confirmer le mot de passe</label>
           <input id="signup-password-confirm" name="confirm_password" type="password" minLength={10} required autoComplete="new-password" />
         </div>
+        </fieldset>
         <div className="field">
           <label htmlFor="signup-country">Pays au moment de l'inscription</label>
           <input id="signup-country" value={REGISTRATION_COUNTRY_NAME} readOnly />
@@ -148,7 +156,18 @@ export default function Signup() {
                 </button>)}
             </div>
           </div>}
-        <button className="button primary" disabled={pending}>{pending ? "Création…" : "Créer mon compte personnel"}</button>
+        {step === 1 ? (
+          <button className="button primary" type="button" onClick={() => {
+            if (identityFieldsRef.current?.reportValidity()) setStep(2);
+          }}>Continuer</button>
+        ) : (
+          <>
+            <button className="button" type="button" onClick={() => setStep(1)}>Retour</button>
+            <button className="button primary" type="submit" disabled={pending}>
+              {pending ? "Création…" : "Créer mon compte personnel"}
+            </button>
+          </>
+        )}
       </form>
       <p className="muted"><Link href="/login">J'ai déjà un compte</Link></p>
     </main>
