@@ -29,8 +29,8 @@ describe("company settings member read model", () => {
     const settings = readFileSync("src/app/(app)/parametres/page.tsx", "utf8");
     const identity = readFileSync("src/app/(app)/identite-documents/page.tsx", "utf8");
 
-    expect(onboarding).toContain('from("company_settings").update');
-    expect(settings).toContain('from("company_settings").upsert');
-    expect(identity).toContain('from("company_settings").upsert');
+    expect(onboarding).toMatch(/from\("company_settings"\)\s*\.update/);
+    expect(settings).toMatch(/from\("company_settings"\)\s*\.upsert/);
+    expect(identity).toMatch(/from\("company_settings"\)\s*\.upsert/);
   });
 });
