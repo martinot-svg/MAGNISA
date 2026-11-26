@@ -1,13 +1,34 @@
 import Link from "next/link";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/current-org";
+
+async function respondToInvitation(formData: FormData) {
+  "use server";
+  const organizationId = String(formData.get("organization_id") || "").trim();
+  const accept = String(formData.get("accept") || "") === "true";
+  if (!organizationId) throw new Error("Invitation invalide.");
+
+  const { supabase } = await requireUser();
+  const { error } = await (supabase as any).rpc("respond_to_organization_invitation", {
+    p_organization_id: organizationId,
+    p_accept: accept,
+  });
+  if (error) throw new Error(error.message || "Impossible de répondre à l'invitation.");
+
+  revalidatePath("/espace-personnel");
+  if (accept) redirect("/choisir-organisation");
+}
 
 export default async function PersonalSpace() {
   const { supabase, user } = await requireUser();
-  const [{data:profile,error:profileError},{data:memberships,error:membershipsError}] = await Promise.all([
+  const [{data:profile,error:profileError},{data:memberships,error:membershipsError},{data:invitations,error:invitationsError}] = await Promise.all([
     supabase.from("profiles").select("full_name,username,public_id,email").eq("id",user.id).maybeSingle(),
     supabase.from("organization_members").select("organization_id,role,status").eq("user_id",user.id).eq("status","active"),
+    (supabase as any).rpc("get_my_organization_invitations"),
   ]);
-  if(profileError||membershipsError)throw new Error("Espace personnel indisponible.");
+  if(profileError||membershipsError||invitationsError)throw new Error("Espace personnel indisponible.");
+  const pendingInvitations = invitations ?? [];
   const ids=(memberships||[]).map(m=>m.organization_id);
   const organizationsResult = ids.length ? await supabase.from("organizations")
     .select("id,name").in("id",ids):null;
@@ -30,8 +51,28 @@ export default async function PersonalSpace() {
       {!!memberships?.length && <Link href="/choisir-organisation" className="button">Changer d'entreprise</Link>}
     </div>
     <div className="card section" id="invitations"><h2>Mes invitations</h2>
-      <p>Les invitations arrivent sur l'adresse e-mail personnelle avec un lien sécurisé. N'utilise que les invitations que tu reconnais.</p>
-      <p className="muted">La boîte d'invitations intégrée et le refus/acceptation explicite feront partie du lot « Invitations et accès ».</p>
+      {!pendingInvitations.length ? <p>Aucune invitation en attente.</p> :
+        <ul>
+          {pendingInvitations.map((invitation: {organization_id:string;organization_name:string;role:string;invited_at:string}) => (
+            <li key={invitation.organization_id} style={{marginBottom:16}}>
+              <p><strong>{invitation.organization_name}</strong></p>
+              <p>Rôle proposé : {invitation.role}</p>
+              <p className="muted">Invitation reçue le {new Date(invitation.invited_at).toLocaleDateString("fr-FR")}</p>
+              <div className="actions">
+                <form action={respondToInvitation}>
+                  <input type="hidden" name="organization_id" value={invitation.organization_id} />
+                  <input type="hidden" name="accept" value="true" />
+                  <button className="button primary" type="submit">Accepter</button>
+                </form>
+                <form action={respondToInvitation}>
+                  <input type="hidden" name="organization_id" value={invitation.organization_id} />
+                  <input type="hidden" name="accept" value="false" />
+                  <button className="button" type="submit">Refuser</button>
+                </form>
+              </div>
+            </li>
+          ))}
+        </ul>}
     </div>
     <div className="card section"><h2>Préférences et sécurité</h2>
       <p>La gestion détaillée du profil et des sessions sera complétée dans les paramètres personnels.</p>
