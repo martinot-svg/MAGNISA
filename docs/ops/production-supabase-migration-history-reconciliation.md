@@ -1,50 +1,47 @@
-# Production Supabase migration history — reconciliation gate
+# Production Supabase migration history — controlled release gate
 
-## Read-only comparison performed 2026-11-10
+## Read-only reconciliation snapshot — 26 November 2026
 
-Project: `pmlzirobpdlzsrvtkvir`  
-Repository: `martinot-svg/MAGNISA`  
-Production migration ledger: `supabase_migrations.schema_migrations` via the Supabase migration listing API  
-Repository source: `main:supabase/migrations`
+- Supabase project: `pmlzirobpdlzsrvtkvir`
+- Repository: `martinot-svg/MAGNISA`
+- Remote ledger: `supabase_migrations.schema_migrations`
+- Local source: `main:supabase/migrations` plus the integrated release branch
 
 | Measure | Result |
 |---|---:|
-| Remote migration ledger rows | 186 |
-| Timestamped SQL files in repository | 139 |
-| Exact version and name matches | 49 |
-| Same version, different name | 2 |
-| Remote versions with no same-version local file | 135 |
-| Local timestamped versions absent from remote ledger | 88 |
-| Reconciliation manifest rows | 0 |
+| Remote migration ledger rows | 268 |
+| Top-level timestamped SQL files in the integrated release branch | 273 |
+| Exact version and name matches | 260 |
+| Same version with a different name | 6 |
+| Remote-only versions | 2 |
+| Historical reconciliation manifest rows | 14 |
+| Local-only versions before allowlist/replay-only classification | 5 |
+| Explicit replay-only versions | 1 |
+| Forward migrations approved for this release | 4 |
 
-A filename-based comparison found 66 remote rows with a direct candidate among 64 local timestamped files. That is a candidate relationship only, not proof that the SQL content executed in production is identical. The remaining remote rows include the historical 0001–0023 chain, recovered migrations, production-specific migration names, and repeated names. They require evidence-based reconciliation.
+The six name mismatches and two remote-only historical versions are represented by checksum-verified entries in `production-history-reconciliation.tsv`. The remaining five local-only versions consist of one intentionally replay-only historical migration and four forward migrations explicitly listed in the production allowlist.
 
-## Why production deployment is blocked
+## Four forward migrations in this release
 
-The full-history guard correctly fails closed when remote history is not represented locally, when names differ without an approved mapping, or when local-only timestamped migrations are not explicitly allowlisted. The Supabase CLI also refuses a subset push when remote-only history rows are missing locally, even if a temporary project contains only reviewed files. That behavior was confirmed by the production preflight logs; no production SQL ran during the failed preflight.
+| Version | Purpose |
+|---|---|
+| `20261126110000` | MAGNIBOX sent-folder and internal mailbox permission consistency |
+| `20261126220000` | MAGNISA username rules and signup identity alignment |
+| `20261127000000` | Secure organization invitation acceptance |
+| `20261129000000` | Permission-aware company settings read model |
 
-Blindly allowlisting all 88 local-only versions would be unsafe: some may be renamed copies of migrations already applied under different remote versions. The Supabase CLI would attempt to execute the local-only versions unless their history is reconciled through a verified process. Reapplying DDL or data migrations without confirming idempotence and prior effects could damage production.
+The allowlist retains previously reviewed versions for auditability. The release script verifies and skips versions already present in the production ledger; it applies only pending, allowlisted local versions. No unreviewed local-only migration is implicitly included.
 
-The manifest `production-history-reconciliation.tsv` is intentionally left unchanged until each row has:
-- an exact local SQL representation or a recovered/absorbed representation;
-- a reviewed mapping type (`renamed`, `absorbed`, or `recovered`);
-- a non-empty evidence reference;
-- a SHA-256 matching the referenced local file.
+## Production release safeguards
 
-The pending allowlist contains five pre-existing pending migrations, five balance-sheet/asset migrations, and one source-specific PCG 606 supplier-invoice correction (11 exact versions in total). It does not approve the other unreviewed local-only versions.
+1. `scripts/ci/check-production-migration-history.sh` must pass. It checks remote/local version and name coverage, explicit historical mappings, out-of-order migrations, replay-only exclusions, and pending allowlist coverage.
+2. `scripts/ci/apply-production-allowlist.sh dry-run` validates the exact allowlist and file hashes without changing production.
+3. The encrypted backup workflow captures the production database, restores it to an isolated PostgreSQL instance, applies the same allowlist to that disposable restore, and verifies the accounting controls plus the MAGNIBOX, identity, invitation, and company-settings schema contracts.
+4. The production apply workflow requires a successful backup artifact for the exact commit. On a main-branch push, the apply workflow is triggered after the matching backup succeeds; a manual `APPLY` dispatch is also supported.
+5. The production post-apply checks verify all 17 release migration versions and the new functions, RLS policies, view grants, and invitation constraints.
 
-## Safe release rule
+## Non-negotiable safety rule
 
-The full-history guard remains fail-closed. **Never run `supabase db push --include-all` from the repository root** while the 135 remote-only rows, name mismatches, and unreviewed local-only versions remain unresolved. Do not disable the guard, fabricate manifest evidence, or bulk-allowlist the remaining migrations.
+**Never run `supabase db push --include-all` while the historical ledger is not fully reconciled.** Do not disable the guard, fabricate evidence, bulk-allowlist unknown migrations, or replay the historical archive files.
 
-A separate controlled release path is implemented for the exact versions in `production-pending-allowlist.txt`:
-
-- `scripts/ci/apply-production-allowlist.sh` reads only the timestamped SQL files explicitly listed in the allowlist. It checks version/name mismatches and hashes each pending file.
-- In `apply` mode, each migration runs through `psql` in its own transaction. The exact original version and filename-derived name are inserted into `supabase_migrations.schema_migrations` in the same transaction as the SQL. A partially completed release can be safely rerun: already-applied versions are verified and skipped.
-- The encrypted backup workflow restores the production snapshot into an isolated PostgreSQL database, applies the same 11 migrations to that disposable copy, and asserts the required balance-sheet tables, receivable RPC, PCG 581 transfer mapping, FOUR-2030 PCG 606 mapping/evidence flag, posted journal balance, and exact migration ledger versions.
-- The production preflight is read-only and validates the allowlist against the remote ledger. The production `APPLY` job requires a successful encrypted backup artifact for the exact commit being released, then applies only the allowlisted versions and verifies the deployed schema and accounting controls.
-- The full historical migration guard remains visible and fail-closed. The runner does not repair, rewrite, or bulk-mark the 135 remote-only rows or the other 83 unreviewed local-only migrations.
-
-This path does **not** claim that the complete historical ledger has been reconciled. It permits only the reviewed allowlist to be released without replaying the other local-only migrations. The normal full-repository `db push` remains blocked until the manifest is fully reconciled.
-
-The asset and passif code has passed the repository's local migration replay and authenticated workflow tests. The production migration release remains pending until the new backup workflow has successfully replayed the 11 migrations against the restored snapshot and the explicit `APPLY` workflow dispatch is executed for that exact main commit.
+The controlled allowlist path is not a claim that every historical migration has been replayed from the repository. It applies only the four forward migrations approved above, after exact backup/restore verification. The full-history guard remains active and fail-closed.

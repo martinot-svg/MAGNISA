@@ -1,6 +1,5 @@
-# Reviewed migrations not yet recorded in the production ledger.
-# Historical entries and forward-source files already represented by checksum-verified
-# reconciliation records are intentionally excluded to prevent replay and out-of-order apply.
+# Reviewed production migration allowlist. Versions already present in the remote ledger are checksum-verified and skipped.
+# Every pending local-only production migration must be explicitly listed here; replay-only migrations stay excluded.
 20261121122300
 20261121122400
 20261121122500
@@ -35,3 +34,7 @@
 20261124090000
 20261124100000
 20261125110000
+20261126110000
+20261126220000
+20261127000000
+20261129000000
