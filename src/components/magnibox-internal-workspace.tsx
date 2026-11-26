@@ -369,6 +369,15 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
         (action === "read" ? grant.can_read : grant.can_send))
     );
   const mine = mailboxes.filter((mailbox) => canUseMailbox(mailbox, "send"));
+  // A destination must have at least one active reader: its owner or a
+  // delegated collaborator. This mirrors the database delivery guard.
+  const receivableMailboxes = mailboxes.filter((mailbox) =>
+    mailbox.is_active && (
+      (!!mailbox.owner_user_id && mailbox.can_read)
+      || grants.some((grant) => grant.mailbox_id === mailbox.id && grant.is_active && grant.can_read)
+    )
+  );
+  const receivableMailboxIds = new Set(receivableMailboxes.map((mailbox) => mailbox.id));
   const readIds = new Set((readsResult.data || []).map((read) => read.message_id));
   const directory = canManage
     ? await ctx.supabase.rpc("organization_member_directory", { p_org: ctx.organizationId })
@@ -382,11 +391,14 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
   const readableMailboxIds = new Set(
     mailboxes.filter((mailbox) => canUseMailbox(mailbox, "read")).map((mailbox) => mailbox.id),
   );
+  // Sending permission also grants access to the sender's own Sent folder;
+  // it does not grant access to messages received by that mailbox.
+  const sendableMailboxIds = new Set(mine.map((mailbox) => mailbox.id));
   const selectedFolder = folders.find((folder) => folder.id === selectedFolderId);
   const folderMatches = (messageId: string) => !selectedFolderId
     || (folderIdsByMessage.get(messageId) || []).includes(selectedFolderId);
   const inbox = messages.filter((message) => readableMailboxIds.has(message.recipient_mailbox_id) && folderMatches(message.id));
-  const sent = messages.filter((message) => readableMailboxIds.has(message.sender_mailbox_id) && folderMatches(message.id));
+  const sent = messages.filter((message) => sendableMailboxIds.has(message.sender_mailbox_id) && folderMatches(message.id));
   const unreadCount = inbox.filter((message) => !readIds.has(message.id)).length;
   const renderMessages = (items: typeof messages, kind: "inbox" | "sent") => items.length === 0 ? (
     <p className="muted">{searchTerm ? "Aucun message ne correspond à la recherche." : "Aucun message dans cette boîte."}</p>
@@ -429,7 +441,7 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
               ))}
             </div>
           )}
-          {kind === "inbox" && mine.length > 0 && mailboxById.get(message.sender_mailbox_id)?.is_active && (
+          {kind === "inbox" && mine.length > 0 && receivableMailboxIds.has(message.sender_mailbox_id) && (
             <FormDialog title={`Répondre : ${message.subject}`} buttonLabel="Répondre" buttonClassName="button">
               <form action={sendInternal} className="form">
               <input type="hidden" name="requestId" value={crypto.randomUUID()} />
@@ -464,7 +476,7 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
                   <label>Destinataire</label>
                   <select name="recipientId" required defaultValue="">
                     <option value="" disabled>Choisir une boîte active</option>
-                    {mailboxes.filter((mailbox) => mailbox.is_active).map((mailbox) => (
+                    {receivableMailboxes.map((mailbox) => (
                       <option key={mailbox.id} value={mailbox.id}>{address(mailbox.id)}</option>
                     ))}
                   </select>
@@ -663,7 +675,7 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
                     <label>Destinataire dans l'entreprise</label>
                     <select name="recipientId" required>
                       <option value="">Choisir une boîte active</option>
-                      {mailboxes.filter((mailbox) => mailbox.is_active).map((mailbox) => (
+                      {receivableMailboxes.map((mailbox) => (
                         <option key={mailbox.id} value={mailbox.id}>{address(mailbox.id)}</option>
                       ))}
                     </select>
@@ -693,7 +705,7 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
                           <label>Destinataire dans l'entreprise</label>
                           <select name="recipientId" defaultValue={draft.recipient_mailbox_id || ""}>
                             <option value="">Choisir une boîte active</option>
-                            {mailboxes.filter((mailbox) => mailbox.is_active).map((mailbox) => (
+                            {receivableMailboxes.map((mailbox) => (
                               <option key={mailbox.id} value={mailbox.id}>{address(mailbox.id)}</option>
                             ))}
                           </select>

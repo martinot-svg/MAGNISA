@@ -215,6 +215,20 @@ try {
 
   console.log("SCENARIO 4/7: cycle brouillon, modification et envoi interne");
 
+  // A send-only mailbox must still show its own Sent copy, while read access
+  // remains independently revocable. Restore read access for the reply scenario.
+  const sendOnlyUpdate=await admin.from("magnibox_internal_mailboxes")
+    .update({can_read:false}).eq("id",sender).eq("organization_id",organizationId);
+  if(sendOnlyUpdate.error)throw sendOnlyUpdate.error;
+  await a.page.reload({waitUntil:"domcontentloaded"});
+  const sendOnlyCard=a.page.getByTestId("magnibox-message-card")
+    .filter({has:a.page.getByText(subject,{exact:true})}).first();
+  await sendOnlyCard.waitFor({state:"visible",timeout:15000});
+  const restoreRead=await admin.from("magnibox_internal_mailboxes")
+    .update({can_read:true}).eq("id",sender).eq("organization_id",organizationId);
+  if(restoreRead.error)throw restoreRead.error;
+  await a.page.reload({waitUntil:"domcontentloaded"});
+
   // Personal folders are private to each collaborator and support filing/unfiling.
   const folderName="Factures "+fixture;
   await a.page.getByRole("textbox",{name:"Nom du nouveau dossier"}).fill(folderName);

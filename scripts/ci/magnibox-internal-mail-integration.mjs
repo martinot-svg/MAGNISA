@@ -85,6 +85,10 @@ const finance = await mailbox(`finance-${suffix}`, a.userId);
 const direction = await mailbox(`direction-${suffix}`, b.userId);
 const ownerBox = await mailbox(`direction-admin-${suffix}`, ownerId);
 
+// A send-only mailbox must retain access to its Sent folder without granting Inbox access.
+required(await owner.from("magnibox_internal_mailboxes").update({ can_read: false })
+  .eq("id", finance).eq("organization_id", organizationId), "Droit envoi seul");
+
  
 // Régression FK : supprimer une boîte destinataire d'un brouillon doit
 // uniquement nullifier recipient_mailbox_id, jamais organization_id.
@@ -129,7 +133,7 @@ const ownMembership = required(await a.userClient.from("organization_members")
   .select("user_id,status").eq("organization_id", organizationId)
   .eq("user_id", a.userId), "Appartenance de l'expéditeur");
 assert(senderVisible.length === 1 && senderVisible[0].owner_user_id === a.userId
-  && senderVisible[0].can_send && senderVisible[0].can_read, "Boîte expéditeur inaccessible");
+  && senderVisible[0].can_send && !senderVisible[0].can_read, "La boîte expéditeur doit être explicitement en envoi seul pour ce test.");
 assert(recipientVisible.length === 1 && recipientVisible[0].owner_user_id === b.userId
   && recipientVisible[0].is_active, "Boîte destinataire inaccessible");
 assert(ownMembership.length === 1 && ownMembership[0].status === "active",
@@ -140,6 +144,18 @@ const allowedSend = required(await a.userClient.rpc("magnibox_can_send_internal"
   p_recipient_mailbox_id: direction,
 }), "Permission interne d'envoi");
 assert(allowedSend === true, "La permission magnibox doit autoriser l'envoi d'un collaborateur actif.");
+
+// An active destination with no active reader is not a deliverable mailbox.
+required(await owner.from("magnibox_internal_mailboxes").update({ can_read: false })
+  .eq("id", direction).eq("organization_id", organizationId), "Retrait du dernier lecteur");
+const noReaderSend = required(await a.userClient.rpc("magnibox_can_send_internal", {
+  p_organization_id: organizationId,
+  p_sender_mailbox_id: finance,
+  p_recipient_mailbox_id: direction,
+}), "Contrôle de délivrabilité");
+assert(noReaderSend === false, "Un message ne doit pas être accepté dans une boîte sans lecteur actif.");
+required(await owner.from("magnibox_internal_mailboxes").update({ can_read: true })
+  .eq("id", direction).eq("organization_id", organizationId), "Restauration du lecteur destinataire");
 denied(await a.userClient.from("magnibox_internal_messages").insert({
   organization_id: organizationId, sender_mailbox_id: finance,
   recipient_mailbox_id: direction, subject: "Contournement RPC",
@@ -211,7 +227,7 @@ assert(inboxB.length === 1, "Le collaborateur destinataire ne reçoit pas le mes
 
 const sentA = required(await a.userClient.from("magnibox_internal_messages")
   .select("id").eq("id", outgoing.id), "Lecture expéditeur");
-assert(sentA.length === 1, "L'expéditeur ne retrouve pas son envoyé.");
+assert(sentA.length === 1, "Un droit envoi seul doit permettre de retrouver les messages envoyés, sans ouvrir la réception.");
 
 const inboxAdmin = required(await owner.from("magnibox_internal_messages")
   .select("id").eq("id", outgoing.id), "Confidentialité direction");
