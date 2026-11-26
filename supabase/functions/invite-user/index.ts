@@ -131,7 +131,7 @@ Deno.serve(async (req: Request) => {
   } else {
     const appUrl = Deno.env.get("APP_URL") || "https://magnisa.vercel.app";
     const { data: invitation, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${appUrl}/auth/callback?next=/espace-personnel`,
+      redirectTo: `${appUrl}/auth/callback?next=/reset-password`,
     });
 
     if (inviteError || !invitation.user) {
