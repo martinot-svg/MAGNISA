@@ -15,7 +15,7 @@ export async function POST(request:Request){
   const form=await request.formData();
   const theme=readDocumentThemeForm(form);
   const {data:org}=await ctx.supabase.from("organizations").select("name").eq("id",ctx.organizationId).single();
-  const {data:settings}=await ctx.supabase.from("company_settings").select("trade_name,legal_name,logo_url,logo_storage_path,address,phone,email,website,tax_id,stat_id,registry_id").eq("organization_id",ctx.organizationId).maybeSingle();
+  const {data:settings}=await ctx.supabase.from("company_settings_member_view").select("trade_name,legal_name,logo_url,logo_storage_path,address,phone,email,website,tax_id,stat_id,registry_id").eq("organization_id",ctx.organizationId).maybeSingle();
   const company=settings?.trade_name||settings?.legal_name||org?.name||"Entreprise non renseignée";
   const logoUrl=await resolveOrganizationLogoUrl(ctx.supabase,settings||{});
   const h=React.createElement;

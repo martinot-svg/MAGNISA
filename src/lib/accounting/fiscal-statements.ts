@@ -175,7 +175,7 @@ export async function loadFiscalStatements(ctx:any, yearId:string):Promise<Fisca
   const [{data:year,error:yearError},{data:org,error:orgError},{data:settings},{data:accounts,error:accountError}] = await Promise.all([
     supabase.from("accounting_fiscal_years").select("*").eq("organization_id",organizationId).eq("id",yearId).maybeSingle(),
     supabase.from("organizations").select("name,currency").eq("id",organizationId).single(),
-    supabase.from("company_settings").select("trade_name,legal_name,address,tax_id,stat_id,registry_id,activity_sector,income_tax_regime,vat_status,fiscal_profile_confirmed,fiscal_profile_source,onboarding_profile").eq("organization_id",organizationId).maybeSingle(),
+    supabase.from("company_settings_member_view").select("trade_name,legal_name,address,tax_id,stat_id,registry_id,activity_sector,income_tax_regime,vat_status,fiscal_profile_confirmed,fiscal_profile_source,onboarding_profile").eq("organization_id",organizationId).maybeSingle(),
     supabase.from("pcg2005_accounts").select("code,label,kind").order("code"),
   ]);
   if(yearError||orgError||accountError)throw new Error(yearError?.message||orgError?.message||accountError?.message);
