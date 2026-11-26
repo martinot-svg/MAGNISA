@@ -19,7 +19,7 @@ export default async function Invoices({searchParams}:{searchParams:Promise<{fil
   supabase.from("organizations").select("currency").eq("id",organizationId).single(),
   supabase.from("customers").select("id,name").eq("organization_id",organizationId).eq("is_active",true).order("name"),
   supabase.from("services").select("id,name,unit_price,tax_rate").eq("organization_id",organizationId).eq("is_active",true).order("name"),
-  supabase.from("company_settings").select("default_payment_days").eq("organization_id",organizationId).maybeSingle()
+  supabase.from("company_settings_member_view").select("default_payment_days").eq("organization_id",organizationId).maybeSingle()
  ]);
  const query=await searchParams;
  const initialView=query.filtre==="draft"?"draft":query.filtre==="overdue"?"overdue":query.filtre==="unpaid"?"unpaid":"all";
