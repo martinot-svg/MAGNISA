@@ -10,6 +10,25 @@ BEGIN
   IF public.magnisa_business_date() IS DISTINCT FROM (now() AT TIME ZONE 'Indian/Antananarivo')::date THEN
     RAISE EXCEPTION 'Business date does not match Indian/Antananarivo';
   END IF;
+  IF to_regclass('public.magnisa_internal_transfers') IS NULL
+     OR NOT EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema='public' AND table_name='magnisa_internal_transfers'
+         AND column_name='magnisa_reference'
+     ) THEN
+    RAISE EXCEPTION 'Internal transfer lifecycle baseline is missing from clean migration replay';
+  END IF;
+  IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid='public.magnisa_internal_transfers'::regclass) THEN
+    RAISE EXCEPTION 'Internal transfer table must retain RLS';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid='public.magnisa_internal_transfers'::regclass
+      AND tgname='magnisa_internal_transfers_magnisa_reference'
+      AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'Internal transfer public reference trigger is missing';
+  END IF;
   IF has_function_privilege('anon','public.magnisa_business_date()','EXECUTE') THEN
     RAISE EXCEPTION 'Anonymous users must not execute the business-date helper';
   END IF;
