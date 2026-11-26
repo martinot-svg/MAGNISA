@@ -22,8 +22,14 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createAdminClient();
+    const localRunDate = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Indian/Antananarivo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
     const { data, error } = await supabase.rpc("run_loan_deadline_notifications", {
-      p_run_date: new Date().toISOString().slice(0, 10),
+      p_run_date: localRunDate,
     });
 
     if (error) {
@@ -31,12 +37,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Notification engine failed" }, { status: 500 });
     }
 
-    const localRunDate = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Indian/Antananarivo",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(new Date());
     const invoiceReminders = await supabase.rpc("run_invoice_due_reminders", {
       p_run_date: localRunDate,
     });
