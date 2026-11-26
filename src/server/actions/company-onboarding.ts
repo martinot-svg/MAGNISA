@@ -91,7 +91,7 @@ export async function saveCompanyOnboardingBranding(args: {
   if (palette.secondaryColor) payload.secondary_color=palette.secondaryColor;
   if (palette.accentColor) payload.accent_color=palette.accentColor;
   if (Object.values(palette).some(Boolean)) {
-    const {data:existing,error:readError}=await supabase.from("company_settings")
+    const {data:existing,error:readError}=await supabase.from("company_settings_member_view")
       .select("document_theme").eq("organization_id",id).single();
     if(readError)return {error:"Impossible de lire la charte documentaire actuelle."};
     const current=existing?.document_theme && typeof existing.document_theme==="object" &&
