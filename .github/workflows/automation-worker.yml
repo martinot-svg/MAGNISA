@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: magnisa-automation-worker
@@ -18,31 +19,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Require worker credentials
-        env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "${CRON_SECRET}" ]; then
-            echo "::error::Repository Actions secret CRON_SECRET is not configured; refusing unauthenticated worker invocation."
-            exit 1
-          fi
-
-      - name: Invoke production automation worker
-        env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          response_file="$(mktemp)"
-          status="$(curl --silent --show-error --max-time 70 \
-            --output "$response_file" --write-out "%{http_code}" \
-            --header "Authorization: Bearer ${CRON_SECRET}" \
-            "https://magnisa.vercel.app/api/cron/automation-worker")"
-          cat "$response_file"
-          rm -f "$response_file"
-          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
-            echo "::error::Automation worker returned HTTP $status"
-            exit 1
-          fi
+      - name: Request short-lived GitHub OIDC token and invoke worker
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken('magnisa-automation-worker');
+            const response = await fetch('https://magnisa.vercel.app/api/cron/automation-worker', {
+              method: 'GET',
+              headers: { Authorization: `Bearer ${token}` },
+              signal: AbortSignal.timeout(70000),
+            });
+            const body = await response.text();
+            core.info(body.slice(0, 12000));
+            if (!response.ok) {
+              core.setFailed(`Automation worker returned HTTP ${response.status}`);
+            }
