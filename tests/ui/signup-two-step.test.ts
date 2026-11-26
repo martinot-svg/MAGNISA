@@ -17,6 +17,16 @@ describe("MAGNISA signup progression", () => {
     expect(source).toContain("setStep(2)");
   });
 
+  it("keeps registration location in step one and password controls in step two", () => {
+    const identityStart = source.indexOf('<fieldset ref={identityFieldsRef}');
+    const identityEnd = source.indexOf("</fieldset>", identityStart);
+    const passwordStart = source.indexOf('<fieldset hidden={step !== 2}');
+    expect(identityStart).toBeGreaterThanOrEqual(0);
+    expect(passwordStart).toBeGreaterThan(identityEnd);
+    expect(source.indexOf('name="region_code"')).toBeGreaterThan(identityStart);
+    expect(source.indexOf('name="locality_name"')).toBeGreaterThan(identityStart);
+  });
+
   it("keeps the existing server action as the only account-creation path", () => {
     expect(source).toContain('<form action={action} className="form">');
     expect(source).toContain('type="submit"');
