@@ -343,6 +343,9 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
       .select("id,name,created_at").eq("organization_id", ctx.organizationId)
       .order("name", { ascending: true }),
   ]);
+  const deliverableMailboxesResult = await ctx.supabase.rpc("magnibox_list_deliverable_mailboxes", {
+    p_organization_id: ctx.organizationId,
+  });
   const namespace = namespaceResult.data?.slug || "";
   const mailboxes = mailboxesResult.data || [];
   const messages = messagesResult.data || [];
@@ -369,15 +372,10 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
         (action === "read" ? grant.can_read : grant.can_send))
     );
   const mine = mailboxes.filter((mailbox) => canUseMailbox(mailbox, "send"));
-  // A destination must have at least one active reader: its owner or a
-  // delegated collaborator. This mirrors the database delivery guard.
-  const receivableMailboxes = mailboxes.filter((mailbox) =>
-    mailbox.is_active && (
-      (!!mailbox.owner_user_id && mailbox.can_read)
-      || grants.some((grant) => grant.mailbox_id === mailbox.id && grant.is_active && grant.can_read)
-    )
-  );
-  const receivableMailboxIds = new Set(receivableMailboxes.map((mailbox) => mailbox.id));
+  // The database returns only destination mailbox IDs with an active reader;
+  // the recipient roster itself remains private under RLS.
+  const receivableMailboxIds = new Set(deliverableMailboxesResult.data || []);
+  const receivableMailboxes = mailboxes.filter((mailbox) => receivableMailboxIds.has(mailbox.id));
   const readIds = new Set((readsResult.data || []).map((read) => read.message_id));
   const directory = canManage
     ? await ctx.supabase.rpc("organization_member_directory", { p_org: ctx.organizationId })
@@ -529,7 +527,7 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
           </div>
         </>
       )}
-      {namespaceResult.error || mailboxesResult.error || messagesResult.error || grantsResult.error || readsResult.error || draftsResult.error || foldersResult.error || folderLinksResult.error ? (
+      {namespaceResult.error || mailboxesResult.error || messagesResult.error || grantsResult.error || readsResult.error || draftsResult.error || foldersResult.error || folderLinksResult.error || deliverableMailboxesResult.error ? (
         <div className="card section" role="alert">
           Impossible de charger les boîtes Magnibox. La migration interne et les permissions
           doivent être validées avant utilisation.
