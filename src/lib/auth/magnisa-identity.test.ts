@@ -62,6 +62,8 @@ describe("Identité MAGNISA", () => {
     expect(LEGACY_GENERATED_USERNAME_PATTERN.test("ab")).toBe(true);
     expect(generateUsername("A", "B")).toBe("abm");
     expect(usernameStemFromNames("A", "B")).toBe("abm");
+    expect(generateUsername("A", "")).toBe("ama");
+    expect(usernameStemFromNames("A", "")).toBe("ama");
     expect(GENERATED_USERNAME_PATTERN.test("username123")).toBe(false);
     expect(GENERATED_USERNAME_PATTERN.test("abcdefghijkl")).toBe(false);
   });
