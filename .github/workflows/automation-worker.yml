@@ -1,6 +1,11 @@
 name: MAGNISA automation worker
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/automation-worker.yml"
+      - "src/app/api/cron/automation-worker/route.ts"
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
