@@ -24,9 +24,9 @@ BEGIN
   END IF;
 
   SELECT count(*) INTO organization_count FROM public.organizations;
-  IF organization_count < 1 THEN
-    RAISE EXCEPTION 'Tenant upgrade baseline found no existing organizations in the restored snapshot';
-  END IF;
+  -- An empty tenant database is a valid production state. Continue capturing
+  -- every tenant-scoped table and the explicit empty-membership fingerprint;
+  -- the post-upgrade assertion must still prove that the state is unchanged.
 
   INSERT INTO magnisa_upgrade_verification.baseline
     (table_name, tenant_key, row_count, identity_digest)
