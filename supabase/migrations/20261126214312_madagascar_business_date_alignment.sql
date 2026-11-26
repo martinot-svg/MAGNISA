@@ -14,6 +14,62 @@ GRANT EXECUTE ON FUNCTION public.magnisa_business_date() TO authenticated, servi
 COMMENT ON FUNCTION public.magnisa_business_date() IS
   'Returns the current MAGNISA business date in Indian/Antananarivo; use instead of PostgreSQL UTC current_date for Malagasy business workflows.';
 
+-- Restore the historical internal-transfer table in the active replay path.
+-- It existed in production but its original migration was archived during history reconciliation.
+CREATE TABLE IF NOT EXISTS public.magnisa_internal_transfers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id),
+  source_account_id uuid NOT NULL REFERENCES public.financial_accounts(id),
+  destination_account_id uuid NOT NULL REFERENCES public.financial_accounts(id),
+  request_key uuid NOT NULL,
+  transfer_date date NOT NULL,
+  received_date date,
+  source_debit numeric(18,2) NOT NULL CHECK (source_debit > 0),
+  destination_credit numeric(18,2) NOT NULL CHECK (destination_credit > 0),
+  operator_fee numeric(18,2) NOT NULL CHECK (operator_fee >= 0),
+  source_reference text NOT NULL,
+  destination_reference text,
+  status text NOT NULL DEFAULT 'in_transit' CHECK (status IN ('in_transit','completed')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz,
+  magnisa_reference text,
+  CONSTRAINT magnisa_transfer_unique_request UNIQUE (organization_id,request_key),
+  CONSTRAINT magnisa_transfer_distinct_accounts CHECK (source_account_id <> destination_account_id),
+  CONSTRAINT magnisa_transfer_balance CHECK (source_debit = destination_credit + operator_fee)
+);
+ALTER TABLE public.magnisa_internal_transfers
+  ADD COLUMN IF NOT EXISTS magnisa_reference text;
+CREATE UNIQUE INDEX IF NOT EXISTS magnisa_transfer_source_reference_unique
+  ON public.magnisa_internal_transfers(organization_id,source_account_id,source_reference);
+CREATE INDEX IF NOT EXISTS magnisa_transfer_org_date
+  ON public.magnisa_internal_transfers(organization_id,transfer_date DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS magnisa_internal_transfers_magnisa_reference_unique
+  ON public.magnisa_internal_transfers(organization_id,magnisa_reference)
+  WHERE magnisa_reference IS NOT NULL;
+ALTER TABLE public.magnisa_internal_transfers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS magnisa_transfer_select_org ON public.magnisa_internal_transfers;
+CREATE POLICY magnisa_transfer_select_org
+  ON public.magnisa_internal_transfers
+  FOR SELECT TO public
+  USING (
+    organization_id IN (
+      SELECT o.id
+      FROM public.organizations o
+      WHERE o.id=magnisa_internal_transfers.organization_id
+        AND EXISTS (
+          SELECT 1 FROM public.organization_members m
+          WHERE m.organization_id=o.id AND m.user_id=(SELECT auth.uid())
+        )
+    )
+  );
+REVOKE ALL ON public.magnisa_internal_transfers FROM anon,authenticated;
+GRANT SELECT ON public.magnisa_internal_transfers TO authenticated;
+DROP TRIGGER IF EXISTS magnisa_internal_transfers_magnisa_reference ON public.magnisa_internal_transfers;
+CREATE TRIGGER magnisa_internal_transfers_magnisa_reference
+  BEFORE INSERT OR UPDATE OF magnisa_reference
+  ON public.magnisa_internal_transfers
+  FOR EACH ROW
+  EXECUTE FUNCTION public.magnisa_assign_module_reference('transfers','TRF');
 
 -- Replace every business-date dependency found in the production schema with
 -- the explicit Madagascar business date. Function ACLs are preserved by CREATE OR REPLACE.
