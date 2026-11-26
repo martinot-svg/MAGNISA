@@ -88,7 +88,7 @@ SELECT
   CASE WHEN p.can_identity THEN cs.tax_id ELSE NULL::text END AS tax_id,
   CASE WHEN p.can_identity THEN cs.stat_id ELSE NULL::text END AS stat_id,
   CASE WHEN p.can_identity THEN cs.registry_id ELSE NULL::text END AS registry_id,
-  CASE WHEN p.can_manage OR p.can_finance THEN cs.bank_details ELSE NULL::text END AS bank_details,
+  CASE WHEN p.can_bank THEN cs.bank_details ELSE NULL::text END AS bank_details,
   CASE WHEN p.can_billing OR p.can_finance OR p.can_manage THEN cs.payment_terms ELSE NULL::text END AS payment_terms,
   CASE WHEN p.can_billing OR p.can_manage THEN cs.legal_mentions ELSE NULL::text END AS legal_mentions,
   CASE WHEN p.can_billing OR p.can_finance OR p.can_manage THEN cs.default_payment_days ELSE NULL::integer END AS default_payment_days,
@@ -122,6 +122,7 @@ FROM public.company_settings AS cs
 CROSS JOIN LATERAL (
   SELECT
     public.has_org_permission(cs.organization_id, 'settings.manage') AS can_manage,
+    public.has_org_role(cs.organization_id, ARRAY['owner','admin']) AS can_bank,
     public.has_org_permission(cs.organization_id, 'finance.view') AS can_finance,
     public.has_org_permission(cs.organization_id, 'accounting.view') AS can_accounting,
     public.has_org_permission(cs.organization_id, 'payroll.view') AS can_payroll,
@@ -151,7 +152,7 @@ CROSS JOIN LATERAL (
 WHERE public.is_org_member(cs.organization_id);
 
 COMMENT ON VIEW public.company_settings_member_view IS
-  'Permission-aware, active-member read model for company settings. Sensitive fiscal and banking fields are masked unless the caller has the relevant organization permission.';
+  'Permission-aware, active-member read model for company settings. Bank details remain owner/admin-only until the product role policy is explicitly approved; fiscal fields are masked by organization permission.';
 
 REVOKE ALL ON public.company_settings_member_view FROM PUBLIC, anon;
 GRANT SELECT ON public.company_settings_member_view TO authenticated, service_role;
