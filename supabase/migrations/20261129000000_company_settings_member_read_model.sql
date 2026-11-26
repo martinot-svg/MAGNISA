@@ -48,9 +48,9 @@ SELECT
   cs.phone,
   cs.email,
   cs.website,
-  CASE WHEN p.can_fiscal THEN cs.tax_id ELSE NULL::text END AS tax_id,
-  CASE WHEN p.can_fiscal THEN cs.stat_id ELSE NULL::text END AS stat_id,
-  CASE WHEN p.can_fiscal THEN cs.registry_id ELSE NULL::text END AS registry_id,
+  CASE WHEN p.can_identity THEN cs.tax_id ELSE NULL::text END AS tax_id,
+  CASE WHEN p.can_identity THEN cs.stat_id ELSE NULL::text END AS stat_id,
+  CASE WHEN p.can_identity THEN cs.registry_id ELSE NULL::text END AS registry_id,
   CASE WHEN p.can_manage OR p.can_finance THEN cs.bank_details ELSE NULL::text END AS bank_details,
   CASE WHEN p.can_billing OR p.can_finance OR p.can_manage THEN cs.payment_terms ELSE NULL::text END AS payment_terms,
   CASE WHEN p.can_billing OR p.can_manage THEN cs.legal_mentions ELSE NULL::text END AS legal_mentions,
@@ -96,8 +96,14 @@ CROSS JOIN LATERAL (
       OR public.has_org_permission(cs.organization_id, 'accounting.view')
       OR public.has_org_permission(cs.organization_id, 'payroll.view')
       OR public.has_org_permission(cs.organization_id, 'reports.export')
-      OR public.has_org_permission(cs.organization_id, 'billing.view')
     ) AS can_fiscal,
+    (
+      public.has_org_permission(cs.organization_id, 'settings.manage')
+      OR public.has_org_permission(cs.organization_id, 'finance.view')
+      OR public.has_org_permission(cs.organization_id, 'accounting.view')
+      OR public.has_org_permission(cs.organization_id, 'reports.export')
+      OR public.has_org_permission(cs.organization_id, 'billing.view')
+    ) AS can_identity,
     (
       public.has_org_permission(cs.organization_id, 'settings.manage')
       OR public.has_org_permission(cs.organization_id, 'billing.view')
