@@ -21,7 +21,7 @@ async function saveDocumentTheme(fd:FormData){
 export default async function DocumentIdentityPage(){
  const ctx=await requireOrganization();await requirePermission(ctx,"settings.manage");
  const [{data:settings,error},{data:org}]=await Promise.all([
- ctx.supabase.from("company_settings").select("trade_name,legal_name,document_theme").eq("organization_id",ctx.organizationId).maybeSingle(),
+ ctx.supabase.from("company_settings_member_view").select("trade_name,legal_name,document_theme").eq("organization_id",ctx.organizationId).maybeSingle(),
  ctx.supabase.from("organizations").select("name").eq("id",ctx.organizationId).single()
  ]);
  if(error)throw new Error(error.message);
