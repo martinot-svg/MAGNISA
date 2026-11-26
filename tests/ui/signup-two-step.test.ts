@@ -28,7 +28,7 @@ describe("MAGNISA signup progression", () => {
   });
 
   it("keeps the existing server action as the only account-creation path", () => {
-    expect(source).toContain('<form action={action} className="form">');
+    expect(source).toContain('<form action={action} className="form" onSubmit={event => {');
     expect(source).toContain('type="submit"');
     expect(source).toContain("signUp");
   });
