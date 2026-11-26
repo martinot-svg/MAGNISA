@@ -127,6 +127,21 @@ BEGIN
     RAISE EXCEPTION 'magnibox: execution grants for anonymous or authenticated role are incorrect';
   END IF;
 
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_proc
+    WHERE oid=to_regprocedure('public.magnibox_has_internal_reader(uuid,uuid)')
+      AND prosecdef
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_proc
+    WHERE oid=to_regprocedure('public.magnibox_list_deliverable_mailboxes(uuid)')
+      AND prosecdef
+  ) OR has_function_privilege('anon', 'public.magnibox_has_internal_reader(uuid,uuid)', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.magnibox_list_deliverable_mailboxes(uuid)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.magnibox_has_internal_reader(uuid,uuid)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.magnibox_list_deliverable_mailboxes(uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'magnibox: recipient availability RPCs must be restricted SECURITY DEFINER functions';
+  END IF;
+
   IF has_table_privilege('authenticated','public.magnibox_internal_messages','INSERT')
      OR has_column_privilege('authenticated','public.magnibox_internal_messages','organization_id','INSERT')
      OR has_column_privilege('authenticated','public.magnibox_internal_messages','sender_mailbox_id','INSERT')

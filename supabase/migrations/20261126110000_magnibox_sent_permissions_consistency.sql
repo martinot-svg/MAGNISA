@@ -44,6 +44,23 @@ $reader$;
 revoke all on function public.magnibox_has_internal_reader(uuid, uuid) from public, anon;
 grant execute on function public.magnibox_has_internal_reader(uuid, uuid) to authenticated;
 
+-- Return only mailbox IDs that can receive mail, never the private delegate roster.
+create or replace function public.magnibox_list_deliverable_mailboxes(
+  p_organization_id uuid
+) returns setof uuid
+language sql stable security definer
+set search_path = pg_catalog, public
+as $deliverable$
+  select b.id
+  from public.magnibox_internal_mailboxes b
+  where public.is_org_member(p_organization_id)
+    and b.organization_id = p_organization_id
+    and b.is_active
+    and public.magnibox_has_internal_reader(p_organization_id, b.id);
+$deliverable$;
+revoke all on function public.magnibox_list_deliverable_mailboxes(uuid) from public, anon;
+grant execute on function public.magnibox_list_deliverable_mailboxes(uuid) to authenticated;
+
 -- Enforce deliverability at the same database boundary as sender authorization.
 create or replace function public.magnibox_can_send_internal(
   p_organization_id uuid,
