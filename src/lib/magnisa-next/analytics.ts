@@ -147,5 +147,12 @@ export function comparePeriods(
 }
 
 function money(value: number): number {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  if (!Number.isFinite(value)) {
+    throw new Error("Le résultat analytique dépasse la capacité de calcul.");
+  }
+  const rounded = Math.round((value + Number.EPSILON) * 100) / 100;
+  if (!Number.isFinite(rounded)) {
+    throw new Error("Le résultat analytique dépasse la capacité de calcul.");
+  }
+  return rounded;
 }

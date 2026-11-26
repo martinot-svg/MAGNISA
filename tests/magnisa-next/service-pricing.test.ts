@@ -22,6 +22,14 @@ describe("calculateServicePrice", () => {
     });
   });
 
+  it("rejette les débordements arithmétiques au lieu de retourner Infinity", () => {
+    expect(() => calculateServicePrice({
+      unit: "jour",
+      quantity: Number.MAX_VALUE,
+      unitPrice: 2,
+    })).toThrow("capacité de calcul");
+  });
+
   it("rejette les valeurs négatives et taux invalides", () => {
     expect(() =>
       calculateServicePrice({ unit: "jour", quantity: -1, unitPrice: 10 }),

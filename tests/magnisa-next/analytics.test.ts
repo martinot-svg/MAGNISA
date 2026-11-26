@@ -62,6 +62,13 @@ describe("comparePeriods", () => {
     ).changePercent.revenue).toBeNull();
   });
 
+  it("rejette un calcul de variation qui déborde la capacité numérique", () => {
+    expect(() => comparePeriods(
+      { revenue: 1e308, receipts: 0, expenses: 0 },
+      { revenue: 1, receipts: 0, expenses: 0 },
+    )).toThrow("capacité de calcul");
+  });
+
   it("rejette les montants non numériques", () => {
     expect(() => comparePeriods(
       { revenue: "NaN", receipts: 0, expenses: 0 },
