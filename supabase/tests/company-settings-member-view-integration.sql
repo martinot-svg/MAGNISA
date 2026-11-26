@@ -72,6 +72,11 @@ BEGIN
     RAISE EXCEPTION 'Viewer must not see fiscal identifiers or bank details';
   END IF;
 
+  IF (SELECT bank_details FROM public.company_settings_member_view
+      WHERE organization_id = '40000000-0000-4000-8000-000000000101') IS DISTINCT FROM 'TEST-BANK-DETAILS' THEN
+    RAISE EXCEPTION 'Owner must be able to read bank details';
+  END IF;
+
   SELECT count(*) INTO v_count
   FROM public.company_settings
   WHERE organization_id = '40000000-0000-4000-8000-000000000101';
@@ -93,8 +98,8 @@ BEGIN
   FROM public.company_settings_member_view
   WHERE organization_id = '40000000-0000-4000-8000-000000000101';
 
-  IF v_tax_id IS DISTINCT FROM 'TEST-TAX-ID' OR v_bank_details IS DISTINCT FROM 'TEST-BANK-DETAILS' THEN
-    RAISE EXCEPTION 'Finance manager must see fiscal identifiers and banking details';
+  IF v_tax_id IS DISTINCT FROM 'TEST-TAX-ID' OR v_bank_details IS NOT NULL THEN
+    RAISE EXCEPTION 'Finance manager may see approved fiscal identifiers but must not see bank details before the role policy is validated';
   END IF;
 
   SELECT count(*) INTO v_count
