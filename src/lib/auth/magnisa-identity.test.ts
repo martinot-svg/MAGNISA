@@ -11,6 +11,7 @@ import {
   REGISTRATION_LOCALITIES,
   USERNAME_PATTERN,
   GENERATED_USERNAME_PATTERN,
+  LEGACY_GENERATED_USERNAME_PATTERN,
   usernameStemFromNames,
 } from "@/lib/auth/magnisa-identity";
 
@@ -32,6 +33,7 @@ describe("Identité MAGNISA", () => {
   it("génère des @noms personnalisables de dix lettres maximum", () => {
     expect(generateUsername("Francky", "Masinjaka")).toBe("franckymas");
     expect(generateUsername("Émilie", "Rakoto")).toBe("emilierako");
+    expect(generateUsername("Œdipe", "Straße")).toBe("oedipestra");
     expect(NEW_USERNAME_PATTERN.test("franckymas")).toBe(true);
     expect(NEW_USERNAME_PATTERN.test("nom.usage")).toBe(false);
     expect(NEW_USERNAME_PATTERN.test("123nom")).toBe(false);
@@ -57,6 +59,12 @@ describe("Identité MAGNISA", () => {
       expect(GENERATED_USERNAME_PATTERN.test(expected)).toBe(true);
     }
     expect(GENERATED_USERNAME_PATTERN.test("a")).toBe(false);
+    expect(GENERATED_USERNAME_PATTERN.test("ab")).toBe(false);
+    expect(LEGACY_GENERATED_USERNAME_PATTERN.test("ab")).toBe(true);
+    expect(generateUsername("A", "B")).toBe("abm");
+    expect(usernameStemFromNames("A", "B")).toBe("abm");
+    expect(generateUsername("A", "")).toBe("ama");
+    expect(usernameStemFromNames("A", "")).toBe("ama");
     expect(GENERATED_USERNAME_PATTERN.test("username123")).toBe(false);
     expect(GENERATED_USERNAME_PATTERN.test("abcdefghijkl")).toBe(false);
   });

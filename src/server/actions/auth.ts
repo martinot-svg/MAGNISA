@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { signupEmailPolicy } from "@/lib/auth/domain";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isValidRegistrationRegion, normalizeUsername, USERNAME_PATTERN, NEW_USERNAME_PATTERN, GENERATED_USERNAME_PATTERN, usernameVariants } from "@/lib/auth/magnisa-identity";
+import { isValidRegistrationRegion, normalizeUsername, USERNAME_PATTERN, NEW_USERNAME_PATTERN, LEGACY_GENERATED_USERNAME_PATTERN, usernameVariants } from "@/lib/auth/magnisa-identity";
 import { createHmac } from "node:crypto";
 import { resolveLocality } from "@/lib/geo/madagascar-localities";
 import { headers } from "next/headers";
@@ -46,9 +46,8 @@ export async function signUp(formData: FormData) {
 
   const email = policy.normalized!;
   const supabase = await createClient();
-  // The database trigger allocates a unique username atomically; there is no
-  // preflight lookup that could race between simultaneous registrations.
-  // However, we still pre-check to offer user-friendly suggestions on collision.
+  // Preflight improves the collision message; the database trigger also checks
+  // and reserves the requested username atomically to close concurrency races.
   const admin = createAdminClient();
   const { data: taken, error: checkError } = await admin.from("profiles")
     .select("id").eq("username", username).maybeSingle();
@@ -163,7 +162,7 @@ export async function signIn(formData: FormData) {
   let email = identifier;
   if (!isEmail) {
     // Accept both current handles (3-10, lowercase letters) and legacy generated ones (2-10).
-    if (!USERNAME_PATTERN.test(handle) && !GENERATED_USERNAME_PATTERN.test(handle)) {
+    if (!USERNAME_PATTERN.test(handle) && !LEGACY_GENERATED_USERNAME_PATTERN.test(handle)) {
       return { error: "Connexion impossible. Vérifie tes identifiants." };
     }
     try {

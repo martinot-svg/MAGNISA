@@ -50,12 +50,7 @@ export const USERNAME_PATTERN = /^[a-z][a-z0-9._]{2,29}$/;
 export const NEW_USERNAME_PATTERN = /^[a-z]{3,10}$/;
 
 export function generateUsername(firstName: string, lastName: string): string {
-  const letters = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");
-  const given = letters(firstName);
-  const family = letters(lastName);
-  // Keep some of both names when possible, even when the given name is long.
-  const givenPart = given.slice(0, family ? Math.min(7, Math.max(3, 10 - Math.min(3, family.length))) : 10);
-  return (givenPart + family).slice(0, 10);
+  return usernameStemFromNames(firstName, lastName);
 }
 // Deterministic candidate handles for a collision. Availability must always
 // be checked server-side, since generating a variant does not reserve it.
@@ -75,9 +70,11 @@ export function usernameVariants(base: string): string[] {
 }
 export const PUBLIC_ID_PATTERN = /^[0-9]{14}$/;
 
-/** New auto-generated usernames: ASCII letters only, two to ten letters.
- * Legacy usernames remain valid for sign-in to avoid breaking existing accounts. */
-export const GENERATED_USERNAME_PATTERN = /^[a-z]{2,10}$/;
+/** Newly generated handles contain 3-10 lowercase ASCII letters.
+ * Existing aliases remain valid for sign-in to avoid breaking accounts. */
+export const GENERATED_USERNAME_PATTERN = /^[a-z]{3,10}$/;
+/** Two-letter aliases issued by older database logic remain accepted for login only. */
+export const LEGACY_GENERATED_USERNAME_PATTERN = /^[a-z]{2,10}$/;
 
 /** Display preview only. PostgreSQL assigns and reserves the final unique value. */
 export function usernameStemFromNames(givenNames: string, familyName: string): string {
@@ -92,7 +89,8 @@ export function usernameStemFromNames(givenNames: string, familyName: string): s
   const first = normalizePart(givenNames);
   const last = normalizePart(familyName);
   const firstPart = first.slice(0, last.length ? 9 : 10);
-  return (firstPart + last.slice(0, 10 - firstPart.length)).slice(0, 10);
+  const candidate = (firstPart + last.slice(0, 10 - firstPart.length)).slice(0, 10);
+  return candidate.length >= 3 ? candidate : candidate ? `${candidate}mag`.slice(0, 3) : "";
 }
 
 
