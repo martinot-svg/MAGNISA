@@ -56,6 +56,9 @@ jobs:
       - name: Run MAGNIBOX worker + Storage + ClamAV end-to-end test
         run: npm run test:magnibox:integration
 
+      - name: Run real two-tenant RLS isolation integration test
+        run: node scripts/ci/existing-tenant-isolation-integration.mjs
+
       - name: Stop isolated Supabase
         if: always() && steps.supabase_cli.outcome == 'success'
         run: supabase stop
