@@ -2161,4 +2161,11 @@ begin
  perform public.audit_event(p_org,'payslip.validated','payslip',ps.id,jsonb_build_object('status','calculated'),jsonb_build_object('status','validated','net_pay',ps.net_pay,'total_cost',v_total_cost,'taxable_supplementary_pension',coalesce(ps.taxable_supplementary_pension,0),'employee_supplementary_pension',coalesce(ps.employee_supplementary_pension,0)));
 end $function$;
 
+
+-- The transfer RPCs are SECURITY DEFINER and must remain authenticated-only.
+REVOKE ALL ON FUNCTION public.magnisa_record_transfer_debit(uuid,uuid,uuid,date,numeric,numeric,numeric,text,uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.magnisa_confirm_transfer_credit(uuid,uuid,date,text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.magnisa_record_transfer_debit(uuid,uuid,uuid,date,numeric,numeric,numeric,text,uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.magnisa_confirm_transfer_credit(uuid,uuid,date,text) TO authenticated;
+
 COMMIT;
