@@ -37,6 +37,20 @@ BEGIN
     RAISE EXCEPTION 'Company settings base-table admin policies are incomplete';
   END IF;
 
+  SELECT count(*) INTO v_policy_count
+  FROM pg_policies
+  WHERE schemaname = 'public'
+    AND tablename = 'company_settings'
+    AND policyname IN (
+      'company_settings_admin_select_guard',
+      'company_settings_admin_insert_guard',
+      'company_settings_admin_update_guard'
+    )
+    AND permissive = 'RESTRICTIVE';
+  IF v_policy_count <> 3 THEN
+    RAISE EXCEPTION 'Restrictive admin guards must prevent broader legacy policies from exposing raw settings';
+  END IF;
+
   IF has_table_privilege('anon', 'public.company_settings_member_view', 'SELECT') THEN
     RAISE EXCEPTION 'Anonymous users must not read company settings view';
   END IF;
