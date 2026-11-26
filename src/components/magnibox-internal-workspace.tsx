@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireOrganization } from "@/lib/current-org";
 import { assertPermission, hasPermission } from "@/lib/permissions";
 import { FormDialog } from "@/components/form-dialog";
@@ -237,8 +238,7 @@ async function sendInternal(form: FormData) {
     revalidatePath(PATH);
     revalidatePath("/orbit/inbox");
     revalidatePath("/orbit/magnibox");
-    revalidatePath("/orbit/magnibox");
-    return;
+    redirect(PATH);
   }
   const senderId = String(form.get("senderId") || "").trim();
   const recipientId = String(form.get("recipientId") || "").trim();
@@ -267,7 +267,7 @@ async function sendInternal(form: FormData) {
   revalidatePath(PATH);
   revalidatePath("/orbit/inbox");
   revalidatePath("/orbit/magnibox");
-  revalidatePath("/orbit/magnibox");
+  redirect(PATH);
 }
 
 async function markInternalRead(form: FormData) {
