@@ -40,7 +40,7 @@ async function login(user) {
   await page.locator('input[name="password"]').fill(user.password);
   await page.getByRole("button",{name:"Se connecter"}).click();
   await page.waitForURL(u=>u.pathname!=="/login",{timeout:30000});
-  await page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
+  await page.locator("main").waitFor({timeout:25000});
   return {page,context};
 }
 // A streamed Next.js page can expose its trigger before the nested client dialog
@@ -79,9 +79,11 @@ try {
   }
   // Use only the MAGNIBOX workspace; legacy messaging routes are not browser-test targets.
   await a.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
-  await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
-  await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
-  console.log("SCENARIO 1/7: accès MAGNIBOX et espace de messagerie");
+  await a.page.getByRole("heading",{name:"Bienvenue dans MAGNIBOX"}).waitFor({timeout:20000});
+  await a.page.getByRole("link",{name:"Ouvrir la messagerie"}).waitFor({timeout:15000});
+  await a.page.goto(base+"/orbit/magnibox/boites",{waitUntil:"domcontentloaded"});
+  await a.page.getByRole("heading",{name:"Boîtes et collaborateurs"}).waitFor({timeout:20000});
+  console.log("SCENARIO 1/7: navigation MAGNIBOX et espace des boîtes");
   await a.page.getByRole("button",{name:"Configurer la messagerie interne"}).waitFor({timeout:20000});
   if(await a.page.getByRole("link",{name:"Ouvrir la messagerie interne"}).count())
     throw new Error("Orbit Inbox still separates MAGNIBOX into another messaging product");
@@ -148,7 +150,7 @@ try {
   const archive=boxes.find(x=>x.local_part==="archives")?.id;
   if(!sender||!recipient||!archive)throw new Error("Boîtes collaborateur non enregistrées");
   // The organization controls its own professional requests inside Magnibox.
-  await a.page.getByRole("link",{name:"Administrer les domaines"}).click();
+  await a.page.goto(base+"/orbit/magnibox/domaines",{waitUntil:"domcontentloaded"});
   await a.page.getByRole("heading",{name:"Domaines et adresses professionnelles"}).waitFor({timeout:20000});
   if(new URL(a.page.url()).pathname!=="/orbit/magnibox/domaines")
     throw Error("Professional domains must open inside Magnibox");
@@ -176,9 +178,8 @@ try {
   await a.page.getByRole("cell",{name:"finance@"+requestedDomain}).waitFor({timeout:20000});
   console.log("SCENARIO 3/7: demandes de domaine et d’adresse avec validation DNS");
   // Domain administration is a separate route; return to the inbox and wait for hydration.
-  await a.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
-  await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
-  await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
+  await a.page.goto(base+"/orbit/magnibox/messagerie",{waitUntil:"domcontentloaded"});
+  await a.page.getByRole("heading",{name:"Messagerie",exact:true}).waitFor({timeout:20000});
   await openDialog(a.page,/Nouveau message/);
   await a.page.locator('select[name="senderId"]').selectOption(sender);
   // Drafts are allowed to be incomplete: the submitter's formNoValidate must
@@ -224,7 +225,6 @@ try {
   // Server Actions revalidate the route; reload once to assert the persisted
   // assignment from a fresh server render rather than matching a hidden option.
   await a.page.reload({waitUntil:"domcontentloaded"});
-  await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
   const refreshedCard=a.page.getByTestId("magnibox-message-card")
     .filter({has:a.page.getByText(subject,{exact:true})}).first();
   await refreshedCard.getByTestId("magnibox-message-folders")
@@ -253,8 +253,7 @@ try {
   await a.page.waitForURL(url=>url.searchParams.get("q")===privateDraft,{timeout:20000});
   await a.page.getByRole("heading",{name:"Brouillons (1)"}).waitFor({timeout:20000});
   await a.page.getByText(privateDraft,{exact:true}).waitFor({timeout:15000});
-  await a.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
-  await a.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
+  await a.page.goto(base+"/orbit/magnibox/messagerie",{waitUntil:"domcontentloaded"});
   await a.context.close();
 
   const b=await login(employee);
@@ -262,9 +261,8 @@ try {
   await b.page.getByRole("alert").waitFor({timeout:20000});
   if(await b.page.getByText("magnisa-orbit="+domainRequest.verification_token).count())
     throw Error("Collaborator can read a domain ownership challenge");
-  await b.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
-  await b.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
-  await b.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
+  await b.page.goto(base+"/orbit/magnibox/messagerie",{waitUntil:"domcontentloaded"});
+  await b.page.getByRole("heading",{name:"Messagerie",exact:true}).waitFor({timeout:20000});
   await b.page.getByRole("heading",{name:"Brouillons (0)"}).waitFor({timeout:20000});
   const employeeDraftProbe=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
   const employeeDraftLogin=await employeeDraftProbe.auth.signInWithPassword({email:employee.email,password:employee.password});
@@ -283,8 +281,7 @@ try {
   console.log("SCENARIO 6/7: réception, lecture et réponse entre collaborateurs");
 
   const c=await login(owner);
-  await c.page.goto(base+"/orbit/magnibox",{waitUntil:"domcontentloaded"});
-  await c.page.locator('.mg-app[data-mg-hydrated="true"]').waitFor({timeout:25000});
+  await c.page.goto(base+"/orbit/magnibox/messagerie",{waitUntil:"domcontentloaded"});
   await c.page.getByText(replySubject).first().waitFor({timeout:20000});
   // Forward the received reply to a third internal mailbox.
   const replyRow=c.page.locator('div[style*="border-bottom"]').filter({has:c.page.getByText(replySubject,{exact:true})});
