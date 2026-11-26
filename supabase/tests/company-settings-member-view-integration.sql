@@ -65,7 +65,7 @@ BEGIN
   FROM public.company_settings_member_view
   WHERE organization_id = '40000000-0000-4000-8000-000000000101';
 
-  IF v_trade_name <> 'Settings test trade name' THEN
+  IF v_trade_name IS DISTINCT FROM 'Settings test trade name' THEN
     RAISE EXCEPTION 'Active viewer must see non-sensitive company identity';
   END IF;
   IF v_tax_id IS NOT NULL OR v_bank_details IS NOT NULL THEN
@@ -93,7 +93,7 @@ BEGIN
   FROM public.company_settings_member_view
   WHERE organization_id = '40000000-0000-4000-8000-000000000101';
 
-  IF v_tax_id <> 'TEST-TAX-ID' OR v_bank_details <> 'TEST-BANK-DETAILS' THEN
+  IF v_tax_id IS DISTINCT FROM 'TEST-TAX-ID' OR v_bank_details IS DISTINCT FROM 'TEST-BANK-DETAILS' THEN
     RAISE EXCEPTION 'Finance manager must see fiscal identifiers and banking details';
   END IF;
 
