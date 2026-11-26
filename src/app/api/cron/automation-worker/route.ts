@@ -104,10 +104,42 @@ async function dispatch(admin: ReturnType<typeof createAdminClient>, job: Job) {
   });
 }
 
+async function verifyGitHubOidc(token: string): Promise<boolean> {
+  try {
+    const [encodedHeader, encodedPayload, encodedSignature] = token.split(".");
+    if (!encodedHeader || !encodedPayload || !encodedSignature) return false;
+    const decode = (part: string) => JSON.parse(Buffer.from(part, "base64url").toString("utf8")) as Record<string, unknown>;
+    const header = decode(encodedHeader);
+    const claims = decode(encodedPayload);
+    if (header.alg !== "RS256" || typeof header.kid !== "string") return false;
+    if (claims.iss !== "https://token.actions.githubusercontent.com" ||
+        claims.aud !== "magnisa-automation-worker" ||
+        claims.repository !== "martinot-svg/MAGNISA" ||
+        claims.ref !== "refs/heads/main" ||
+        claims.workflow_ref !== "martinot-svg/MAGNISA/.github/workflows/automation-worker.yml@refs/heads/main" ||
+        typeof claims.exp !== "number" || claims.exp <= Math.floor(Date.now() / 1000) ||
+        typeof claims.iat !== "number" || claims.iat > Math.floor(Date.now() / 1000) + 60) return false;
+    const response = await fetch("https://token.actions.githubusercontent.com/.well-known/jwks", { cache: "no-store" });
+    if (!response.ok) return false;
+    const jwks = await response.json() as { keys?: JsonWebKey[] };
+    const jwk = jwks.keys?.find((key) => (key as JsonWebKey & { kid?: string }).kid === header.kid);
+    if (!jwk) return false;
+    const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+    const data = new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`);
+    const signature = Uint8Array.from(Buffer.from(encodedSignature, "base64url"));
+    return await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, data);
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(request: Request) {
-  const auth = getCronAuthorizationError(process.env.CRON_SECRET, request.headers.get("authorization"));
-  if (auth === 503) return NextResponse.json({ error: "Cron authentication is not configured" }, { status: 503 });
-  if (auth === 401) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const authorization = request.headers.get("authorization") ?? "";
+  const bearer = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  const githubOidcValid = bearer ? await verifyGitHubOidc(bearer) : false;
+  const cronAuth = getCronAuthorizationError(process.env.CRON_SECRET, authorization);
+  if (!githubOidcValid && cronAuth === 503) return NextResponse.json({ error: "Cron authentication is not configured" }, { status: 503 });
+  if (!githubOidcValid && cronAuth === 401) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
   const { data, error } = await admin.rpc("claim_automation_jobs", {
