@@ -50,20 +50,7 @@ export const USERNAME_PATTERN = /^[a-z][a-z0-9._]{2,29}$/;
 export const NEW_USERNAME_PATTERN = /^[a-z]{3,10}$/;
 
 export function generateUsername(firstName: string, lastName: string): string {
-  const letters = (value: string) => value.toLowerCase()
-    .replace(/œ/g, "oe")
-    .replace(/æ/g, "ae")
-    .replace(/ß/g, "ss")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z]/g, "");
-  const given = letters(firstName);
-  const family = letters(lastName);
-  // Keep some of both names when possible, even when the given name is long.
-  const givenPart = given.slice(0, family ? Math.min(7, Math.max(3, 10 - Math.min(3, family.length))) : 10);
-  const candidate = (givenPart + family).slice(0, 10);
-  // Very short names still need a valid three-letter handle.
-  return candidate.length >= 3 ? candidate : candidate ? `${candidate}mag`.slice(0, 3) : "";
+  return usernameStemFromNames(firstName, lastName);
 }
 // Deterministic candidate handles for a collision. Availability must always
 // be checked server-side, since generating a variant does not reserve it.
