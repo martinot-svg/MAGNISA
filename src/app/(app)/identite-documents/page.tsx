@@ -14,14 +14,14 @@ async function saveDocumentTheme(fd:FormData){
  await assertDocumentAction(ctx,"branding.edit","report");
  if(!["owner","admin"].includes(ctx.role))throw new Error("Seul un administrateur peut modifier la charte de l'entreprise.");
  const document_theme=readDocumentThemeForm(fd);
- const {error}=await ctx.supabase.from("company_settings_member_view").upsert({organization_id:ctx.organizationId,document_theme},{onConflict:"organization_id"});
+ const {error}=await ctx.supabase.from("company_settings").upsert({organization_id:ctx.organizationId,document_theme},{onConflict:"organization_id"});
  if(error)throw new Error(error.message);
  revalidatePath("/identite-documents");revalidatePath("/modeles-documents");
 }
 export default async function DocumentIdentityPage(){
  const ctx=await requireOrganization();await requirePermission(ctx,"settings.manage");
  const [{data:settings,error},{data:org}]=await Promise.all([
- ctx.supabase.from("company_settings").select("trade_name,legal_name,document_theme").eq("organization_id",ctx.organizationId).maybeSingle(),
+ ctx.supabase.from("company_settings_member_view").select("trade_name,legal_name,document_theme").eq("organization_id",ctx.organizationId).maybeSingle(),
  ctx.supabase.from("organizations").select("name").eq("id",ctx.organizationId).single()
  ]);
  if(error)throw new Error(error.message);
