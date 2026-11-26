@@ -61,8 +61,8 @@ jobs:
 
       - name: Generate Phase 8 analytics migration name with Supabase CLI
         run: |
-          supabase migration new phase8_analytics_local_date_unbilled_services
-          migration_file="$(find supabase/migrations -maxdepth 1 -type f -name '*_phase8_analytics_local_date_unbilled_services.sql' -print -quit)"
+          supabase migration new madagascar_business_date_alignment
+          migration_file="$(find supabase/migrations -maxdepth 1 -type f -name '*_madagascar_business_date_alignment.sql' -print -quit)"
           test -n "$migration_file"
           echo "Generated migration file: $migration_file"
           printf 'Generated migration file: `%s`\n' "$migration_file" >> "$GITHUB_STEP_SUMMARY"
