@@ -17,6 +17,29 @@ BEGIN
     RAISE EXCEPTION 'Authenticated role cannot execute the business-date helper';
   END IF;
 
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE p.prokind='f'
+      AND (
+        (n.nspname='public' AND p.proname = ANY(ARRAY[
+          'analysis_metrics','archive_payroll_rule','calculate_prospect_commission','cancel_invoice',
+          'close_loan_early','convert_order_to_invoice','convert_quote_to_invoice','convert_quote_to_order',
+          'create_direct_invoice_from_service','create_invoice_draft','create_invoice_draft_from_order',
+          'create_quote_draft','create_quote_from_service','dashboard_metrics','duplicate_quote',
+          'issue_customer_credit_note','magnisa_close_fiscal_year','magnisa_confirm_transfer_credit',
+          'magnisa_record_transfer_debit','magnisa_resolve_pcg_account','record_invoice_payment',
+          'record_loan_repayment','reverse_loan_repayment','run_loan_deadline_notifications',
+          'set_recurring_service_status','validate_payslip'
+        ]))
+        OR (n.nspname='private' AND p.proname='generate_all_due_recurring_invoice_drafts')
+      )
+      AND pg_get_functiondef(p.oid) ILIKE '%current_date%'
+  ) THEN
+    RAISE EXCEPTION 'A business workflow still depends on PostgreSQL session current_date instead of the Madagascar business date';
+  END IF;
+
   v_definition := pg_get_functiondef('private.generate_all_due_recurring_invoice_drafts()'::regprocedure);
   IF v_definition ILIKE '%next_billing_date <=%' THEN
     RAISE EXCEPTION 'Global recurring scheduler still filters out future J-5 contracts';
