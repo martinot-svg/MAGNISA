@@ -70,9 +70,8 @@ export function usernameVariants(base: string): string[] {
 }
 export const PUBLIC_ID_PATTERN = /^[0-9]{14}$/;
 
-/** New auto-generated usernames: ASCII letters only, two to ten letters.
- * Legacy usernames remain valid for sign-in to avoid breaking existing accounts. */
-/** Newly generated handles must contain 3-10 lowercase ASCII letters. */
+/** Newly generated handles contain 3-10 lowercase ASCII letters.
+ * Existing aliases remain valid for sign-in to avoid breaking accounts. */
 export const GENERATED_USERNAME_PATTERN = /^[a-z]{3,10}$/;
 /** Two-letter aliases issued by older database logic remain accepted for login only. */
 export const LEGACY_GENERATED_USERNAME_PATTERN = /^[a-z]{2,10}$/;
