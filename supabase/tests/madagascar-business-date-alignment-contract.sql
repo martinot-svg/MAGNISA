@@ -29,6 +29,20 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Internal transfer public reference trigger is missing';
   END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='magnisa_internal_transfers'
+      AND policyname='magnisa_transfer_select_org' AND cmd='SELECT'
+  ) THEN
+    RAISE EXCEPTION 'Internal transfer member-read RLS policy is missing';
+  END IF;
+  IF NOT has_table_privilege('authenticated','public.magnisa_internal_transfers','SELECT')
+     OR has_table_privilege('authenticated','public.magnisa_internal_transfers','INSERT')
+     OR has_table_privilege('authenticated','public.magnisa_internal_transfers','UPDATE')
+     OR has_table_privilege('authenticated','public.magnisa_internal_transfers','DELETE')
+     OR has_table_privilege('anon','public.magnisa_internal_transfers','SELECT') THEN
+    RAISE EXCEPTION 'Internal transfer table grants must remain read-only for authenticated members and unavailable to anon';
+  END IF;
   IF has_function_privilege('anon','public.magnisa_business_date()','EXECUTE') THEN
     RAISE EXCEPTION 'Anonymous users must not execute the business-date helper';
   END IF;
