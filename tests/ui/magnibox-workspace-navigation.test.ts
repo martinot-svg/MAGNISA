@@ -16,7 +16,7 @@ describe("MAGNIBOX workspace information architecture", () => {
     const dashboard = read("src/app/(app)/orbit/magnibox/page.tsx");
     expect(dashboard).toContain('.eq("organization_id",ctx.organizationId)');
     expect(dashboard).toContain('count:"exact"');
-    expect(dashboard).toContain('events.error?"—"');
+    expect(dashboard).toContain('error?"—":String(count??0)');
     expect(dashboard).not.toMatch(/\b(fake|mock|demo|sample)\b/i);
   });
 
