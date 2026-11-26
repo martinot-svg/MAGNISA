@@ -32,7 +32,12 @@ begin
     '[^a-z]','','g');
   v_base := pg_catalog.substr(v_first,1,case when pg_catalog.length(v_last)>0 then 9 else 10 end);
   v_base := v_base || pg_catalog.substr(v_last,1,10-pg_catalog.length(v_base));
-  if pg_catalog.length(v_base)<2 then
+  if pg_catalog.length(v_base)=1 then
+    v_base := v_base || 'ma';
+  elsif pg_catalog.length(v_base)=2 then
+    v_base := v_base || 'm';
+  end if;
+  if pg_catalog.length(v_base)<3 then
     raise exception 'Prénoms et nom insuffisants pour générer le nom utilisateur'
       using errcode='22023';
   end if;
