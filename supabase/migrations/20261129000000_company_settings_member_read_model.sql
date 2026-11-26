@@ -73,6 +73,10 @@ BEGIN
 END;
 $guard$;
 
+-- Intentionally a security-barrier owner view: it exposes only masked fields to active
+-- organization members while restrictive base-table policies prevent raw member reads.
+-- Keep the is_org_member predicate and per-field permission checks. Do not switch to
+-- security_invoker without redesigning the base-table RLS contract.
 CREATE OR REPLACE VIEW public.company_settings_member_view
 WITH (security_barrier = true)
 AS

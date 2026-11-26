@@ -98,6 +98,18 @@ BEGIN
     RAISE EXCEPTION 'Company settings view must preserve owner/admin bank-field masking';
   END IF;
 
+  IF position('is_org_member' in lower(pg_get_viewdef('public.company_settings_member_view'::regclass, true))) = 0
+    OR to_regprocedure('public.is_org_member(uuid)') IS NULL
+    OR to_regprocedure('public.has_org_permission(uuid,text)') IS NULL
+    OR to_regprocedure('public.has_org_role(uuid,text[])') IS NULL THEN
+    RAISE EXCEPTION 'Company settings view must keep its active-member and permission filters';
+  END IF;
+
+  IF position('auth.uid' in lower(pg_get_functiondef('public.is_org_member(uuid)'::regprocedure))) = 0
+    OR position('active' in lower(pg_get_functiondef('public.is_org_member(uuid)'::regprocedure))) = 0 THEN
+    RAISE EXCEPTION 'Active-member helper must remain bound to the authenticated user';
+  END IF;
+
   IF NOT has_table_privilege('authenticated','public.company_settings_member_view','SELECT')
     OR has_table_privilege('anon','public.company_settings_member_view','SELECT') THEN
     RAISE EXCEPTION 'Company settings member view grants are incorrect';
