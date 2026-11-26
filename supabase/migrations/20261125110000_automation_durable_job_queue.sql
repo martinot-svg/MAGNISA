@@ -65,6 +65,7 @@ declare
   v_id uuid;
 begin
   perform public.assert_org_access(p_org);
+  perform public.assert_org_permission(p_org, 'orders.manage');
 
   if p_rule_id is null or length(btrim(p_rule_id)) not between 1 and 200
     or p_event_type not in (
