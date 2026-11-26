@@ -59,6 +59,14 @@ jobs:
         with:
           version: 3.0.0
 
+      - name: Generate Phase 8 analytics migration name with Supabase CLI
+        run: |
+          supabase migration new phase8_analytics_local_date_unbilled_services
+          migration_file="$(find supabase/migrations -maxdepth 1 -type f -name '*_phase8_analytics_local_date_unbilled_services.sql' -print -quit)"
+          test -n "$migration_file"
+          echo "Generated migration file: $migration_file"
+          printf 'Generated migration file: `%s`\n' "$migration_file" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Start local Supabase stack on PostgreSQL 17
         run: |
           # Avoid collisions with PostgreSQL already bound to the runner's default 54322.
