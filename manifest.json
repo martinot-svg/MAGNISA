@@ -1,0 +1,36 @@
+{
+  "package": "MAGNISA_UPDATE_PACK",
+  "version": "1.0",
+  "target_repository": "martinot-svg/MAGNISA",
+  "target_branch_audited": "main",
+  "created_on": "2026-11-26",
+  "type": "documentation_and_implementation_specification",
+  "contains_executable_migrations": false,
+  "contains_application_code_patch": false,
+  "documents": [
+    "00_ETAT_DES_LIEUX_GITHUB.md",
+    "01_VISION_ET_PARCOURS_CIBLE.md",
+    "02_SPECIFICATION_COMPTE_PERSONNEL.md",
+    "03_SPECIFICATION_CHOIX_MAGNISA.md",
+    "04_SPECIFICATION_CREATION_ORGANISATION.md",
+    "05_ARCHITECTURE_DONNEES_ET_SECURITE.md",
+    "06_PLAN_DE_TESTS_ET_ACCEPTATION.md",
+    "07_DEPLOIEMENT_ET_RETOUR_ARRIERE.md",
+    "08_BACKLOG_IMPLEMENTATION.md",
+    "CHANGELOG.md",
+    "DECISIONS_A_VALIDER.md",
+    "README.md"
+  ],
+  "implementation_order": [
+    "Phase 0 — Audit technique complet",
+    "Phase 1 — Cohérence identité et username",
+    "Phase 2 — Inscription personnelle",
+    "Phase 3 — Vérification e-mail et sécurité",
+    "Phase 4 — Choix d'utilisation",
+    "Phase 5 — Harmonisation du wizard organisation",
+    "Phase 6 — Informations complémentaires facultatives",
+    "Phase 7 — Paramètres et complétion",
+    "Phase 8 — Tests, sécurité et accessibilité",
+    "Phase 9 — Déploiement progressif"
+  ]
+}

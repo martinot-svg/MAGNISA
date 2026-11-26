@@ -1,58 +1,51 @@
-# MAGNISA — Nouvelles améliorations (pack d'intégration)
+# MAGNISA — Dossier maître de mise à jour
 
-Ce paquet complète le dépôt `martinot-svg/MAGNISA` sans remplacer ses modules existants.
+**Version du dossier :** 1.0  
+**Dépôt cible :** `martinot-svg/MAGNISA`  
+**Branche de référence auditée :** `main`  
+**Nature du paquet :** spécifications fonctionnelles, techniques, sécurité, tests et déploiement.
 
-**Référence du dépôt consultée :** branche `main`, commit `53758e20d68b1795117a0885a2e5c7b52147f8b7` (24 novembre 2026).
+## Objectif
 
-## Important — périmètre réel
+Ce dossier décrit les phases nécessaires pour faire évoluer le parcours d'inscription personnel, le choix d'utilisation de MAGNISA et la création d'une organisation, en réutilisant les mécanismes déjà présents dans le dépôt.
 
-Le dépôt contient déjà plusieurs domaines proposés dans la feuille de route : CRM, clients, prospects, services, devis, commandes, factures, paiements, prestations récurrentes, fournisseurs, stocks, approvisionnements, trésorerie, paie, fiscalité, comptabilité, rapports, notifications, audit et gestion des accès.
+Il est conçu pour être ajouté à la racine du dépôt GitHub. Il ne remplace pas le code applicatif et ne lance aucune migration.
 
-Le présent ZIP ne prétend donc pas réimplémenter ces modules. Il apporte :
-- un référentiel centralisé de 17 unités de facturation ;
-- des fonctions pures de calcul de prestations et de tarification ;
-- des agrégateurs analytiques sans accès direct à la base ;
-- des contrats d'automatisation et de clés d'idempotence ;
-- des contrôles de cohérence multi-entreprises ;
-- des tests unitaires et une feuille de route d'intégration.
+## Important — contenu du ZIP
 
-Il ne contient **aucune migration SQL de production**, aucune nouvelle route UI, aucun connecteur de paiement, aucune signature électronique ni aucun portail client activé. Ces intégrations nécessitent les schémas, fournisseurs, règles métier et validations de sécurité propres au projet.
+Ce paquet est un **dossier de spécifications prêt à déposer dans GitHub**, pas un patch logiciel déjà implémenté. Il ne contient volontairement :
+- aucune migration SQL exécutable ;
+- aucun remplacement des composants existants ;
+- aucune suppression de table, colonne, fonction, trigger ou policy ;
+- aucune modification de RLS ;
+- aucun secret, clé Supabase ou donnée utilisateur.
 
-## Installation
+Les migrations et changements de code ne doivent être écrits qu'après audit complet des références, du schéma réellement déployé et des politiques d'accès.
 
-Copier le dossier `src/lib/magnisa-next/` dans `src/lib/magnisa-next/` du dépôt.
+## Installation documentaire
 
-Copier les tests dans `tests/magnisa-next/` ou les adapter à la convention de tests du dépôt.
+1. Télécharger et décompresser le ZIP.
+2. Copier le dossier `MAGNISA_UPDATE_PACK/` à la racine de `martinot-svg/MAGNISA`.
+3. Committer les documents sur une branche dédiée, par exemple `docs/magnisa-onboarding-update-plan`.
+4. Utiliser `08_BACKLOG_IMPLEMENTATION.md` comme liste de suivi.
+5. Implémenter les phases dans l'ordre et faire valider chaque porte de sortie.
 
-Aucune dépendance supplémentaire n'est requise. Le projet utilise déjà TypeScript et Vitest.
+## Ordre de lecture
 
-## Vérifications
+| Ordre | Document | Objet |
+|---|---|---|
+| 1 | `00_ETAT_DES_LIEUX_GITHUB.md` | Code existant et écarts constatés |
+| 2 | `01_VISION_ET_PARCOURS_CIBLE.md` | Parcours complet cible |
+| 3 | `02_SPECIFICATION_COMPTE_PERSONNEL.md` | Inscription, sécurité, profil, résidence |
+| 4 | `03_SPECIFICATION_CHOIX_MAGNISA.md` | Créer, rejoindre, finances personnelles |
+| 5 | `04_SPECIFICATION_CREATION_ORGANISATION.md` | Wizard, données facultatives, banque, social |
+| 6 | `05_ARCHITECTURE_DONNEES_ET_SECURITE.md` | Modèle de données, confidentialité, migrations |
+| 7 | `06_PLAN_DE_TESTS_ET_ACCEPTATION.md` | Tests et critères de livraison |
+| 8 | `07_DEPLOIEMENT_ET_RETOUR_ARRIERE.md` | Release, surveillance, rollback |
+| 9 | `08_BACKLOG_IMPLEMENTATION.md` | Tâches ordonnées et cases à cocher |
+| 10 | `DECISIONS_A_VALIDER.md` | Décisions qui nécessitent validation métier |
 
-Depuis la racine de MAGNISA :
+## Règle d'or
 
-```bash
-npm ci
-npx vitest run tests/magnisa-next
-npm run lint
-npm run build
-```
-
-Les tests de ce paquet couvrent les fonctions pures uniquement. Ils ne remplacent pas les tests Supabase/RLS, les tests multi-tenant, les tests E2E ni les validations de migrations.
-
-## Intégration du catalogue
-
-Le fichier `billing-units.ts` est un référentiel applicatif. Avant de remplacer les champs `unit` existants, il faut :
-1. inventorier les unités actuellement utilisées dans les services et documents ;
-2. établir une correspondance sans perte ;
-3. préserver les libellés historiques des devis, commandes et factures ;
-4. migrer les valeurs uniquement après validation sur une copie de base ;
-5. remplacer la saisie libre dans les formulaires `/services` par une liste contrôlée ;
-6. vérifier les actions serveur `createService` et `updateService`.
-
-## Règles de sécurité
-
-- Ne jamais utiliser un `organization_id` fourni par le navigateur comme preuve d'autorisation.
-- Résoudre l'organisation active côté serveur avec les mécanismes déjà présents dans MAGNISA (`requireOrganization`).
-- Continuer à appliquer les permissions existantes et les politiques RLS.
-- Les fonctions de ce paquet ne remplacent pas les contrôles serveur.
-- Ne jamais réécrire les prix figés dans les documents historiques.
+**Auditer → spécifier → implémenter → tester → relire → déployer.**  
+Ne jamais reconstruire ce qui existe déjà. Ne jamais modifier les données d'origine d'inscription pour y stocker la résidence actuelle.
