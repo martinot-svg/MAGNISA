@@ -239,6 +239,11 @@ jobs:
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/prospect-collaboration.sql
 
+      - name: Verify explicit organization invitation acceptance and pending membership security
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/organization-invitation-acceptance.sql
+
       - name: Node 22
         uses: actions/setup-node@v4
         with:
