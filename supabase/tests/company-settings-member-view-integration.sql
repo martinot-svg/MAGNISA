@@ -72,11 +72,6 @@ BEGIN
     RAISE EXCEPTION 'Viewer must not see fiscal identifiers or bank details';
   END IF;
 
-  IF (SELECT bank_details FROM public.company_settings_member_view
-      WHERE organization_id = '40000000-0000-4000-8000-000000000101') IS DISTINCT FROM 'TEST-BANK-DETAILS' THEN
-    RAISE EXCEPTION 'Owner must be able to read bank details';
-  END IF;
-
   SELECT count(*) INTO v_count
   FROM public.company_settings
   WHERE organization_id = '40000000-0000-4000-8000-000000000101';
@@ -116,6 +111,11 @@ DO $$
 DECLARE
   v_count integer;
 BEGIN
+  IF (SELECT bank_details FROM public.company_settings_member_view
+      WHERE organization_id = '40000000-0000-4000-8000-000000000101') IS DISTINCT FROM 'TEST-BANK-DETAILS' THEN
+    RAISE EXCEPTION 'Owner must be able to read bank details';
+  END IF;
+
   SELECT count(*) INTO v_count
   FROM public.company_settings
   WHERE organization_id = '40000000-0000-4000-8000-000000000101';
