@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/regulatory-watch",
       "schedule": "15 5 * * *"
+    },
+    {
+      "path": "/api/cron/automation-worker",
+      "schedule": "* * * * *"
     }
   ],
   "installCommand": "npm ci"
