@@ -31,6 +31,12 @@ BEGIN
     RAISE EXCEPTION 'enqueue RPC grants are incorrect';
   END IF;
 
+  IF position('assert_org_permission' in pg_get_functiondef(
+    'public.enqueue_automation_job(uuid,text,text,text,jsonb,text,integer)'::regprocedure
+  )) = 0 THEN
+    RAISE EXCEPTION 'enqueue RPC must enforce organization-level orders.manage permission';
+  END IF;
+
   v_function := 'public.claim_automation_jobs(text,integer,integer)'::regprocedure;
   IF NOT has_function_privilege('service_role',v_function,'EXECUTE')
     OR has_function_privilege('authenticated',v_function,'EXECUTE') THEN
