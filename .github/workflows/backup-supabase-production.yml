@@ -226,6 +226,17 @@ jobs:
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
             pg_restore --dbname="$RESTORE_DB_URL" --no-owner --use-list=/backup/restore.list --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
               --section=pre-data /backup/magnisa-production.dump
+          # The filtered production schema dump can omit provider-installed
+          # extensions that are required by exclusion constraints. Install the
+          # extension in the disposable restore DB before post-data indexes and
+          # constraints are recreated; this never changes Production.
+          docker run --rm --network host postgres:17 \
+            psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 \
+              -c "CREATE EXTENSION IF NOT EXISTS btree_gist"
+          docker run --rm --network host postgres:17 \
+            psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 -At \
+              -c "select 1 from pg_extension where extname='btree_gist'" | grep -qx '1'
+
           docker run --rm --network host -v "$PWD/backup:/backup" postgres:17 \
             pg_restore --dbname="$RESTORE_DB_URL" --no-owner --use-list=/backup/restore.list --exclude-schema=realtime --exclude-schema=vault --exclude-schema=cron --exit-on-error \
               --section=data /backup/magnisa-production.dump
