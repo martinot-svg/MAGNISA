@@ -56,7 +56,14 @@ export default function Signup() {
           ? "Créez votre compte personnel unique. Vos informations d'inscription restent confidentielles."
           : "Choisissez un mot de passe d'au moins 10 caractères pour protéger votre compte."}</p>
       </div>
-      <form action={action} className="form">
+      <form action={action} className="form" onSubmit={event => {
+        if (step === 1) {
+          event.preventDefault();
+          const invalidField = identityFieldsRef.current?.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(":invalid");
+          if (invalidField) invalidField.reportValidity();
+          else setStep(2);
+        }
+      }}>
         <fieldset ref={identityFieldsRef} hidden={step !== 1} style={{border:0,padding:0,margin:0,minWidth:0}}>
         <div className="field">
           <label htmlFor="signup-first-name">Prénom</label>
@@ -91,7 +98,6 @@ export default function Signup() {
             placeholder="prenom@exemple.com" aria-describedby="signup-email-help" />
           <small id="signup-email-help">Gmail, Outlook, Yahoo, iCloud, Proton, adresse professionnelle et autres fournisseurs sont acceptés : aucun fournisseur n'est obligatoire.</small>
         </div>
-        </fieldset>
         <fieldset hidden={step !== 2} style={{border:0,padding:0,margin:0,minWidth:0}}>
         <div className="field">
           <label htmlFor="signup-password">Mot de passe</label>
@@ -144,6 +150,7 @@ export default function Signup() {
             laissez votre saisie : MAGNISA l'enregistrera telle quelle, sans vous attribuer une autre ville.
             Votre lieu d'inscription reste confidentiel.</small>
         </div>
+        </fieldset>
         {state?.error && <p role="alert" className="error">{state.error}</p>}
         {Array.isArray(state?.suggestions) && state.suggestions.length > 0 &&
           <div className="field" aria-label="Autres noms d'utilisateur disponibles">
