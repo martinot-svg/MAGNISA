@@ -207,8 +207,12 @@ try {
   if(await a.page.locator('textarea[name="body"]').inputValue()!=="Test sécurisé entre deux collaborateurs authentifiés.")
     throw new Error("Le contenu modifié du brouillon n'a pas été conservé.");
   await a.page.getByRole("button",{name:"Envoyer dans MAGNISA"}).click();
-  await a.page.getByText(subject).first().waitFor({timeout:20000});
   await a.page.getByRole("heading",{name:"Brouillons (0)"}).waitFor({timeout:20000});
+  const sentMessage=await admin.from("magnibox_internal_messages").select("id,subject,body_text")
+    .eq("organization_id",organizationId).eq("subject",subject).single();
+  if(sentMessage.error||sentMessage.data?.body_text!=="Test sécurisé entre deux collaborateurs authentifiés.")
+    throw sentMessage.error||new Error("Le message envoyé n’a pas été persisté avec son contenu.");
+
   console.log("SCENARIO 4/7: cycle brouillon, modification et envoi interne");
 
   // Personal folders are private to each collaborator and support filing/unfiling.
