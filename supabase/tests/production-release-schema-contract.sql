@@ -106,8 +106,12 @@ BEGIN
   END IF;
 
   IF position('auth.uid' in lower(pg_get_functiondef('public.is_org_member(uuid)'::regprocedure))) = 0
-    OR position('active' in lower(pg_get_functiondef('public.is_org_member(uuid)'::regprocedure))) = 0 THEN
-    RAISE EXCEPTION 'Active-member helper must remain bound to the authenticated user';
+    OR position('active' in lower(pg_get_functiondef('public.is_org_member(uuid)'::regprocedure))) = 0
+    OR position('auth.uid' in lower(pg_get_functiondef('public.has_org_permission(uuid,text)'::regprocedure))) = 0
+    OR position('active' in lower(pg_get_functiondef('public.has_org_permission(uuid,text)'::regprocedure))) = 0
+    OR position('auth.uid' in lower(pg_get_functiondef('public.has_org_role(uuid,text[])'::regprocedure))) = 0
+    OR position('active' in lower(pg_get_functiondef('public.has_org_role(uuid,text[])'::regprocedure))) = 0 THEN
+    RAISE EXCEPTION 'Organization membership and permission helpers must remain bound to the authenticated active member';
   END IF;
 
   IF NOT has_table_privilege('authenticated','public.company_settings_member_view','SELECT')
