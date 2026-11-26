@@ -22,8 +22,23 @@ BEGIN
  END IF;
  IF has_table_privilege('authenticated','public.orbit_action_tasks','DELETE')
  OR has_table_privilege('authenticated','public.orbit_action_comments','UPDATE')
- OR has_table_privilege('authenticated','public.orbit_action_comments','DELETE') THEN
-   RAISE EXCEPTION 'Task deletion/comment rewriting unexpectedly permitted';
+ OR has_table_privilege('authenticated','public.orbit_action_comments','DELETE')
+ OR has_table_privilege('authenticated','public.orbit_action_tasks','INSERT')
+ OR has_table_privilege('authenticated','public.orbit_action_tasks','UPDATE')
+ OR has_table_privilege('authenticated','public.orbit_action_comments','INSERT') THEN
+   RAISE EXCEPTION 'Broad task/comment table privileges unexpectedly granted';
+ END IF;
+ IF NOT has_column_privilege('authenticated','public.orbit_action_tasks','organization_id','INSERT')
+ OR NOT has_column_privilege('authenticated','public.orbit_action_tasks','created_by','INSERT')
+ OR NOT has_column_privilege('authenticated','public.orbit_action_tasks','title','INSERT')
+ OR NOT has_column_privilege('authenticated','public.orbit_action_tasks','assigned_to','INSERT')
+ OR NOT has_column_privilege('authenticated','public.orbit_action_tasks','status','UPDATE')
+ OR NOT has_column_privilege('authenticated','public.orbit_action_tasks','updated_at','UPDATE')
+ OR NOT has_column_privilege('authenticated','public.orbit_action_comments','organization_id','INSERT')
+ OR NOT has_column_privilege('authenticated','public.orbit_action_comments','task_id','INSERT')
+ OR NOT has_column_privilege('authenticated','public.orbit_action_comments','author_user_id','INSERT')
+ OR NOT has_column_privilege('authenticated','public.orbit_action_comments','body','INSERT') THEN
+   RAISE EXCEPTION 'Required column-level task/comment privileges are incomplete';
  END IF;
  IF has_column_privilege('authenticated','public.orbit_action_tasks','organization_id','UPDATE')
  OR has_column_privilege('authenticated','public.orbit_action_tasks','created_by','UPDATE')

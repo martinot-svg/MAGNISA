@@ -312,7 +312,7 @@ async function markInternalRead(form: FormData) {
 export async function MagniboxInternalContent({ embedded = false, searchQuery = "", selectedFolderId = "" }: { embedded?: boolean; searchQuery?: string; selectedFolderId?: string } = {}) {
   const ctx = await requireOrganization();
   const searchTerm = String(searchQuery).replace(/[^\p{L}\p{N}\s-]/gu, "").trim().slice(0, 80);
-  const searchAction = embedded ? "/orbit/magnibox" : PATH;
+  const searchAction = PATH;
   const canManage = await hasPermission(ctx, "users.manage");
   let messagesQuery = ctx.supabase.from("magnibox_internal_messages")
     .select("id,sender_mailbox_id,recipient_mailbox_id,subject,body_text,created_at")
