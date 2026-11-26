@@ -239,6 +239,26 @@ jobs:
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/prospect-collaboration.sql
 
+      - name: Verify explicit organization invitation acceptance and pending membership security
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/organization-invitation-acceptance.sql
+
+      - name: Exercise organization invitation acceptance, refusal and email verification gates
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/organization-invitation-acceptance-integration.sql
+
+      - name: Verify permission-aware company settings read model
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/company-settings-member-view-contract.sql
+
+      - name: Exercise company settings access by organization role
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/company-settings-member-view-integration.sql
+
       - name: Node 22
         uses: actions/setup-node@v4
         with:
