@@ -36,6 +36,43 @@ BEGIN
 END;
 $policy$;
 
+-- Restrictive guards ensure any older permissive member policy cannot expose
+-- the raw settings row. Safe member reads go through the masked view below.
+DO $guard$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'company_settings'
+      AND policyname = 'company_settings_admin_select_guard'
+  ) THEN
+    EXECUTE 'CREATE POLICY company_settings_admin_select_guard
+      ON public.company_settings AS RESTRICTIVE FOR SELECT TO authenticated
+      USING (public.has_org_role(organization_id, ARRAY[''owner'',''admin'']))';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'company_settings'
+      AND policyname = 'company_settings_admin_insert_guard'
+  ) THEN
+    EXECUTE 'CREATE POLICY company_settings_admin_insert_guard
+      ON public.company_settings AS RESTRICTIVE FOR INSERT TO authenticated
+      WITH CHECK (public.has_org_role(organization_id, ARRAY[''owner'',''admin'']))';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'company_settings'
+      AND policyname = 'company_settings_admin_update_guard'
+  ) THEN
+    EXECUTE 'CREATE POLICY company_settings_admin_update_guard
+      ON public.company_settings AS RESTRICTIVE FOR UPDATE TO authenticated
+      USING (public.has_org_role(organization_id, ARRAY[''owner'',''admin'']))
+      WITH CHECK (public.has_org_role(organization_id, ARRAY[''owner'',''admin'']))';
+  END IF;
+END;
+$guard$;
+
 CREATE OR REPLACE VIEW public.company_settings_member_view
 WITH (security_barrier = true)
 AS
