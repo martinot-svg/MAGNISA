@@ -158,7 +158,9 @@ export default function Signup() {
           </div>}
         {step === 1 ? (
           <button className="button primary" type="button" onClick={() => {
-            if (identityFieldsRef.current?.reportValidity()) setStep(2);
+            const invalidField = identityFieldsRef.current?.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(":invalid");
+            if (invalidField) invalidField.reportValidity();
+            else setStep(2);
           }}>Continuer</button>
         ) : (
           <>
