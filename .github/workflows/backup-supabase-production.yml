@@ -260,7 +260,7 @@ jobs:
           # legitimate empty tenant snapshot; it also compared physical table
           # names across approved MAGNIBOX renames. The reviewed SQL tests use
           # primary keys, organization_id and approved canonical rename mapping,
-          # and fail closed when organizations are absent.
+          # and compare exact tenant fingerprints even when the production snapshot has zero organizations.
           # Capture tenant identities before applying the reviewed migration set.
           docker run --rm --network host -i postgres:17 \
             psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 < tests/integration/tenant-upgrade-preservation-capture.sql
