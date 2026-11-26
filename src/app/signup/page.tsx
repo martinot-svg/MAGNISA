@@ -98,17 +98,6 @@ export default function Signup() {
             placeholder="prenom@exemple.com" aria-describedby="signup-email-help" />
           <small id="signup-email-help">Gmail, Outlook, Yahoo, iCloud, Proton, adresse professionnelle et autres fournisseurs sont acceptés : aucun fournisseur n'est obligatoire.</small>
         </div>
-        <fieldset hidden={step !== 2} style={{border:0,padding:0,margin:0,minWidth:0}}>
-        <div className="field">
-          <label htmlFor="signup-password">Mot de passe</label>
-          <input id="signup-password" name="password" type="password" minLength={10} required autoComplete="new-password" />
-          <small>10 caractères minimum.</small>
-        </div>
-        <div className="field">
-          <label htmlFor="signup-password-confirm">Confirmer le mot de passe</label>
-          <input id="signup-password-confirm" name="confirm_password" type="password" minLength={10} required autoComplete="new-password" />
-        </div>
-        </fieldset>
         <div className="field">
           <label htmlFor="signup-country">Pays au moment de l'inscription</label>
           <input id="signup-country" value={REGISTRATION_COUNTRY_NAME} readOnly />
@@ -149,6 +138,17 @@ export default function Signup() {
           <small id="signup-locality-help">Les suggestions proviennent d'un référentiel national. Si votre localité n'y figure pas,
             laissez votre saisie : MAGNISA l'enregistrera telle quelle, sans vous attribuer une autre ville.
             Votre lieu d'inscription reste confidentiel.</small>
+        </div>
+        </fieldset>
+        <fieldset hidden={step !== 2} style={{border:0,padding:0,margin:0,minWidth:0}}>
+        <div className="field">
+          <label htmlFor="signup-password">Mot de passe</label>
+          <input id="signup-password" name="password" type="password" minLength={10} required autoComplete="new-password" />
+          <small>10 caractères minimum.</small>
+        </div>
+        <div className="field">
+          <label htmlFor="signup-password-confirm">Confirmer le mot de passe</label>
+          <input id="signup-password-confirm" name="confirm_password" type="password" minLength={10} required autoComplete="new-password" />
         </div>
         </fieldset>
         {state?.error && <p role="alert" className="error">{state.error}</p>}
