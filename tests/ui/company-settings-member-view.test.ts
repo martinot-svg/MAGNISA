@@ -31,6 +31,6 @@ describe("company settings member read model", () => {
 
     expect(onboarding).toContain('from("company_settings").update');
     expect(settings).toContain('from("company_settings").upsert');
-    expect(identity).toContain('from("company_settings").update');
+    expect(identity).toContain('from("company_settings").upsert');
   });
 });
