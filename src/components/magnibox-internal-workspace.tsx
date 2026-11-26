@@ -382,11 +382,14 @@ export async function MagniboxInternalContent({ embedded = false, searchQuery = 
   const readableMailboxIds = new Set(
     mailboxes.filter((mailbox) => canUseMailbox(mailbox, "read")).map((mailbox) => mailbox.id),
   );
+  // Sending permission also grants access to the sender's own Sent folder;
+  // it does not grant access to messages received by that mailbox.
+  const sendableMailboxIds = new Set(mine.map((mailbox) => mailbox.id));
   const selectedFolder = folders.find((folder) => folder.id === selectedFolderId);
   const folderMatches = (messageId: string) => !selectedFolderId
     || (folderIdsByMessage.get(messageId) || []).includes(selectedFolderId);
   const inbox = messages.filter((message) => readableMailboxIds.has(message.recipient_mailbox_id) && folderMatches(message.id));
-  const sent = messages.filter((message) => readableMailboxIds.has(message.sender_mailbox_id) && folderMatches(message.id));
+  const sent = messages.filter((message) => sendableMailboxIds.has(message.sender_mailbox_id) && folderMatches(message.id));
   const unreadCount = inbox.filter((message) => !readIds.has(message.id)).length;
   const renderMessages = (items: typeof messages, kind: "inbox" | "sent") => items.length === 0 ? (
     <p className="muted">{searchTerm ? "Aucun message ne correspond à la recherche." : "Aucun message dans cette boîte."}</p>
