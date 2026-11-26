@@ -78,24 +78,12 @@ begin
   );
 
   select username into v_actual from public.profiles where id=v_fallback_id;
-  if v_actual is null or v_actual !~ '^[a-z]{3,10}
+  if v_actual is null or v_actual !~ '^[a-z]{3,10}$' then
     raise exception 'Fallback username does not satisfy 3-10 lowercase letters: %',v_actual;
   end if;
 
   v_actual := private.magnisa_generate_username('A','B');
-  if v_actual !~ '^[a-z]{3,10}$' then
-    raise exception 'Short-name generation does not satisfy 3-10 lowercase letters: %',v_actual;
-  end if;
-end;
-$username_test$;
-
-rollback;
- then
-    raise exception 'Fallback username does not satisfy 3-10 lowercase letters: %',v_actual;
-  end if;
-
-  v_actual := private.magnisa_generate_username('A','B');
-  if v_actual !~ '^[a-z]{3,10}$' then
+  if v_actual is null or v_actual !~ '^[a-z]{3,10}$' then
     raise exception 'Short-name generation does not satisfy 3-10 lowercase letters: %',v_actual;
   end if;
 end;
