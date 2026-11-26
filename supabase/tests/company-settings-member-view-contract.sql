@@ -13,7 +13,8 @@ BEGIN
   IF position('is_org_member' IN v_viewdef) = 0
      OR position('has_org_permission' IN v_viewdef) = 0
      OR position('can_finance' IN v_viewdef) = 0
-     OR position('can_identity' IN v_viewdef) = 0 THEN
+     OR position('can_identity' IN v_viewdef) = 0
+     OR position('can_bank' IN v_viewdef) = 0 THEN
     RAISE EXCEPTION 'Company settings view must enforce active membership and permission-aware field masking';
   END IF;
 
