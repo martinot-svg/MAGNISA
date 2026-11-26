@@ -98,6 +98,11 @@ jobs:
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-atomic-outbound-quota-contract.sql
 
+      - name: Verify Madagascar business dates and recurring invoice preparation horizon
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/madagascar-business-date-alignment-contract.sql
+
       - name: Verify MAGNIBOX delivery event fencing contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
