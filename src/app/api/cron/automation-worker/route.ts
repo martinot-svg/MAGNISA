@@ -18,12 +18,24 @@ type Job = {
 const value = (input: unknown, max = 1200) =>
   typeof input === "string" ? input.trim().slice(0, max) : "";
 
+async function assertActiveMember(admin: ReturnType<typeof createAdminClient>, organizationId: string, userId: string) {
+  const { data, error } = await admin.from("organization_members")
+    .select("user_id")
+    .eq("organization_id", organizationId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Automation recipient or assignee is not an active member of this organization");
+}
+
 async function dispatch(admin: ReturnType<typeof createAdminClient>, job: Job) {
   const p = job.payload ?? {};
   if (job.action_type === "notification.create") {
     const recipient = value(p.recipient_user_id, 80);
     const title = value(p.title, 180);
     if (!recipient || !title) throw new Error("recipient_user_id and title are required");
+    await assertActiveMember(admin, job.organization_id, recipient);
     const categories = ["finance", "loan", "payment", "treasury", "social", "tax", "service", "accounting", "system"];
     const priorities = ["info", "attention", "urgent", "critical"];
     const { error } = await admin.from("notifications").upsert({
@@ -47,12 +59,15 @@ async function dispatch(admin: ReturnType<typeof createAdminClient>, job: Job) {
     const actor = value(p.actor_user_id, 80);
     const title = value(p.title, 180);
     if (!actor || !title) throw new Error("actor_user_id and title are required");
+    await assertActiveMember(admin, job.organization_id, actor);
+    const assignee = value(p.assigned_to, 80);
+    if (assignee) await assertActiveMember(admin, job.organization_id, assignee);
     const priorities = ["low", "normal", "high", "urgent"];
     const dueDate = value(p.due_date, 10);
     const { error } = await admin.from("orbit_action_tasks").insert({
       organization_id: job.organization_id,
       created_by: actor,
-      assigned_to: value(p.assigned_to, 80) || null,
+      assigned_to: assignee || null,
       project_id: value(p.project_id, 80) || null,
       title,
       description: value(p.description, 10000),
