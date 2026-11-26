@@ -1,0 +1,2 @@
+import { MagniboxInternalContent } from "@/components/magnibox-internal-workspace";
+export default function MagniboxMailboxesPage(){return <><div className="pageHead"><div><p className="eyebrow">MAGNIBOX · Collaborateurs</p><h1>Boîtes et collaborateurs</h1><p>Création, attribution, partage et permissions des boîtes internes.</p></div></div><MagniboxInternalContent/></>;}

@@ -1,73 +1,27 @@
-import { hasPermission } from "@/lib/permissions";
+import Link from "next/link";
 import { requireOrganization } from "@/lib/current-org";
-import { MagniboxInternalContent } from "@/components/magnibox-internal-workspace";
-import { MagniboxInternetWorkspace } from "@/components/magnibox-internet-workspace";
-
-export default async function MagniboxPage({ searchParams }: { searchParams?: Promise<{ q?: string | string[]; folder?: string | string[] }> }) {
-  const params = searchParams ? await searchParams : {};
-  const searchQuery = Array.isArray(params.q) ? (params.q[0] || "") : (params.q || "");
-  const selectedFolderId = Array.isArray(params.folder) ? (params.folder[0] || "") : (params.folder || "");
-  const ctx = await requireOrganization();
-  const canManageDomains = await hasPermission(ctx, "users.manage");
-
-  return (
-    <>
-      <div className="pageHead">
-        <div>
-          <p className="eyebrow">Magnisa Orbit · Communication</p>
-          <h1>Magnibox</h1>
-          <p>Une messagerie unique pour les collaborateurs et les adresses professionnelles de l'entreprise.</p>
-        </div>
-      </div>
-
-      <MagniboxInternalContent embedded searchQuery={searchQuery} selectedFolderId={selectedFolderId} />
-      <MagniboxInternetWorkspace />
-
-      {canManageDomains && (
-        <div className="card section">
-          <h2>Configuration et activation de MAGNIBOX</h2>
-          <p className="muted">
-            Contrôlez les paramètres serveur, suivez les prérequis SMTP et DNS et préparez
-            l'activation sécurisée de la messagerie Internet.
-          </p>
-          <a className="button primary" href="/orbit/magnibox/configuration">Ouvrir le centre de configuration</a>
-        </div>
-      )}
-
-      <div className="card section">
-        <h2>Agenda et rendez-vous</h2>
-        <p className="muted">Calendriers personnels, de service et d'entreprise avec fuseaux horaires et rappels internes.</p>
-        <a className="button" href="/orbit/magnibox/agenda">Ouvrir l'agenda</a>
-      </div>
-
-      {canManageDomains && (
-        <>
-          <div className="card section">
-            <h2>Obtenir un domaine professionnel gratuit</h2>
-            <p className="muted">
-              Choisissez un domaine complet administré par MAGNISA. La réservation est gratuite
-              et indépendante de l'achat d'un domaine par votre entreprise.
-            </p>
-            <a className="button primary" href="/orbit/magnibox/domaines-gratuits">Choisir un domaine gratuit</a>
-          </div>
-          <div className="card section">
-            <h2>Domaines et adresses professionnelles</h2>
-            <p className="muted">
-              Gérez les domaines, les preuves DNS et les adresses de votre entreprise.
-              L'activation Internet intervient uniquement après validation du transport MAGNIBOX.
-            </p>
-            <a className="button" href="/orbit/magnibox/domaines">Administrer les domaines</a>
-          </div>
-          <div className="card section">
-            <h2>Catalogue des extensions</h2>
-            <p className="muted">
-              Consultez les extensions officielles IANA et les règles nationales NIC.MG.
-              Le catalogue indique les règles d'éligibilité, pas la disponibilité d'un domaine.
-            </p>
-            <a href="/orbit/magnibox/extensions" className="button">Consulter le catalogue</a>
-          </div>
-        </>
-      )}
-    </>
-  );
+export const dynamic = "force-dynamic";
+export default async function MagniboxHome(){
+ const ctx=await requireOrganization();
+ const [mailboxes,identities,events]=await Promise.all([
+  ctx.supabase.from("magnibox_internal_mailboxes").select("id",{count:"exact",head:true}).eq("organization_id",ctx.organizationId).eq("is_active",true),
+  ctx.supabase.from("orbit_public_identities").select("id",{count:"exact",head:true}).eq("organization_id",ctx.organizationId).eq("status","active"),
+  ctx.supabase.from("magnibox_agenda_events").select("id,title,start_day,start_time",{count:"exact"}).eq("organization_id",ctx.organizationId).gte("start_day",new Date().toISOString().slice(0,10)).order("start_day").order("start_time").limit(3)
+ ]);
+ const upcoming=events.error?[]:events.data||[];
+ const value=(count:number|null|undefined,error:unknown)=>error?"—":String(count??0);
+ return <><div className="pageHead"><div><p className="eyebrow">Magnisa Orbit · Communication</p><h1>Bienvenue dans MAGNIBOX</h1><p>Votre espace professionnel de messagerie, de collaboration et d’agenda.</p></div><Link className="button primary" href="/orbit/magnibox/messagerie">Ouvrir la messagerie</Link></div>
+ <div className="mg-home-grid" aria-label="Indicateurs MAGNIBOX">
+ <article className="mg-home-card"><small>BOÎTES INTERNES ACTIVES</small><div className="mg-home-value">{value(mailboxes.count,mailboxes.error)}</div><p>Boîtes collaborateur actives dans cette entreprise</p></article>
+ <article className="mg-home-card"><small>ADRESSES PROFESSIONNELLES ACTIVES</small><div className="mg-home-value">{value(identities.count,identities.error)}</div><p>Identités Internet avec statut actif</p></article>
+ <article className="mg-home-card"><small>RENDEZ-VOUS À VENIR</small><div className="mg-home-value">{value(events.count,events.error)}</div><p>{events.error?"Agenda indisponible ou non activé":"Événements enregistrés à venir"}</p></article>
+ </div>
+ <section className="mg-home-section"><h2>Accès rapides</h2><div className="mg-home-links">
+ <Link className="mg-home-link" href="/orbit/magnibox/messagerie">✉ Consulter les messages</Link>
+ <Link className="mg-home-link" href="/orbit/magnibox/boites">▣ Gérer les boîtes et accès</Link>
+ <Link className="mg-home-link" href="/orbit/magnibox/courrier">◎ Adresses professionnelles</Link>
+ <Link className="mg-home-link" href="/orbit/magnibox/agenda">▦ Ouvrir l’agenda</Link>
+ <Link className="mg-home-link" href="/orbit/magnibox/administration">⚙ Administration</Link></div></section>
+ <section className="mg-home-section"><h2>À venir dans l’agenda</h2>{events.error?<div className="card"><p className="muted">Les données de l’agenda ne sont pas disponibles pour le moment.</p></div>:upcoming.length?<div className="card">{upcoming.map(event=><div key={event.id} style={{padding:"10px 0",borderBottom:"1px solid var(--line)"}}><strong>{event.title}</strong><p className="muted" style={{margin:"5px 0 0"}}>{event.start_day}{event.start_time?" · "+event.start_time:""}</p></div>)}</div>:<div className="card"><p className="muted">Aucun rendez-vous à venir n’est enregistré.</p><Link className="button" href="/orbit/magnibox/agenda">Ouvrir l’agenda</Link></div>}</section>
+ <p className="muted compact" style={{marginTop:18}}>Les indicateurs proviennent des données de l’entreprise. « — » signale une donnée indisponible, jamais une valeur fictive.</p></>;
 }
