@@ -55,6 +55,11 @@ BEGIN
   SELECT count(*) INTO v_count FROM public.notifications;
   IF v_count <> 1 THEN RAISE EXCEPTION 'An invited user must see only their own invitation notification'; END IF;
 
+  UPDATE public.notifications
+  SET read_at = now()
+  WHERE recipient_user_id = auth.uid();
+  IF NOT FOUND THEN RAISE EXCEPTION 'An invited user must be able to mark their own notification as read'; END IF;
+
   IF public.is_org_member('20000000-0000-4000-8000-000000000101') THEN
     RAISE EXCEPTION 'An invited user must not be an active organization member before acceptance';
   END IF;
