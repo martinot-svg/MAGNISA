@@ -33,7 +33,7 @@ describe("Identité MAGNISA", () => {
   it("génère des @noms personnalisables de dix lettres maximum", () => {
     expect(generateUsername("Francky", "Masinjaka")).toBe("franckymas");
     expect(generateUsername("Émilie", "Rakoto")).toBe("emilierako");
-    expect(generateUsername("Œdipe", "Straße")).toBe("oedipestr");
+    expect(generateUsername("Œdipe", "Straße")).toBe("oedipestra");
     expect(NEW_USERNAME_PATTERN.test("franckymas")).toBe(true);
     expect(NEW_USERNAME_PATTERN.test("nom.usage")).toBe(false);
     expect(NEW_USERNAME_PATTERN.test("123nom")).toBe(false);
