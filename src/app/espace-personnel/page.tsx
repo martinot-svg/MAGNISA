@@ -6,8 +6,9 @@ import { requireUser } from "@/lib/current-org";
 async function respondToInvitation(formData: FormData) {
   "use server";
   const organizationId = String(formData.get("organization_id") || "").trim();
-  const accept = String(formData.get("accept") || "") === "true";
-  if (!organizationId) throw new Error("Invitation invalide.");
+  const response = String(formData.get("accept") || "");
+  if (!organizationId || !["true", "false"].includes(response)) throw new Error("Invitation invalide.");
+  const accept = response === "true";
 
   const { supabase } = await requireUser();
   const { error } = await (supabase as any).rpc("respond_to_organization_invitation", {
