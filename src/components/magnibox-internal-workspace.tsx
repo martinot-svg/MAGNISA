@@ -5,7 +5,7 @@ import { assertPermission, hasPermission } from "@/lib/permissions";
 import { FormDialog } from "@/components/form-dialog";
 import { internalMailboxLabel, normalizemagniboxLocalPart, normalizemagniboxNamespace } from "@/lib/magnibox/internal-address";
 
-const PATH = "/orbit/magnibox";
+const PATH = "/orbit/magnibox/messagerie";
 
 async function createNamespace(form: FormData) {
   "use server";
