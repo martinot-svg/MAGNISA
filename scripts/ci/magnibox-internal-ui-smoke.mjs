@@ -268,13 +268,43 @@ try {
   await b.page.goto(base+"/orbit/magnibox/messagerie",{waitUntil:"domcontentloaded"});
   await b.page.getByRole("heading",{name:"Messagerie",exact:true}).waitFor({timeout:20000});
   await b.page.getByRole("heading",{name:"Brouillons (0)"}).waitFor({timeout:20000});
-  const employeeDraftProbe=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
-  const employeeDraftLogin=await employeeDraftProbe.auth.signInWithPassword({email:employee.email,password:employee.password});
-  if(employeeDraftLogin.error)throw employeeDraftLogin.error;
-  const privateDraftRows=await employeeDraftProbe.from("magnibox_internal_drafts").select("id").eq("organization_id",organizationId);
+  const employeeProbe=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
+  const employeeLogin=await employeeProbe.auth.signInWithPassword({email:employee.email,password:employee.password});
+  if(employeeLogin.error)throw employeeLogin.error;
+  const privateDraftRows=await employeeProbe.from("magnibox_internal_drafts").select("id").eq("organization_id",organizationId);
   if(privateDraftRows.error||(privateDraftRows.data??[]).length!==0)
     throw new Error("Un collaborateur peut lire les brouillons privés d'un autre utilisateur.");
-  await b.page.getByText(subject).waitFor({timeout:20000});
+  const sentForEmployee=await admin.from("magnibox_internal_messages")
+    .select("id,recipient_mailbox_id,subject").eq("organization_id",organizationId).eq("subject",subject).single();
+  const employeeMailbox=await admin.from("magnibox_internal_mailboxes")
+    .select("id,owner_user_id,is_active,can_read").eq("id",recipient).single();
+  if(sentForEmployee.error||employeeMailbox.error
+    ||sentForEmployee.data?.recipient_mailbox_id!==recipient
+    ||employeeMailbox.data?.owner_user_id!==employee.id
+    ||employeeMailbox.data?.is_active!==true||employeeMailbox.data?.can_read!==true) {
+    throw new Error("Contrôle de livraison MAGNIBOX incohérent : "+JSON.stringify({
+      message:sentForEmployee.data,error:sentForEmployee.error?.message,
+      mailbox:employeeMailbox.data,mailboxError:employeeMailbox.error?.message,
+      expectedRecipient:recipient,expectedOwner:employee.id
+    }));
+  }
+  const employeeMessageProbe=await employeeProbe.from("magnibox_internal_messages")
+    .select("id,recipient_mailbox_id,subject").eq("id",sentForEmployee.data.id).maybeSingle();
+  if(employeeMessageProbe.error||!employeeMessageProbe.data) {
+    throw new Error("Message persistant mais invisible sous la session du destinataire (RLS) : "+JSON.stringify({
+      messageId:sentForEmployee.data.id,recipient:recipient,
+      rlsError:employeeMessageProbe.error?.message,rlsCode:employeeMessageProbe.error?.code
+    }));
+  }
+  const employeeMessageCard=b.page.getByTestId("magnibox-message-card")
+    .filter({has:b.page.getByText(subject,{exact:true})}).first();
+  try {
+    await employeeMessageCard.waitFor({state:"visible",timeout:8000});
+  } catch {
+    await b.page.reload({waitUntil:"domcontentloaded"});
+    await b.page.getByRole("heading",{name:"Messagerie",exact:true}).waitFor({timeout:20000});
+    await employeeMessageCard.waitFor({state:"visible",timeout:15000});
+  }
   console.log("MAGNIBOX UI: message réceptionné par le collaborateur");
   // Reply must return to the original sender using the employee's authorized mailbox.
   await openDialog(b.page,/Répondre/);
