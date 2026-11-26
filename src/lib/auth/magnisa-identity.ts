@@ -50,7 +50,13 @@ export const USERNAME_PATTERN = /^[a-z][a-z0-9._]{2,29}$/;
 export const NEW_USERNAME_PATTERN = /^[a-z]{3,10}$/;
 
 export function generateUsername(firstName: string, lastName: string): string {
-  const letters = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");
+  const letters = (value: string) => value.toLowerCase()
+    .replace(/œ/g, "oe")
+    .replace(/æ/g, "ae")
+    .replace(/ß/g, "ss")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z]/g, "");
   const given = letters(firstName);
   const family = letters(lastName);
   // Keep some of both names when possible, even when the given name is long.
