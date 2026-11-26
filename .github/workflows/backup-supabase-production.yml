@@ -442,104 +442,7 @@ jobs:
             END IF;
 
 
-            IF to_regprocedure('public.magnibox_has_internal_reader(uuid,uuid)') IS NULL
-              OR to_regprocedure('public.magnibox_list_deliverable_mailboxes(uuid)') IS NULL
-              OR to_regprocedure('public.magnibox_can_send_internal(uuid,uuid,uuid)') IS NULL THEN
-              RAISE EXCEPTION 'MAGNIBOX internal mailbox permission functions are missing';
-            END IF;
 
-            IF to_regprocedure('private.magnisa_generate_username(text,text)') IS NULL
-              OR to_regprocedure('private.magnisa_issue_profile_id()') IS NULL
-              OR to_regprocedure('public.claim_magnisa_identity(text,text,text,text)') IS NULL THEN
-              RAISE EXCEPTION 'MAGNISA username identity functions are missing';
-            END IF;
-
-            IF NOT has_function_privilege('authenticated','public.claim_magnisa_identity(text,text,text,text)','EXECUTE')
-              OR has_function_privilege('anon','public.claim_magnisa_identity(text,text,text,text)','EXECUTE')
-              OR has_function_privilege('authenticated','private.magnisa_generate_username(text,text)','EXECUTE')
-              OR has_function_privilege('anon','private.magnisa_generate_username(text,text)','EXECUTE') THEN
-              RAISE EXCEPTION 'MAGNISA identity function grants violate the least-privilege contract';
-            END IF;
-
-            IF to_regprocedure('public.get_my_organization_invitations()') IS NULL
-              OR to_regprocedure('public.respond_to_organization_invitation(uuid,boolean)') IS NULL THEN
-              RAISE EXCEPTION 'Organization invitation RPCs are missing';
-            END IF;
-
-            IF NOT has_function_privilege('authenticated','public.respond_to_organization_invitation(uuid,boolean)','EXECUTE')
-              OR has_function_privilege('anon','public.respond_to_organization_invitation(uuid,boolean)','EXECUTE') THEN
-              RAISE EXCEPTION 'Organization invitation RPC grants violate the least-privilege contract';
-            END IF;
-
-            IF to_regclass('public.company_settings_member_view') IS NULL THEN
-              RAISE EXCEPTION 'Permission-aware company settings view is missing';
-            END IF;
-
-            IF NOT EXISTS (
-              SELECT 1 FROM pg_class c
-              JOIN pg_namespace n ON n.oid = c.relnamespace
-              WHERE n.nspname = 'public'
-                AND c.relname = 'company_settings_member_view'
-                AND c.reloptions @> ARRAY['security_barrier=true']
-            ) THEN
-              RAISE EXCEPTION 'Company settings member view must use security_barrier';
-            END IF;
-
-            IF NOT has_table_privilege('authenticated','public.company_settings_member_view','SELECT')
-              OR has_table_privilege('anon','public.company_settings_member_view','SELECT') THEN
-              RAISE EXCEPTION 'Company settings member view grants are incorrect';
-            END IF;
-
-            IF (
-              SELECT count(*) FROM pg_policies
-              WHERE schemaname = 'public'
-                AND tablename = 'company_settings'
-                AND policyname IN (
-                  'company_settings_admin_select_guard',
-                  'company_settings_admin_insert_guard',
-                  'company_settings_admin_update_guard'
-                )
-                AND permissive = 'RESTRICTIVE'
-            ) <> 3 THEN
-              RAISE EXCEPTION 'Company settings raw-table restrictive guards are missing';
-            END IF;
-
-            IF NOT EXISTS (
-              SELECT 1 FROM pg_constraint
-              WHERE conrelid = 'public.organization_members'::regclass
-                AND conname = 'organization_members_status_check'
-                AND pg_get_constraintdef(oid) ILIKE '%invited%'
-                AND pg_get_constraintdef(oid) ILIKE '%declined%'
-            ) THEN
-              RAISE EXCEPTION 'Organization invitation membership states are missing';
-            END IF;
-
-            IF NOT EXISTS (
-              SELECT 1 FROM pg_policies
-              WHERE schemaname = 'public'
-                AND tablename = 'notifications'
-                AND policyname = 'notifications_select_own'
-                AND position('invited' in coalesce(qual,'')) > 0
-            ) OR NOT EXISTS (
-              SELECT 1 FROM pg_policies
-              WHERE schemaname = 'public'
-                AND tablename = 'notifications'
-                AND policyname = 'notifications_update_own'
-                AND position('invited' in coalesce(qual,'')) > 0
-            ) THEN
-              RAISE EXCEPTION 'Pending invitation notification policies are missing';
-            END IF;
-
-            IF NOT EXISTS (
-              SELECT 1 FROM pg_policies
-              WHERE schemaname = 'public'
-                AND tablename = 'magnibox_internal_messages'
-                AND policyname = 'magnibox_messages_select'
-                AND position('sender_mailbox_id' in coalesce(qual,'')) > 0
-                AND position('send' in coalesce(qual,'')) > 0
-            ) THEN
-              RAISE EXCEPTION 'MAGNIBOX sent-folder read policy is missing';
-            END IF;
 
 
             IF NOT EXISTS (
@@ -617,6 +520,8 @@ jobs:
 
           docker run --rm --network host postgres:17 \
             psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 \
+          psql "$RESTORE_DB_URL" -X -v ON_ERROR_STOP=1 < supabase/tests/production-release-schema-contract.sql
+
               -c "DROP DATABASE IF EXISTS magnisa_restore WITH (FORCE)"
           echo "Disposable restore database removed after successful verification."
 

@@ -259,6 +259,10 @@ jobs:
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/company-settings-member-view-integration.sql
 
+      - name: Verify production release schema contract
+        shell: bash
+        run: psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/production-release-schema-contract.sql
+
       - name: Node 22
         uses: actions/setup-node@v4
         with:
