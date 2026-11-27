@@ -1,5 +1,5 @@
 import { chromium } from "playwright";
-import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID, randomBytes } from "node:crypto";
 
@@ -13,6 +13,7 @@ const admin=createClient(apiUrl,secret,{auth:{persistSession:false,autoRefreshTo
 // payroll/CRM/stock shared account. This entire DB is disposed after CI.
 const email=`company-wizard-${randomUUID().slice(0,12)}@magnisa.test`;
 const password=randomBytes(22).toString("hex");
+await stageAdultMajorityFixture(admin,email);
 const {data:createdUser,error:userError}=await admin.auth.admin.createUser({
   email,password,email_confirm:true,
 });
