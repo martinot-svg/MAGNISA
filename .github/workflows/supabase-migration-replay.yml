@@ -108,6 +108,11 @@ jobs:
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/reduce-overlapping-select-policies-contract.sql
 
+      - name: Verify company settings member view security invoker and field-level permission model
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/company-settings-member-view-security-contract.sql
+
       - name: Verify MAGNIBOX delivery event fencing contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
