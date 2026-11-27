@@ -48,6 +48,12 @@ try {
   }
   const user = unwrap(await admin.auth.admin.createUser({ email, password, email_confirm: true }), "create local test user");
   created.userId = user.user.id;
+  const { error: ageRecordError } = await admin.from("magnisa_signup_age_checks").insert({
+    user_id: user.user.id,
+    birth_date: "1990-01-01",
+    majority_confirmed_at: new Date().toISOString(),
+  });
+  if (ageRecordError) throw new Error("register isolated fixture majority: " + ageRecordError.message);
   const owner = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
   unwrap(await owner.auth.signInWithPassword({ email, password }), "sign in test owner");
   const org = unwrap(await owner.rpc("create_organization", {
