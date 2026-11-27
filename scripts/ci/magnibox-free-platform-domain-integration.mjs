@@ -1,6 +1,6 @@
 import {randomBytes,randomUUID} from "node:crypto";
 import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
-import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
 import {createClient} from "@supabase/supabase-js";
 
 const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -13,6 +13,7 @@ const token=randomUUID().replace(/-/g,"").slice(0,12);
 async function fixture(role){
   const email=`magnibox-free-domain-${role}-${token}@magnisa.test`;
   const password=`MFD-${randomBytes(16).toString("hex")}!a9`;
+  await stageAdultMajorityFixture(admin,email);
   await stageAdultMajorityFixture(admin,email);
   const created=await admin.auth.admin.createUser({email,password,email_confirm:true});
   if(created.error||!created.data.user)throw created.error||Error("Could not create isolated test user");
