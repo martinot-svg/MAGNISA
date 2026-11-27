@@ -24,7 +24,8 @@ begin
   insert into public.organization_members(organization_id,user_id,role,status) values(v_org,auth.uid(),'owner','active');
   insert into public.company_settings(organization_id,legal_name) values(v_org,trim(p_name));
   insert into public.number_sequences(organization_id,document_type,prefix,next_value,padding) values
-    (v_org,'quote','DEV-',1,5),(v_org,'invoice','FAC-',1,5),(v_org,'payment','PAY-',1,5),(v_org,'expense','DEP-',1,5);
+    (v_org,'quote','DEV-',1,5),(v_org,'order','CMD-',1,5),(v_org,'invoice','FAC-',1,5),
+    (v_org,'credit_note','AV-',1,5),(v_org,'payment','PAY-',1,5),(v_org,'expense','DEP-',1,5);
   perform public.audit_event(v_org,'organization.created','organization',v_org,null,jsonb_build_object('name',p_name,'currency',p_currency));
   return v_org;
 end;
