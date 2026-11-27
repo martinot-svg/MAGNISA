@@ -1,6 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
-import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 
 const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -21,7 +20,6 @@ if(createdOwner.error||!createdOwner.data.user)throw createdOwner.error??Error("
 const session=await owner.auth.signInWithPassword({email,password});
 if(session.error||session.data.user?.id!==createdOwner.data.user.id)throw session.error??Error("Connexion propriétaire indisponible.");
 const ownerId=createdOwner.data.user.id;
-await seedAdultMajorityFixture(admin,ownerId);
 await seedAdultMajorityFixture(admin,ownerId);
 const orgResult=await owner.rpc("create_organization",{
   p_name:`magnibox Agenda CI ${suffix}`, p_currency:"MGA",

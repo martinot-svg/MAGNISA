@@ -1,6 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
-import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -19,7 +18,6 @@ async function user(role){
   const password=`INBOX-${randomBytes(14).toString("hex")}!a9`;
   await stageAdultMajorityFixture(admin,email);
   const created=ok(await admin.auth.admin.createUser({email,password,email_confirm:true}),"user");
-  await seedAdultMajorityFixture(admin,created.user.id);
   await seedAdultMajorityFixture(admin,created.user.id);
   const account=cli(key);
   const login=await account.auth.signInWithPassword({email,password});
