@@ -118,6 +118,11 @@ jobs:
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/duplicate-index-cleanup-contract.sql
 
+      - name: Verify MAGNIBOX internal draft recipient tenant isolation
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-internal-drafts-tenant-policy-contract.sql
+
       - name: Verify MAGNIBOX delivery event fencing contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
