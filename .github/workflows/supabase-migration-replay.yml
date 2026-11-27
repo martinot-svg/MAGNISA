@@ -128,6 +128,11 @@ jobs:
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/btree-gist-extension-schema-contract.sql
 
+      - name: Verify auth.uid initplan optimization in 15 RLS policies
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/rls-auth-initplan-policy-contract.sql
+
       - name: Verify MAGNIBOX delivery event fencing contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
