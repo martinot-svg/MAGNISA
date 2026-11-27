@@ -30,7 +30,7 @@ try {
   const profile = await admin.from("profiles").select("public_id,username,full_name").eq("id",userId).single();
   if(profile.error) throw profile.error;
   assert(/^[0-9]{14}$/.test(profile.data.public_id),"Public id must contain 14 digits.");
-  assert(/^[a-z]{2,10}$/.test(profile.data.username),"Signup username must be generated automatically.");
+  assert(/^[a-z]{3,10}$/.test(profile.data.username),"New signup usernames must contain 3-10 lowercase ASCII letters.");
   username=profile.data.username;
   assert(profile.data.full_name==="Utilisateur MAGNISA Test","Full name must be saved.");
   console.log("OK profile with unique opaque 14-digit ID");
