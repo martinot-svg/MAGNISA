@@ -16,18 +16,39 @@ BEGIN
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conname='resource_reservations_customer_org_fk'
+    WHERE conrelid='public.resource_reservations'::regclass
+      AND conname='resource_reservations_customer_org_fk'
       AND conindid='public.customers_id_org_unique'::regclass
-  ) OR NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname='credit_note_lines_invoice_line_org_fkey'
-      AND conindid='public.invoice_lines_id_org_uidx'::regclass
-  ) OR NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname='stock_return_lines_source_invoice_line_id_organization_id_fkey'
-      AND conindid='public.invoice_lines_id_org_uidx'::regclass
   ) THEN
-    RAISE EXCEPTION 'Constraint-backed unique indexes must be preserved';
+    RAISE EXCEPTION 'Customer foreign key must retain its canonical unique index';
+  END IF;
+
+  -- PostgreSQL may bind each composite FK to either equivalent unique index,
+  -- depending on which matching index existed when the constraint was created.
+  -- Both indexes are intentionally retained: dropping the duplicate can fail
+  -- on clean replay when a constraint is attached to it.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid='public.credit_note_lines'::regclass
+      AND conname='credit_note_lines_invoice_line_org_fkey'
+      AND conindid IN (
+        'public.invoice_lines_id_organization_uidx'::regclass,
+        'public.invoice_lines_id_org_uidx'::regclass
+      )
+  ) THEN
+    RAISE EXCEPTION 'Credit-note invoice-line foreign key must reference a retained unique index';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid='public.stock_return_lines'::regclass
+      AND conname='stock_return_lines_source_invoice_line_id_organization_id_fkey'
+      AND conindid IN (
+        'public.invoice_lines_id_organization_uidx'::regclass,
+        'public.invoice_lines_id_org_uidx'::regclass
+      )
+  ) THEN
+    RAISE EXCEPTION 'Stock-return invoice-line foreign key must reference a retained unique index';
   END IF;
 
   IF EXISTS (
@@ -43,7 +64,7 @@ BEGIN
              i.indcollation::text,i.indoption::text,
              coalesce(pg_get_expr(i.indexprs,i.indrelid), ''),
              coalesce(pg_get_expr(i.indpred,i.indrelid), ''),
-             i.indisunique,i.indisprimary
+             i.indisunique,i.indprimary
     HAVING count(*)>1
   ) THEN
     RAISE EXCEPTION 'Removable identical indexes remain on audited tables';
