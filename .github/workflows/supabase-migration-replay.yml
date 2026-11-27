@@ -310,6 +310,11 @@ jobs:
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/organization-invitation-acceptance-integration.sql
 
+      - name: Verify majority gate blocks direct organization creation
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnisa-majority-organization-gate.sql
+
       - name: Verify permission-aware company settings read model
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
