@@ -78,10 +78,6 @@ export default function Signup() {
         <div className="field">
           <label htmlFor="signup-birth-date">Date de naissance</label>
           <input id="signup-birth-date" name="birth_date" type="date" required max={new Date().toISOString().slice(0,10)} autoComplete="bday" />
-          <small>MAGNISA est réservé aux personnes âgées d'au moins 18 ans.</small>
-        </div>
-        <div className="field">
-          <label><input name="majority_confirmed" type="checkbox" value="true" required /> Je confirme que les informations fournies sont exactes et que j'ai au moins 18 ans.</label>
         </div>
         <div className="field">
           <label htmlFor="signup-username">Nom d'utilisateur MAGNISA</label>
@@ -97,14 +93,12 @@ export default function Signup() {
               }}
               style={{ width:"100%" }} />
           </div>
-          <small id="username-help">Généré à partir du prénom et du nom, personnalisable : 3 à 10 lettres minuscules. En cas d'homonyme, MAGNISA ajoute un suffixe alphabétique. @ est ajouté automatiquement.</small>
           {customized && <button type="button" className="button" onClick={() => { setCustomized(false); setUsername(generateUsername(firstName,lastName)); }}>Reprendre le nom suggéré</button>}
         </div>
         <div className="field">
           <label htmlFor="signup-email">Adresse e-mail personnelle</label>
           <input id="signup-email" name="email" type="email" required autoComplete="email"
             placeholder="prenom@exemple.com" aria-describedby="signup-email-help" />
-          <small id="signup-email-help">Gmail, Outlook, Yahoo, iCloud, Proton, adresse professionnelle et autres fournisseurs sont acceptés : aucun fournisseur n'est obligatoire.</small>
         </div>
         <div className="field">
           <label htmlFor="signup-country">Pays au moment de l'inscription</label>
@@ -143,9 +137,6 @@ export default function Signup() {
               </span>
             </button>)}
           </div>}
-          <small id="signup-locality-help">Les suggestions proviennent d'un référentiel national. Si votre localité n'y figure pas,
-            laissez votre saisie : MAGNISA l'enregistrera telle quelle, sans vous attribuer une autre ville.
-            Votre lieu d'inscription reste confidentiel.</small>
         </div>
         </fieldset>
         <fieldset hidden={step !== 2} style={{border:0,padding:0,margin:0,minWidth:0}}>
