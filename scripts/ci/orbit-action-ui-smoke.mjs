@@ -1,5 +1,5 @@
 import { chromium } from "playwright";
-import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID, randomBytes } from "node:crypto";
@@ -13,6 +13,7 @@ const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToke
 const fixture=randomUUID().slice(0,10);
 const email=`action-ui-${fixture}@magnisa.test`;
 const password=`Action-${randomBytes(18).toString("hex")}!a9`;
+await stageAdultMajorityFixture(admin,email);
 const account=await admin.auth.admin.createUser({email,password,email_confirm:true});
 if(account.error||!account.data.user)throw account.error||Error("Action browser user unavailable");
 await seedAdultMajorityFixture(admin,account.data.user.id);
