@@ -4,6 +4,21 @@
 
 Cette section consigne uniquement les preuves consultées pendant la vérification. Elle ne remplace pas les critères d'acceptation des phases et ne transforme pas les éléments non testés en tâches terminées.
 
+## Statut des huit phases fonctionnelles (27-11-2026)
+
+| Phase fonctionnelle | Statut constaté | Preuve / limite |
+|---|---|---|
+| 1. Identité et username | Validée sur CI | Génération, fallback, unicité, connexion, ID public et origine privée testés sur #411/#412 |
+| 2. Inscription personnelle | Partielle | Le parcours en deux étapes existe ; téléphone, date de naissance et résidence distincte absents et soumis aux décisions métier |
+| 3. OTP et sécurité e-mail | Partielle | Contrôle de vérification et garde d'invitation testés ; expiration, nombre d'essais et limites runtime réelles non prouvés |
+| 4. Choix d'utilisation | Implémenté | Trois choix présents ; finances personnelles désactivées ; suite Vitest passée |
+| 5. Wizard organisation | Validée sur CI | Wizard en cinq étapes, contrat SQL et parcours navigateur isolé réussis |
+| 6. Informations complémentaires | Non implémentée | Structure bancaire/sociale dédiée, champs facultatifs et permissions spécifiques non réalisés ; décisions d'accès manquantes |
+| 7. Paramètres et complétion | Partielle | Read model et accès par rôle testés ; complétion des champs de la phase 6 non réalisée |
+| 8. Tests, sécurité et accessibilité | Partielle | CI, rejeu des migrations, RLS multi-tenant et responsive réussis ; revue Advisor exhaustive et audit WCAG 2.2 AA ouverts |
+
+Les phases 0 (audit) et 9 (déploiement) sont des gates transversales, en plus des huit phases fonctionnelles. Elles ne sont pas comptées dans ce tableau.
+
 ### Éléments confirmés
 - Dépôt : `martinot-svg/MAGNISA`, branche principale `main`, HEAD `main` après fusion de la PR #413 : `832566fd2341849b43bb3574b52f44332ee9d654` (base de #413 : `d374bab33661f4c34ab7a2d2aee1fbc90f8c4b9b`).
 - Les PR #411 et #412 sont fusionnées. Les corrections SQL associées préservent les clés étrangères des lignes de factures et corrigent le contrat de rejeu d'index.
