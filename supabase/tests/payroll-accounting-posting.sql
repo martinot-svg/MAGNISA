@@ -33,6 +33,9 @@ declare
   v_pension_payable_count integer;
   v_employee_pension_payable_count integer;
 begin
+  insert into private.magnisa_signup_age_pending(email,birth_date,majority_confirmed_at,expires_at)
+  values (v_owner::text||'@payroll-posting.test', date '1990-01-01', now(), now()+interval '15 minutes');
+
   insert into auth.users (
     id,aud,role,email,encrypted_password,email_confirmed_at,
     raw_app_meta_data,raw_user_meta_data,created_at,updated_at

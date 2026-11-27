@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { randomUUID, randomBytes } from "node:crypto";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -15,9 +16,13 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 async function createTenant(label) {
   const email = `tenant-parity-${label}-${suffix}@magnisa.test`;
   const password = randomBytes(24).toString("hex");
+  await stageAdultMajorityFixture(admin, email);
   const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
-  if (error || !data.user) throw error ?? new Error("Unable to create isolated tenant user");
+  if (error || !data.user) {
+    throw error ?? new Error(`Unable to create isolated tenant user ${label}: missing Auth user`);
+  }
   users.push(data.user.id);
+  await seedAdultMajorityFixture(admin, data.user.id);
 
   const { data: org, error: orgError } = await admin.from("organizations")
     .insert({ name: `QA existing tenant ${label} ${suffix}` }).select("id").single();

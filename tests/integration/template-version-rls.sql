@@ -1,6 +1,13 @@
 -- Runs only against temporary PostgreSQL in GitHub Actions; rollback prevents fixture persistence.
 begin;
-insert into auth.users(id) values ('11111111-1111-4111-8111-111111111111'),('22222222-2222-4222-8222-222222222222'),('33333333-3333-4333-8333-333333333333');
+insert into private.magnisa_signup_age_pending(email,birth_date,majority_confirmed_at,expires_at) values
+ ('template-owner@magnisa.test',date '1990-01-01',now(),now()+interval '15 minutes'),
+ ('template-other-owner@magnisa.test',date '1990-01-01',now(),now()+interval '15 minutes'),
+ ('template-viewer@magnisa.test',date '1990-01-01',now(),now()+interval '15 minutes');
+insert into auth.users(id,email,email_confirmed_at,created_at,updated_at,raw_user_meta_data,raw_app_meta_data) values
+ ('11111111-1111-4111-8111-111111111111','template-owner@magnisa.test',now(),now(),now(),'{}'::jsonb,'{"provider":"email","providers":["email"]}'::jsonb),
+ ('22222222-2222-4222-8222-222222222222','template-other-owner@magnisa.test',now(),now(),now(),'{}'::jsonb,'{"provider":"email","providers":["email"]}'::jsonb),
+ ('33333333-3333-4333-8333-333333333333','template-viewer@magnisa.test',now(),now(),now(),'{}'::jsonb,'{"provider":"email","providers":["email"]}'::jsonb);
 insert into public.organizations(id) values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
 insert into public.organization_members(organization_id,user_id,status,role) values
 ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','11111111-1111-4111-8111-111111111111','active','owner'),

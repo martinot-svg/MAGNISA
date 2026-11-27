@@ -94,12 +94,31 @@ async function main(): Promise<void> {
 
   const mailboxIds = new Map<string, string>();
   for (const account of accounts) {
+    // The Auth trigger consumes this service-role-staged declaration atomically.
+    const { error: majorityStageError } = await supabase.rpc("stage_magnisa_signup_age", {
+      p_email: account.email,
+      p_birth_date: "1990-01-01",
+      p_majority_confirmed: true,
+    });
+    if (majorityStageError) {
+      throw new Error(`Unable to stage majority fixture for ${account.email}: ${majorityStageError.message}`);
+    }
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: account.email,
       password: account.password,
       email_confirm: true,
     });
-    if (authError || !authData.user?.id) throw new Error("Unable to create disposable local auth user");
+    if (authError || !authData.user?.id) {
+      throw new Error(`Unable to create disposable local auth user ${account.email}: ${authError?.message ?? "missing user id"}`);
+    }
+    const { error: majoritySeedError } = await supabase.rpc("register_magnisa_signup_age", {
+      p_user: authData.user.id,
+      p_birth_date: "1990-01-01",
+      p_majority_confirmed: true,
+    });
+    if (majoritySeedError) {
+      throw new Error(`Unable to verify majority fixture for ${account.email}: ${majoritySeedError.message}`);
+    }
 
     const organizationId = organizations.get(account.org)!;
     const membership = await supabase.from("organization_members").insert({

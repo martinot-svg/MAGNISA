@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -38,6 +39,7 @@ const expectRpcErrorContaining = async (client, name, args, expected, message) =
 
 const suffix = Date.now();
 const collaboratorEmail = `crm-contributor-${suffix}@magnisa.test`;
+await stageAdultMajorityFixture(admin,collaboratorEmail);
 const collaboratorCreated = await admin.auth.admin.createUser({
   email: collaboratorEmail,
   password: `CRM-Integration-${suffix}!Aa9`,
@@ -48,6 +50,7 @@ if (collaboratorCreated.error || !collaboratorCreated.data.user) {
   throw collaboratorCreated.error ?? new Error("Could not create isolated CRM collaborator.");
 }
 const collaboratorId = collaboratorCreated.data.user.id;
+await seedAdultMajorityFixture(admin,collaboratorId);
 const memberInsert = await admin.from("organization_members").insert({
   organization_id: organizationId, user_id: collaboratorId, role: "owner", status: "active", department: "Commercial",
 });
@@ -265,6 +268,7 @@ for (const table of [
 
 const externalEmail = `crm-external-${suffix}@magnisa.test`;
 const externalPassword = `External-${suffix}-${crypto.randomUUID()}!Aa9`;
+await stageAdultMajorityFixture(admin,externalEmail);
 const externalCreated = await admin.auth.admin.createUser({
   email: externalEmail, password: externalPassword, email_confirm: true,
   user_metadata: { full_name: "MAGNISA CRM External Integration User" },
@@ -272,6 +276,7 @@ const externalCreated = await admin.auth.admin.createUser({
 if (externalCreated.error || !externalCreated.data.user) {
   throw externalCreated.error ?? new Error("Could not create isolated external CRM user.");
 }
+await seedAdultMajorityFixture(admin,externalCreated.data.user.id);
 const external = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
 const externalAuth = await external.auth.signInWithPassword({ email: externalEmail, password: externalPassword });
 if (externalAuth.error) throw externalAuth.error;

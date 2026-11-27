@@ -17,7 +17,7 @@ const signupSchema = z.object({
   last_name: z.string().trim().min(1).max(60),
   username: z.string().trim().min(3).max(11),
   confirm_password: z.string().min(10),
-  birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   majority_confirmed: z.literal("true"),
   country_code: z.string().regex(/^[0-9]{3}$/),
   region_code: z.string().regex(/^9[0-2][0-9]$/),
@@ -260,4 +260,27 @@ export async function updatePassword(formData: FormData) {
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) return { error: "Impossible de modifier le mot de passe." };
   return { success: "Mot de passe modifié. Tu peux continuer à utiliser MAGNISA." };
+}
+
+export async function verifyMajorityForExistingAccount(
+  _: { error?: string }, formData: FormData,
+): Promise<{ error?: string }> {
+  const parsed = z.object({
+    birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    majority_confirmed: z.literal("true"),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success || !isValidBirthDate(parsed.data?.birth_date || "") ||
+      !isAtLeast18(parsed.data?.birth_date || "")) {
+    return { error: "Une date de naissance valide et la confirmation de majorité sont requises (18 ans minimum)." };
+  }
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  if (!user.email_confirmed_at) redirect(`/verify-email?email=${encodeURIComponent(user.email || "")}`);
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("register_magnisa_signup_age", {
+    p_user: user.id, p_birth_date: parsed.data.birth_date, p_majority_confirmed: true,
+  });
+  if (error) return { error: "Impossible d'enregistrer la vérification de majorité. Réessaie." };
+  redirect("/onboarding");
 }

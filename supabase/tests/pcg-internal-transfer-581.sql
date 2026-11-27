@@ -5,6 +5,9 @@ BEGIN;
 -- authenticated identity inside the transaction, then roll everything back.
 SELECT gen_random_uuid() AS test_user_id, gen_random_uuid() AS test_org_id \gset
 
+INSERT INTO private.magnisa_signup_age_pending(email,birth_date,majority_confirmed_at,expires_at)
+VALUES (:'test_user_id' || '@pcg581.test', date '1990-01-01', now(), now()+interval '15 minutes');
+
 INSERT INTO auth.users (
   id,aud,role,email,encrypted_password,email_confirmed_at,
   raw_app_meta_data,raw_user_meta_data,created_at,updated_at

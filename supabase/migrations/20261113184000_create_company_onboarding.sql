@@ -80,7 +80,7 @@ begin
     or coalesce(p_payload->>'legalForm','') not in
       ('EI','SARL','SARLU','SA','SAU','SNC','SCS','COOPERATIVE','ASSOCIATION','AUTRE')
     or v_status not in ('registered','pending')
-    or v_regime not in ('','IR','IS','A_VERIFIER')
+    or v_regime not in ('IR','IS','A_VERIFIER')
     or v_vat not in ('ASSUJETTIE','NON_ASSUJETTIE','A_VERIFIER')
     or jsonb_typeof(p_payload->'secondaryActivities') <> 'array'
     or jsonb_array_length(p_payload->'secondaryActivities') > 100
@@ -109,7 +109,7 @@ begin
     tax_id=nullif(btrim(coalesce(p_payload->>'nif','')),''),
     stat_id=nullif(btrim(coalesce(p_payload->>'stat','')),''),
     registry_id=nullif(btrim(coalesce(p_payload->>'rcs','')),''),
-    income_tax_regime=nullif(v_regime,''),
+    income_tax_regime=v_regime,
     vat_status=v_vat,
     fiscal_profile_confirmed=false,
     fiscal_profile_source='DÉCLARATION À CONFIRMER',
