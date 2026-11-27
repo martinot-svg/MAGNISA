@@ -137,10 +137,12 @@ try {
   // be able to read the quarantined object from the private Storage bucket.
   const unauthorizedEmail = "magnibox-outsider-" + stamp + "@magnisa.test";
   const unauthorizedPassword = "Outsider-" + randomBytes(24).toString("hex") + "!9";
+  await stageAdultMajorityFixture(admin,unauthorizedEmail);
   const outsiderUser = unwrap(await admin.auth.admin.createUser({
     email: unauthorizedEmail, password: unauthorizedPassword, email_confirm: true,
   }), "create unauthorized attachment test user");
   created.unauthorizedUserId = outsiderUser.user.id;
+  await seedAdultMajorityFixture(admin,created.unauthorizedUserId);
   await seedAdultMajorityFixture(admin,created.unauthorizedUserId);
   const outsider = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
   unwrap(await outsider.auth.signInWithPassword({ email: unauthorizedEmail, password: unauthorizedPassword }),
