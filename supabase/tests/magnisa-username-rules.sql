@@ -10,6 +10,13 @@ declare
   v_actual text;
   v_collision_rejected boolean := false;
 begin
+  -- The auth.users trigger consumes a staged majority declaration atomically.
+  INSERT INTO private.magnisa_signup_age_pending(email,birth_date,majority_confirmed_at,expires_at)
+  VALUES
+    ('magnisa-username-' || v_first_id::text || '@example.invalid', DATE '1990-01-01', now(), now() + interval '15 minutes'),
+    ('magnisa-username-' || v_duplicate_id::text || '@example.invalid', DATE '1990-01-01', now(), now() + interval '15 minutes'),
+    ('magnisa-username-' || v_fallback_id::text || '@example.invalid', DATE '1990-01-01', now(), now() + interval '15 minutes');
+
   -- Build a deterministic-format, per-run unique 10-letter test handle.
   v_handle := 'm' || translate(
     substr(replace(v_first_id::text,'-',''),1,9),
