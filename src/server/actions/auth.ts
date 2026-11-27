@@ -89,6 +89,11 @@ export async function signUp(formData: FormData) {
   }
 
   if (!data.user) return { error: "Création du compte impossible." };
+  // Supabase may return a synthetic user for an already-registered email.
+  // Never attach a new DOB to an existing account during that response.
+  if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    return { error: "Un compte existe déjà avec cette adresse e-mail." };
+  }
 
   // Date of birth is stored in a private table via service-role RPC; never in user metadata.
   const { error: ageError } = await admin.rpc("register_magnisa_signup_age", {
