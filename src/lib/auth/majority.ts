@@ -3,7 +3,7 @@
  * in non-leap years; this convention is explicit and should be reviewed for
  * applicable local legal requirements before production launch.
  */
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const DATE_RE = /^\\d{4}-\\d{2}-\\d{2}$/;
 export function isValidBirthDate(value: string): boolean {
   if (!DATE_RE.test(value)) return false;
   const date = new Date(value + "T00:00:00.000Z");
