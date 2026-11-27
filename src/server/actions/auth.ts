@@ -9,6 +9,7 @@ import { createHmac } from "node:crypto";
 import { resolveLocality } from "@/lib/geo/madagascar-localities";
 import { headers } from "next/headers";
 import { isAtLeast18, isValidBirthDate } from "@/lib/auth/majority";
+import { normalizeSignupPhone } from "@/lib/auth/phone";
 
 const signupSchema = z.object({
   email: z.string().email(),
@@ -23,6 +24,9 @@ const signupSchema = z.object({
   region_code: z.string().regex(/^9[0-2][0-9]$/),
   locality_name: z.string().trim().min(2).max(160),
   locality_ref: z.string().trim().max(20).optional(),
+  phone_country: z.string().length(2),
+  phone_prefix: z.string().max(3),
+  phone_national: z.string().regex(/^[0-9]{7,14}$/),
 });
 
 export async function signUp(formData: FormData) {
@@ -30,6 +34,9 @@ export async function signUp(formData: FormData) {
   if (!parsed.success) {
     return { error: "Adresse e-mail ou mot de passe invalide. Le mot de passe doit comporter au moins 10 caractères." };
   }
+
+  const phone = normalizeSignupPhone(parsed.data.phone_country, parsed.data.phone_prefix, parsed.data.phone_national);
+  if (!phone) return { error: "Le numéro de téléphone est invalide pour le pays et le préfixe sélectionnés." };
 
   const username = normalizeUsername(parsed.data.username);
   const fullName = `${parsed.data.first_name} ${parsed.data.last_name}`.trim();
@@ -111,6 +118,17 @@ export async function signUp(formData: FormData) {
   if (!data.user.id) {
     await admin.rpc("cancel_magnisa_signup_age_pending", { p_email: email });
     return { error: "Création du compte impossible." };
+  }
+
+  const { error: phoneError } = await admin.rpc("register_magnisa_signup_phone", {
+    p_user: data.user.id, p_phone_e164: phone.e164, p_country_iso2: phone.country,
+  });
+  const { data: storedPhone, error: phoneReadError } = await admin.rpc("get_magnisa_signup_phone", { p_user: data.user.id });
+  if (phoneError || phoneReadError || !Array.isArray(storedPhone) || storedPhone[0]?.phone_e164 !== phone.e164 || storedPhone[0]?.country_iso2 !== phone.country) {
+    const { error: rollbackError } = await admin.auth.admin.deleteUser(data.user.id);
+    await admin.rpc("cancel_magnisa_signup_age_pending", { p_email: email });
+    console.error("[magnisa-signup] Phone persistence failed:", phoneError?.code || phoneReadError?.code || "read-back-mismatch", rollbackError?.message || "");
+    return { error: "Impossible d’enregistrer le numéro de téléphone. Aucun compte n’a été créé ; réessaie." };
   }
 
   // The auth.users trigger consumes this private, short-lived pending record
