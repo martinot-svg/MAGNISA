@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
+import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -34,6 +35,7 @@ if (auth.error || auth.data.user?.id !== createdOwner.data.user.id) {
 }
 const ownerId = createdOwner.data.user.id;
 await seedAdultMajorityFixture(admin,ownerId);
+await seedAdultMajorityFixture(admin,ownerId);
 const organization = await owner.rpc("create_organization", {
   p_name: `magnibox intégration ${fixtureId}`,
   p_currency: "MGA",
@@ -67,6 +69,7 @@ async function createCollaborator(role) {
   const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
   if (created.error || !created.data.user) throw created.error || new Error("Création du collaborateur impossible.");
   const userId = created.data.user.id;
+  await seedAdultMajorityFixture(admin,userId);
   await seedAdultMajorityFixture(admin,userId);
   required(await admin.from("organization_members").insert({
     organization_id: organizationId, user_id: userId, role, status: "active",

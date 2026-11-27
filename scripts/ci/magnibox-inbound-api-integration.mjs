@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, randomUUID, createHash } from "node:crypto";
 import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
+import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 import { spawnSync, execFileSync } from "node:child_process";
 import nodemailer from "nodemailer";
@@ -49,6 +50,7 @@ function signedRequest(payload, signatureOverride) {
 try {
   const user = unwrap(await admin.auth.admin.createUser({ email, password, email_confirm: true }), "create inbound test user");
   created.userId = user.user.id;
+  await seedAdultMajorityFixture(admin,created.userId);
   await seedAdultMajorityFixture(admin,created.userId);
   const owner = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
   unwrap(await owner.auth.signInWithPassword({ email, password }), "sign in inbound test owner");

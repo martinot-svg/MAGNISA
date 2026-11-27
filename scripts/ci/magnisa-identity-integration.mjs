@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
+import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -20,6 +21,7 @@ try {
   });
   if (created.error || !created.data.user) throw created.error || new Error("Cannot create user");
   userId = created.data.user.id;
+  await seedAdultMajorityFixture(admin,userId);
   await seedAdultMajorityFixture(admin,userId);
   const origin = await admin.rpc("register_magnisa_signup_origin",{
     p_user:userId,p_country:"261",p_locality:"601"
@@ -108,6 +110,7 @@ try {
   });
   if(second.error||!second.data.user)throw second.error??new Error("Second user creation failed");
   const otherId=second.data.user.id;
+  await seedAdultMajorityFixture(admin,otherId);
   await seedAdultMajorityFixture(admin,otherId);
   try{
     const other=await admin.from("profiles").select("public_id").eq("id",otherId).single();
