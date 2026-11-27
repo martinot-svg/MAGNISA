@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, randomUUID, createHash } from "node:crypto";
+import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 import { spawnSync, execFileSync } from "node:child_process";
 import nodemailer from "nodemailer";
@@ -48,6 +49,7 @@ function signedRequest(payload, signatureOverride) {
 try {
   const user = unwrap(await admin.auth.admin.createUser({ email, password, email_confirm: true }), "create inbound test user");
   created.userId = user.user.id;
+  await seedAdultMajorityFixture(admin,created.userId);
   const owner = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
   unwrap(await owner.auth.signInWithPassword({ email, password }), "sign in inbound test owner");
   const org = unwrap(await owner.rpc("create_organization", {
@@ -138,6 +140,7 @@ try {
     email: unauthorizedEmail, password: unauthorizedPassword, email_confirm: true,
   }), "create unauthorized attachment test user");
   created.unauthorizedUserId = outsiderUser.user.id;
+  await seedAdultMajorityFixture(admin,created.unauthorizedUserId);
   const outsider = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
   unwrap(await outsider.auth.signInWithPassword({ email: unauthorizedEmail, password: unauthorizedPassword }),
     "sign in unauthorized attachment test user");
