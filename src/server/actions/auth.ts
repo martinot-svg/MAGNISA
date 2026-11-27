@@ -266,7 +266,7 @@ export async function verifyMajorityForExistingAccount(
   _: { error?: string }, formData: FormData,
 ): Promise<{ error?: string }> {
   const parsed = z.object({
-    birth_date: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+    birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     majority_confirmed: z.literal("true"),
   }).safeParse(Object.fromEntries(formData));
   if (!parsed.success || !isValidBirthDate(parsed.data?.birth_date || "") ||

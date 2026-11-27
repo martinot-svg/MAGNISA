@@ -148,7 +148,7 @@ $$;
 
 SELECT set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000104', true);
 
-DO $
+DO $$
 DECLARE
   v_rejected boolean := false;
   v_status text;
@@ -166,7 +166,7 @@ BEGIN
     AND user_id=auth.uid();
   IF v_status <> 'invited' THEN RAISE EXCEPTION 'Missing-age invitation must remain pending'; END;
 END;
-$;
+$$;
 
 RESET ROLE;
 ROLLBACK;
