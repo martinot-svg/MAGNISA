@@ -74,4 +74,20 @@ describe("majority enforcement CI fixtures", () => {
     const section = action.slice(index, index + 500);
     expect(section).toContain(String.raw`birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),`);
   });
+
+  it("stages SQL integration identities before every auth.users trigger", () => {
+    const fixtures = [
+      "supabase/tests/payroll-rule-archival.sql",
+      "supabase/tests/pcg-internal-transfer-581.sql",
+      "supabase/tests/accounting-fiscal-year-opening-closing.sql",
+      "supabase/tests/company-settings-member-view-integration.sql",
+      "tests/integration/template-version-rls.sql",
+      "tests/integration/template-backup-fixture.sql",
+    ];
+    for (const path of fixtures) {
+      const source = readFileSync(path, "utf8");
+      expect(source).toContain("magnisa_signup_age_pending");
+      expect(source.indexOf("magnisa_signup_age_pending"), path).toBeLessThan(source.toLowerCase().indexOf("insert into auth.users"));
+    }
+  });
 });
