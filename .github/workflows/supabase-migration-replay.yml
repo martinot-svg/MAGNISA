@@ -1,4 +1,5 @@
 name: Supabase migration replay
+# Audit contract suite includes invoker-view, tenant-isolation and RLS planner checks.
 
 on:
   pull_request:
