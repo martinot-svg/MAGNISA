@@ -123,10 +123,11 @@ export async function signUp(formData: FormData) {
   const { error: phoneError } = await admin.rpc("register_magnisa_signup_phone", {
     p_user: data.user.id, p_phone_e164: phone.e164, p_country_iso2: phone.country,
   });
-  if (phoneError) {
-    await admin.auth.admin.deleteUser(data.user.id);
+  const { data: storedPhone, error: phoneReadError } = await admin.rpc("get_magnisa_signup_phone", { p_user: data.user.id });
+  if (phoneError || phoneReadError || !Array.isArray(storedPhone) || storedPhone[0]?.phone_e164 !== phone.e164 || storedPhone[0]?.country_iso2 !== phone.country) {
+    const { error: rollbackError } = await admin.auth.admin.deleteUser(data.user.id);
     await admin.rpc("cancel_magnisa_signup_age_pending", { p_email: email });
-    console.error("[magnisa-signup] Phone persistence failed:", phoneError.code);
+    console.error("[magnisa-signup] Phone persistence failed:", phoneError?.code || phoneReadError?.code || "read-back-mismatch", rollbackError?.message || "");
     return { error: "Impossible d’enregistrer le numéro de téléphone. Aucun compte n’a été créé ; réessaie." };
   }
 
