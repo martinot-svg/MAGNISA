@@ -1,4 +1,5 @@
 import { chromium } from "playwright";
+import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID, randomBytes } from "node:crypto";
 
@@ -13,6 +14,7 @@ const email=`action-ui-${fixture}@magnisa.test`;
 const password=`Action-${randomBytes(18).toString("hex")}!a9`;
 const account=await admin.auth.admin.createUser({email,password,email_confirm:true});
 if(account.error||!account.data.user)throw account.error||Error("Action browser user unavailable");
+await seedAdultMajorityFixture(admin,account.data.user.id);
 const owner=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
 const signin=await owner.auth.signInWithPassword({email,password});
 if(signin.error)throw signin.error;

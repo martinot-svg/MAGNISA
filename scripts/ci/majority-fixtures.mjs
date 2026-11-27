@@ -1,6 +1,4 @@
-// Local CI fixtures only: synthetic Auth users need the same server-side
-// majority record that real signups receive from the Auth trigger.
-// Never use this helper against production data.
+// Test-only helper. Call only against disposable local CI Supabase projects.
 export async function seedAdultMajorityFixture(admin, userId) {
   const { error } = await admin.from("magnisa_signup_age_checks").insert({
     user_id: userId, birth_date: "1990-01-01",

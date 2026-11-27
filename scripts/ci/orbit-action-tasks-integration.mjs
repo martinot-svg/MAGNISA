@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 
 const endpoint=process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -13,6 +14,7 @@ async function identity(role){
  const email=`orbit-action-${role}-${token}@magnisa.test`;
  const password=`OA-${randomBytes(18).toString("hex")}!a9`;
  const created=must(await admin.auth.admin.createUser({email,password,email_confirm:true}),"Create user");
+ await seedAdultMajorityFixture(admin,created.user.id);
  const account=client(anonKey);
  const signed=await account.auth.signInWithPassword({email,password});
  if(signed.error)throw signed.error;
