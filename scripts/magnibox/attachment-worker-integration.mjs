@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { access, unlink, writeFile } from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "../ci/majority-fixtures.mjs";
 
 const execFileAsync = promisify(execFile);
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -46,8 +47,10 @@ try {
     await writeFile("infra/magnibox-mail/.env.local-dev", "# generated temporarily by local E2E test\\n", { mode: 0o600, flag: "wx" });
     generatedEnvFile = true;
   }
+  await stageAdultMajorityFixture(admin,email);
   const user = unwrap(await admin.auth.admin.createUser({ email, password, email_confirm: true }), "create local test user");
   created.userId = user.user.id;
+  await seedAdultMajorityFixture(admin, created.userId);
   const owner = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
   unwrap(await owner.auth.signInWithPassword({ email, password }), "sign in test owner");
   const org = unwrap(await owner.rpc("create_organization", {
@@ -191,10 +194,12 @@ try {
   // Verify tenant isolation with a second authenticated user in a different organization.
   const secondEmail = "magnibox-isolation-" + randomUUID() + "@magnisa.test";
   const secondPassword = "Isolation-" + randomBytes(20).toString("hex") + "!9";
+  await stageAdultMajorityFixture(admin,secondEmail);
   const secondUser = unwrap(await admin.auth.admin.createUser({
     email: secondEmail, password: secondPassword, email_confirm: true,
   }), "create second isolated test user");
   created.secondUserId = secondUser.user.id;
+  await seedAdultMajorityFixture(admin, created.secondUserId);
   const secondOwner = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
   unwrap(await secondOwner.auth.signInWithPassword({ email: secondEmail, password: secondPassword }),
     "sign in second isolated test owner");
