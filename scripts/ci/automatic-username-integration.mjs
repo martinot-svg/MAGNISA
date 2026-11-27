@@ -11,6 +11,7 @@ async function create(given,family,alias) {
   const email=`auto-name-${Date.now()}-${ids.length}@magnisa.test`;
   const metadata={full_name:`${given} ${family}`,given_names:given,family_name:family};
   if(alias)metadata.username=alias;
+  await stageAdultMajorityFixture(admin,email);
   const {data,error}=await admin.auth.admin.createUser({
     email,email_confirm:true,
     user_metadata:metadata,
@@ -18,6 +19,7 @@ async function create(given,family,alias) {
   if(error||!data.user)throw error??Error("Could not create test identity");
   await seedAdultMajorityFixture(admin,data.user.id);
   ids.push(data.user.id);
+  await seedAdultMajorityFixture(admin,data.user.id);
   const result=await admin.from("profiles").select("username,public_id").eq("id",data.user.id).single();
   if(result.error)throw result.error;
   return result.data;

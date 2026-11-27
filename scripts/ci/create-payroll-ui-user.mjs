@@ -13,6 +13,7 @@ if (!url || !serviceKey || !email || !password) {
 const admin = createClient(url, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
+await stageAdultMajorityFixture(admin,email);
 const { data, error } = await admin.auth.admin.createUser({
   email,
   password,
@@ -20,6 +21,7 @@ const { data, error } = await admin.auth.admin.createUser({
   user_metadata: { full_name: "MAGNISA Payroll UI Test" },
 });
 if (error || !data.user) throw error ?? new Error("Supabase did not create the UI test user.");
+await seedAdultMajorityFixture(admin,data.user.id);
 await seedAdultMajorityFixture(admin,data.user.id);
 
 if (process.env.GITHUB_OUTPUT) {
