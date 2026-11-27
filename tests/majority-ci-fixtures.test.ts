@@ -33,7 +33,7 @@ describe("majority enforcement CI fixtures", () => {
   it("imports and stages every synthetic Auth identity before its insert trigger", () => {
     for (const path of scripts) {
       const source = readFileSync(path, "utf8");
-      const hasStageImport = source.split("\\n").some(
+      const hasStageImport = source.split("\n").some(
         (line) => line.startsWith("import ") && line.includes("stageAdultMajorityFixture"),
       );
       expect(hasStageImport, path + " must import the staging helper").toBe(true);
