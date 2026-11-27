@@ -1,16 +1,24 @@
 BEGIN;
 
+-- Completed signups are staged before the auth.users trigger; the invited identity is exempt.
+INSERT INTO private.magnisa_signup_age_pending(email,birth_date,majority_confirmed_at,expires_at) VALUES
+  ('settings-viewer@magnisa.test', date '1990-01-01', now(), now()+interval '15 minutes'),
+  ('settings-finance@magnisa.test', date '1990-01-01', now(), now()+interval '15 minutes'),
+  ('settings-owner@magnisa.test', date '1990-01-01', now(), now()+interval '15 minutes')
+ON CONFLICT (email) DO UPDATE SET birth_date=excluded.birth_date,
+ majority_confirmed_at=excluded.majority_confirmed_at, expires_at=excluded.expires_at;
+
 INSERT INTO auth.users (
-  id, email, email_confirmed_at, created_at, updated_at,
+  id, email, email_confirmed_at, invited_at, created_at, updated_at,
   raw_user_meta_data, raw_app_meta_data
 ) VALUES
-  ('30000000-0000-4000-8000-000000000101', 'settings-viewer@magnisa.test', now(), now(), now(),
+  ('30000000-0000-4000-8000-000000000101', 'settings-viewer@magnisa.test', now(), NULL, now(), now(),
    '{"first_name":"Settings","last_name":"Viewer"}'::jsonb, '{"provider":"email","providers":["email"]}'::jsonb),
-  ('30000000-0000-4000-8000-000000000102', 'settings-finance@magnisa.test', now(), now(), now(),
+  ('30000000-0000-4000-8000-000000000102', 'settings-finance@magnisa.test', now(), NULL, now(), now(),
    '{"first_name":"Settings","last_name":"Finance"}'::jsonb, '{"provider":"email","providers":["email"]}'::jsonb),
-  ('30000000-0000-4000-8000-000000000103', 'settings-owner@magnisa.test', now(), now(), now(),
+  ('30000000-0000-4000-8000-000000000103', 'settings-owner@magnisa.test', now(), NULL, now(), now(),
    '{"first_name":"Settings","last_name":"Owner"}'::jsonb, '{"provider":"email","providers":["email"]}'::jsonb),
-  ('30000000-0000-4000-8000-000000000104', 'settings-invited@magnisa.test', now(), now(), now(),
+  ('30000000-0000-4000-8000-000000000104', 'settings-invited@magnisa.test', now(), now(), now(), now(),
    '{"first_name":"Settings","last_name":"Invited"}'::jsonb, '{"provider":"email","providers":["email"]}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
