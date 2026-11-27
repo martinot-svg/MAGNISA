@@ -11,9 +11,9 @@ describe("majority-aware integration fixtures",()=>{
  });
  it("stages both attachment worker identities before Auth creation",()=>{
   expect(worker).toContain("stageAdultMajorityFixture(admin,email)");
-  expect(worker).toContain("seedAdultMajorityFixture(admin,created.userId)");
+  expect(worker).toContain("seedAdultMajorityFixture(admin, created.userId)");
   expect(worker).toContain("stageAdultMajorityFixture(admin,secondEmail)");
-  expect(worker).toContain("seedAdultMajorityFixture(admin,created.secondUserId)");
+  expect(worker).toContain("seedAdultMajorityFixture(admin, created.secondUserId)");
   expect(worker).not.toContain('admin.from("magnisa_signup_age_checks")');
  });
  it("stages completed-signup SQL fixtures before auth.users insert",()=>{
@@ -21,7 +21,7 @@ describe("majority-aware integration fixtures",()=>{
   expect(sql).not.toContain("INSERT INTO private.magnisa_signup_age_checks");
  });
  it("creates the invited no-age account before switching to authenticated",()=>{
-  const user=sql.indexOf("'invite-no-age@magnisa.test',now(),now(),now(),now(),");
+  const user=sql.indexOf("'invite-no-age@magnisa.test', now(), now(), now(), now(),");
   expect(user).toBeGreaterThanOrEqual(0);
   expect(user).toBeLessThan(sql.indexOf("SET LOCAL ROLE authenticated"));
  });
