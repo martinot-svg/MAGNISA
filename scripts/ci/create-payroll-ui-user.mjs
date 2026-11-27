@@ -1,5 +1,5 @@
 import { appendFileSync } from "node:fs";
-import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -21,7 +21,6 @@ const { data, error } = await admin.auth.admin.createUser({
   user_metadata: { full_name: "MAGNISA Payroll UI Test" },
 });
 if (error || !data.user) throw error ?? new Error("Supabase did not create the UI test user.");
-await seedAdultMajorityFixture(admin,data.user.id);
 await seedAdultMajorityFixture(admin,data.user.id);
 
 if (process.env.GITHUB_OUTPUT) {
