@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
-import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
