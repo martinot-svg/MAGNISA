@@ -27,8 +27,8 @@ describe("majority-aware integration fixtures",()=>{
  });
  it("uses valid PL/pgSQL delimiters and preserves majority rejection",()=>{
   expect(sql).toContain("DO $$");
-  expect(sql).not.toContain("DO $\\n");
+  expect(sql).not.toContain("DO $\n");
   expect(sql).toContain("A confirmed account without a server-side age record must not accept an invitation");
-  expect((sql.match(/\\$\\$/g)||[]).length%2).toBe(0);
+  expect((sql.match(/\$\$/g)||[]).length%2).toBe(0);
  });
 });
