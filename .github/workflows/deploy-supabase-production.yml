@@ -400,3 +400,23 @@ jobs:
       - name: Verify production release schema contract
         shell: bash
         run: psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 < supabase/tests/production-release-schema-contract.sql
+
+      - name: Verify production company settings member-view security contract
+        shell: bash
+        run: psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 < supabase/tests/company-settings-member-view-security-contract.sql
+
+      - name: Verify production duplicate-index cleanup contract
+        shell: bash
+        run: psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 < supabase/tests/duplicate-index-cleanup-contract.sql
+
+      - name: Verify production MAGNIBOX recipient tenant isolation
+        shell: bash
+        run: psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 < supabase/tests/magnibox-internal-drafts-tenant-policy-contract.sql
+
+      - name: Verify production btree_gist extension schema
+        shell: bash
+        run: psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 < supabase/tests/btree-gist-extension-schema-contract.sql
+
+      - name: Verify production auth.uid RLS initplan optimization
+        shell: bash
+        run: psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 < supabase/tests/rls-auth-initplan-policy-contract.sql

@@ -31,7 +31,7 @@ BEGIN
     v_expression := coalesce(v_policy.qual,'') || ' ' || coalesce(v_policy.with_check,'');
     v_expression := regexp_replace(
       v_expression,
-      '\\(\\s*SELECT\\s+auth\\.uid\\(\\)\\s+AS\\s+uid\\s*\\)',
+      E'\\(\\s*SELECT\\s+auth\\.uid\\(\\)\\s+AS\\s+uid\\s*\\)',
       '',
       'gi'
     );
