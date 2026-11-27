@@ -5,7 +5,7 @@
 Cette section consigne uniquement les preuves consultées pendant la vérification. Elle ne remplace pas les critères d'acceptation des phases et ne transforme pas les éléments non testés en tâches terminées.
 
 ### Éléments confirmés
-- Dépôt : `martinot-svg/MAGNISA`, branche principale `main`, HEAD observé à l'ouverture de la PR #413 : `d374bab33661f4c34ab7a2d2aee1fbc90f8c4b9b`.
+- Dépôt : `martinot-svg/MAGNISA`, branche principale `main`, HEAD `main` après fusion de la PR #413 : `832566fd2341849b43bb3574b52f44332ee9d654` (base de #413 : `d374bab33661f4c34ab7a2d2aee1fbc90f8c4b9b`).
 - Les PR #411 et #412 sont fusionnées. Les corrections SQL associées préservent les clés étrangères des lignes de factures et corrigent le contrat de rejeu d'index.
 - Supabase : 279 migrations dans le registre, dernière version enregistrée `20261130080000`.
 - Supabase : les deux clés étrangères de lignes de factures contrôlées sont présentes et validées ; elles utilisent `invoice_lines_id_organization_uidx`.
@@ -24,14 +24,14 @@ Cette section consigne uniquement les preuves consultées pendant la vérificati
 ### Points non validés / critères de clôture encore ouverts
 - Comparaison exhaustive des migrations locales, staging et production, y compris sauvegarde chiffrée et restauration isolée : preuves complètes non réunies dans cet instantané.
 - Parcours OTP réel (expiration, renvoi, rate limit, tentatives et accès avant vérification) : le code six chiffres et le renvoi avec gestion d'erreur de rate limit sont présents ; les scénarios runtime complets n'ont pas été exécutés ici.
-- Parcours E2E complet d'inscription, onboarding, invitation, création d'organisation et non-régression : non exécuté ici.
-- Tests RLS multi-rôles/multi-organisations et audit WCAG 2.2 AA : non exécutés ici.
+- Parcours E2E isolés réussis dans les runs #2847/#2849 : identité, connexion, ID public, origine privée, wizard organisation en cinq étapes, invitations, settings par rôle, isolation de deux tenants et tests responsive. L'ensemble des scénarios OTP de production (expiration, tentatives, délivrabilité et limites exactes) reste à valider.
+- Tests RLS multi-rôles et multi-organisations réussis dans les workflows #2847/#2849, dont accès aux paramètres par rôle et isolation de deux tenants. L'audit WCAG 2.2 AA complet n'est pas prouvé.
 - Revue exhaustive des 153 fonctions SECURITY DEFINER signalées par Advisor et vérification des grants des 24 tables RLS sans policy : non terminées.
 - Revue de performance des 266 clés étrangères non indexées et des 47 index inutilisés : non terminée ; ne pas appliquer de suppression/ajout en masse sans analyse du workload.
 - Décisions métier bloquantes dans `DECISIONS_A_VALIDER.md` : âge minimum, règles de résidence, numéro d'immatriculation, validation fiscale et rôles autorisés pour les données bancaires/sociales.
 - Téléphone, date de naissance et résidence distincte : absents du schéma d'inscription/profil inspecté ; leur ajout exige les décisions de confidentialité, conservation et âge minimum.
 - Étape facultative d'informations complémentaires : son périmètre et ses règles d'accès ne sont pas validés ; aucune donnée bancaire/sociale ne doit être ajoutée sur la base d'hypothèses.
-- Déploiement staging et déploiement production du HEAD après #411/#412 : non prouvés par le déploiement Vercel inspecté.
+- Aucun staging actuel n'est confirmé : la branche release est 74 commits derrière main et son preview Vercel READY n'est pas un environnement staging à jour. Le dernier déploiement production Vercel observé est READY sur #402 ; les PR #411/#412 ne modifient que migrations/contrats SQL. Aucun smoke test live post-déploiement n'est documenté.
 
 ### Règle de mise à jour
 Ne cocher une tâche ci-dessous qu'après une preuve technique reproductible et attachée à la livraison. Les statuts partiels, bloqués et non exécutés doivent rester distincts.
