@@ -1,17 +1,53 @@
 # 08 — Backlog d'implémentation ordonné
 
+## État de clôture vérifié — 2026-11-27 (instantané, non clôturant)
+
+Cette section consigne uniquement les preuves consultées pendant la vérification. Elle ne remplace pas les critères d'acceptation des phases et ne transforme pas les éléments non testés en tâches terminées.
+
+### Éléments confirmés
+- Dépôt : `martinot-svg/MAGNISA`, branche principale `main`, HEAD observé à l'ouverture de la PR #413 : `d374bab33661f4c34ab7a2d2aee1fbc90f8c4b9b`.
+- Les PR #411 et #412 sont fusionnées. Les corrections SQL associées préservent les clés étrangères des lignes de factures et corrigent le contrat de rejeu d'index.
+- Supabase : 279 migrations dans le registre, dernière version enregistrée `20261130080000`.
+- Supabase : les deux clés étrangères de lignes de factures contrôlées sont présentes et validées ; elles utilisent `invoice_lines_id_organization_uidx`.
+- Supabase : `invoice_lines_id_org_uidx` est absent de la base inspectée.
+- Vercel : le déploiement de production inspecté est `READY`, commit `f631368a51206e7f4ff49610e370bd402a1169eb` (fusion #402). Il est antérieur aux fusions #411 et #412.
+- Les journaux de ce déploiement montrent la fin de la compilation Next.js et des suites Vitest réussies dans les extraits disponibles ; le bilan exhaustif de toutes les suites n'a pas été établi.
+- Inscription : le schéma serveur actuel exige prénom, nom, e-mail, username, mot de passe et confirmation, mais aussi pays, région et localité pour enregistrer l'origine d'inscription. Il ne collecte pas le téléphone, la date de naissance ni une résidence personnelle distincte.
+- Profil : l'inventaire SQL observé de `profiles` ne montre pas de colonnes téléphone, date de naissance ou résidence.
+- Onboarding : les trois choix demandés sont présents ; la carte des finances personnelles est désactivée et annoncée « Bientôt disponible ».
+- Wizard organisation : cinq étapes présentes, validation Zod partagée, champs NIF/STAT/RCS, adresse organisationnelle et régime fiscal/TVA avec valeur « À confirmer ».
+- Données organisationnelles : `company_settings.bank_details` existe déjà en texte. Les politiques RLS observées limitent la table brute aux rôles owner/admin ; le read model applique un masquage par permission. La structure bancaire/sociale dédiée prévue par la phase 6 n'est pas confirmée.
+- Contrôles SQL ciblés en lecture seule : quatre assertions réussies pour la vue des paramètres (security_invoker + security_barrier), la fonction de lecture permission-aware (SECURITY DEFINER, search_path fixé, grants), la RLS restrictive de la table brute et la RLS de `profiles`.
+- Supabase Security Advisor : 24 tables RLS sans policy (INFO) et 153 fonctions SECURITY DEFINER exécutables par authenticated (WARN). Les 153 ont un `search_path` fixé ; deux fonctions sans contrôle d'identité inline délèguent à des helpers de membership/permission dont les définitions ont été inspectées. La revue exhaustive reste ouverte.
+- Supabase Performance Advisor : 266 clés étrangères sans index couvrant et 47 index signalés inutilisés (INFO). Aucun index n'a été modifié automatiquement.
+
+### Points non validés / critères de clôture encore ouverts
+- Comparaison exhaustive des migrations locales, staging et production, y compris sauvegarde chiffrée et restauration isolée : preuves complètes non réunies dans cet instantané.
+- Parcours OTP réel (expiration, renvoi, rate limit, tentatives et accès avant vérification) : le code six chiffres et le renvoi avec gestion d'erreur de rate limit sont présents ; les scénarios runtime complets n'ont pas été exécutés ici.
+- Parcours E2E complet d'inscription, onboarding, invitation, création d'organisation et non-régression : non exécuté ici.
+- Tests RLS multi-rôles/multi-organisations et audit WCAG 2.2 AA : non exécutés ici.
+- Revue exhaustive des 153 fonctions SECURITY DEFINER signalées par Advisor et vérification des grants des 24 tables RLS sans policy : non terminées.
+- Revue de performance des 266 clés étrangères non indexées et des 47 index inutilisés : non terminée ; ne pas appliquer de suppression/ajout en masse sans analyse du workload.
+- Décisions métier bloquantes dans `DECISIONS_A_VALIDER.md` : âge minimum, règles de résidence, numéro d'immatriculation, validation fiscale et rôles autorisés pour les données bancaires/sociales.
+- Téléphone, date de naissance et résidence distincte : absents du schéma d'inscription/profil inspecté ; leur ajout exige les décisions de confidentialité, conservation et âge minimum.
+- Étape facultative d'informations complémentaires : son périmètre et ses règles d'accès ne sont pas validés ; aucune donnée bancaire/sociale ne doit être ajoutée sur la base d'hypothèses.
+- Déploiement staging et déploiement production du HEAD après #411/#412 : non prouvés par le déploiement Vercel inspecté.
+
+### Règle de mise à jour
+Ne cocher une tâche ci-dessous qu'après une preuve technique reproductible et attachée à la livraison. Les statuts partiels, bloqués et non exécutés doivent rester distincts.
+
 ## Phase 0 — Audit technique complet et gel du périmètre
-- [ ] Récupérer le HEAD exact de `main`.
+- [x] Récupérer le HEAD exact de `main` (preuve : SHA de base de la PR #413, `d374bab33661f4c34ab7a2d2aee1fbc90f8c4b9b`).
 - [ ] Inventorier toutes les migrations Supabase, dans l'ordre chronologique.
 - [ ] Comparer migrations locales et migrations appliquées en staging/production.
-- [ ] Inventorier toutes les colonnes de `profiles` et `company_settings`.
+- [x] Inventorier les colonnes de `profiles` et `company_settings` (inspection `information_schema.columns`, 27-11-2026).
 - [ ] Rechercher tous les usages de `onboarding_profile`.
 - [ ] Cartographier triggers Auth et fonctions de génération username.
 - [ ] Cartographier toutes les RPC d'identité et d'origine géographique.
 - [ ] Cartographier policies RLS et privilèges sur les tables concernées.
 - [ ] Cartographier routes d'onboarding et invitations.
 - [ ] Établir les tests existants et leur état.
-- [ ] Documenter les champs déjà présents pour éviter les doublons.
+- [x] Documenter les champs déjà présents pour éviter les doublons (instantané de clôture ci-dessus).
 - [ ] Faire valider les décisions de `DECISIONS_A_VALIDER.md`.
 
 **Sortie attendue :** rapport d'audit complet et modèle de données confirmé. Aucune migration de production à ce stade.
