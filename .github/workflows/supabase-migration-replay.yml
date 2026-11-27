@@ -21,6 +21,7 @@ on:
   push:
     branches:
       - main
+      - 'fix/**'
     paths:
       - "supabase/**"
       - ".github/workflows/supabase-migration-replay.yml"
@@ -521,6 +522,22 @@ jobs:
           SSL_KEY_PATH=/run/magnibox-tls/privkey.pem
           ENABLE_UPDATE_CHECK=0
           EOF
+
+          # GHCR occasionally times out from GitHub-hosted runners. Pull once with
+          # bounded retries before any docker run/Compose step uses the image.
+          image_pulled=0
+          for attempt in 1 2 3 4 5; do
+            if docker pull "$MAGNIBOX_DMS_IMAGE"; then
+              image_pulled=1
+              break
+            fi
+            echo "Docker image pull attempt ${attempt}/5 failed; retrying."
+            sleep $((attempt * 10))
+          done
+          if [ "$image_pulled" -ne 1 ]; then
+            echo "::error::Unable to pull ${MAGNIBOX_DMS_IMAGE} from GHCR after five attempts."
+            exit 1
+          fi
 
           SMTP_PASSWORD="$(openssl rand -hex 24)"
           echo "::add-mask::$SMTP_PASSWORD"

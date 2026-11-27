@@ -48,6 +48,26 @@ async function login(user) {
 }
 // A streamed Next.js page can expose its trigger before the nested client dialog
 // is interactive. Verify that the dialog really opened, retrying only lost clicks.
+async function reloadForFreshRender(page){
+  // Server Actions may still be completing a Next.js route refresh when the
+  // test asks Playwright to reload. Retry transient aborted navigations, then
+  // force a fresh document navigation before asserting persisted server data.
+  for(let attempt=0;attempt<2;attempt++){
+    try{
+      await page.reload({waitUntil:"domcontentloaded",timeout:30000});
+      await page.locator("main").waitFor({state:"visible",timeout:20000});
+      return;
+    }catch(error){
+      const message=String(error);
+      if(!/ERR_ABORTED|frame was detached|Navigation interrupted/i.test(message))throw error;
+      await page.waitForTimeout(500);
+    }
+  }
+  const currentUrl=page.url();
+  await page.goto(currentUrl,{waitUntil:"domcontentloaded",timeout:30000});
+  await page.locator("main").waitFor({state:"visible",timeout:20000});
+}
+
 async function openDialog(page,label,scope=page){
   const trigger=scope.getByRole("button",{name:label});
   await trigger.waitFor({state:"visible",timeout:20000});
@@ -223,14 +243,14 @@ try {
   const sendOnlyUpdate=await admin.from("magnibox_internal_mailboxes")
     .update({can_read:false}).eq("id",sender).eq("organization_id",organizationId);
   if(sendOnlyUpdate.error)throw sendOnlyUpdate.error;
-  await a.page.reload({waitUntil:"domcontentloaded"});
+  await reloadForFreshRender(a.page);
   const sendOnlyCard=a.page.getByTestId("magnibox-message-card")
     .filter({has:a.page.getByText(subject,{exact:true})}).first();
   await sendOnlyCard.waitFor({state:"visible",timeout:15000});
   const restoreRead=await admin.from("magnibox_internal_mailboxes")
     .update({can_read:true}).eq("id",sender).eq("organization_id",organizationId);
   if(restoreRead.error)throw restoreRead.error;
-  await a.page.reload({waitUntil:"domcontentloaded"});
+  await reloadForFreshRender(a.page);
 
   // Personal folders are private to each collaborator and support filing/unfiling.
   const folderName="Factures "+fixture;
@@ -245,7 +265,7 @@ try {
   await sentCard.getByRole("button",{name:"Classer"}).click();
   // Server Actions revalidate the route; reload once to assert the persisted
   // assignment from a fresh server render rather than matching a hidden option.
-  await a.page.reload({waitUntil:"domcontentloaded"});
+  await reloadForFreshRender(a.page);
   const refreshedCard=a.page.getByTestId("magnibox-message-card")
     .filter({has:a.page.getByText(subject,{exact:true})}).first();
   await refreshedCard.getByTestId("magnibox-message-folders")
