@@ -143,7 +143,6 @@ try {
   }), "create unauthorized attachment test user");
   created.unauthorizedUserId = outsiderUser.user.id;
   await seedAdultMajorityFixture(admin,created.unauthorizedUserId);
-  await seedAdultMajorityFixture(admin,created.unauthorizedUserId);
   const outsider = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
   unwrap(await outsider.auth.signInWithPassword({ email: unauthorizedEmail, password: unauthorizedPassword }),
     "sign in unauthorized attachment test user");
