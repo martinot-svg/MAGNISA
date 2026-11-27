@@ -21,6 +21,7 @@ on:
   push:
     branches:
       - main
+      - 'fix/**'
     paths:
       - "supabase/**"
       - ".github/workflows/supabase-migration-replay.yml"
