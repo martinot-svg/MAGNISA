@@ -1,5 +1,14 @@
 # Historique du dossier
 
+## 1.2 — 2026-11-27 — Inspection applicative complémentaire
+- HEAD de `main` observé à l'ouverture de la PR documentaire #413 : `d374bab33661f4c34ab7a2d2aee1fbc90f8c4b9b`.
+- Inspection du code d'inscription : `signUp` vérifie les noms, l'e-mail, le username, le mot de passe et sa confirmation ; il requiert aussi `country_code`, `region_code` et `locality_name` pour l'origine d'inscription. Le téléphone, la date de naissance et une résidence distincte ne sont pas collectés dans ce schéma.
+- Inspection du schéma `profiles` : les colonnes observées comprennent `full_name`, `username`, `public_id`, l'e-mail et les métadonnées de compte ; aucune colonne téléphone, date de naissance ou résidence n'a été observée.
+- Inspection de `/onboarding` : les trois choix sont présents, dont les finances personnelles désactivées « Bientôt disponible ». Un test Vitest source-based correspondant existe ; son exécution n'a pas été lancée dans cette session.
+- Inspection du wizard organisation : `CompanyCreationWizard` comporte cinq étapes et utilise `onboarding-schema.ts`. Les informations d'immatriculation NIF/STAT/RCS, la situation fiscale à confirmer et l'adresse de l'organisation sont déjà prises en charge dans le parcours existant.
+- Inspection du schéma `company_settings` : le champ historique `bank_details` existe en texte ; aucune structure dédiée aux coordonnées bancaires et affiliations sociales n'a été établie par cette inspection. Les politiques SQL observées restreignent la table brute aux rôles owner/admin ; le read model applique un masquage par permission.
+- Ces constats confirment que les phases 2 et 6 ne peuvent pas être déclarées achevées. Les décisions de conservation des données personnelles et d'autorisation d'accès restent à résoudre avant ajout de nouveaux champs sensibles.
+
 ## 1.1 — 2026-11-27 — Vérification de clôture technique
 - Inspection des ressources connectées : dépôt GitHub `martinot-svg/MAGNISA`, projet Supabase `pmlzirobpdlzsrvtkvir` et projet Vercel `magnisa`.
 - Confirmations GitHub : les PR #411 et #412 sont fusionnées. Elles corrigent la conservation des index uniques supportant les clés étrangères des lignes de factures et la couverture du contrat de rejeu.
