@@ -2,6 +2,15 @@
 -- with the exact same effective_from date. All fixtures are rolled back.
 begin;
 
+-- auth.users trigger requires a server-side staged age/majority declaration.
+INSERT INTO private.magnisa_signup_age_pending(email, birth_date, majority_confirmed_at, expires_at)
+VALUES (
+  'payroll-date-conflict-fixture@example.invalid',
+  DATE '1990-01-01',
+  now(),
+  now() + interval '15 minutes'
+);
+
 do $test$
 declare
   v_org uuid := gen_random_uuid();
