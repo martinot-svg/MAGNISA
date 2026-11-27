@@ -19,6 +19,7 @@ describe("majority enforcement CI fixtures", () => {
 
   it("uses the service-role RPC rather than exposing the private schema over REST", () => {
     expect(helper).toContain('admin.rpc("stage_magnisa_signup_age"');
+    expect(helper).toContain('admin.rpc("register_magnisa_signup_age"');
     expect(helper).not.toContain('admin.from("magnisa_signup_age_checks")');
   });
 
