@@ -23,6 +23,8 @@ Cette section consigne uniquement les preuves consultées pendant la vérificati
 - Parcours OTP réel (expiration, renvoi, rate limit, tentatives et accès avant vérification) : le code six chiffres et le renvoi avec gestion d'erreur de rate limit sont présents ; les scénarios runtime complets n'ont pas été exécutés ici.
 - Parcours E2E complet d'inscription, onboarding, invitation, création d'organisation et non-régression : non exécuté ici.
 - Tests RLS multi-rôles/multi-organisations et audit WCAG 2.2 AA : non exécutés ici.
+- Revue exhaustive des 153 fonctions SECURITY DEFINER signalées par Advisor et vérification des grants des 24 tables RLS sans policy : non terminées.
+- Revue de performance des 266 clés étrangères non indexées et des 47 index inutilisés : non terminée ; ne pas appliquer de suppression/ajout en masse sans analyse du workload.
 - Décisions métier bloquantes dans `DECISIONS_A_VALIDER.md` : âge minimum, règles de résidence, numéro d'immatriculation, validation fiscale et rôles autorisés pour les données bancaires/sociales.
 - Téléphone, date de naissance et résidence distincte : absents du schéma d'inscription/profil inspecté ; leur ajout exige les décisions de confidentialité, conservation et âge minimum.
 - Étape facultative d'informations complémentaires : son périmètre et ses règles d'accès ne sont pas validés ; aucune donnée bancaire/sociale ne doit être ajoutée sur la base d'hypothèses.
@@ -32,17 +34,17 @@ Cette section consigne uniquement les preuves consultées pendant la vérificati
 Ne cocher une tâche ci-dessous qu'après une preuve technique reproductible et attachée à la livraison. Les statuts partiels, bloqués et non exécutés doivent rester distincts.
 
 ## Phase 0 — Audit technique complet et gel du périmètre
-- [ ] Récupérer le HEAD exact de `main`.
+- [x] Récupérer le HEAD exact de `main` (preuve : SHA de base de la PR #413, `d374bab33661f4c34ab7a2d2aee1fbc90f8c4b9b`).
 - [ ] Inventorier toutes les migrations Supabase, dans l'ordre chronologique.
 - [ ] Comparer migrations locales et migrations appliquées en staging/production.
-- [ ] Inventorier toutes les colonnes de `profiles` et `company_settings`.
+- [x] Inventorier les colonnes de `profiles` et `company_settings` (inspection `information_schema.columns`, 27-11-2026).
 - [ ] Rechercher tous les usages de `onboarding_profile`.
 - [ ] Cartographier triggers Auth et fonctions de génération username.
 - [ ] Cartographier toutes les RPC d'identité et d'origine géographique.
 - [ ] Cartographier policies RLS et privilèges sur les tables concernées.
 - [ ] Cartographier routes d'onboarding et invitations.
 - [ ] Établir les tests existants et leur état.
-- [ ] Documenter les champs déjà présents pour éviter les doublons.
+- [x] Documenter les champs déjà présents pour éviter les doublons (instantané de clôture ci-dessus).
 - [ ] Faire valider les décisions de `DECISIONS_A_VALIDER.md`.
 
 **Sortie attendue :** rapport d'audit complet et modèle de données confirmé. Aucune migration de production à ce stade.
