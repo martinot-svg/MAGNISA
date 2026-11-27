@@ -1,8 +1,5 @@
 BEGIN;
 
--- Remove verified duplicate indexes only when no foreign key depends on them.
--- invoice_lines_id_org_uidx supports two live foreign keys and must be retained.
---
 -- These indexes are exact duplicates of canonical indexes, but one legacy
 -- replay path attaches two composite invoice-line foreign keys to the
 -- duplicate invoice_lines index. Rebind those FKs to the canonical index
@@ -47,6 +44,7 @@ $migration$;
 
 DROP INDEX IF EXISTS public.customers_id_organization_uidx;
 DROP INDEX IF EXISTS public.expenses_org_magnisa_reference_uq;
+DROP INDEX IF EXISTS public.invoice_lines_id_org_uidx;
 DROP INDEX IF EXISTS public.journal_entries_org_magnisa_reference_uq;
 
 -- On clean replay, restore any FK that was rebound above. The canonical
