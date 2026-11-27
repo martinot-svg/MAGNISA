@@ -170,7 +170,7 @@ BEGIN
   SELECT status INTO v_status FROM public.organization_members
   WHERE organization_id='20000000-0000-4000-8000-000000000104'
     AND user_id=auth.uid();
-  IF v_status <> 'invited' THEN RAISE EXCEPTION 'Missing-age invitation must remain pending'; END;
+  IF v_status <> 'invited' THEN RAISE EXCEPTION 'Missing-age invitation must remain pending'; END IF;
 END;
 $$;
 
