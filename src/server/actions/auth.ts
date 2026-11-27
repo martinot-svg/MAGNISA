@@ -17,7 +17,7 @@ const signupSchema = z.object({
   last_name: z.string().trim().min(1).max(60),
   username: z.string().trim().min(3).max(11),
   confirm_password: z.string().min(10),
-  birth_date: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+  birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   majority_confirmed: z.literal("true"),
   country_code: z.string().regex(/^[0-9]{3}$/),
   region_code: z.string().regex(/^9[0-2][0-9]$/),
