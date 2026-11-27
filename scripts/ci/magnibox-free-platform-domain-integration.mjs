@@ -1,5 +1,6 @@
 import {randomBytes,randomUUID} from "node:crypto";
 import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
+import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import {createClient} from "@supabase/supabase-js";
 
 const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -14,6 +15,7 @@ async function fixture(role){
   const password=`MFD-${randomBytes(16).toString("hex")}!a9`;
   const created=await admin.auth.admin.createUser({email,password,email_confirm:true});
   if(created.error||!created.data.user)throw created.error||Error("Could not create isolated test user");
+  await seedAdultMajorityFixture(admin,created.data.user.id);
   await seedAdultMajorityFixture(admin,created.data.user.id);
   const account=client(anon);
   const login=await account.auth.signInWithPassword({email,password});
