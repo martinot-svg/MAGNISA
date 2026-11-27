@@ -12,6 +12,9 @@ export default function Signup() {
   const [state, action, pending] = useActionState<any, FormData>(async (_: any, data: FormData) => signUp(data), {});
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState("MG");
+  const [phonePrefix, setPhonePrefix] = useState("032");
+  const [phoneNational, setPhoneNational] = useState("");
   const [step, setStep] = useState<1 | 2>(1);
   const identityFieldsRef = useRef<HTMLFieldSetElement>(null);
   const [username, setUsername] = useState("");
@@ -65,6 +68,7 @@ export default function Signup() {
         }
       }}>
         <fieldset ref={identityFieldsRef} hidden={step !== 1} style={{border:0,padding:0,margin:0,minWidth:0}}>
+        <div className="signup-grid">
         <div className="field">
           <label htmlFor="signup-first-name">Prénom</label>
           <input id="signup-first-name" name="first_name" required maxLength={60} autoComplete="given-name"
@@ -95,18 +99,33 @@ export default function Signup() {
           </div>
           {customized && <button type="button" className="button" onClick={() => { setCustomized(false); setUsername(generateUsername(firstName,lastName)); }}>Reprendre le nom suggéré</button>}
         </div>
-        <div className="field">
+        <div className="field signup-phone-field">
+          <label htmlFor="signup-phone-country">Téléphone</label>
+          <div className="signup-phone-row">
+            <div className="signup-phone-country">
+              <span className={phoneCountry === "MG" ? "signup-flag-mg" : "signup-flag-other"} aria-label={phoneCountry === "MG" ? "Drapeau de Madagascar" : "Drapeau du pays sélectionné"}>{phoneCountry === "MG" ? <><i /><i /><i /></> : String.fromCodePoint(...Array.from(phoneCountry, c => 127397 + c.charCodeAt(0)))}</span>
+              <select id="signup-phone-country" name="phone_country" aria-label="Pays et indicatif téléphonique" value={phoneCountry} onChange={e => { setPhoneCountry(e.target.value); setPhonePrefix(e.target.value === "MG" ? "032" : ""); setPhoneNational(""); }} required>
+                <option value="MG">Madagascar (+261)</option><option value="FR">France (+33)</option><option value="RE">La Réunion (+262)</option><option value="MU">Maurice (+230)</option><option value="KM">Comores (+269)</option><option value="ZA">Afrique du Sud (+27)</option><option value="SN">Sénégal (+221)</option><option value="KE">Kenya (+254)</option><option value="GB">Royaume-Uni (+44)</option><option value="US">États-Unis (+1)</option><option value="CA">Canada (+1)</option><option value="DE">Allemagne (+49)</option><option value="IT">Italie (+39)</option><option value="ES">Espagne (+34)</option><option value="CH">Suisse (+41)</option><option value="AE">Émirats arabes unis (+971)</option><option value="IN">Inde (+91)</option><option value="CN">Chine (+86)</option><option value="JP">Japon (+81)</option><option value="AU">Australie (+61)</option>
+              </select>
+            </div>
+            <select id="signup-phone-prefix" name="phone_prefix" aria-label="Préfixe opérateur" value={phonePrefix} onChange={e => setPhonePrefix(e.target.value)} disabled={phoneCountry !== "MG"} required={phoneCountry === "MG"}>
+              {phoneCountry === "MG" ? ["032","033","034","035","036","037","038","039"].map(prefix => <option key={prefix} value={prefix}>{prefix}</option>) : <option value="">—</option>}
+            </select>
+            <input id="signup-phone-national" name="phone_national" type="tel" inputMode="numeric" autoComplete="tel-national" required value={phoneNational} onChange={e => setPhoneNational(e.target.value.replace(/\D/g, "").slice(0, phoneCountry === "MG" ? 7 : 14))} maxLength={phoneCountry === "MG" ? 7 : 14} minLength={phoneCountry === "MG" ? 7 : 7} placeholder={phoneCountry === "MG" ? "1234567" : "Numéro national"} aria-label={phoneCountry === "MG" ? "Sept chiffres du numéro" : "Numéro national sans indicatif"} />
+          </div>
+        </div>
+        <div className="field signup-field-full">
           <label htmlFor="signup-email">Adresse e-mail personnelle</label>
           <input id="signup-email" name="email" type="email" required autoComplete="email"
             placeholder="prenom@exemple.com" aria-describedby="signup-email-help" />
         </div>
         <div className="field">
-          <label htmlFor="signup-country">Pays au moment de l'inscription</label>
+          <label htmlFor="signup-country">Pays de résidence</label>
           <input id="signup-country" value={REGISTRATION_COUNTRY_NAME} readOnly />
           <input type="hidden" name="country_code" value={REGISTRATION_COUNTRY_CODE} />
         </div>
         <div className="field">
-          <label htmlFor="signup-region">Région d'inscription</label>
+          <label htmlFor="signup-region">Région de résidence</label>
           <select id="signup-region" name="region_code" required value={region}
             onChange={e => {
               setRegion(e.target.value); setLocality(""); setLocalityRef(""); setSuggestions([]);
@@ -116,7 +135,7 @@ export default function Signup() {
           </select>
         </div>
         <div className="field">
-          <label htmlFor="signup-locality">Ville, commune, fokontany ou village d'inscription</label>
+          <label htmlFor="signup-locality">Ville, commune, fokontany ou village de résidence</label>
           <input id="signup-locality" name="locality_name" type="text" required minLength={2} maxLength={160}
             autoComplete="address-level2" disabled={!region} value={locality}
             onChange={e => { setLocality(e.target.value); setLocalityRef(""); }}
@@ -138,12 +157,15 @@ export default function Signup() {
             </button>)}
           </div>}
         </div>
+        <div className="field signup-field-full">
+          <label className="signup-majority-label"><input type="checkbox" name="majority_confirmed" value="true" required /> Je confirme que les informations fournies sont exactes et que j’ai au moins 18 ans.</label>
+        </div>
+        </div>
         </fieldset>
         <fieldset hidden={step !== 2} style={{border:0,padding:0,margin:0,minWidth:0}}>
         <div className="field">
           <label htmlFor="signup-password">Mot de passe</label>
           <input id="signup-password" name="password" type="password" minLength={10} required autoComplete="new-password" />
-          <small>10 caractères minimum.</small>
         </div>
         <div className="field">
           <label htmlFor="signup-password-confirm">Confirmer le mot de passe</label>
