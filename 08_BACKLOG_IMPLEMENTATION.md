@@ -1,5 +1,31 @@
 # 08 — Backlog d'implémentation ordonné
 
+## État de clôture vérifié — 2026-11-27 (instantané, non clôturant)
+
+Cette section consigne uniquement les preuves consultées pendant la vérification. Elle ne remplace pas les critères d'acceptation des phases et ne transforme pas les éléments non testés en tâches terminées.
+
+### Éléments confirmés
+- Dépôt : `martinot-svg/MAGNISA`, branche principale `main`.
+- Les PR #411 et #412 sont fusionnées. Les corrections SQL associées préservent les clés étrangères des lignes de factures et corrigent le contrat de rejeu d'index.
+- Supabase : 279 migrations dans le registre, dernière version enregistrée `20261130080000`.
+- Supabase : les deux clés étrangères de lignes de factures contrôlées sont présentes et validées ; elles utilisent `invoice_lines_id_organization_uidx`.
+- Supabase : `invoice_lines_id_org_uidx` est absent de la base inspectée.
+- Vercel : le déploiement de production inspecté est `READY`, commit `f631368a51206e7f4ff49610e370bd402a1169eb` (fusion #402). Il est antérieur aux fusions #411 et #412.
+- Les journaux de ce déploiement montrent la fin de la compilation Next.js et des suites Vitest réussies dans les extraits disponibles ; le bilan exhaustif de toutes les suites n'a pas été établi.
+
+### Points non validés / critères de clôture encore ouverts
+- HEAD actuel de `main`, état complet des branches/PR et résultats CI sur le HEAD après #411/#412 : à établir avec un relevé GitHub dédié.
+- Comparaison exhaustive des migrations locales, staging et production, y compris sauvegarde chiffrée et restauration isolée : preuves complètes non réunies dans cet instantané.
+- Parcours OTP réel (expiration, renvoi, rate limit, tentatives et accès avant vérification) : non exécuté ici.
+- Parcours E2E complet d'inscription, onboarding, invitation, création d'organisation et non-régression : non exécuté ici.
+- Tests RLS multi-rôles/multi-organisations et audit WCAG 2.2 AA : non exécutés ici.
+- Décisions métier bloquantes dans `DECISIONS_A_VALIDER.md` : âge minimum, règles de résidence, numéro d'immatriculation, validation fiscale et rôles autorisés pour les données bancaires/sociales.
+- Étape facultative d'informations complémentaires : son périmètre et ses règles d'accès ne sont pas validés ; aucune donnée bancaire/sociale ne doit être ajoutée sur la base d'hypothèses.
+- Déploiement staging et déploiement production du HEAD après #411/#412 : non prouvés par le déploiement Vercel inspecté.
+
+### Règle de mise à jour
+Ne cocher une tâche ci-dessous qu'après une preuve technique reproductible et attachée à la livraison. Les statuts partiels, bloqués et non exécutés doivent rester distincts.
+
 ## Phase 0 — Audit technique complet et gel du périmètre
 - [ ] Récupérer le HEAD exact de `main`.
 - [ ] Inventorier toutes les migrations Supabase, dans l'ordre chronologique.
