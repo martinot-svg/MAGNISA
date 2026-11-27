@@ -138,3 +138,30 @@ end;
 $magnisa$;
 revoke all on function public.register_magnisa_signup_age(uuid,date,boolean) from public,anon,authenticated;
 grant execute on function public.register_magnisa_signup_age(uuid,date,boolean) to service_role;
+
+-- Remove expired DOB staging records on a short cadence; they contain sensitive
+-- data only until Auth signup consumes them or the signup window expires.
+create or replace function private.cleanup_expired_magnisa_signup_age_pending()
+returns integer language plpgsql security definer set search_path=''
+as $magnisa$
+declare v_deleted integer;
+begin
+  delete from private.magnisa_signup_age_pending where expires_at <= now();
+  get diagnostics v_deleted = row_count;
+  return v_deleted;
+end;
+$magnisa$;
+revoke all on function private.cleanup_expired_magnisa_signup_age_pending() from public,anon,authenticated;
+do $magnisa$
+declare j record;
+begin
+  for j in select jobid from cron.job where jobname='magnisa-cleanup-expired-signup-age' loop
+    perform cron.unschedule(j.jobid);
+  end loop;
+  perform cron.schedule(
+    'magnisa-cleanup-expired-signup-age',
+    '*/15 * * * *',
+    'select private.cleanup_expired_magnisa_signup_age_pending();'
+  );
+end;
+$magnisa$;
