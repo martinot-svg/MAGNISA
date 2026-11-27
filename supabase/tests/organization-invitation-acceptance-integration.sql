@@ -40,11 +40,6 @@ INSERT INTO public.notifications (
    '20000000-0000-4000-8000-000000000103', '{"role":"viewer"}', 'invitation-test-unconfirmed')
 ON CONFLICT (organization_id, recipient_user_id, dedupe_key) DO NOTHING;
 
--- The accepting user is an adult and has passed the server-side majority check.
-INSERT INTO private.magnisa_signup_age_checks(user_id,birth_date,majority_confirmed_at)
-VALUES ('10000000-0000-4000-8000-000000000101', date '1990-01-01', now())
-ON CONFLICT (user_id) DO NOTHING;
-
 SET LOCAL ROLE authenticated;
 
 SELECT set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000101', true);
