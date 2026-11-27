@@ -1,5 +1,6 @@
 // Test-only staging helper for disposable local Supabase CI projects.
-// Stage before Auth user creation so the auth.users trigger consumes the record.
+// Always call this before admin.auth.admin.createUser so the auth.users trigger
+// consumes the server-validated majority staging row atomically.
 export async function stageAdultMajorityFixture(admin, email) {
   const { error } = await admin.rpc("stage_magnisa_signup_age", {
     p_email: email,

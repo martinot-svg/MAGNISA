@@ -22,7 +22,7 @@ describe("majority enforcement CI fixtures", () => {
     expect(helper).not.toContain('admin.from("magnisa_signup_age_checks")');
   });
 
-  it("seeds each synthetic integration identity before organization-bound operations", () => {
+  it("stages each synthetic identity before the Auth insert trigger", () => {
     for (const path of scripts) {
       expect(readFileSync(path, "utf8"), path).toContain("stageAdultMajorityFixture");
     }

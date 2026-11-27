@@ -108,10 +108,10 @@ begin
     delete from private.magnisa_signup_age_pending
     where email=lower(btrim(coalesce(new.email,'')));
   elsif new.invited_at is null then
-    -- Direct public Auth signup must be staged with a validated DOB and
-    -- explicit majority declaration before auth.users can be created.
-    -- Invite-created accounts may exist pending, but cannot access the app or
-    -- accept membership until a private majority record is registered.
+    -- No direct Auth signup (including raw REST Auth requests) may create an
+    -- account unless a server-validated DOB and explicit declaration were
+    -- staged before auth.users insertion. Auth-generated invitations are the
+    -- only exception; their acceptance is separately majority-gated.
     raise exception 'Date de naissance valide et déclaration de majorité requises avant la création du compte MAGNISA'
       using errcode='22023';
   end if;
