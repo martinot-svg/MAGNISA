@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -81,6 +82,7 @@ if (created.error || !created.data.user) {
   throw created.error ?? new Error("Could not create isolated fixed-asset viewer.");
 }
 const viewerId = created.data.user.id;
+await seedAdultMajorityFixture(admin,viewerId);
 const viewerMembership = await admin.from("organization_members").insert({
   organization_id: organizationId,
   user_id: viewerId,

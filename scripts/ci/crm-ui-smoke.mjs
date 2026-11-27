@@ -1,4 +1,5 @@
 import { chromium } from "playwright";
+import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:3000";
@@ -26,6 +27,7 @@ const { data: collaboratorCreated, error: collaboratorError } = await admin.auth
   user_metadata: { full_name: "MAGNISA CRM UI Contributor" },
 });
 if (collaboratorError || !collaboratorCreated.user) throw collaboratorError ?? new Error("Could not create CRM UI contributor.");
+await seedAdultMajorityFixture(admin,collaboratorCreated.user.id);
 const collaboratorId = collaboratorCreated.user.id;
 const collaboratorMembership = await admin.from("organization_members").insert({
   organization_id: membership.organization_id, user_id: collaboratorId,
