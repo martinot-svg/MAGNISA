@@ -8,6 +8,7 @@ import { isValidRegistrationRegion, normalizeUsername, USERNAME_PATTERN, NEW_USE
 import { createHmac } from "node:crypto";
 import { resolveLocality } from "@/lib/geo/madagascar-localities";
 import { headers } from "next/headers";
+import { isAtLeast18, isValidBirthDate } from "@/lib/auth/majority";
 
 const signupSchema = z.object({
   email: z.string().email(),
@@ -16,6 +17,8 @@ const signupSchema = z.object({
   last_name: z.string().trim().min(1).max(60),
   username: z.string().trim().min(3).max(11),
   confirm_password: z.string().min(10),
+  birth_date: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+  majority_confirmed: z.literal("true"),
   country_code: z.string().regex(/^[0-9]{3}$/),
   region_code: z.string().regex(/^9[0-2][0-9]$/),
   locality_name: z.string().trim().min(2).max(160),
@@ -31,6 +34,9 @@ export async function signUp(formData: FormData) {
   const username = normalizeUsername(parsed.data.username);
   const fullName = `${parsed.data.first_name} ${parsed.data.last_name}`.trim();
   if (parsed.data.password !== parsed.data.confirm_password) return { error: "Les mots de passe ne correspondent pas." };
+  if (!isValidBirthDate(parsed.data.birth_date) || !isAtLeast18(parsed.data.birth_date)) {
+    return { error: "Tu dois avoir au moins 18 ans pour créer un compte MAGNISA." };
+  }
   if (!NEW_USERNAME_PATTERN.test(username)) {
     return { error: "Le nom d’utilisateur doit comporter de 3 à 10 lettres minuscules après @." };
   }
@@ -83,6 +89,17 @@ export async function signUp(formData: FormData) {
   }
 
   if (!data.user) return { error: "Création du compte impossible." };
+
+  // Date of birth is stored in a private table via service-role RPC; never in user metadata.
+  const { error: ageError } = await admin.rpc("register_magnisa_signup_age", {
+    p_user: data.user.id,
+    p_birth_date: parsed.data.birth_date,
+    p_majority_confirmed: true,
+  });
+  if (ageError) {
+    console.error("[magnisa-age] private age registration failed:", ageError.code);
+    return { error: "Le compte a été créé mais son activation est suspendue à une vérification de sécurité. Contacte le support MAGNISA avant de poursuivre." };
+  }
 
   // Auth user_metadata is readable by the user: NEVER store geographic codes there.
   // The server calls a service-role-only RPC to attach the immutable origin privately.
