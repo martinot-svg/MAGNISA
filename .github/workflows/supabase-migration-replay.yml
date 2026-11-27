@@ -108,6 +108,31 @@ jobs:
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
           psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/reduce-overlapping-select-policies-contract.sql
 
+      - name: Verify company settings member view security invoker and field-level permission model
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/company-settings-member-view-security-contract.sql
+
+      - name: Verify duplicate index cleanup preserves canonical and constraint-backed indexes
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/duplicate-index-cleanup-contract.sql
+
+      - name: Verify MAGNIBOX internal draft recipient tenant isolation
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-internal-drafts-tenant-policy-contract.sql
+
+      - name: Verify btree_gist extension is outside public schema
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/btree-gist-extension-schema-contract.sql
+
+      - name: Verify auth.uid initplan optimization in 15 RLS policies
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/rls-auth-initplan-policy-contract.sql
+
       - name: Verify MAGNIBOX delivery event fencing contract
         run: |
           DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
