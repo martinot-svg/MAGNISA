@@ -13,6 +13,9 @@ describe("signup majority privacy and duplicate-account safeguards", () => {
     expect(migration).toContain("on conflict(user_id) do nothing");
     expect(migration).toContain("magnisa_consume_pending_signup_age");
     expect(migration).toContain("after insert on auth.users");
+    expect(migration).toContain("cron.schedule");
+    expect(migration).toContain("*/15 * * * *");
+    expect(migration).toContain("cleanup_expired_magnisa_signup_age_pending");
   });
   it("restricts age registration to service-role execution", () => {
     expect(migration).toContain("auth.jwt())->>'role','') <> 'service_role'");
