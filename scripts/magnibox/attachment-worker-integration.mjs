@@ -47,6 +47,7 @@ try {
     await writeFile("infra/magnibox-mail/.env.local-dev", "# generated temporarily by local E2E test\\n", { mode: 0o600, flag: "wx" });
     generatedEnvFile = true;
   }
+  await stageAdultMajorityFixture(admin,email);
   const user = unwrap(await admin.auth.admin.createUser({ email, password, email_confirm: true }), "create local test user");
   created.userId = user.user.id;
   await seedAdultMajorityFixture(admin, created.userId);
@@ -193,6 +194,7 @@ try {
   // Verify tenant isolation with a second authenticated user in a different organization.
   const secondEmail = "magnibox-isolation-" + randomUUID() + "@magnisa.test";
   const secondPassword = "Isolation-" + randomBytes(20).toString("hex") + "!9";
+  await stageAdultMajorityFixture(admin,secondEmail);
   const secondUser = unwrap(await admin.auth.admin.createUser({
     email: secondEmail, password: secondPassword, email_confirm: true,
   }), "create second isolated test user");

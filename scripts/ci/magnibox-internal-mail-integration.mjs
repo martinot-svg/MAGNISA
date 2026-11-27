@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 
@@ -21,6 +21,7 @@ const owner = client(anonKey);
 const fixtureId = randomUUID().slice(0, 12);
 const ownerEmail = `magnibox-owner-${fixtureId}@magnisa.test`;
 const ownerPassword = `MG-${randomBytes(18).toString("hex")}!a9`;
+await stageAdultMajorityFixture(admin,ownerEmail);
 const createdOwner = await admin.auth.admin.createUser({
   email: ownerEmail, password: ownerPassword, email_confirm: true,
 });
@@ -34,7 +35,6 @@ if (auth.error || auth.data.user?.id !== createdOwner.data.user.id) {
   throw auth.error || new Error("Connexion propriétaire impossible.");
 }
 const ownerId = createdOwner.data.user.id;
-await seedAdultMajorityFixture(admin,ownerId);
 await seedAdultMajorityFixture(admin,ownerId);
 const organization = await owner.rpc("create_organization", {
   p_name: `magnibox intégration ${fixtureId}`,
@@ -66,10 +66,10 @@ assert(ns.slug === namespace, "Identifiant entreprise magnibox non enregistré."
 async function createCollaborator(role) {
   const email = `magnibox-${role}-${randomUUID().slice(0, 8)}@magnisa.test`;
   const password = `MG-${randomBytes(18).toString("hex")}!a9`;
+  await stageAdultMajorityFixture(admin,email);
   const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
   if (created.error || !created.data.user) throw created.error || new Error("Création du collaborateur impossible.");
   const userId = created.data.user.id;
-  await seedAdultMajorityFixture(admin,userId);
   await seedAdultMajorityFixture(admin,userId);
   required(await admin.from("organization_members").insert({
     organization_id: organizationId, user_id: userId, role, status: "active",
@@ -334,6 +334,7 @@ assert(hiddenShared.length===0,"Les messages doivent disparaître après révoca
 // Une personne hors de l'organisation n'a pas accès au répertoire.
 const outsiderEmail = `magnibox-outsider-${suffix}@magnisa.test`;
 const outsiderPassword = `MG-${randomBytes(18).toString("hex")}!a9`;
+await stageAdultMajorityFixture(admin,outsiderEmail);
 const outsiderCreated = await admin.auth.admin.createUser({
   email: outsiderEmail, password: outsiderPassword, email_confirm: true,
 });

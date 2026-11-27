@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -15,6 +15,7 @@ const password = "Fixture-Identity-2026!Aa";
 let userId = null;
 let createdCompanyId = null;
 try {
+  await stageAdultMajorityFixture(admin,email);
   const created = await admin.auth.admin.createUser({
     email, password, email_confirm:true,
     user_metadata:{full_name:"Utilisateur MAGNISA Test"},
@@ -103,14 +104,15 @@ try {
     p_locality:"",
   });
   assert(!same.error,"Reconfirming current username should work.");
+  const secondEmail=`identity-second-${suffix}@magnisa.test`;
+  await stageAdultMajorityFixture(admin,secondEmail);
   const second=await admin.auth.admin.createUser({
-    email:`identity-second-${suffix}@magnisa.test`,
+    email:secondEmail,
     password, email_confirm:true,
     user_metadata:{full_name:"Deuxième utilisateur Test"}
   });
   if(second.error||!second.data.user)throw second.error??new Error("Second user creation failed");
   const otherId=second.data.user.id;
-  await seedAdultMajorityFixture(admin,otherId);
   await seedAdultMajorityFixture(admin,otherId);
   try{
     const other=await admin.from("profiles").select("public_id").eq("id",otherId).single();
