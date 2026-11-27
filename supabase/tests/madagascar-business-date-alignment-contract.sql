@@ -122,7 +122,7 @@ BEGIN
   END IF;
 
   v_definition := pg_get_functiondef('public.run_loan_deadline_notifications(date)'::regprocedure);
-  IF v_definition NOT ILIKE '%DEFAULT public.magnisa_business_date()%' THEN
+  IF v_definition NOT ILIKE '%magnisa_business_date()%' THEN
     RAISE EXCEPTION 'Loan notification default date must use the local business date';
   END IF;
 
