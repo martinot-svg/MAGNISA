@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { randomUUID, randomBytes } from "node:crypto";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

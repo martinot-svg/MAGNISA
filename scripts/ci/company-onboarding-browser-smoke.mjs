@@ -1,4 +1,5 @@
 import { chromium } from "playwright";
+import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID, randomBytes } from "node:crypto";
 
@@ -16,6 +17,7 @@ const {data:createdUser,error:userError}=await admin.auth.admin.createUser({
   email,password,email_confirm:true,
 });
 if(userError||!createdUser?.user)throw userError??new Error("Cannot create dedicated onboarding test user");
+await seedAdultMajorityFixture(admin,createdUser.user.id);
 const browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
 try{
   const page=await browser.newPage({viewport:{width:390,height:844}});

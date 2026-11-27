@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -48,6 +49,7 @@ if (collaboratorCreated.error || !collaboratorCreated.data.user) {
   throw collaboratorCreated.error ?? new Error("Could not create isolated CRM collaborator.");
 }
 const collaboratorId = collaboratorCreated.data.user.id;
+await seedAdultMajorityFixture(admin,collaboratorId);
 const memberInsert = await admin.from("organization_members").insert({
   organization_id: organizationId, user_id: collaboratorId, role: "owner", status: "active", department: "Commercial",
 });
@@ -272,6 +274,7 @@ const externalCreated = await admin.auth.admin.createUser({
 if (externalCreated.error || !externalCreated.data.user) {
   throw externalCreated.error ?? new Error("Could not create isolated external CRM user.");
 }
+await seedAdultMajorityFixture(admin,externalCreated.data.user.id);
 const external = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
 const externalAuth = await external.auth.signInWithPassword({ email: externalEmail, password: externalPassword });
 if (externalAuth.error) throw externalAuth.error;
