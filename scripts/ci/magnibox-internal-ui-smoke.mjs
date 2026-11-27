@@ -1,5 +1,5 @@
 import { chromium } from "playwright";
-import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 import { randomBytes, randomUUID } from "node:crypto";
@@ -14,6 +14,7 @@ const fixture=randomUUID().slice(0,12);
 async function makeUser(role){
   const email=`magnibox-ui-${role}-${fixture}@magnisa.test`;
   const password=`MG-${randomBytes(18).toString("hex")}!a9`;
+  await stageAdultMajorityFixture(admin,email);
   const created=await admin.auth.admin.createUser({email,password,email_confirm:true});
   if(created.error||!created.data.user)throw created.error||new Error("Impossible de créer le compte MAGNIBOX UI");
   await seedAdultMajorityFixture(admin,created.data.user.id);

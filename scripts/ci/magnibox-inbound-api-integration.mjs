@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, randomUUID, createHash } from "node:crypto";
-import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
 import { createClient } from "@supabase/supabase-js";
 import { spawnSync, execFileSync } from "node:child_process";
@@ -48,6 +48,7 @@ function signedRequest(payload, signatureOverride) {
   });
 }
 try {
+  await stageAdultMajorityFixture(admin,email);
   const user = unwrap(await admin.auth.admin.createUser({ email, password, email_confirm: true }), "create inbound test user");
   created.userId = user.user.id;
   await seedAdultMajorityFixture(admin,created.userId);
