@@ -76,6 +76,14 @@ export default function Signup() {
             placeholder="Masinjaka" value={lastName} onChange={e => setLastName(e.target.value)} />
         </div>
         <div className="field">
+          <label htmlFor="signup-birth-date">Date de naissance</label>
+          <input id="signup-birth-date" name="birth_date" type="date" required max={new Date().toISOString().slice(0,10)} autoComplete="bday" />
+          <small>MAGNISA est réservé aux personnes âgées d'au moins 18 ans.</small>
+        </div>
+        <div className="field">
+          <label><input name="majority_confirmed" type="checkbox" value="true" required /> Je confirme que les informations fournies sont exactes et que j'ai au moins 18 ans.</label>
+        </div>
+        <div className="field">
           <label htmlFor="signup-username">Nom d'utilisateur MAGNISA</label>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <span aria-hidden="true" style={{ fontWeight:700 }}>@</span>

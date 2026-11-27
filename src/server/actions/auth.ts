@@ -8,6 +8,7 @@ import { isValidRegistrationRegion, normalizeUsername, USERNAME_PATTERN, NEW_USE
 import { createHmac } from "node:crypto";
 import { resolveLocality } from "@/lib/geo/madagascar-localities";
 import { headers } from "next/headers";
+import { isAtLeast18, isValidBirthDate } from "@/lib/auth/majority";
 
 const signupSchema = z.object({
   email: z.string().email(),
@@ -16,6 +17,8 @@ const signupSchema = z.object({
   last_name: z.string().trim().min(1).max(60),
   username: z.string().trim().min(3).max(11),
   confirm_password: z.string().min(10),
+  birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  majority_confirmed: z.literal("true"),
   country_code: z.string().regex(/^[0-9]{3}$/),
   region_code: z.string().regex(/^9[0-2][0-9]$/),
   locality_name: z.string().trim().min(2).max(160),
@@ -31,6 +34,9 @@ export async function signUp(formData: FormData) {
   const username = normalizeUsername(parsed.data.username);
   const fullName = `${parsed.data.first_name} ${parsed.data.last_name}`.trim();
   if (parsed.data.password !== parsed.data.confirm_password) return { error: "Les mots de passe ne correspondent pas." };
+  if (!isValidBirthDate(parsed.data.birth_date) || !isAtLeast18(parsed.data.birth_date)) {
+    return { error: "Tu dois avoir au moins 18 ans pour créer un compte MAGNISA." };
+  }
   if (!NEW_USERNAME_PATTERN.test(username)) {
     return { error: "Le nom d’utilisateur doit comporter de 3 à 10 lettres minuscules après @." };
   }
@@ -63,6 +69,16 @@ export async function signUp(formData: FormData) {
     };
   }
 
+  const { error: existingEmailError, data: existingEmail } = await admin.from("profiles")
+    .select("id").eq("email", email).maybeSingle();
+  if (existingEmailError) return { error: "Vérification du compte indisponible. Réessaie." };
+  if (existingEmail) return { error: "Un compte existe déjà avec cette adresse e-mail." };
+
+  const { error: ageStageError } = await admin.rpc("stage_magnisa_signup_age", {
+    p_email: email, p_birth_date: parsed.data.birth_date, p_majority_confirmed: true,
+  });
+  if (ageStageError) return { error: "Impossible de sécuriser la vérification de majorité. Réessaie." };
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password: parsed.data.password,
@@ -75,6 +91,7 @@ export async function signUp(formData: FormData) {
   });
 
   if (error) {
+    await admin.rpc("cancel_magnisa_signup_age_pending", { p_email: email });
     const message = error.message.toLowerCase();
     if (message.includes("already") || message.includes("registered")) {
       return { error: "Un compte existe déjà avec cette adresse e-mail." };
@@ -82,8 +99,22 @@ export async function signUp(formData: FormData) {
     return { error: "Impossible de créer le compte. Réessaie dans quelques instants." };
   }
 
-  if (!data.user) return { error: "Création du compte impossible." };
+  if (!data.user) {
+    await admin.rpc("cancel_magnisa_signup_age_pending", { p_email: email });
+    return { error: "Création du compte impossible." };
+  }
+  // Supabase can return a synthetic identity for an existing email.
+  if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    await admin.rpc("cancel_magnisa_signup_age_pending", { p_email: email });
+    return { error: "Un compte existe déjà avec cette adresse e-mail." };
+  }
+  if (!data.user.id) {
+    await admin.rpc("cancel_magnisa_signup_age_pending", { p_email: email });
+    return { error: "Création du compte impossible." };
+  }
 
+  // The auth.users trigger consumes this private, short-lived pending record
+  // in the same transaction as Auth user creation. DOB is never user_metadata.
   // Auth user_metadata is readable by the user: NEVER store geographic codes there.
   // The server calls a service-role-only RPC to attach the immutable origin privately.
   if (data.user.email?.trim().toLowerCase() === email && data.user.id) {

@@ -16,7 +16,7 @@ const DEFAULT: CompanyOnboarding = {
   legalName:"",tradeName:"",slogan:"",sectorCode:"",primaryActivity:"",secondaryActivities:[],
   legalForm:"EI",registrationStatus:"pending",nif:"",stat:"",rcs:"",
   country:"MG",regionCode:"",localityName:"",localityRef:"",address:"",phone:"",email:"",
-  currency:"MGA",taxRegime:"A_VERIFIER",vatStatus:"A_VERIFIER",
+  currency:"MGA",taxRegime:"",vatStatus:"A_VERIFIER",
   fiscalStart:"",fiscalEnd:"",hasExistingAccounts:false,
 };
 const labels:Record<string,string> = {
@@ -78,7 +78,7 @@ export function CompanyCreationWizard({year}:{year:number}) {
     details.sectorCode.length>0 && details.primaryActivity.trim().length>=2
     : step===1 ? !!details.legalForm && !!details.registrationStatus
     : step===2 ? !!details.regionCode && details.localityName.trim().length>=2
-    : step===3 ? !!details.taxRegime && !!details.vatStatus &&
+     : step===3 ? !!details.vatStatus &&
       details.fiscalStart.length===10 && details.fiscalEnd>details.fiscalStart
     : true;
 
@@ -280,9 +280,9 @@ export function CompanyCreationWizard({year}:{year:number}) {
       </>}
       {step===3 && <>
         <div className="grid2">
-          <div className="field"><label htmlFor="co-tax">Régime fiscal déclaré *</label><select id="co-tax"
+          <div className="field"><label htmlFor="co-tax">Régime fiscal déclaré (facultatif)</label><select id="co-tax"
             value={details.taxRegime} onChange={e=>update("taxRegime",e.target.value as CompanyOnboarding["taxRegime"])}>
-            <option value="A_VERIFIER">À confirmer</option><option value="IS">IS — Impôt synthétique</option>
+            <option value="">Je le renseignerai plus tard</option><option value="A_VERIFIER">À confirmer</option><option value="IS">IS — Impôt synthétique</option>
             <option value="IR">IR — Impôt sur les revenus</option>
           </select></div>
           <div className="field"><label htmlFor="co-vat">Situation TVA *</label><select id="co-vat" value={details.vatStatus}
@@ -319,7 +319,7 @@ export function CompanyCreationWizard({year}:{year:number}) {
             <strong>Statut :</strong> {details.registrationStatus==="registered"?"Immatriculée":"En cours de formalisation"}<br/>
             <strong>Région :</strong> {REGISTRATION_REGIONS.find(x=>x.code===details.regionCode)?.name}<br/>
             <strong>Localité :</strong> {details.localityName}</p>
-          <p><strong>Régime :</strong> {details.taxRegime}<br/>
+          <p><strong>Régime :</strong> {details.taxRegime||"Non renseigné"}<br/>
             <strong>TVA :</strong> {details.vatStatus}<br/>
             <strong>Exercice :</strong> {details.fiscalStart} au {details.fiscalEnd}<br/>
             <strong>Devise :</strong> {details.currency}</p>
