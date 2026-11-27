@@ -2,6 +2,8 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/current-org";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isAtLeast18, isValidBirthDate } from "@/lib/auth/majority";
 
 async function respondToInvitation(formData: FormData) {
   "use server";
@@ -10,7 +12,19 @@ async function respondToInvitation(formData: FormData) {
   if (!organizationId || !["true", "false"].includes(response)) throw new Error("Invitation invalide.");
   const accept = response === "true";
 
-  const { supabase } = await requireUser();
+  const { supabase, user } = await requireUser();
+  if (accept) {
+    const birthDate = String(formData.get("birth_date") || "");
+    const majorityConfirmed = String(formData.get("majority_confirmed") || "") === "true";
+    if (!isValidBirthDate(birthDate) || !isAtLeast18(birthDate) || !majorityConfirmed) {
+      throw new Error("Pour accepter une invitation, tu dois avoir au moins 18 ans et confirmer ta majorité.");
+    }
+    const admin = createAdminClient();
+    const { error: ageError } = await admin.rpc("register_magnisa_signup_age", {
+      p_user: user.id, p_birth_date: birthDate, p_majority_confirmed: true,
+    });
+    if (ageError) throw new Error("Impossible d'enregistrer la vérification de majorité. L'invitation reste en attente.");
+  }
   const { error } = await (supabase as any).rpc("respond_to_organization_invitation", {
     p_organization_id: organizationId,
     p_accept: accept,
@@ -60,9 +74,12 @@ export default async function PersonalSpace() {
               <p>Rôle proposé : {invitation.role}</p>
               <p className="muted">Invitation reçue le {new Date(invitation.invited_at).toLocaleDateString("fr-FR")}</p>
               <div className="actions">
-                <form action={respondToInvitation}>
+                <form action={respondToInvitation} className="form" style={{maxWidth:360}}>
                   <input type="hidden" name="organization_id" value={invitation.organization_id} />
                   <input type="hidden" name="accept" value="true" />
+                  <label htmlFor={`invitation-birth-${invitation.organization_id}`}>Date de naissance (requise pour vérifier la majorité)</label>
+                  <input id={`invitation-birth-${invitation.organization_id}`} name="birth_date" type="date" required max={new Date().toISOString().slice(0,10)} />
+                  <label><input name="majority_confirmed" type="checkbox" value="true" required /> Je confirme avoir au moins 18 ans.</label>
                   <button className="button primary" type="submit">Accepter</button>
                 </form>
                 <form action={respondToInvitation}>

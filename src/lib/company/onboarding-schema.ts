@@ -33,7 +33,7 @@ export const companyOnboardingSchema = z.object({
   phone: optional,
   email: email,
   currency: z.enum(["MGA","EUR","USD"]),
-  taxRegime: z.enum(["IS","IR","A_VERIFIER"]),
+  taxRegime: z.enum(["","IS","IR","A_VERIFIER"]).default(""),
   vatStatus: z.enum(["ASSUJETTIE","NON_ASSUJETTIE","A_VERIFIER"]),
   fiscalStart: dateString,
   fiscalEnd: dateString,

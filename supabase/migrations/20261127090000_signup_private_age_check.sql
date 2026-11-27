@@ -41,7 +41,9 @@ begin
   end if;
   insert into private.magnisa_signup_age_checks(user_id,birth_date,majority_confirmed_at)
   values(p_user,p_birth_date,now())
-  on conflict(user_id) do nothing;
+  on conflict(user_id) do update set
+    birth_date=excluded.birth_date,
+    majority_confirmed_at=excluded.majority_confirmed_at;
 end;
 $magnisa$;
 revoke all on function public.register_magnisa_signup_age(uuid,date,boolean) from public,anon,authenticated;
