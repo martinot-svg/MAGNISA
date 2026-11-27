@@ -39,6 +39,7 @@ const expectRpcErrorContaining = async (client, name, args, expected, message) =
 
 const suffix = Date.now();
 const collaboratorEmail = `crm-contributor-${suffix}@magnisa.test`;
+await stageAdultMajorityFixture(admin,collaboratorEmail);
 const collaboratorCreated = await admin.auth.admin.createUser({
   email: collaboratorEmail,
   password: `CRM-Integration-${suffix}!Aa9`,
@@ -49,6 +50,7 @@ if (collaboratorCreated.error || !collaboratorCreated.data.user) {
   throw collaboratorCreated.error ?? new Error("Could not create isolated CRM collaborator.");
 }
 const collaboratorId = collaboratorCreated.data.user.id;
+await seedAdultMajorityFixture(admin,collaboratorId);
 await seedAdultMajorityFixture(admin,collaboratorId);
 const memberInsert = await admin.from("organization_members").insert({
   organization_id: organizationId, user_id: collaboratorId, role: "owner", status: "active", department: "Commercial",
@@ -267,6 +269,7 @@ for (const table of [
 
 const externalEmail = `crm-external-${suffix}@magnisa.test`;
 const externalPassword = `External-${suffix}-${crypto.randomUUID()}!Aa9`;
+await stageAdultMajorityFixture(admin,externalEmail);
 const externalCreated = await admin.auth.admin.createUser({
   email: externalEmail, password: externalPassword, email_confirm: true,
   user_metadata: { full_name: "MAGNISA CRM External Integration User" },

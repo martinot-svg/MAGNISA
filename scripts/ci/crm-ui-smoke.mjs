@@ -22,6 +22,7 @@ if (membershipError || !membership) throw membershipError ?? new Error("CRM smok
 if (membership.role !== "owner") throw new Error("CRM smoke user must be the isolated organization owner.");
 const collaboratorEmail = "crm-ui-contributor@" + Date.now() + ".magnisa.test";
 const collaboratorPassword = "CRM-UI-Test-2026!Aa9";
+await stageAdultMajorityFixture(admin,collaboratorEmail);
 const { data: collaboratorCreated, error: collaboratorError } = await admin.auth.admin.createUser({
   email: collaboratorEmail, password: collaboratorPassword, email_confirm: true,
   user_metadata: { full_name: "MAGNISA CRM UI Contributor" },
@@ -29,6 +30,7 @@ const { data: collaboratorCreated, error: collaboratorError } = await admin.auth
 if (collaboratorError || !collaboratorCreated.user) throw collaboratorError ?? new Error("Could not create CRM UI contributor.");
 await seedAdultMajorityFixture(admin,collaboratorCreated.user.id);
 const collaboratorId = collaboratorCreated.user.id;
+await seedAdultMajorityFixture(admin,collaboratorId);
 const collaboratorMembership = await admin.from("organization_members").insert({
   organization_id: membership.organization_id, user_id: collaboratorId,
   role: "owner", status: "active", department: "Commercial",

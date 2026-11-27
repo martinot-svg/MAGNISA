@@ -72,6 +72,7 @@ if (Buffer.byteLength(viewerPassword, "utf8") > 72) {
 if (Buffer.byteLength(viewerPassword, "utf8") !== 39) {
   throw new Error("Generated fixed-asset viewer password must keep its fixed 39-byte high-entropy format.");
 }
+await stageAdultMajorityFixture(admin,viewerEmail);
 const created = await admin.auth.admin.createUser({
   email: viewerEmail,
   password: viewerPassword,
@@ -82,6 +83,7 @@ if (created.error || !created.data.user) {
   throw created.error ?? new Error("Could not create isolated fixed-asset viewer.");
 }
 const viewerId = created.data.user.id;
+await seedAdultMajorityFixture(admin,viewerId);
 await seedAdultMajorityFixture(admin,viewerId);
 const viewerMembership = await admin.from("organization_members").insert({
   organization_id: organizationId,
