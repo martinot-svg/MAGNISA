@@ -69,6 +69,16 @@ export async function signUp(formData: FormData) {
     };
   }
 
+  const { error: existingEmailError, data: existingEmail } = await admin.from("profiles")
+    .select("id").eq("email", email).maybeSingle();
+  if (existingEmailError) return { error: "Vérification du compte indisponible. Réessaie." };
+  if (existingEmail) return { error: "Un compte existe déjà avec cette adresse e-mail." };
+
+  const { error: ageStageError } = await admin.rpc("stage_magnisa_signup_age", {
+    p_email: email, p_birth_date: parsed.data.birth_date, p_majority_confirmed: true,
+  });
+  if (ageStageError) return { error: "Impossible de sécuriser la vérification de majorité. Réessaie." };
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password: parsed.data.password,
@@ -81,6 +91,7 @@ export async function signUp(formData: FormData) {
   });
 
   if (error) {
+    await admin.rpc("cancel_magnisa_signup_age_pending", { p_email: email });
     const message = error.message.toLowerCase();
     if (message.includes("already") || message.includes("registered")) {
       return { error: "Un compte existe déjà avec cette adresse e-mail." };
@@ -88,24 +99,22 @@ export async function signUp(formData: FormData) {
     return { error: "Impossible de créer le compte. Réessaie dans quelques instants." };
   }
 
-  if (!data.user) return { error: "Création du compte impossible." };
-  // Supabase may return a synthetic user for an already-registered email.
-  // Never attach a new DOB to an existing account during that response.
+  if (!data.user) {
+    await admin.rpc("cancel_magnisa_signup_age_pending", { p_email: email });
+    return { error: "Création du compte impossible." };
+  }
+  // Supabase can return a synthetic identity for an existing email.
   if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    await admin.rpc("cancel_magnisa_signup_age_pending", { p_email: email });
     return { error: "Un compte existe déjà avec cette adresse e-mail." };
   }
-
-  // Date of birth is stored in a private table via service-role RPC; never in user metadata.
-  const { error: ageError } = await admin.rpc("register_magnisa_signup_age", {
-    p_user: data.user.id,
-    p_birth_date: parsed.data.birth_date,
-    p_majority_confirmed: true,
-  });
-  if (ageError) {
-    console.error("[magnisa-age] private age registration failed:", ageError.code);
-    return { error: "Le compte a été créé mais son activation est suspendue à une vérification de sécurité. Contacte le support MAGNISA avant de poursuivre." };
+  if (!data.user.id) {
+    await admin.rpc("cancel_magnisa_signup_age_pending", { p_email: email });
+    return { error: "Création du compte impossible." };
   }
 
+  // The auth.users trigger consumes this private, short-lived pending record
+  // in the same transaction as Auth user creation. DOB is never user_metadata.
   // Auth user_metadata is readable by the user: NEVER store geographic codes there.
   // The server calls a service-role-only RPC to attach the immutable origin privately.
   if (data.user.email?.trim().toLowerCase() === email && data.user.id) {
