@@ -64,7 +64,7 @@ BEGIN
              i.indcollation::text,i.indoption::text,
              coalesce(pg_get_expr(i.indexprs,i.indrelid), ''),
              coalesce(pg_get_expr(i.indpred,i.indrelid), ''),
-             i.indisunique,i.indprimary
+             i.indisunique,i.indisprimary
     HAVING count(*)>1
   ) THEN
     RAISE EXCEPTION 'Removable identical indexes remain on audited tables';
