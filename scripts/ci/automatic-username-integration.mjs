@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { seedAdultMajorityFixture } from "./majority-fixtures.mjs";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "./majority-fixtures.mjs";
 
 // Isolated Supabase CI only: verify atomic ten-letter username allocation.
 const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -19,7 +19,6 @@ async function create(given,family,alias) {
   if(error||!data.user)throw error??Error("Could not create test identity");
   await seedAdultMajorityFixture(admin,data.user.id);
   ids.push(data.user.id);
-  await seedAdultMajorityFixture(admin,data.user.id);
   const result=await admin.from("profiles").select("username,public_id").eq("id",data.user.id).single();
   if(result.error)throw result.error;
   return result.data;
