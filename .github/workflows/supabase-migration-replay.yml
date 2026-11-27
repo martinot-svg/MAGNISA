@@ -59,6 +59,7 @@ jobs:
         with:
           version: 3.0.0
 
+
       - name: Start local Supabase stack on PostgreSQL 17
         run: |
           # Avoid collisions with PostgreSQL already bound to the runner's default 54322.
@@ -76,6 +77,36 @@ jobs:
 
       - name: Replay every migration from a clean database
         run: supabase db reset --yes
+
+      - name: Verify service catalogue categories and versioned pricing contract
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/service-catalog-category-price-version-contract.sql
+
+      - name: Verify tenant-safe resource reservation time-window contract
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/resource-reservations-time-window-contract.sql
+
+      - name: Verify durable tenant-scoped automation queue contract
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/automation-durable-job-queue-contract.sql
+
+      - name: Verify MAGNIBOX atomic outbound quota contract
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-atomic-outbound-quota-contract.sql
+
+      - name: Verify Madagascar business dates and recurring invoice preparation horizon
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/madagascar-business-date-alignment-contract.sql
+
+      - name: Verify MAGNIBOX delivery event fencing contract
+        run: |
+          DB_URL=$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/magnibox-delivery-event-fencing-contract.sql
 
       - name: Verify MAGNISA username selection, uniqueness and fallback
         run: |

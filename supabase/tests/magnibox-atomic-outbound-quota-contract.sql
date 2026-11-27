@@ -1,7 +1,7 @@
 -- Read-only contract for atomic MAGNIBOX outbound quota reservation.
 DO $magnibox_quota$
 DECLARE
-  v_fn oid := to_regprocedure('public.orbit_reserve_magnibox_outbound(uuid,uuid,text,text[],text,text,uuid,uuid,integer)');
+  v_fn oid := to_regprocedure('public.orbit_reserve_magnibox_outbound(uuid,uuid,text,text[],text,text,text,uuid,uuid,integer)');
   v_def text;
 BEGIN
   IF NOT EXISTS (
@@ -9,7 +9,10 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'MAGNIBOX atomic quota migration absent';
   END IF;
-  IF v_fn IS NULL THEN RAISE EXCEPTION 'MAGNIBOX quota reservation RPC missing'; END IF;
+  IF v_fn IS NULL THEN RAISE EXCEPTION 'Fingerprint-aware MAGNIBOX quota reservation RPC missing'; END IF;
+  IF to_regprocedure('public.orbit_reserve_magnibox_outbound(uuid,uuid,text,text[],text,text,uuid,uuid,integer)') IS NOT NULL THEN
+    RAISE EXCEPTION 'Legacy fingerprint-free quota reservation RPC remains callable';
+  END IF;
   IF NOT has_function_privilege('service_role',v_fn,'EXECUTE') THEN
     RAISE EXCEPTION 'Service role cannot reserve outbound quota';
   END IF;
@@ -22,7 +25,9 @@ BEGIN
     RAISE EXCEPTION 'Quota reservation must enforce its own transaction boundary';
   END IF;
   SELECT pg_catalog.pg_get_functiondef(v_fn) INTO v_def;
-  IF pg_catalog.strpos(v_def, 'outbound request key already exists') = 0
+  IF pg_catalog.strpos(v_def, 'p_request_fingerprint') = 0
+    OR pg_catalog.strpos(v_def, 'request_fingerprint') = 0
+    OR pg_catalog.strpos(v_def, 'outbound request key already exists') = 0
     OR pg_catalog.strpos(v_def, 'outbound quota exceeded') = 0
     OR pg_catalog.strpos(v_def, 'outbound request key already exists') > pg_catalog.strpos(v_def, 'outbound quota exceeded') THEN
     RAISE EXCEPTION 'Idempotent retry must be resolved before quota evaluation';
