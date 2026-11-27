@@ -1,14 +1,34 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-describe("organization invitation majority SQL fixture",()=>{
+describe("majority-aware integration fixtures",()=>{
  const sql=readFileSync("supabase/tests/organization-invitation-acceptance-integration.sql","utf8");
- it("seeds a majority record only for the adult acceptance fixture",()=>{
-  expect(sql).toContain("INSERT INTO private.magnisa_signup_age_checks");
-  expect(sql).toContain("'10000000-0000-4000-8000-000000000101'");
+ const worker=readFileSync("scripts/magnibox/attachment-worker-integration.mjs","utf8");
+ const helper=readFileSync("scripts/ci/majority-fixtures.mjs","utf8");
+ it("uses service-role RPCs, not private-table REST access",()=>{
+  expect(helper).toContain('admin.rpc("stage_magnisa_signup_age"');
+  expect(helper).toContain('admin.rpc("register_magnisa_signup_age"');
+  expect(helper).not.toContain('admin.from("magnisa_signup_age_checks")');
  });
- it("uses valid PL/pgSQL delimiters and tests missing-majority rejection",()=>{
+ it("stages both attachment worker identities before Auth creation",()=>{
+  expect(worker).toContain("stageAdultMajorityFixture(admin,email)");
+  expect(worker).toContain("seedAdultMajorityFixture(admin,created.userId)");
+  expect(worker).toContain("stageAdultMajorityFixture(admin,secondEmail)");
+  expect(worker).toContain("seedAdultMajorityFixture(admin,created.secondUserId)");
+  expect(worker).not.toContain('admin.from("magnisa_signup_age_checks")');
+ });
+ it("stages completed-signup SQL fixtures before auth.users insert",()=>{
+  expect(sql.indexOf("private.magnisa_signup_age_pending")).toBeLessThan(sql.indexOf("INSERT INTO auth.users"));
+  expect(sql).not.toContain("INSERT INTO private.magnisa_signup_age_checks");
+ });
+ it("creates the invited no-age account before switching to authenticated",()=>{
+  const user=sql.indexOf("'invite-no-age@magnisa.test',now(),now(),now(),now(),");
+  expect(user).toBeGreaterThanOrEqual(0);
+  expect(user).toBeLessThan(sql.indexOf("SET LOCAL ROLE authenticated"));
+ });
+ it("uses valid PL/pgSQL delimiters and preserves majority rejection",()=>{
   expect(sql).toContain("DO $$");
-  expect(sql).not.toContain("DO $\n");
+  expect(sql).not.toContain("DO $\\n");
   expect(sql).toContain("Confirmed user without a majority record");
+  expect((sql.match(/\\$\\$/g)||[]).length%2).toBe(0);
  });
 });

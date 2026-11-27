@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "../ci/majority-fixtures.mjs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { access, unlink, writeFile } from "node:fs/promises";
@@ -46,14 +47,10 @@ try {
     await writeFile("infra/magnibox-mail/.env.local-dev", "# generated temporarily by local E2E test\\n", { mode: 0o600, flag: "wx" });
     generatedEnvFile = true;
   }
+  await stageAdultMajorityFixture(admin,email);
   const user = unwrap(await admin.auth.admin.createUser({ email, password, email_confirm: true }), "create local test user");
   created.userId = user.user.id;
-  const { error: ageRecordError } = await admin.from("magnisa_signup_age_checks").insert({
-    user_id: user.user.id,
-    birth_date: "1990-01-01",
-    majority_confirmed_at: new Date().toISOString(),
-  });
-  if (ageRecordError) throw new Error("register isolated fixture majority: " + ageRecordError.message);
+  await seedAdultMajorityFixture(admin,created.userId);
   const owner = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
   unwrap(await owner.auth.signInWithPassword({ email, password }), "sign in test owner");
   const org = unwrap(await owner.rpc("create_organization", {
@@ -197,10 +194,12 @@ try {
   // Verify tenant isolation with a second authenticated user in a different organization.
   const secondEmail = "magnibox-isolation-" + randomUUID() + "@magnisa.test";
   const secondPassword = "Isolation-" + randomBytes(20).toString("hex") + "!9";
+  await stageAdultMajorityFixture(admin,secondEmail);
   const secondUser = unwrap(await admin.auth.admin.createUser({
     email: secondEmail, password: secondPassword, email_confirm: true,
   }), "create second isolated test user");
   created.secondUserId = secondUser.user.id;
+  await seedAdultMajorityFixture(admin,created.secondUserId);
   const secondOwner = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
   unwrap(await secondOwner.auth.signInWithPassword({ email: secondEmail, password: secondPassword }),
     "sign in second isolated test owner");
