@@ -17,6 +17,9 @@ Cette section consigne uniquement les preuves consultées pendant la vérificati
 - Onboarding : les trois choix demandés sont présents ; la carte des finances personnelles est désactivée et annoncée « Bientôt disponible ».
 - Wizard organisation : cinq étapes présentes, validation Zod partagée, champs NIF/STAT/RCS, adresse organisationnelle et régime fiscal/TVA avec valeur « À confirmer ».
 - Données organisationnelles : `company_settings.bank_details` existe déjà en texte. Les politiques RLS observées limitent la table brute aux rôles owner/admin ; le read model applique un masquage par permission. La structure bancaire/sociale dédiée prévue par la phase 6 n'est pas confirmée.
+- Contrôles SQL ciblés en lecture seule : quatre assertions réussies pour la vue des paramètres (security_invoker + security_barrier), la fonction de lecture permission-aware (SECURITY DEFINER, search_path fixé, grants), la RLS restrictive de la table brute et la RLS de `profiles`.
+- Supabase Security Advisor : 24 tables RLS sans policy (INFO) et 153 fonctions SECURITY DEFINER exécutables par authenticated (WARN). Les 153 ont un `search_path` fixé ; deux fonctions sans contrôle d'identité inline délèguent à des helpers de membership/permission dont les définitions ont été inspectées. La revue exhaustive reste ouverte.
+- Supabase Performance Advisor : 266 clés étrangères sans index couvrant et 47 index signalés inutilisés (INFO). Aucun index n'a été modifié automatiquement.
 
 ### Points non validés / critères de clôture encore ouverts
 - Comparaison exhaustive des migrations locales, staging et production, y compris sauvegarde chiffrée et restauration isolée : preuves complètes non réunies dans cet instantané.
