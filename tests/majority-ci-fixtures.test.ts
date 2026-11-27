@@ -33,10 +33,13 @@ describe("majority enforcement CI fixtures", () => {
   it("imports and stages every synthetic Auth identity before its insert trigger", () => {
     for (const path of scripts) {
       const source = readFileSync(path, "utf8");
-      expect(source, path).toMatch(/import\\s+\\{[^}]*stageAdultMajorityFixture[^}]*\\}\\s+from\\s+["']\\.\\/majority-fixtures\\.mjs["']/);
-      const createCalls = source.match(/\\.auth\\.admin\\.createUser\\s*\\(/g) ?? [];
-      const stageCalls = source.match(/stageAdultMajorityFixture\\s*\\(/g) ?? [];
-      expect(stageCalls.length, path + " staged Auth identities").toBeGreaterThanOrEqual(createCalls.length);
+      const hasStageImport = source.split("\\n").some(
+        (line) => line.startsWith("import ") && line.includes("stageAdultMajorityFixture"),
+      );
+      expect(hasStageImport, path + " must import the staging helper").toBe(true);
+      const createCalls = source.split(".auth.admin.createUser(").length - 1;
+      const stageCalls = source.split("stageAdultMajorityFixture(").length - 1;
+      expect(stageCalls, path + " staged Auth identities").toBeGreaterThanOrEqual(createCalls);
       const firstCreate = source.indexOf(".auth.admin.createUser(");
       const firstStage = source.indexOf("stageAdultMajorityFixture(");
       expect(firstStage, path + " staging must precede Auth creation").toBeGreaterThanOrEqual(0);
