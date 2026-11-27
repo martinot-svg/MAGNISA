@@ -27,7 +27,7 @@ begin
     raw_app_meta_data, raw_user_meta_data, created_at, updated_at
   ) values (
     v_owner, 'authenticated', 'authenticated',
-    v_owner::text || '@payroll-date-conflict.test', '',
+    'payroll-date-conflict-fixture@example.invalid', '',
     now(), '{"provider":"email","providers":["email"]}'::jsonb,
     '{}'::jsonb, now(), now()
   );
