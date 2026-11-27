@@ -1,5 +1,17 @@
 # Historique du dossier
 
+## 1.3 — 2026-11-27 — Validation CI et statut de livraison
+- PR #413 fusionnée dans `main` : commit `832566fd2341849b43bb3574b52f44332ee9d654`. Elle contient l'instantané de clôture et les constats SQL/Advisor.
+- PR #401 : `MAGNISA CI` et `Supabase migration replay` réussis (runs #4739 et #2788). Elle corrige le contexte JWT de l'assertion owner et le test de snapshot vide après l'échec historique du run #2782 sur PR #400.
+- PR #402 : `MAGNISA CI`, `Supabase migration replay` et `MAGNIBOX local Postfix to Mailpit E2E` réussis (runs #4783, #2807 et #389). Déploiement Vercel de production READY sur le merge commit `f631368a51206e7f4ff49610e370bd402a1169eb`.
+- PR #411 : les trois workflows `MAGNISA CI`, `Supabase migration replay` et `MAGNIBOX local Postfix to Mailpit E2E` sont réussis (runs #4908, #2849 et #427). Le rejeu complet depuis une base PostgreSQL 17 vierge, les contrats SQL, les parcours navigateur d'identité et de wizard entreprise, les tests multi-tenant et les tests responsive 13 tailles sont réussis.
+- PR #412 : les trois workflows correspondants sont réussis (runs #4902, #2847 et #425). Le rejeu complet des migrations et les contrats d'index/FK sont réussis.
+- La CI #411/#412 confirme aussi les tests d'acceptation/refus d'invitations, le read model des paramètres par rôle, le test RLS de deux tenants, les scripts de préservation de tenant et le contrôle responsive.
+- PR #414 ouverte : resserre le test d'intégration du nouveau username à 3–10 lettres. Sur son commit `ab227e8a23a8b29b5fe19a5c28651b7b77904d9b`, `MAGNISA CI` et `MAGNIBOX local E2E` sont réussis ; `Supabase migration replay` est encore en cours au dernier contrôle (81 étapes réussies, aucune en échec).
+- La branche `release/magnisa-8-phase-finalization` est derrière `main` de 74 commits, sans commit en avance. Son déploiement Vercel READY `ff5f59ec33bfe1237dab0cbcc7b3c528c1644636` est un preview ancien (`target=null`), pas un staging actuel.
+- Aucun déploiement Vercel de production postérieur à #402 n'a été trouvé. Les PR #411/#412 modifient les migrations et contrats SQL, pas le code applicatif ; PR #413 est documentaire et #414 est un test. Le déploiement applicatif #402 reste donc le dernier déploiement de code observé, mais aucun smoke test live post-déploiement n'a été exécuté dans cette session.
+- Le workflow #2782 en échec sur PR #400 est historique et son défaut de contexte JWT a été corrigé par #401 ; les rejeux complets #2847 et #2849 passent.
+
 ## 1.2 — 2026-11-27 — Inspection applicative complémentaire
 - HEAD de `main` observé à l'ouverture de la PR documentaire #413 : `d374bab33661f4c34ab7a2d2aee1fbc90f8c4b9b`.
 - Inspection du code d'inscription : `signUp` vérifie les noms, l'e-mail, le username, le mot de passe et sa confirmation ; il requiert aussi `country_code`, `region_code` et `locality_name` pour l'origine d'inscription. Le téléphone, la date de naissance et une résidence distincte ne sont pas collectés dans ce schéma.
