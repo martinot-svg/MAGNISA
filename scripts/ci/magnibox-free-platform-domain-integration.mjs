@@ -13,10 +13,8 @@ async function fixture(role){
   const email=`magnibox-free-domain-${role}-${token}@magnisa.test`;
   const password=`MFD-${randomBytes(16).toString("hex")}!a9`;
   await stageAdultMajorityFixture(admin,email);
-  await stageAdultMajorityFixture(admin,email);
   const created=await admin.auth.admin.createUser({email,password,email_confirm:true});
   if(created.error||!created.data.user)throw created.error||Error("Could not create isolated test user");
-  await seedAdultMajorityFixture(admin,created.data.user.id);
   await seedAdultMajorityFixture(admin,created.data.user.id);
   const account=client(anon);
   const login=await account.auth.signInWithPassword({email,password});

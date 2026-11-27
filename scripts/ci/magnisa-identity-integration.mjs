@@ -22,7 +22,6 @@ try {
   if (created.error || !created.data.user) throw created.error || new Error("Cannot create user");
   userId = created.data.user.id;
   await seedAdultMajorityFixture(admin,userId);
-  await seedAdultMajorityFixture(admin,userId);
   const origin = await admin.rpc("register_magnisa_signup_origin",{
     p_user:userId,p_country:"261",p_locality:"601"
   });
