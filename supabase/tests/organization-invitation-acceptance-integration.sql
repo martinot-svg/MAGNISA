@@ -166,7 +166,7 @@ BEGIN
   EXCEPTION WHEN SQLSTATE '28000' THEN
     v_rejected := true;
   END;
-  IF NOT v_rejected THEN RAISE EXCEPTION 'A confirmed account without a server-side age record must not accept an invitation'; END;
+  IF NOT v_rejected THEN RAISE EXCEPTION 'A confirmed account without a server-side age record must not accept an invitation'; END IF;
   SELECT status INTO v_status FROM public.organization_members
   WHERE organization_id='20000000-0000-4000-8000-000000000104'
     AND user_id=auth.uid();
