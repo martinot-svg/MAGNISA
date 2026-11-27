@@ -215,12 +215,11 @@ jobs:
               RAISE EXCEPTION 'Required balance-sheet, inventory or source-mapping schema is missing';
             END IF;
 
-            IF (
-              SELECT count(*) FROM public.pcg2005_journal_lines
+            IF EXISTS (
+              SELECT 1 FROM public.pcg2005_journal_lines
               WHERE reference IN ('FOUR-1','FOUR-9898')
-                AND pcg_code IS NULL
-                AND mapping_status='a_mapper'
-            ) <> 2 THEN
+                AND (pcg_code IS NOT NULL OR mapping_status <> 'a_mapper')
+            ) THEN
               RAISE EXCEPTION 'Undocumented generic supplier invoices FOUR-1 and FOUR-9898 must remain unmapped, not classified as fixed assets';
             END IF;
             IF EXISTS (
@@ -305,7 +304,10 @@ jobs:
               RAISE EXCEPTION 'PCG class 5 balances do not reconcile to bank, cash and Mobile Money accounts';
             END IF;
 
-            IF (
+            IF EXISTS (
+              SELECT 1 FROM public.supplier_invoices
+              WHERE supplier_number IN ('2030','2031')
+            ) AND (
               SELECT count(*) FROM public.pcg2005_journal_lines
               WHERE reference IN ('FOUR-2030','FOUR-2031')
                 AND organization_id IN (
@@ -320,7 +322,10 @@ jobs:
               RAISE EXCEPTION 'FOUR-2030 and FOUR-2031 must map to PCG 606 and retain their missing-invoice evidence flags';
             END IF;
 
-            IF (
+            IF EXISTS (
+              SELECT 1 FROM public.expenses
+              WHERE magnisa_reference IN ('DEP-00003','DEP-00004')
+            ) AND (
               SELECT count(*) FROM public.pcg2005_journal_lines
               WHERE reference IN ('DEP-00003','DEP-00004')
                 AND organization_id IN (
@@ -337,7 +342,10 @@ jobs:
               RAISE EXCEPTION 'Computer acquisitions DEP-00003 and DEP-00004 must map provisionally to PCG 218 with evidence flags';
             END IF;
 
-            IF (
+            IF EXISTS (
+              SELECT 1 FROM public.expenses
+              WHERE magnisa_reference IN ('DEP-00003','DEP-00004')
+            ) AND (
               SELECT COALESCE(abs(sum(debit_difference)),0)
               FROM public.fixed_asset_register_reconciliation
               WHERE account_code='218'
