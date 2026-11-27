@@ -31,10 +31,15 @@ BEGIN
     FROM pg_index i
     JOIN pg_class t ON t.oid=i.indrelid
     JOIN pg_namespace n ON n.oid=t.relnamespace
+    JOIN pg_class ix ON ix.oid=i.indexrelid
     WHERE n.nspname='public'
       AND t.relname IN ('customers','expenses','invoice_lines','journal_entries')
       AND i.indisvalid
-    GROUP BY t.relname,pg_get_indexdef(i.indexrelid)
+    GROUP BY t.relname,ix.relam,i.indkey::text,i.indclass::text,
+             i.indcollation::text,i.indoption::text,
+             coalesce(pg_get_expr(i.indexprs,i.indrelid), ''),
+             coalesce(pg_get_expr(i.indpred,i.indrelid), ''),
+             i.indisunique,i.indisprimary
     HAVING count(*)>1
   ) THEN
     RAISE EXCEPTION 'Identical indexes remain on audited tables';
