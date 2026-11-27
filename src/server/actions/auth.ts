@@ -261,3 +261,26 @@ export async function updatePassword(formData: FormData) {
   if (error) return { error: "Impossible de modifier le mot de passe." };
   return { success: "Mot de passe modifié. Tu peux continuer à utiliser MAGNISA." };
 }
+
+export async function verifyMajorityForExistingAccount(
+  _: { error?: string }, formData: FormData,
+): Promise<{ error?: string }> {
+  const parsed = z.object({
+    birth_date: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+    majority_confirmed: z.literal("true"),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success || !isValidBirthDate(parsed.data?.birth_date || "") ||
+      !isAtLeast18(parsed.data?.birth_date || "")) {
+    return { error: "Une date de naissance valide et la confirmation de majorité sont requises (18 ans minimum)." };
+  }
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  if (!user.email_confirmed_at) redirect(`/verify-email?email=${encodeURIComponent(user.email || "")}`);
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("register_magnisa_signup_age", {
+    p_user: user.id, p_birth_date: parsed.data.birth_date, p_majority_confirmed: true,
+  });
+  if (error) return { error: "Impossible d'enregistrer la vérification de majorité. Réessaie." };
+  redirect("/onboarding");
+}

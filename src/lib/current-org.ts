@@ -27,6 +27,12 @@ export async function requireUser() {
     redirect("/login?status=suspended");
   }
 
+  // Fail closed: a confirmed Auth user must have a private, server-validated
+  // majority record before using protected MAGNISA application routes.
+  const { data: majorityChecked, error: majorityError } = await supabase.rpc("has_magnisa_signup_age_check");
+  if (majorityError) throw new Error("Impossible de vérifier la majorité du compte.");
+  if (majorityChecked !== true) redirect("/verify-majority");
+
   return { supabase, user };
 }
 
