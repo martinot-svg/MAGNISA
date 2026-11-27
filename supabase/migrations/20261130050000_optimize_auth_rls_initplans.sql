@@ -4,6 +4,7 @@ SET LOCAL search_path = public, extensions;
 -- Cache auth.uid() once per statement instead of re-evaluating it for each row.
 -- This is a semantics-preserving RLS planner optimization; policy roles,
 -- commands, membership predicates and permission checks remain unchanged.
+-- Contract: supabase/tests/rls-auth-initplan-policy-contract.sql.
 ALTER POLICY "accounting_periods_select" ON public."accounting_periods" USING ((EXISTS ( SELECT 1
    FROM organization_members m
   WHERE ((m.organization_id = accounting_periods.organization_id) AND (m.user_id = (SELECT auth.uid())) AND (m.status = 'active'::text)))));
