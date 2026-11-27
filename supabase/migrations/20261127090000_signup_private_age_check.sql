@@ -107,6 +107,13 @@ begin
     values(new.id,v_pending.birth_date,v_pending.majority_confirmed_at);
     delete from private.magnisa_signup_age_pending
     where email=lower(btrim(coalesce(new.email,'')));
+  elsif new.invited_at is null then
+    -- Direct public Auth signup must be staged with a validated DOB and
+    -- explicit majority declaration before auth.users can be created.
+    -- Invite-created accounts may exist pending, but cannot access the app or
+    -- accept membership until a private majority record is registered.
+    raise exception 'Date de naissance valide et déclaration de majorité requises avant la création du compte MAGNISA'
+      using errcode='22023';
   end if;
   return new;
 end;

@@ -1,6 +1,6 @@
 BEGIN;
-INSERT INTO auth.users(id,aud,role,email,email_confirmed_at,created_at,updated_at,raw_user_meta_data,raw_app_meta_data)
-VALUES('10000000-0000-4000-8000-000000000105','authenticated','authenticated','majority-gate-org@magnisa.test',now(),now(),now(),'{"full_name":"Age Gate Test","given_names":"Age","family_name":"Gate"}'::jsonb,'{"provider":"email","providers":["email"]}'::jsonb)
+INSERT INTO auth.users(id,aud,role,email,email_confirmed_at,invited_at,created_at,updated_at,raw_user_meta_data,raw_app_meta_data)
+VALUES('10000000-0000-4000-8000-000000000105','authenticated','authenticated','majority-gate-org@magnisa.test',now(),now(),now(),now(),'{"full_name":"Age Gate Test","given_names":"Age","family_name":"Gate"}'::jsonb,'{"provider":"email","providers":["email"]}'::jsonb)
 ON CONFLICT(id) DO NOTHING;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000105',true);

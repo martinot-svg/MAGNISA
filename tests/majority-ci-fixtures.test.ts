@@ -18,19 +18,19 @@ describe("majority enforcement CI fixtures", () => {
   ];
 
   it("uses the service-role RPC rather than exposing the private schema over REST", () => {
-    expect(helper).toContain('admin.rpc("register_magnisa_signup_age"');
+    expect(helper).toContain('admin.rpc("stage_magnisa_signup_age"');
     expect(helper).not.toContain('admin.from("magnisa_signup_age_checks")');
   });
 
   it("seeds each synthetic integration identity before organization-bound operations", () => {
     for (const path of scripts) {
-      expect(readFileSync(path, "utf8"), path).toContain("seedAdultMajorityFixture");
+      expect(readFileSync(path, "utf8"), path).toContain("stageAdultMajorityFixture");
     }
   });
 
   it("uses valid SQL dollar quoting and retains the private-age invitation test", () => {
     const sql = readFileSync("supabase/tests/organization-invitation-acceptance-integration.sql", "utf8");
-    expect(sql).toContain("INSERT INTO private.magnisa_signup_age_checks");
+    expect(sql).toContain("INSERT INTO private.magnisa_signup_age_pending");
     expect(sql).toContain("DO $$");
     expect(sql).not.toContain("DO $\n");
     expect(sql).toContain("Confirmed user without a majority record");
