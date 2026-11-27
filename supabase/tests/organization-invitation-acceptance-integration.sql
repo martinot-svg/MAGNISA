@@ -13,6 +13,11 @@ INSERT INTO auth.users (
    '{"first_name":"Invite","last_name":"Unconfirmed"}'::jsonb, '{"provider":"email","providers":["email"]}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
+-- Only the accepting test identity has a server-validated adult record.
+INSERT INTO private.magnisa_signup_age_checks(user_id,birth_date,majority_confirmed_at)
+VALUES ('10000000-0000-4000-8000-000000000101', date '1990-01-01', now())
+ON CONFLICT (user_id) DO NOTHING;
+
 INSERT INTO public.organizations (id, name, currency) VALUES
   ('20000000-0000-4000-8000-000000000101', 'Invitation accept test', 'MGA'),
   ('20000000-0000-4000-8000-000000000102', 'Invitation decline test', 'MGA'),
@@ -136,6 +141,34 @@ BEGIN
   IF v_status <> 'invited' THEN RAISE EXCEPTION 'Unconfirmed invitation must remain pending'; END IF;
 END;
 $$;
+
+
+-- A confirmed but unverified-majority user must not accept the invitation.
+INSERT INTO auth.users(id,email,email_confirmed_at,created_at,updated_at,raw_user_meta_data,raw_app_meta_data)
+VALUES ('10000000-0000-4000-8000-000000000104','invite-no-age@magnisa.test',now(),now(),now(),
+  '{"first_name":"Invite","last_name":"NoAge"}'::jsonb,'{"provider":"email","providers":["email"]}'::jsonb)
+ON CONFLICT(id) DO NOTHING;
+INSERT INTO public.organizations(id,name,currency)
+VALUES ('20000000-0000-4000-8000-000000000104','Invitation no age test','MGA')
+ON CONFLICT(id) DO NOTHING;
+INSERT INTO public.organization_members(organization_id,user_id,role,status)
+VALUES ('20000000-0000-4000-8000-000000000104','10000000-0000-4000-8000-000000000104','viewer','invited')
+ON CONFLICT (organization_id,user_id) DO UPDATE SET status='invited';
+
+SELECT set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000104',true);
+DO $
+DECLARE v_rejected boolean:=false; v_status text;
+BEGIN
+  BEGIN
+    PERFORM public.respond_to_organization_invitation('20000000-0000-4000-8000-000000000104',true);
+  EXCEPTION WHEN SQLSTATE '28000' THEN v_rejected:=true;
+  END;
+  IF NOT v_rejected THEN RAISE EXCEPTION 'Confirmed user without a majority record must not accept invitation'; END IF;
+  SELECT status INTO v_status FROM public.organization_members
+  WHERE organization_id='20000000-0000-4000-8000-000000000104' AND user_id=auth.uid();
+  IF v_status <> 'invited' THEN RAISE EXCEPTION 'Invitation without majority must remain pending'; END IF;
+END;
+$;
 
 RESET ROLE;
 ROLLBACK;
