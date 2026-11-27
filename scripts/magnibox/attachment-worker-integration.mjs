@@ -1,9 +1,9 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
-import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "../ci/majority-fixtures.mjs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { access, unlink, writeFile } from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "../ci/majority-fixtures.mjs";
 
 const execFileAsync = promisify(execFile);
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -50,7 +50,7 @@ try {
   await stageAdultMajorityFixture(admin,email);
   const user = unwrap(await admin.auth.admin.createUser({ email, password, email_confirm: true }), "create local test user");
   created.userId = user.user.id;
-  await seedAdultMajorityFixture(admin,created.userId);
+  await seedAdultMajorityFixture(admin, created.userId);
   const owner = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
   unwrap(await owner.auth.signInWithPassword({ email, password }), "sign in test owner");
   const org = unwrap(await owner.rpc("create_organization", {
@@ -199,7 +199,7 @@ try {
     email: secondEmail, password: secondPassword, email_confirm: true,
   }), "create second isolated test user");
   created.secondUserId = secondUser.user.id;
-  await seedAdultMajorityFixture(admin,created.secondUserId);
+  await seedAdultMajorityFixture(admin, created.secondUserId);
   const secondOwner = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
   unwrap(await secondOwner.auth.signInWithPassword({ email: secondEmail, password: secondPassword }),
     "sign in second isolated test owner");
