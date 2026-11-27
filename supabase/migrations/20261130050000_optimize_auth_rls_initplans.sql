@@ -1,4 +1,5 @@
 BEGIN;
+SET LOCAL search_path = public, extensions;
 
 -- Cache auth.uid() once per statement instead of re-evaluating it for each row.
 -- This is a semantics-preserving RLS planner optimization; policy roles,
