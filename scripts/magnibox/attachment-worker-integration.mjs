@@ -3,7 +3,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { access, unlink, writeFile } from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
-import { seedAdultMajorityFixture } from "../ci/majority-fixtures.mjs";
+import { seedAdultMajorityFixture, stageAdultMajorityFixture } from "../ci/majority-fixtures.mjs";
 
 const execFileAsync = promisify(execFile);
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
