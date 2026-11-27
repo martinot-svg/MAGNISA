@@ -18,6 +18,10 @@ DECLARE
   v_effective_to date;
   v_audit_count integer;
 BEGIN
+  INSERT INTO private.magnisa_signup_age_pending(email,birth_date,majority_confirmed_at,expires_at) VALUES
+    (v_owner::text || '@test.invalid', date '1990-01-01', now(), now()+interval '15 minutes'),
+    (v_sales::text || '@test.invalid', date '1990-01-01', now(), now()+interval '15 minutes');
+
   INSERT INTO auth.users (
     id, aud, role, email, encrypted_password, email_confirmed_at,
     raw_app_meta_data, raw_user_meta_data, created_at, updated_at
