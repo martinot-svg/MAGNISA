@@ -20,8 +20,8 @@ describe("MAGNISA international residence", () => {
     expect(signup).toContain('name="phone_country" value={residenceCountry}');
     expect(signup).toContain('getSignupPhoneDialCode(residenceCountry)');
     expect(signup).toContain('placeholder="Rechercher un pays ou un indicatif…"');
-    expect(signup).not.toContain('id="signup-residence-country"');
-    expect(signup).not.toContain('id="signup-phone-country"');
+    expect(signup).not.toMatch(/id="signup-residence-country"/);
+    expect(signup).not.toMatch(/id="signup-phone-country"/);
   });
 
   it("stores residence separately and does not confuse it with immutable registration origin", () => {
