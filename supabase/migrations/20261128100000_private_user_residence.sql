@@ -97,5 +97,24 @@ revoke all on function public.update_magnisa_user_residence(text,text,text,text,
 grant execute on function public.update_magnisa_user_residence(text,text,text,text,text)
  to authenticated;
 
+
+create or replace function public.get_magnisa_signup_residence_for_service(p_user uuid)
+returns table(country_iso2 text,country_name text,region_name text,
+              locality_name text,locality_ref text)
+language plpgsql stable security definer set search_path='' as $magnisa$
+begin
+  if coalesce((select auth.jwt())->>'role','') <> 'service_role' then
+    raise exception 'Service interne uniquement' using errcode='42501';
+  end if;
+  return query select r.country_iso2,r.country_name,r.region_name,
+                      r.locality_name,r.locality_ref
+    from private.magnisa_user_residence r where r.user_id=p_user;
+end;
+$magnisa$;
+revoke all on function public.get_magnisa_signup_residence_for_service(uuid)
+ from public, anon, authenticated;
+grant execute on function public.get_magnisa_signup_residence_for_service(uuid)
+ to service_role;
+
 comment on table private.magnisa_user_residence is
  'User-editable residence data, separate from immutable private registration origin. No direct API table access.';
