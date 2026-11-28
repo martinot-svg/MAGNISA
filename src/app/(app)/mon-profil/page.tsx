@@ -46,7 +46,7 @@ async function saveResidence(formData: FormData) {
   const { supabase } = await requireUser();
   const countryIso2 = String(formData.get("residence_country_iso2") || "").toUpperCase();
   const country = SIGNUP_PHONE_COUNTRIES.find(item => item.iso2 === countryIso2);
-  const countryName = new Intl.DisplayNames(["fr"], { type: "region" }).of(countryIso2) || "";
+  const countryName = new Intl.DisplayNames(["fr"], { type: "region" }).of(countryIso2) || countryIso2;
   const regionName = String(formData.get("residence_region_name") || "").trim();
   const localityName = String(formData.get("residence_locality_name") || "").trim();
   if (!country || regionName.length < 1 || regionName.length > 120 ||
