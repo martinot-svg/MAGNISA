@@ -22,6 +22,7 @@ export default function Signup() {
   const [customized, setCustomized] = useState(false);
   const [residenceCountry, setResidenceCountry] = useState("MG");
   const [residenceCountryQuery, setResidenceCountryQuery] = useState("");
+  const [residenceCountryOpen, setResidenceCountryOpen] = useState(false);
   const [region, setRegion] = useState("");
   const [locality, setLocality] = useState("");
   const [localityRef, setLocalityRef] = useState("");
@@ -124,20 +125,36 @@ export default function Signup() {
         <div className="signup-country-phone-row">
         <div className="field signup-residence-country-field">
           <label htmlFor="signup-residence-country">Pays de résidence</label>
-          <input type="search" aria-label="Rechercher un pays de résidence" placeholder="Rechercher un pays…"
-            value={residenceCountryQuery} onChange={e => setResidenceCountryQuery(e.target.value)} />
-          <select id="signup-residence-country" name="residence_country_iso2" required value={residenceCountry}
-            onChange={e => {
-              const country = e.target.value;
-              setResidenceCountry(country); setPhoneCountry(country); setPhonePrefix(country === "MG" ? "032" : "");
-              setPhoneNational(""); setRegion(""); setLocality(""); setLocalityRef("");
-              setSuggestions([]); setResidenceCountryQuery("");
-            }}>
-            {filteredResidenceCountries.map(item => <option key={item.iso2} value={item.iso2}>{item.flag} {item.name}</option>)}
-            {!filteredResidenceCountries.some(item => item.iso2 === residenceCountry) &&
-              <option value={residenceCountry}>{residenceCountryNames.of(residenceCountry) || residenceCountry}</option>}
-          </select>
+          <input type="hidden" id="signup-residence-country" name="residence_country_iso2" value={residenceCountry} />
           <input type="hidden" name="residence_country_name" value={selectedResidenceCountryName} />
+          <div className="signup-country-picker">
+            <button type="button" className="signup-country-trigger" aria-haspopup="listbox"
+              aria-expanded={residenceCountryOpen} aria-controls="signup-country-options"
+              onClick={() => { setResidenceCountryOpen(open => !open); setResidenceCountryQuery(""); }}>
+              <span className="signup-country-trigger-value">
+                <span aria-hidden="true">{phoneCountryOptions.find(item => item.iso2 === residenceCountry)?.flag || "🌐"}</span>
+                <span>{selectedResidenceCountryName}</span>
+              </span>
+              <span aria-hidden="true">▾</span>
+            </button>
+            {residenceCountryOpen && <div className="signup-country-menu">
+              <input type="search" autoFocus aria-label="Rechercher un pays" placeholder="Rechercher un pays…"
+                value={residenceCountryQuery} onChange={e => setResidenceCountryQuery(e.target.value)} />
+              <div id="signup-country-options" role="listbox" aria-label="Pays disponibles" className="signup-country-options">
+                {filteredResidenceCountries.map(item => <button type="button" role="option"
+                  aria-selected={item.iso2 === residenceCountry} key={item.iso2}
+                  onClick={() => {
+                    const country = item.iso2;
+                    setResidenceCountry(country); setPhoneCountry(country); setPhonePrefix(country === "MG" ? "032" : "");
+                    setPhoneNational(""); setRegion(""); setLocality(""); setLocalityRef("");
+                    setSuggestions([]); setResidenceCountryQuery(""); setResidenceCountryOpen(false);
+                  }}>
+                  <span aria-hidden="true">{item.flag}</span><span>{item.name}</span><span className="signup-country-iso">{item.iso2}</span>
+                </button>)}
+                {filteredResidenceCountries.length === 0 && <p className="signup-country-empty">Aucun pays trouvé.</p>}
+              </div>
+            </div>}
+          </div>
         </div>
         <div className="field signup-phone-field">
           <label htmlFor="signup-phone-national">Téléphone</label>
