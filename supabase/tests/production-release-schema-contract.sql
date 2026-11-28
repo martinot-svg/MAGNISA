@@ -42,6 +42,38 @@ BEGIN
     RAISE EXCEPTION 'MAGNISA identity function grants violate the least-privilege contract';
   END IF;
 
+
+  IF to_regclass('private.magnisa_user_residence') IS NULL
+    OR to_regprocedure('public.register_magnisa_signup_residence(uuid,text,text,text,text,text)') IS NULL
+    OR to_regprocedure('public.get_magnisa_user_residence()') IS NULL
+    OR to_regprocedure('public.update_magnisa_user_residence(text,text,text,text,text)') IS NULL
+    OR to_regprocedure('public.get_magnisa_signup_residence_for_service(uuid)') IS NULL THEN
+    RAISE EXCEPTION 'MAGNISA private residence storage or RPCs are missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class
+    WHERE oid='private.magnisa_user_residence'::regclass AND relrowsecurity
+  ) OR has_table_privilege('anon','private.magnisa_user_residence','SELECT')
+    OR has_table_privilege('authenticated','private.magnisa_user_residence','SELECT')
+    OR has_table_privilege('authenticated','private.magnisa_user_residence','INSERT')
+    OR has_table_privilege('authenticated','private.magnisa_user_residence','UPDATE') THEN
+    RAISE EXCEPTION 'MAGNISA residence table must remain private with RLS and no direct API grants';
+  END IF;
+
+  IF NOT has_function_privilege('service_role','public.register_magnisa_signup_residence(uuid,text,text,text,text,text)','EXECUTE')
+    OR has_function_privilege('anon','public.register_magnisa_signup_residence(uuid,text,text,text,text,text)','EXECUTE')
+    OR has_function_privilege('authenticated','public.register_magnisa_signup_residence(uuid,text,text,text,text,text)','EXECUTE')
+    OR NOT has_function_privilege('authenticated','public.get_magnisa_user_residence()','EXECUTE')
+    OR has_function_privilege('anon','public.get_magnisa_user_residence()','EXECUTE')
+    OR NOT has_function_privilege('authenticated','public.update_magnisa_user_residence(text,text,text,text,text)','EXECUTE')
+    OR has_function_privilege('anon','public.update_magnisa_user_residence(text,text,text,text,text)','EXECUTE')
+    OR NOT has_function_privilege('service_role','public.get_magnisa_signup_residence_for_service(uuid)','EXECUTE')
+    OR has_function_privilege('anon','public.get_magnisa_signup_residence_for_service(uuid)','EXECUTE')
+    OR has_function_privilege('authenticated','public.get_magnisa_signup_residence_for_service(uuid)','EXECUTE') THEN
+    RAISE EXCEPTION 'MAGNISA residence RPC grants violate the least-privilege contract';
+  END IF;
+
   IF to_regprocedure('public.get_my_organization_invitations()') IS NULL
     OR to_regprocedure('public.respond_to_organization_invitation(uuid,boolean)') IS NULL THEN
     RAISE EXCEPTION 'Organization invitation RPCs are missing';
