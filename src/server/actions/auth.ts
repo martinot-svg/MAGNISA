@@ -51,11 +51,14 @@ export async function signUp(formData: FormData) {
   }
   const residenceCountry = SIGNUP_PHONE_COUNTRIES.find(item => item.iso2 === parsed.data.residence_country_iso2);
   if (!residenceCountry) return { error: "Sélectionne un pays de résidence valide." };
-  const officialCountryName = new Intl.DisplayNames(["fr"], { type: "region" }).of(parsed.data.residence_country_iso2);
-  if (!officialCountryName || officialCountryName === parsed.data.residence_country_iso2 ||
-      officialCountryName !== parsed.data.residence_country_name) {
+  const displayCountryName = new Intl.DisplayNames(["fr"], { type: "region" }).of(parsed.data.residence_country_iso2);
+  if (!displayCountryName ||
+      (displayCountryName !== parsed.data.residence_country_iso2 &&
+       displayCountryName !== parsed.data.residence_country_name)) {
     return { error: "Le pays de résidence sélectionné est invalide." };
   }
+  const officialCountryName = displayCountryName === parsed.data.residence_country_iso2
+    ? parsed.data.residence_country_name : displayCountryName;
   if (parsed.data.residence_country_iso2 === "MG") {
     if (!parsed.data.residence_region_code ||
         !isValidRegistrationRegion("261", parsed.data.residence_region_code) ||
