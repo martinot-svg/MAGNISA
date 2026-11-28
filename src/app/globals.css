@@ -178,15 +178,54 @@
 @media(max-width:480px){.signup-country-phone-row{grid-template-columns:minmax(0,1fr)}.signup-country-phone-row .signup-phone-row{grid-template-columns:minmax(66px,.55fr) minmax(82px,.7fr) minmax(100px,1fr)}}
 
 
-/* Signup desktop readability: wider form and generous vertical rhythm. */
-.auth.authPremium:has(.signup-grid){width:min(100% - 48px, 960px);max-width:960px;padding:clamp(28px,4vw,48px);gap:30px}
-.auth.authPremium:has(.signup-grid)>.form{gap:22px}
-.auth.authPremium:has(.signup-grid) .signup-grid{column-gap:22px;row-gap:22px}
-.auth.authPremium:has(.signup-grid) .signup-residence-grid{column-gap:22px;row-gap:22px}
-.auth.authPremium:has(.signup-grid) .signup-country-phone-row{gap:22px}
-.auth.authPremium:has(.signup-grid) .field{gap:10px}
-.auth.authPremium:has(.signup-grid) .field>label,.auth.authPremium:has(.signup-grid) .signup-phone-field-label{font-size:13px;line-height:1.45}
-.auth.authPremium:has(.signup-grid) input,.auth.authPremium:has(.signup-grid) select{min-height:46px}
-.auth.authPremium:has(.signup-grid) .signup-phone-dial-code output{min-height:46px}
-@media(max-width:760px){.auth.authPremium:has(.signup-grid){width:calc(100% - 28px);padding:24px 20px;gap:24px}.auth.authPremium:has(.signup-grid)>.form{gap:18px}.auth.authPremium:has(.signup-grid) .signup-grid,.auth.authPremium:has(.signup-grid) .signup-residence-grid{row-gap:18px}}
-@media(max-width:480px){.auth.authPremium:has(.signup-grid){width:calc(100% - 20px);padding:20px 14px}.auth.authPremium:has(.signup-grid) .field{gap:8px}}
+/* Signup UI rhythm: consistent 8px spacing scale and responsive field hierarchy. */
+.auth.authPremium:has(.signup-grid){
+  width:min(100% - 48px,960px);
+  max-width:960px;
+  padding:clamp(28px,4vw,48px);
+  gap:32px;
+}
+.auth.authPremium:has(.signup-grid)>.form{gap:24px}
+.auth.authPremium:has(.signup-grid) .signup-grid,
+.auth.authPremium:has(.signup-grid) .signup-residence-grid{
+  column-gap:24px;
+  row-gap:24px;
+}
+.auth.authPremium:has(.signup-grid) .signup-country-phone-row{gap:24px}
+.auth.authPremium:has(.signup-grid) .field{gap:8px}
+.auth.authPremium:has(.signup-grid) .field>label,
+.auth.authPremium:has(.signup-grid) .signup-phone-field-label{
+  font-size:13px;
+  line-height:20px;
+}
+.auth.authPremium:has(.signup-grid) input,
+.auth.authPremium:has(.signup-grid) select{
+  min-height:48px;
+}
+.auth.authPremium:has(.signup-grid) .signup-phone-dial-code output{min-height:48px}
+.auth.authPremium:has(.signup-grid) .signup-phone-row{column-gap:8px}
+@media(max-width:760px){
+  .auth.authPremium:has(.signup-grid){
+    width:calc(100% - 32px);
+    padding:24px 20px;
+    gap:24px;
+  }
+  .auth.authPremium:has(.signup-grid)>.form{gap:20px}
+  .auth.authPremium:has(.signup-grid) .signup-grid,
+  .auth.authPremium:has(.signup-grid) .signup-residence-grid{
+    column-gap:16px;
+    row-gap:20px;
+  }
+  .auth.authPremium:has(.signup-grid) .signup-country-phone-row{gap:16px}
+}
+@media(max-width:480px){
+  .auth.authPremium:has(.signup-grid){
+    width:calc(100% - 24px);
+    padding:20px 16px;
+    gap:20px;
+  }
+  .auth.authPremium:has(.signup-grid)>.form{gap:16px}
+  .auth.authPremium:has(.signup-grid) .signup-grid,
+  .auth.authPremium:has(.signup-grid) .signup-residence-grid{row-gap:16px}
+  .auth.authPremium:has(.signup-grid) .field{gap:8px}
+}
