@@ -151,6 +151,7 @@ export default function Signup() {
               {phoneCountry === "MG" ? ["032","033","034","035","036","037","038","039"].map(prefix => <option key={prefix} value={prefix}>{prefix}</option>) : <option value="">—</option>}
             </select>
             </div>
+            {phoneCountry !== "MG" && <input type="hidden" name="phone_prefix" value="" />}
             <div className="signup-phone-national">
             <span className="signup-phone-field-label">Numéro</span>
             <input id="signup-phone-national" name="phone_national" type="tel" inputMode="numeric" autoComplete="tel-national" required disabled={!selectedPhoneCountry?.mobilePattern} value={phoneNational} onChange={e => setPhoneNational(e.target.value.replace(/\D/g, "").slice(0, nationalMaxLength))} minLength={nationalMinLength} maxLength={nationalMaxLength} pattern="[0-9]*" placeholder={phoneCountry === "MG" ? "1234567" : "Numéro national"} aria-label={phoneCountry === "MG" ? "Sept chiffres du numéro" : "Numéro national sans indicatif"} />
