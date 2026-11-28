@@ -213,7 +213,7 @@ export default function Signup() {
               <input id="signup-phone-national" name="phone_national" type="tel" inputMode="numeric"
                 autoComplete="tel-national" required disabled={!selectedPhoneCountry?.mobilePattern}
                 value={phoneNational}
-                onChange={e => setPhoneNational(e.target.value.replace(/\D/g, "").slice(0, nationalMaxLength))}
+                onChange={e => { const value = e.target.value; if (/^[0-9]*$/.test(value)) setPhoneNational(value.slice(0, nationalMaxLength)); }}
                 minLength={nationalMinLength} maxLength={nationalMaxLength} pattern="[0-9]*"
                 placeholder={residenceCountry === "MG" ? "1234567" : "Numéro sans indicatif"}
                 aria-label="Numéro national sans indicatif" />
