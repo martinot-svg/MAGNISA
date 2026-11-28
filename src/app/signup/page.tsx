@@ -160,10 +160,16 @@ export default function Signup() {
               required readOnly aria-haspopup="listbox" aria-expanded={residenceCountryOpen}
               aria-controls="signup-country-options"
               value={`${phoneCountryOptions.find(item => item.iso2 === residenceCountry)?.flag || "🌐"} ${selectedResidenceCountryName}`}
-              onClick={() => { setResidenceCountryOpen(open => !open); setResidenceCountryQuery(""); }} />
+              onClick={() => { setResidenceCountryOpen(open => !open); setResidenceCountryQuery(""); }}
+              onKeyDown={event => {
+                if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
+                  event.preventDefault(); setResidenceCountryOpen(true); setResidenceCountryQuery("");
+                }
+              }} />
             {residenceCountryOpen && <div className="signup-country-menu">
               <input type="search" autoFocus aria-label="Rechercher un pays" placeholder="Rechercher un pays…"
-                value={residenceCountryQuery} onChange={e => setResidenceCountryQuery(e.target.value)} />
+                value={residenceCountryQuery} onChange={e => setResidenceCountryQuery(e.target.value)}
+                onKeyDown={event => { if (event.key === "Escape") setResidenceCountryOpen(false); }} />
               <div id="signup-country-options" role="listbox" aria-label="Pays disponibles" className="signup-country-options">
                 {filteredResidenceCountries.map(item => <button type="button" role="option"
                   aria-selected={item.iso2 === residenceCountry} key={item.iso2}
@@ -215,10 +221,16 @@ export default function Signup() {
                   aria-haspopup="listbox" aria-expanded={regionOpen} aria-controls="signup-region-options"
                   value={regionOptions.find(item => item.code === region)?.name || ""}
                   placeholder="Sélectionner une région"
-                  onClick={() => { setRegionOpen(open => !open); setRegionQuery(""); }} />
+                  onClick={() => { setRegionOpen(open => !open); setRegionQuery(""); }}
+                  onKeyDown={event => {
+                    if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
+                      event.preventDefault(); setRegionOpen(true); setRegionQuery("");
+                    }
+                  }} />
                 {regionOpen && <div className="signup-country-menu">
                   <input type="search" autoFocus aria-label="Rechercher une région" placeholder="Rechercher une région…"
-                    value={regionQuery} onChange={e => setRegionQuery(e.target.value)} />
+                    value={regionQuery} onChange={e => setRegionQuery(e.target.value)}
+                    onKeyDown={event => { if (event.key === "Escape") setRegionOpen(false); }} />
                   <div id="signup-region-options" role="listbox" aria-label="Régions disponibles" className="signup-country-options">
                     {regionOptions.filter(item => !regionQuery.trim() ||
                       item.name.toLocaleLowerCase("fr").includes(regionQuery.trim().toLocaleLowerCase("fr")))
