@@ -22,7 +22,8 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "zod": "^4.6.7",
-    "fflate": "^0.8.3"
+    "fflate": "^0.8.3",
+    "countrycitystatejson": "26.11.1001"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

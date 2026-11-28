@@ -23,7 +23,12 @@ export default function Signup() {
   const [customized, setCustomized] = useState(false);
   const [residenceCountry, setResidenceCountry] = useState("MG");
   const [residenceCountryQuery, setResidenceCountryQuery] = useState("");
+  const [residenceCountryOpen, setResidenceCountryOpen] = useState(false);
   const [region, setRegion] = useState("");
+  const [regionQuery, setRegionQuery] = useState("");
+  const [regionOpen, setRegionOpen] = useState(false);
+  const [regionOptions, setRegionOptions] = useState<Array<{ code: string; name: string }>>([]);
+  const [regionCoverage, setRegionCoverage] = useState(true);
   const [locality, setLocality] = useState("");
   const [localityRef, setLocalityRef] = useState("");
   const [suggestions, setSuggestions] = useState<LocalitySuggestion[]>([]);
@@ -56,7 +61,29 @@ export default function Signup() {
   const nationalMinLength = phoneCountry === "MG" ? 7 : nationalLengthOptions.length ? Math.min(...nationalLengthOptions) : 4;
   const nationalMaxLength = phoneCountry === "MG" ? 7 : nationalLengthOptions.length ? Math.max(...nationalLengthOptions) : 14;
   useEffect(() => {
-    if (residenceCountry !== "MG" || !region || locality.trim().length < 2 || localityRef) {
+    if (residenceCountry === "MG") {
+      setRegionOptions(REGISTRATION_REGIONS.map(item => ({ code: item.code, name: item.name })));
+      setRegionCoverage(true);
+      return;
+    }
+    const controller = new AbortController();
+    setRegionOptions([]);
+    setRegionCoverage(false);
+    fetch(`/api/geography?kind=regions&country=${encodeURIComponent(residenceCountry)}`, { signal: controller.signal })
+      .then((response): Promise<{ results: Array<{ code: string; name: string }>; coverage: boolean }> =>
+        response.ok ? response.json() : Promise.resolve({ results: [], coverage: false }))
+      .then(payload => {
+        if (!controller.signal.aborted) {
+          setRegionOptions(Array.isArray(payload.results) ? payload.results : []);
+          setRegionCoverage(payload.coverage === true);
+        }
+      })
+      .catch(() => { if (!controller.signal.aborted) setRegionCoverage(false); });
+    return () => controller.abort();
+  }, [residenceCountry]);
+
+  useEffect(() => {
+    if (!region || locality.trim().length < 2 || localityRef) {
       setSuggestions([]);
       setSearching(false);
       return;
@@ -64,8 +91,11 @@ export default function Signup() {
     const controller = new AbortController();
     setSearching(true);
     const timeout = setTimeout(() => {
-      const q = new URLSearchParams({ region, q: locality.trim() });
-      fetch(`/api/localities/suggest?${q}`, { signal: controller.signal })
+      const endpoint = residenceCountry === "MG" ? "/api/localities/suggest" : "/api/geography";
+      const q = new URLSearchParams(residenceCountry === "MG"
+        ? { region, q: locality.trim() }
+        : { kind: "cities", country: residenceCountry, region, q: locality.trim() });
+      fetch(`${endpoint}?${q}`, { signal: controller.signal })
         .then(response => response.ok ? response.json() : { results: [] as LocalitySuggestion[] })
         .then(payload => { if (!controller.signal.aborted) setSuggestions(payload.results || []); })
         .catch(() => { if (!controller.signal.aborted) setSuggestions([]); })
@@ -129,6 +159,42 @@ export default function Signup() {
           <label htmlFor="signup-birth-date">Date de naissance</label>
           <input id="signup-birth-date" name="birth_date" type="date" required max={new Date().toISOString().slice(0,10)} autoComplete="bday" />
         </div>
+        <div className="signup-country-phone-row">
+        <div className="field signup-residence-country-field">
+          <label htmlFor="signup-residence-country-display">Pays de résidence</label>
+          <input type="hidden" name="residence_country_iso2" value={residenceCountry} />
+          <input type="hidden" name="residence_country_name" value={selectedResidenceCountryName} />
+          <div className="signup-country-picker">
+            <input type="text" id="signup-residence-country-display" className="signup-country-trigger"
+              required readOnly aria-haspopup="listbox" aria-expanded={residenceCountryOpen}
+              aria-controls="signup-country-options"
+              value={`${phoneCountryOptions.find(item => item.iso2 === residenceCountry)?.flag || "🌐"} ${selectedResidenceCountryName}`}
+              onClick={() => { setResidenceCountryOpen(open => !open); setResidenceCountryQuery(""); }}
+              onKeyDown={event => {
+                if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
+                  event.preventDefault(); setResidenceCountryOpen(true); setResidenceCountryQuery("");
+                }
+              }} />
+            {residenceCountryOpen && <div className="signup-country-menu">
+              <input type="search" autoFocus aria-label="Rechercher un pays" placeholder="Rechercher un pays…"
+                value={residenceCountryQuery} onChange={e => setResidenceCountryQuery(e.target.value)}
+                onKeyDown={event => { if (event.key === "Escape") setResidenceCountryOpen(false); }} />
+              <div id="signup-country-options" role="listbox" aria-label="Pays disponibles" className="signup-country-options">
+                {filteredResidenceCountries.map(item => <button type="button" role="option"
+                  aria-selected={item.iso2 === residenceCountry} key={item.iso2}
+                  onClick={() => {
+                    const country = item.iso2;
+                    setResidenceCountry(country); setPhoneCountry(country); setPhonePrefix(country === "MG" ? "032" : "");
+                    setPhoneNational(""); setRegion(""); setLocality(""); setLocalityRef("");
+                    setSuggestions([]); setResidenceCountryQuery(""); setResidenceCountryOpen(false);
+                  }}>
+                  <span aria-hidden="true">{item.flag}</span><span>{item.name}</span><span className="signup-country-iso">{item.iso2}</span>
+                </button>)}
+                {filteredResidenceCountries.length === 0 && <p className="signup-country-empty">Aucun pays trouvé.</p>}
+              </div>
+            </div>}
+          </div>
+        </div>
         <div className="field signup-phone-field">
           <label htmlFor="signup-phone-country">Téléphone</label>
           <div className="signup-phone-row">
@@ -159,6 +225,7 @@ export default function Signup() {
           </div>
           {!selectedPhoneCountry?.mobilePattern && <small role="status">Les règles de numérotation mobile ne sont pas publiées pour ce territoire dans le référentiel actuel.</small>}
         </div>
+        </div>
         <div className="signup-residence-grid">
         <div className="field">
           <label htmlFor="signup-residence-country">Pays de résidence</label>
@@ -177,20 +244,46 @@ export default function Signup() {
         </div>
         <div className="field">
           <label htmlFor="signup-region">Région / Province / État de résidence</label>
-          {residenceCountry === "MG" ? (
-            <select id="signup-region" name="residence_region_code" required value={region}
-              onChange={e => {
-                setRegion(e.target.value); setLocality(""); setLocalityRef(""); setSuggestions([]);
-              }}>
-              <option value="" disabled>Sélectionner une région</option>
-              {REGISTRATION_REGIONS.map(item => <option key={item.code} value={item.code}>{item.name}</option>)}
-            </select>
+          {(residenceCountry === "MG" || regionOptions.length > 0) ? (
+            <>
+              {residenceCountry === "MG" && <input type="hidden" name="residence_region_code" value={region} />}
+              <input type="hidden" name="residence_region_name" value={selectedResidenceRegionName} />
+              <div className="signup-country-picker">
+                <input type="text" id="signup-region" className="signup-country-trigger" required readOnly
+                  aria-haspopup="listbox" aria-expanded={regionOpen} aria-controls="signup-region-options"
+                  value={regionOptions.find(item => item.code === region)?.name || ""}
+                  placeholder="Sélectionner une région"
+                  onClick={() => { setRegionOpen(open => !open); setRegionQuery(""); }}
+                  onKeyDown={event => {
+                    if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
+                      event.preventDefault(); setRegionOpen(true); setRegionQuery("");
+                    }
+                  }} />
+                {regionOpen && <div className="signup-country-menu">
+                  <input type="search" autoFocus aria-label="Rechercher une région" placeholder="Rechercher une région…"
+                    value={regionQuery} onChange={e => setRegionQuery(e.target.value)}
+                    onKeyDown={event => { if (event.key === "Escape") setRegionOpen(false); }} />
+                  <div id="signup-region-options" role="listbox" aria-label="Régions disponibles" className="signup-country-options">
+                    {regionOptions.filter(item => !regionQuery.trim() ||
+                      item.name.toLocaleLowerCase("fr").includes(regionQuery.trim().toLocaleLowerCase("fr")))
+                      .map(item => <button type="button" role="option" aria-selected={item.code === region}
+                        key={item.code} onClick={() => {
+                          setRegion(item.code); setLocality(""); setLocalityRef(""); setSuggestions([]);
+                          setRegionQuery(""); setRegionOpen(false);
+                        }}>{item.name}</button>)}
+                  </div>
+                </div>}
+              </div>
+            </>
           ) : (
-            <input id="signup-region" name="residence_region_name" required minLength={1} maxLength={120}
-              autoComplete="address-level1" value={region} onChange={e => setRegion(e.target.value)}
-              placeholder="Saisir votre région, province ou État" />
+            <>
+              <input id="signup-region" name="residence_region_name" required minLength={1} maxLength={120}
+                autoComplete="address-level1" value={region} onChange={e => {
+                  setRegion(e.target.value); setLocality(""); setLocalityRef(""); setSuggestions([]);
+                }} placeholder="Saisir votre région, province ou État" />
+              {!regionCoverage && <small role="status">Liste de régions indisponible pour ce pays : saisie manuelle possible.</small>}
+            </>
           )}
-          {residenceCountry === "MG" && <input type="hidden" name="residence_region_name" value={selectedResidenceRegionName} />}
         </div>
         <div className="field">
           <label htmlFor="signup-locality">Ville / Commune / Localité de résidence</label>
@@ -201,7 +294,7 @@ export default function Signup() {
             aria-describedby="signup-locality-help" aria-controls="locality-suggestions" />
           <input type="hidden" name="residence_locality_ref" value={localityRef} />
           {searching && <small role="status">Recherche de localités…</small>}
-          {residenceCountry === "MG" && !localityRef && suggestions.length > 0 && <div id="locality-suggestions" role="listbox"
+          {!localityRef && suggestions.length > 0 && <div id="locality-suggestions" role="listbox"
             aria-label="Localités suggérées" style={{ border:"1px solid var(--border, #ddd)", borderRadius:8, maxHeight:240, overflowY:"auto" }}>
             {suggestions.map(item => <button type="button" role="option" aria-selected={false}
               key={item.ref} onClick={() => {
@@ -210,7 +303,7 @@ export default function Signup() {
                 borderBottom:"1px solid var(--border, #eee)", background:"transparent", cursor:"pointer" }}>
               <strong>{item.name}</strong>
               <span style={{ display:"block", fontSize:12 }}>
-                {item.type === "commune" ? "Commune" : "Fokontany"} · {item.commune} · District de {item.district}
+                {item.type === "city" ? "Ville" : item.type === "commune" ? "Commune" : "Fokontany"} · {item.commune} · {item.type === "city" ? item.district : `District de ${item.district}`}
               </span>
             </button>)}
           </div>}
