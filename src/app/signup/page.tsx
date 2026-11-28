@@ -97,7 +97,6 @@ export default function Signup() {
               }}
               style={{ width:"100%" }} />
           </div>
-          {customized && <button type="button" className="button" onClick={() => { setCustomized(false); setUsername(generateUsername(firstName,lastName)); }}>Reprendre le nom suggéré</button>}
         </div>
         <div className="field signup-phone-field">
           <label htmlFor="signup-phone-country">Téléphone</label>
