@@ -26,6 +26,15 @@ try {
     p_user:userId,p_country:"261",p_locality:"601"
   });
   if(origin.error)throw origin.error;
+  const residenceWrite = await admin.rpc("register_magnisa_signup_residence",{
+    p_user:userId,p_country_iso2:"MG",p_country_name:"Madagascar",
+    p_region_name:"Atsinanana",p_locality_name:"Toamasina",p_locality_ref:null
+  });
+  if(residenceWrite.error)throw residenceWrite.error;
+  const residenceRead = await admin.rpc("get_magnisa_signup_residence_for_service",{p_user:userId});
+  assert(!residenceRead.error && residenceRead.data?.[0]?.country_iso2==="MG" &&
+    residenceRead.data?.[0]?.locality_name==="Toamasina",
+    "Private residence must be saved and readable by service_role.");
   const privateMetadata = await admin.auth.admin.getUserById(userId);
   assert(!privateMetadata.data.user?.user_metadata?.country_code &&
     !privateMetadata.data.user?.user_metadata?.locality_code,
@@ -48,6 +57,19 @@ try {
   if(signed.error)throw signed.error;
   const reg = await visitor.rpc("has_magnisa_registration");
   assert(!reg.error && reg.data===true,"Registration origin should be recorded.");
+  const ownResidence = await visitor.rpc("get_magnisa_user_residence");
+  assert(!ownResidence.error && ownResidence.data?.[0]?.locality_name==="Toamasina",
+    "Authenticated users may read their own residence.");
+  const privateResidenceRead = await visitor.rpc("get_magnisa_signup_residence_for_service",{p_user:userId});
+  assert(!!privateResidenceRead.error,"Authenticated users must not call service-only residence readback.");
+  const updateResidence = await visitor.rpc("update_magnisa_user_residence",{
+    p_country_iso2:"MG",p_country_name:"Madagascar",p_region_name:"Analamanga",
+    p_locality_name:"Antananarivo",p_locality_ref:null
+  });
+  assert(!updateResidence.error,"Users may update their own residence.");
+  const updatedResidence = await visitor.rpc("get_magnisa_user_residence");
+  assert(!updatedResidence.error && updatedResidence.data?.[0]?.locality_name==="Antananarivo",
+    "Residence update must be reflected for its owner.");
   // Five-step company onboarding must create the business and its fiscal profile atomically.
   const companyPayload = {
     legalName:"Entreprise test Morombe",tradeName:"",slogan:"",
