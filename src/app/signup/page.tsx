@@ -130,15 +130,11 @@ export default function Signup() {
           <input type="hidden" id="signup-residence-country" name="residence_country_iso2" value={residenceCountry} />
           <input type="hidden" name="residence_country_name" value={selectedResidenceCountryName} />
           <div className="signup-country-picker">
-            <button type="button" className="signup-country-trigger" aria-haspopup="listbox"
-              aria-expanded={residenceCountryOpen} aria-controls="signup-country-options"
-              onClick={() => { setResidenceCountryOpen(open => !open); setResidenceCountryQuery(""); }}>
-              <span className="signup-country-trigger-value">
-                <span aria-hidden="true">{phoneCountryOptions.find(item => item.iso2 === residenceCountry)?.flag || "🌐"}</span>
-                <span>{selectedResidenceCountryName}</span>
-              </span>
-              <span aria-hidden="true">▾</span>
-            </button>
+            <input type="text" id="signup-residence-country-display" className="signup-country-trigger"
+              required readOnly aria-haspopup="listbox" aria-expanded={residenceCountryOpen}
+              aria-controls="signup-country-options"
+              value={`${phoneCountryOptions.find(item => item.iso2 === residenceCountry)?.flag || "🌐"} ${selectedResidenceCountryName}`}
+              onClick={() => { setResidenceCountryOpen(open => !open); setResidenceCountryQuery(""); }} />
             {residenceCountryOpen && <div className="signup-country-menu">
               <input type="search" autoFocus aria-label="Rechercher un pays" placeholder="Rechercher un pays…"
                 value={residenceCountryQuery} onChange={e => setResidenceCountryQuery(e.target.value)} />
