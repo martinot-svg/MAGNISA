@@ -224,6 +224,7 @@ export default function Signup() {
           </div>
           {!selectedPhoneCountry?.mobilePattern && <small role="status">Les règles de numérotation mobile ne sont pas publiées pour ce territoire dans le référentiel actuel.</small>}
         </div>
+        </div>
         <div className="signup-residence-grid">
         <div className="field">
           <label htmlFor="signup-residence-country">Pays de résidence</label>
