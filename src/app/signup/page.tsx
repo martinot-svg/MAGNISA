@@ -13,10 +13,8 @@ export default function Signup() {
   const [state, action, pending] = useActionState<any, FormData>(async (_: any, data: FormData) => signUp(data), {});
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [phoneCountry, setPhoneCountry] = useState("MG");
   const [phonePrefix, setPhonePrefix] = useState("032");
   const [phoneNational, setPhoneNational] = useState("");
-  const [phoneCountryQuery, setPhoneCountryQuery] = useState("");
   const [step, setStep] = useState<1 | 2>(1);
   const identityFieldsRef = useRef<HTMLFieldSetElement>(null);
   const [username, setUsername] = useState("");
@@ -40,13 +38,6 @@ export default function Signup() {
     name: phoneCountryNames.of(item.iso2) || item.iso2,
     flag: item.iso2 === "MG" ? "🇲🇬" : String.fromCodePoint(...Array.from(item.iso2, c => 127397 + c.charCodeAt(0))),
   })).sort((a, b) => a.iso2 === "MG" ? -1 : b.iso2 === "MG" ? 1 : a.name.localeCompare(b.name, "fr"));
-  const countryQuery = phoneCountryQuery.trim().toLocaleLowerCase("fr");
-  const countryQueryDigits = countryQuery.replace(/\D/g, "");
-  const filteredPhoneCountries = phoneCountryOptions.filter(item =>
-    !countryQuery || item.name.toLocaleLowerCase("fr").includes(countryQuery) ||
-    item.iso2.toLowerCase().includes(countryQuery) ||
-    (countryQueryDigits.length > 0 && item.dialCode.includes(countryQueryDigits)) || ("+" + item.dialCode).includes(countryQuery)
-  );
   const residenceQuery = residenceCountryQuery.trim().toLocaleLowerCase("fr");
   const residenceQueryDigits = residenceQuery.replace(/\D/g, "");
   const filteredResidenceCountries = phoneCountryOptions.filter(item =>
@@ -188,7 +179,7 @@ export default function Signup() {
                   aria-selected={item.iso2 === residenceCountry} key={item.iso2}
                   onClick={() => {
                     const country = item.iso2;
-                    setResidenceCountry(country); setPhoneCountry(country); setPhonePrefix(country === "MG" ? "032" : "");
+                    setResidenceCountry(country); setPhonePrefix(country === "MG" ? "032" : "");
                     setPhoneNational(""); setRegion(""); setLocality(""); setLocalityRef("");
                     setSuggestions([]); setResidenceCountryQuery(""); setResidenceCountryOpen(false);
                   }}>
