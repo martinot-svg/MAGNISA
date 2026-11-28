@@ -70,7 +70,8 @@ export default function Signup() {
     setRegionOptions([]);
     setRegionCoverage(false);
     fetch(`/api/geography?kind=regions&country=${encodeURIComponent(residenceCountry)}`, { signal: controller.signal })
-      .then(response => response.ok ? response.json() : { results: [], coverage: false })
+      .then((response): Promise<{ results: Array<{ code: string; name: string }>; coverage: boolean }> =>
+        response.ok ? response.json() : Promise.resolve({ results: [], coverage: false }))
       .then(payload => {
         if (!controller.signal.aborted) {
           setRegionOptions(Array.isArray(payload.results) ? payload.results : []);
