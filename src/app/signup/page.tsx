@@ -48,15 +48,18 @@ export default function Signup() {
     (countryQueryDigits.length > 0 && item.dialCode.includes(countryQueryDigits)) || ("+" + item.dialCode).includes(countryQuery)
   );
   const residenceQuery = residenceCountryQuery.trim().toLocaleLowerCase("fr");
+  const residenceQueryDigits = residenceQuery.replace(/\D/g, "");
   const filteredResidenceCountries = phoneCountryOptions.filter(item =>
     !residenceQuery || item.name.toLocaleLowerCase("fr").includes(residenceQuery) ||
-    item.iso2.toLowerCase().includes(residenceQuery)
+    item.iso2.toLowerCase().includes(residenceQuery) ||
+    (residenceQueryDigits.length > 0 && item.dialCode.includes(residenceQueryDigits)) ||
+    ("+" + item.dialCode).includes(residenceQuery)
   );
   const selectedResidenceCountryName = residenceCountryNames.of(residenceCountry) || residenceCountry;
   const selectedResidenceRegionName = residenceCountry === "MG"
     ? REGISTRATION_REGIONS.find(item => item.code === region)?.name || ""
     : region.trim();
-  const selectedPhoneCountry = getSignupPhoneCountry(phoneCountry);
+  const selectedPhoneCountry = getSignupPhoneCountry(residenceCountry);
   const nationalLengthOptions = selectedPhoneCountry?.mobileLengths || [];
   const nationalMinLength = phoneCountry === "MG" ? 7 : nationalLengthOptions.length ? Math.min(...nationalLengthOptions) : 4;
   const nationalMaxLength = phoneCountry === "MG" ? 7 : nationalLengthOptions.length ? Math.max(...nationalLengthOptions) : 14;
@@ -164,11 +167,12 @@ export default function Signup() {
           <label htmlFor="signup-residence-country-display">Pays de résidence</label>
           <input type="hidden" name="residence_country_iso2" value={residenceCountry} />
           <input type="hidden" name="residence_country_name" value={selectedResidenceCountryName} />
+          <input type="hidden" name="phone_country" value={residenceCountry} />
           <div className="signup-country-picker">
             <input type="text" id="signup-residence-country-display" className="signup-country-trigger"
               required readOnly aria-haspopup="listbox" aria-expanded={residenceCountryOpen}
               aria-controls="signup-country-options"
-              value={`${phoneCountryOptions.find(item => item.iso2 === residenceCountry)?.flag || "🌐"} ${selectedResidenceCountryName}`}
+              value={`${phoneCountryOptions.find(item => item.iso2 === residenceCountry)?.flag || "🌐"} ${selectedResidenceCountryName} (+${getSignupPhoneDialCode(residenceCountry)})`}
               onClick={() => { setResidenceCountryOpen(open => !open); setResidenceCountryQuery(""); }}
               onKeyDown={event => {
                 if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
@@ -176,7 +180,7 @@ export default function Signup() {
                 }
               }} />
             {residenceCountryOpen && <div className="signup-country-menu">
-              <input type="search" autoFocus aria-label="Rechercher un pays" placeholder="Rechercher un pays…"
+              <input type="search" autoFocus aria-label="Rechercher un pays" placeholder="Rechercher un pays ou un indicatif…"
                 value={residenceCountryQuery} onChange={e => setResidenceCountryQuery(e.target.value)}
                 onKeyDown={event => { if (event.key === "Escape") setResidenceCountryOpen(false); }} />
               <div id="signup-country-options" role="listbox" aria-label="Pays disponibles" className="signup-country-options">
@@ -188,7 +192,7 @@ export default function Signup() {
                     setPhoneNational(""); setRegion(""); setLocality(""); setLocalityRef("");
                     setSuggestions([]); setResidenceCountryQuery(""); setResidenceCountryOpen(false);
                   }}>
-                  <span aria-hidden="true">{item.flag}</span><span>{item.name}</span><span className="signup-country-iso">{item.iso2}</span>
+                  <span aria-hidden="true">{item.flag}</span><span>{item.name}</span><span className="signup-country-iso">+{item.dialCode}</span>
                 </button>)}
                 {filteredResidenceCountries.length === 0 && <p className="signup-country-empty">Aucun pays trouvé.</p>}
               </div>
@@ -196,52 +200,38 @@ export default function Signup() {
           </div>
         </div>
         <div className="field signup-phone-field">
-          <label htmlFor="signup-phone-country">Téléphone</label>
-          <div className="signup-phone-row">
-            <div className="signup-phone-country">
-              <span className={phoneCountry === "MG" ? "signup-flag-mg" : "signup-flag-other"} aria-label={phoneCountry === "MG" ? "Drapeau de Madagascar" : "Drapeau du pays sélectionné"}>{phoneCountry === "MG" ? null : String.fromCodePoint(...Array.from(phoneCountry, c => 127397 + c.charCodeAt(0)))}</span>
-              <div className="signup-phone-country-controls">
-                <input id="signup-phone-country-search" type="search" aria-label="Rechercher un pays ou un indicatif" placeholder="Rechercher un pays ou +…" value={phoneCountryQuery} onChange={e => setPhoneCountryQuery(e.target.value)} />
-                <select id="signup-phone-country" name="phone_country" aria-label="Pays du numéro de téléphone" value={phoneCountry} onChange={e => { setPhoneCountry(e.target.value); setPhonePrefix(e.target.value === "MG" ? "032" : ""); setPhoneNational(""); }} required>
-                  {filteredPhoneCountries.length ? filteredPhoneCountries.map(item => <option key={item.iso2} value={item.iso2}>{item.flag} {item.name} (+{item.dialCode})</option>) : <option value={phoneCountry}>{phoneCountry} — aucun résultat</option>}
-                </select>
-              </div>
-            </div>
+          <label htmlFor="signup-phone-national">Téléphone mobile</label>
+          <div className="signup-phone-row signup-phone-row-synced">
             <div className="signup-phone-dial-code">
-              <span className="signup-phone-field-label">Indicatif</span>
-              <output aria-live="polite" aria-label="Indicatif international">+{getSignupPhoneDialCode(phoneCountry)}</output>
+              <span className="signup-phone-field-label">Indicatif international 🔒</span>
+              <output aria-live="polite" aria-label="Indicatif international">+{getSignupPhoneDialCode(residenceCountry)}</output>
             </div>
             <div className="signup-phone-prefix">
-            <span className="signup-phone-field-label">Préfixe</span>
-            <select id="signup-phone-prefix" name="phone_prefix" aria-label="Préfixe mobile" value={phonePrefix} onChange={e => setPhonePrefix(e.target.value)} required={phoneCountry === "MG"} disabled={phoneCountry !== "MG"}>
-              {phoneCountry === "MG" ? ["032","033","034","035","036","037","038","039"].map(prefix => <option key={prefix} value={prefix}>{prefix}</option>) : <option value="">—</option>}
-            </select>
+              <span className="signup-phone-field-label">Préfixe mobile</span>
+              <select id="signup-phone-prefix" name="phone_prefix" aria-label="Préfixe mobile" value={phonePrefix}
+                onChange={e => setPhonePrefix(e.target.value)} required={residenceCountry === "MG"}
+                disabled={residenceCountry !== "MG"}>
+                {residenceCountry === "MG"
+                  ? ["032","033","034","035","036","037","038","039"].map(prefix => <option key={prefix} value={prefix}>{prefix}</option>)
+                  : <option value="">—</option>}
+              </select>
             </div>
-            {phoneCountry !== "MG" && <input type="hidden" name="phone_prefix" value="" />}
+            {residenceCountry !== "MG" && <input type="hidden" name="phone_prefix" value="" />}
             <div className="signup-phone-national">
-            <span className="signup-phone-field-label">Numéro</span>
-            <input id="signup-phone-national" name="phone_national" type="tel" inputMode="numeric" autoComplete="tel-national" required disabled={!selectedPhoneCountry?.mobilePattern} value={phoneNational} onChange={e => setPhoneNational(e.target.value.replace(/\D/g, "").slice(0, nationalMaxLength))} minLength={nationalMinLength} maxLength={nationalMaxLength} pattern="[0-9]*" placeholder={phoneCountry === "MG" ? "1234567" : "Numéro national"} aria-label={phoneCountry === "MG" ? "Sept chiffres du numéro" : "Numéro national sans indicatif"} />
+              <span className="signup-phone-field-label">Numéro national</span>
+              <input id="signup-phone-national" name="phone_national" type="tel" inputMode="numeric"
+                autoComplete="tel-national" required disabled={!selectedPhoneCountry?.mobilePattern}
+                value={phoneNational}
+                onChange={e => setPhoneNational(e.target.value.replace(/\D/g, "").slice(0, nationalMaxLength))}
+                minLength={nationalMinLength} maxLength={nationalMaxLength} pattern="[0-9]*"
+                placeholder={residenceCountry === "MG" ? "1234567" : "Numéro sans indicatif"}
+                aria-label="Numéro national sans indicatif" />
             </div>
           </div>
           {!selectedPhoneCountry?.mobilePattern && <small role="status">Les règles de numérotation mobile ne sont pas publiées pour ce territoire dans le référentiel actuel.</small>}
         </div>
         </div>
         <div className="signup-residence-grid">
-        <div className="field">
-          <label htmlFor="signup-residence-country">Pays de résidence</label>
-          <input type="search" aria-label="Rechercher un pays de résidence" placeholder="Rechercher un pays…"
-            value={residenceCountryQuery} onChange={e => setResidenceCountryQuery(e.target.value)} />
-          <select id="signup-residence-country" name="residence_country_iso2" required value={residenceCountry}
-            onChange={e => {
-              setResidenceCountry(e.target.value); setRegion(""); setLocality(""); setLocalityRef("");
-              setSuggestions([]); setResidenceCountryQuery("");
-            }}>
-            {filteredResidenceCountries.map(item => <option key={item.iso2} value={item.iso2}>{item.flag} {item.name}</option>)}
-            {!filteredResidenceCountries.some(item => item.iso2 === residenceCountry) &&
-              <option value={residenceCountry}>{residenceCountryNames.of(residenceCountry) || residenceCountry}</option>}
-          </select>
-          <input type="hidden" name="residence_country_name" value={selectedResidenceCountryName} />
-        </div>
         <div className="field">
           <label htmlFor="signup-region">Région / Province / État de résidence</label>
           {(residenceCountry === "MG" || regionOptions.length > 0) ? (
