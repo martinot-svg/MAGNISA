@@ -175,4 +175,4 @@
 .signup-country-phone-row{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.5fr);gap:14px;align-items:start;min-width:0}
 .signup-country-phone-row>.field{min-width:0}
 .signup-country-phone-row .signup-phone-row{grid-template-columns:minmax(66px,.55fr) minmax(82px,.7fr) minmax(100px,1fr)}
-@media(max-width:760px){.signup-country-phone-row{grid-template-columns:minmax(0,1fr)}.signup-country-phone-row .signup-phone-row{grid-template-columns:minmax(66px,.55fr) minmax(82px,.7fr) minmax(100px,1fr)}}
+@media(max-width:480px){.signup-country-phone-row{grid-template-columns:minmax(0,1fr)}.signup-country-phone-row .signup-phone-row{grid-template-columns:minmax(66px,.55fr) minmax(82px,.7fr) minmax(100px,1fr)}}
