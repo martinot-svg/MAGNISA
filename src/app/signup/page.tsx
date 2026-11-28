@@ -126,8 +126,8 @@ export default function Signup() {
         </div>
         <div className="signup-country-phone-row">
         <div className="field signup-residence-country-field">
-          <label htmlFor="signup-residence-country">Pays de résidence</label>
-          <input type="hidden" id="signup-residence-country" name="residence_country_iso2" value={residenceCountry} />
+          <label htmlFor="signup-residence-country-display">Pays de résidence</label>
+          <input type="hidden" name="residence_country_iso2" value={residenceCountry} />
           <input type="hidden" name="residence_country_name" value={selectedResidenceCountryName} />
           <div className="signup-country-picker">
             <input type="text" id="signup-residence-country-display" className="signup-country-trigger"
