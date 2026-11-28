@@ -55,7 +55,7 @@ async function reloadForFreshRender(page){
   for(let attempt=0;attempt<2;attempt++){
     try{
       await page.reload({waitUntil:"domcontentloaded",timeout:30000});
-      await page.locator("main").waitFor({state:"visible",timeout:20000});
+      await page.getByRole("heading",{name:"Messagerie",exact:true}).waitFor({state:"visible",timeout:20000});
       return;
     }catch(error){
       const message=String(error);
@@ -65,7 +65,7 @@ async function reloadForFreshRender(page){
   }
   const currentUrl=page.url();
   await page.goto(currentUrl,{waitUntil:"domcontentloaded",timeout:30000});
-  await page.locator("main").waitFor({state:"visible",timeout:20000});
+  await page.getByRole("heading",{name:"Messagerie",exact:true}).waitFor({state:"visible",timeout:20000});
 }
 
 async function openDialog(page,label,scope=page){

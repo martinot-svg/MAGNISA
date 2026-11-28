@@ -78,7 +78,7 @@ if [[ ! -s "$LOCAL" ]]; then
 fi
 
 sort -t '|' -k1,1 -o "$REMOTE" "$REMOTE"
-while IFS= read -r replay_version; do
+while IFS= read -r replay_version || [[ -n "${replay_version:-}" ]]; do
   [[ -n "$replay_version" ]] || continue
   if grep -Fxq "$replay_version" <(cut -d '|' -f1 "$REMOTE"); then
     echo "::error::Local replay-only version is already recorded in production: $replay_version"
@@ -139,7 +139,7 @@ if [[ -f "$RECONCILIATION_FILE" ]]; then
   fi
 fi
 
-while IFS='|' read -r version remote_name local_file mapping_type evidence_ref expected_sha; do
+while IFS='|' read -r version remote_name local_file mapping_type evidence_ref expected_sha || [[ -n "${version:-}" ]]; do
   [[ -n "$version" && "$version" != \#* ]] || continue
   remote_row="$(awk -F '|' -v v="$version" '$1==v {print $2}' "$REMOTE")"
   remote_sha="$(awk -F '|' -v v="$version" '$1==v {print $3}' "$REMOTE")"
@@ -171,7 +171,7 @@ done < "$RECONCILIATION_FILE"
 # When the remote ledger exposes its stored SQL statements, verify every direct
 # version/name match byte-for-byte. Two-column fixtures remain supported.
 : > "$DIRECT_HASH_MISMATCH"
-while IFS='|' read -r version local_name local_file; do
+while IFS='|' read -r version local_name local_file || [[ -n "${version:-}" ]]; do
   grep -Fxq "$version" "$USED_MAP" && continue
   remote_name="$(awk -F '|' -v v="$version" '$1==v {print $2}' "$REMOTE")"
   [[ "$remote_name" == "$local_name" ]] || continue
@@ -191,7 +191,7 @@ fi
 # A checksum-verified reconciliation source is already represented by a remote
 # migration. Do not let db push re-run that local file under its different version.
 : > "$TMP_DIR/mapped-local-files"
-while IFS='|' read -r version remote_name local_file mapping_type evidence_ref expected_sha; do
+while IFS='|' read -r version remote_name local_file mapping_type evidence_ref expected_sha || [[ -n "${version:-}" ]]; do
   [[ -n "$version" && "$version" != \#* ]] || continue
   printf '%s\n' "$local_file" >> "$TMP_DIR/mapped-local-files"
 done < "$RECONCILIATION_FILE"
@@ -201,7 +201,7 @@ comm -23 "$LOCAL_VERSIONS" "$REMOTE_VERSIONS" > "$LOCAL_ONLY"
 REMOTE_MAX_VERSION="$(tail -n 1 "$REMOTE_VERSIONS" 2>/dev/null || true)"
 : > "$UNEXPECTED"
 : > "$OUT_OF_ORDER"
-while IFS= read -r version; do
+while IFS= read -r version || [[ -n "${version:-}" ]]; do
   [[ -n "$version" ]] || continue
   if [[ -n "$REMOTE_MAX_VERSION" && "$version" < "$REMOTE_MAX_VERSION" ]]; then
     printf '%s\n' "$version" >> "$OUT_OF_ORDER"
@@ -210,13 +210,13 @@ while IFS= read -r version; do
 done < "$LOCAL_ONLY"
 
 : > "$TMP_DIR/name-mismatch-unmapped"
-while read -r mismatch_version mismatch_detail; do
+while read -r mismatch_version mismatch_detail || [[ -n "${mismatch_version:-}" ]]; do
   [[ -n "$mismatch_version" ]] || continue
   grep -Fxq "$mismatch_version" "$USED_MAP" || printf '%s %s\n' "$mismatch_version" "$mismatch_detail" >> "$TMP_DIR/name-mismatch-unmapped"
 done < "$NAME_MISMATCH"
 mv "$TMP_DIR/name-mismatch-unmapped" "$NAME_MISMATCH"
 
-while IFS='|' read -r version remote_name remote_sha; do
+while IFS='|' read -r version remote_name remote_sha || [[ -n "${version:-}" ]]; do
   [[ -n "$version" ]] || continue
   local_row="$(awk -F '|' -v v="$version" '$1==v {print $2}' "$LOCAL")"
   if [[ -z "$local_row" || "$local_row" != "$remote_name" ]]; then
@@ -237,13 +237,13 @@ echo "Verified reconciliation manifest entries: $(wc -l < "$USED_MAP" | tr -d ' 
 
 if [[ -s "$UNEXPECTED" ]]; then
   echo "::error::Unreviewed local migrations would be applied to production:"
-  while IFS= read -r version; do
+  while IFS= read -r version || [[ -n "${version:-}" ]]; do
     grep -F "$version|" "$LOCAL" || true
   done < "$UNEXPECTED"
 fi
 if [[ -s "$OUT_OF_ORDER" ]]; then
   echo "::error::Pending local migrations older than the latest remote version cannot be applied chronologically:"
-  while IFS= read -r version; do
+  while IFS= read -r version || [[ -n "${version:-}" ]]; do
     grep -F "$version|" "$LOCAL" || true
   done < "$OUT_OF_ORDER"
   echo "::error::Create and validate a forward-only compatibility migration after the remote ledger head; do not apply historical files out of order."
