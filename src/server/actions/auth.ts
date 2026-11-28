@@ -4,12 +4,12 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { signupEmailPolicy } from "@/lib/auth/domain";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isValidRegistrationRegion, normalizeUsername, USERNAME_PATTERN, NEW_USERNAME_PATTERN, LEGACY_GENERATED_USERNAME_PATTERN, usernameVariants } from "@/lib/auth/magnisa-identity";
+import { isValidRegistrationRegion, REGISTRATION_REGIONS, normalizeUsername, USERNAME_PATTERN, NEW_USERNAME_PATTERN, LEGACY_GENERATED_USERNAME_PATTERN, usernameVariants } from "@/lib/auth/magnisa-identity";
 import { createHmac } from "node:crypto";
 import { resolveLocality } from "@/lib/geo/madagascar-localities";
 import { headers } from "next/headers";
 import { isAtLeast18, isValidBirthDate } from "@/lib/auth/majority";
-import { normalizeSignupPhone } from "@/lib/auth/phone";
+import { normalizeSignupPhone, SIGNUP_PHONE_COUNTRIES } from "@/lib/auth/phone";
 
 const signupSchema = z.object({
   email: z.string().email(),
@@ -20,13 +20,15 @@ const signupSchema = z.object({
   confirm_password: z.string().min(10),
     birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   majority_confirmed: z.literal("true"),
-  country_code: z.string().regex(/^[0-9]{3}$/),
-  region_code: z.string().regex(/^9[0-2][0-9]$/),
-  locality_name: z.string().trim().min(2).max(160),
-  locality_ref: z.string().trim().max(20).optional(),
+  residence_country_iso2: z.string().regex(/^[A-Z]{2}$/),
+  residence_country_name: z.string().trim().min(2).max(100),
+  residence_region_name: z.string().trim().min(1).max(120),
+  residence_region_code: z.string().regex(/^9[0-2][0-9]$/).optional().or(z.literal("")),
+  residence_locality_name: z.string().trim().min(2).max(160),
+  residence_locality_ref: z.string().trim().max(40).optional(),
   phone_country: z.string().length(2),
-  phone_prefix: z.string().max(3),
-  phone_national: z.string().regex(/^[0-9]{4,14}$/),
+  phone_prefix: z.string().max(3).optional(),
+  phone_national: z.string().regex(/^[0-9]{4,14}$/).optional(),
 });
 
 export async function signUp(formData: FormData) {
@@ -35,7 +37,7 @@ export async function signUp(formData: FormData) {
     return { error: "Adresse e-mail ou mot de passe invalide. Le mot de passe doit comporter au moins 10 caractères." };
   }
 
-  const phone = normalizeSignupPhone(parsed.data.phone_country, parsed.data.phone_prefix, parsed.data.phone_national);
+  const phone = normalizeSignupPhone(parsed.data.phone_country, parsed.data.phone_prefix || "", parsed.data.phone_national || "");
   if (!phone) return { error: "Le numéro de téléphone est invalide pour le pays et le préfixe sélectionnés." };
 
   const username = normalizeUsername(parsed.data.username);
@@ -47,11 +49,29 @@ export async function signUp(formData: FormData) {
   if (!NEW_USERNAME_PATTERN.test(username)) {
     return { error: "Le nom d’utilisateur doit comporter de 3 à 10 lettres minuscules après @." };
   }
-  if (!isValidRegistrationRegion(parsed.data.country_code, parsed.data.region_code)) {
-    return { error: "Sélectionne une région de Madagascar." };
+  const residenceCountry = SIGNUP_PHONE_COUNTRIES.find(item => item.iso2 === parsed.data.residence_country_iso2);
+  if (!residenceCountry) return { error: "Sélectionne un pays de résidence valide." };
+  const displayCountryName = new Intl.DisplayNames(["fr"], { type: "region" }).of(parsed.data.residence_country_iso2);
+  if (!displayCountryName ||
+      (displayCountryName !== parsed.data.residence_country_iso2 &&
+       displayCountryName !== parsed.data.residence_country_name)) {
+    return { error: "Le pays de résidence sélectionné est invalide." };
   }
-  const chosen = resolveLocality(parsed.data.locality_ref || "", parsed.data.region_code);
-  const normalizedPlace = parsed.data.locality_name.trim().toLocaleLowerCase("fr");
+  const officialCountryName = displayCountryName === parsed.data.residence_country_iso2
+    ? parsed.data.residence_country_name : displayCountryName;
+  if (parsed.data.residence_country_iso2 === "MG") {
+    if (!parsed.data.residence_region_code ||
+        !isValidRegistrationRegion("261", parsed.data.residence_region_code) ||
+        REGISTRATION_REGIONS.find(item => item.code === parsed.data.residence_region_code)?.name !== parsed.data.residence_region_name) {
+      return { error: "Sélectionne une région valide de Madagascar." };
+    }
+  } else if (parsed.data.residence_region_code) {
+    return { error: "La région sélectionnée ne correspond pas au pays de résidence." };
+  }
+  const chosen = parsed.data.residence_country_iso2 === "MG"
+    ? resolveLocality(parsed.data.residence_locality_ref || "", parsed.data.residence_region_code || "")
+    : null;
+  const normalizedPlace = parsed.data.residence_locality_name.trim().toLocaleLowerCase("fr");
   const validated = chosen?.name.toLocaleLowerCase("fr") === normalizedPlace ? chosen : null;
 
   const policy = signupEmailPolicy(parsed.data.email);
@@ -131,24 +151,28 @@ export async function signUp(formData: FormData) {
     return { error: "Impossible d’enregistrer le numéro de téléphone. Aucun compte n’a été créé ; réessaie." };
   }
 
-  // The auth.users trigger consumes this private, short-lived pending record
-  // in the same transaction as Auth user creation. DOB is never user_metadata.
-  // Auth user_metadata is readable by the user: NEVER store geographic codes there.
-  // The server calls a service-role-only RPC to attach the immutable origin privately.
-  if (data.user.email?.trim().toLowerCase() === email && data.user.id) {
-    const { error: originError } = await admin.rpc("register_magnisa_signup_location", {
-      p_user: data.user.id,
-      p_region_code: parsed.data.region_code,
-      p_locality_name: parsed.data.locality_name,
-      p_locality_ref: validated?.ref || null,
-      p_commune: validated?.commune || null,
-      p_district: validated?.district || null,
-    });
-    if (originError) {
-      // Do not invalidate an already-created Supabase Auth account. The user can
-      // complete the origin from /mon-profil after confirming the email.
-      console.error("[magnisa-identity] Origin registration pending:", originError.code);
-    }
+  // Residence is editable profile data, never the immutable registration origin.
+  // It is stored in its own private table and never copied into Auth user_metadata.
+  const { error: residenceError } = await admin.rpc("register_magnisa_signup_residence", {
+    p_user: data.user.id,
+    p_country_iso2: parsed.data.residence_country_iso2,
+    p_country_name: officialCountryName,
+    p_region_name: parsed.data.residence_region_name,
+    p_locality_name: parsed.data.residence_locality_name,
+    p_locality_ref: validated?.ref || null,
+  });
+  const { data: storedResidence, error: residenceReadError } = await admin.rpc(
+    "get_magnisa_signup_residence_for_service", { p_user: data.user.id },
+  );
+  if (residenceError || residenceReadError ||
+      !Array.isArray(storedResidence) ||
+      storedResidence[0]?.country_iso2 !== parsed.data.residence_country_iso2 ||
+      storedResidence[0]?.region_name !== parsed.data.residence_region_name ||
+      storedResidence[0]?.locality_name !== parsed.data.residence_locality_name) {
+    const { error: rollbackError } = await admin.auth.admin.deleteUser(data.user.id);
+    await admin.rpc("cancel_magnisa_signup_age_pending", { p_email: email });
+    console.error("[magnisa-signup] Residence persistence failed:", residenceError?.code || residenceReadError?.code || "read-back-mismatch", rollbackError?.message || "");
+    return { error: "Impossible d’enregistrer votre lieu de résidence. Aucun compte n’a été créé ; réessaie." };
   }
 
   return {

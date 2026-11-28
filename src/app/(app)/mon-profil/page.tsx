@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/current-org";
 import { REGISTRATION_COUNTRY_CODE, REGISTRATION_COUNTRY_NAME, REGISTRATION_REGIONS, NEW_USERNAME_PATTERN, USERNAME_PATTERN, isValidRegistrationRegion, normalizeUsername } from "@/lib/auth/magnisa-identity";
 import { FormDialog } from "@/components/form-dialog";
+import { SIGNUP_PHONE_COUNTRIES } from "@/lib/auth/phone";
 
 async function saveProfile(formData: FormData) {
   "use server";
@@ -40,15 +41,41 @@ async function saveProfile(formData: FormData) {
   revalidatePath("/utilisateurs");
 }
 
+async function saveResidence(formData: FormData) {
+  "use server";
+  const { supabase } = await requireUser();
+  const countryIso2 = String(formData.get("residence_country_iso2") || "").toUpperCase();
+  const country = SIGNUP_PHONE_COUNTRIES.find(item => item.iso2 === countryIso2);
+  const countryName = new Intl.DisplayNames(["fr"], { type: "region" }).of(countryIso2) || countryIso2;
+  const regionName = String(formData.get("residence_region_name") || "").trim();
+  const localityName = String(formData.get("residence_locality_name") || "").trim();
+  if (!country || regionName.length < 1 || regionName.length > 120 ||
+      localityName.length < 2 || localityName.length > 160) {
+    throw new Error("Pays, région ou localité de résidence invalide.");
+  }
+  const { error } = await supabase.rpc("update_magnisa_user_residence", {
+    p_country_iso2: countryIso2,
+    p_country_name: countryName,
+    p_region_name: regionName,
+    p_locality_name: localityName,
+    p_locality_ref: null,
+  });
+  if (error) throw new Error("Impossible d'enregistrer votre résidence.");
+  revalidatePath("/mon-profil");
+}
+
 export default async function MyMagnisaProfile() {
   const { supabase, user } = await requireUser();
-  const [{ data: profile, error }, { data: registered, error: registrationError }] = await Promise.all([
+  const [{ data: profile, error }, { data: registered, error: registrationError }, { data: residenceRows, error: residenceError }] = await Promise.all([
     supabase.from("profiles").select("email,full_name,username,public_id,username_changed_at")
       .eq("id",user.id).maybeSingle(),
     supabase.rpc("has_magnisa_registration"),
+    supabase.rpc("get_magnisa_user_residence"),
   ]);
   if (error || !profile) throw new Error("Profil indisponible.");
   if (registrationError) throw new Error("Impossible de vérifier le lieu d'inscription.");
+  if (residenceError) throw new Error("Impossible de charger les informations de résidence.");
+  const residence = Array.isArray(residenceRows) ? residenceRows[0] : null;
   return (
     <>
       <div className="pageHead">
@@ -110,6 +137,36 @@ export default async function MyMagnisaProfile() {
           </FormDialog>
         </section>
       </div>
+      <section className="card">
+        <h2>Ma résidence</h2>
+        <p className="muted">Ces informations sont indépendantes du lieu d'inscription permanent et peuvent être modifiées à tout moment.</p>
+        {residence ? (
+          <p><strong>{residence.locality_name}</strong>, {residence.region_name}, {residence.country_name}</p>
+        ) : <p className="muted">Aucune résidence enregistrée.</p>}
+        <FormDialog title="Modifier ma résidence" buttonLabel={residence ? "Modifier ma résidence" : "Renseigner ma résidence"}>
+          <form action={saveResidence} className="form">
+            <div className="field">
+              <label htmlFor="residence-country-edit">Pays de résidence</label>
+              <select id="residence-country-edit" name="residence_country_iso2" required defaultValue={residence?.country_iso2 || "MG"}>
+                {SIGNUP_PHONE_COUNTRIES.map(item => <option key={item.iso2} value={item.iso2}>
+                  {new Intl.DisplayNames(["fr"], { type: "region" }).of(item.iso2) || item.iso2}
+                </option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="residence-region-edit">Région / Province / État</label>
+              <input id="residence-region-edit" name="residence_region_name" required minLength={1} maxLength={120}
+                defaultValue={residence?.region_name || ""} />
+            </div>
+            <div className="field">
+              <label htmlFor="residence-locality-edit">Ville / Localité</label>
+              <input id="residence-locality-edit" name="residence_locality_name" required minLength={2} maxLength={160}
+                defaultValue={residence?.locality_name || ""} />
+            </div>
+            <button className="button primary" type="submit">Enregistrer ma résidence</button>
+          </form>
+        </FormDialog>
+      </section>
     </>
   );
 }
