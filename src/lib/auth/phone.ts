@@ -23,3 +23,9 @@ export function normalizeSignupPhone(countryIso2: string, prefix: string, nation
   if (prefix !== "" || national.length < country.minLength || national.length > country.maxLength || national.startsWith("0")) return null;
   return {country:countryIso2,e164:"+" + country.dialCode + national};
 }
+
+
+/** International calling code for the explicitly selected ISO-3166-1 country. */
+export function getSignupPhoneDialCode(countryIso2: string): string {
+  return SIGNUP_PHONE_COUNTRIES.find(item => item.iso2 === countryIso2)?.dialCode ?? "";
+}
