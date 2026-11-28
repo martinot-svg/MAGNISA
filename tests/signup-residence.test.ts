@@ -14,6 +14,16 @@ describe("MAGNISA international residence", () => {
     expect(signup).toContain('name="residence_locality_name"');
   });
 
+  it("uses exactly one residence-country selector to drive the locked international phone code", () => {
+    expect((signup.match(/name="residence_country_iso2"/g) || []).length).toBe(1);
+    expect((signup.match(/name="phone_country"/g) || []).length).toBe(1);
+    expect(signup).toContain('name="phone_country" value={residenceCountry}');
+    expect(signup).toContain('getSignupPhoneDialCode(residenceCountry)');
+    expect(signup).toContain('placeholder="Rechercher un pays ou un indicatif…"');
+    expect(signup).not.toContain('id="signup-residence-country"');
+    expect(signup).not.toContain('id="signup-phone-country"');
+  });
+
   it("stores residence separately and does not confuse it with immutable registration origin", () => {
     expect(action).toContain('register_magnisa_signup_residence');
     expect(action).not.toContain('register_magnisa_signup_location');
