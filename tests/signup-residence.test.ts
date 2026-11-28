@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 describe("MAGNISA international residence", () => {
   const signup = readFileSync("src/app/signup/page.tsx", "utf8");
   const action = readFileSync("src/server/actions/auth.ts", "utf8");
-  const migration = readFileSync("supabase/migrations/20261128100000_private_user_residence.sql", "utf8");
+  const migration = readFileSync("supabase/migrations/20261130090000_private_user_residence.sql", "utf8");
   const profile = readFileSync("src/app/(app)/mon-profil/page.tsx", "utf8");
 
   it("offers a searchable international country selector and separate region/locality fields", () => {
