@@ -9,7 +9,7 @@ export type LocalitySuggestion = {
   name: string;
   commune: string;
   district: string;
-  type: "fokontany" | "commune";
+  type: "fokontany" | "commune" | "city";
 };
 const rows = entries as LocalityRow[];
 const normalize = (value: string) => value.normalize("NFD")
