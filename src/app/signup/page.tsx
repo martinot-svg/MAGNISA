@@ -24,6 +24,8 @@ export default function Signup() {
   const [residenceCountryQuery, setResidenceCountryQuery] = useState("");
   const [residenceCountryOpen, setResidenceCountryOpen] = useState(false);
   const [region, setRegion] = useState("");
+  const [regionQuery, setRegionQuery] = useState("");
+  const [regionOpen, setRegionOpen] = useState(false);
   const [locality, setLocality] = useState("");
   const [localityRef, setLocalityRef] = useState("");
   const [suggestions, setSuggestions] = useState<LocalitySuggestion[]>([]);
@@ -183,13 +185,30 @@ export default function Signup() {
         <div className="field">
           <label htmlFor="signup-region">Région / Province / État de résidence</label>
           {residenceCountry === "MG" ? (
-            <select id="signup-region" name="residence_region_code" required value={region}
-              onChange={e => {
-                setRegion(e.target.value); setLocality(""); setLocalityRef(""); setSuggestions([]);
-              }}>
-              <option value="" disabled>Sélectionner une région</option>
-              {REGISTRATION_REGIONS.map(item => <option key={item.code} value={item.code}>{item.name}</option>)}
-            </select>
+            <>
+              <input type="hidden" id="signup-region" name="residence_region_code" value={region} />
+              <div className="signup-country-picker">
+                <button type="button" className="signup-country-trigger" aria-haspopup="listbox"
+                  aria-expanded={regionOpen} aria-controls="signup-region-options"
+                  onClick={() => { setRegionOpen(open => !open); setRegionQuery(""); }}>
+                  <span>{REGISTRATION_REGIONS.find(item => item.code === region)?.name || "Sélectionner une région"}</span>
+                  <span aria-hidden="true">▾</span>
+                </button>
+                {regionOpen && <div className="signup-country-menu">
+                  <input type="search" autoFocus aria-label="Rechercher une région" placeholder="Rechercher une région…"
+                    value={regionQuery} onChange={e => setRegionQuery(e.target.value)} />
+                  <div id="signup-region-options" role="listbox" aria-label="Régions de Madagascar" className="signup-country-options">
+                    {REGISTRATION_REGIONS.filter(item => !regionQuery.trim() ||
+                      item.name.toLocaleLowerCase("fr").includes(regionQuery.trim().toLocaleLowerCase("fr")))
+                      .map(item => <button type="button" role="option" aria-selected={item.code === region}
+                        key={item.code} onClick={() => {
+                          setRegion(item.code); setLocality(""); setLocalityRef(""); setSuggestions([]);
+                          setRegionQuery(""); setRegionOpen(false);
+                        }}>{item.name}</button>)}
+                  </div>
+                </div>}
+              </div>
+            </>
           ) : (
             <input id="signup-region" name="residence_region_name" required minLength={1} maxLength={120}
               autoComplete="address-level1" value={region} onChange={e => setRegion(e.target.value)}
