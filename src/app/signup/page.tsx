@@ -6,7 +6,7 @@ import { signUp } from "@/server/actions/auth";
 import { BrandMark } from "@/components/brand-mark";
 import type { LocalitySuggestion } from "@/lib/geo/madagascar-localities";
 import { REGISTRATION_REGIONS, REGISTRATION_COUNTRY_CODE, REGISTRATION_COUNTRY_NAME, generateUsername, normalizeUsername } from "@/lib/auth/magnisa-identity";
-import { getSignupPhoneDialCode } from "@/lib/auth/phone";
+import { getSignupPhoneDialCode, getSignupPhoneCountry, SIGNUP_PHONE_COUNTRIES } from "@/lib/auth/phone";
 
 export default function Signup() {
   const router = useRouter();
@@ -16,6 +16,7 @@ export default function Signup() {
   const [phoneCountry, setPhoneCountry] = useState("MG");
   const [phonePrefix, setPhonePrefix] = useState("032");
   const [phoneNational, setPhoneNational] = useState("");
+  const [phoneCountryQuery, setPhoneCountryQuery] = useState("");
   const [step, setStep] = useState<1 | 2>(1);
   const identityFieldsRef = useRef<HTMLFieldSetElement>(null);
   const [username, setUsername] = useState("");
@@ -25,6 +26,23 @@ export default function Signup() {
   const [localityRef, setLocalityRef] = useState("");
   const [suggestions, setSuggestions] = useState<LocalitySuggestion[]>([]);
   const [searching, setSearching] = useState(false);
+  const phoneCountryNames = new Intl.DisplayNames(["fr"], { type: "region" });
+  const phoneCountryOptions = SIGNUP_PHONE_COUNTRIES.map(item => ({
+    ...item,
+    name: phoneCountryNames.of(item.iso2) || item.iso2,
+    flag: item.iso2 === "MG" ? "🇲🇬" : String.fromCodePoint(...Array.from(item.iso2, c => 127397 + c.charCodeAt(0))),
+  })).sort((a, b) => a.iso2 === "MG" ? -1 : b.iso2 === "MG" ? 1 : a.name.localeCompare(b.name, "fr"));
+  const countryQuery = phoneCountryQuery.trim().toLocaleLowerCase("fr");
+  const countryQueryDigits = countryQuery.replace(/\\D/g, "");
+  const filteredPhoneCountries = phoneCountryOptions.filter(item =>
+    !countryQuery || item.name.toLocaleLowerCase("fr").includes(countryQuery) ||
+    item.iso2.toLowerCase().includes(countryQuery) ||
+    item.dialCode.includes(countryQueryDigits) || ("+" + item.dialCode).includes(countryQuery)
+  );
+  const selectedPhoneCountry = getSignupPhoneCountry(phoneCountry);
+  const nationalLengthOptions = selectedPhoneCountry?.mobileLengths || [];
+  const nationalMinLength = phoneCountry === "MG" ? 7 : nationalLengthOptions.length ? Math.min(...nationalLengthOptions) : 4;
+  const nationalMaxLength = phoneCountry === "MG" ? 7 : nationalLengthOptions.length ? Math.max(...nationalLengthOptions) : 14;
   useEffect(() => {
     if (!region || locality.trim().length < 2 || localityRef) {
       setSuggestions([]);
@@ -104,9 +122,12 @@ export default function Signup() {
           <div className="signup-phone-row">
             <div className="signup-phone-country">
               <span className={phoneCountry === "MG" ? "signup-flag-mg" : "signup-flag-other"} aria-label={phoneCountry === "MG" ? "Drapeau de Madagascar" : "Drapeau du pays sélectionné"}>{phoneCountry === "MG" ? null : String.fromCodePoint(...Array.from(phoneCountry, c => 127397 + c.charCodeAt(0)))}</span>
-              <select id="signup-phone-country" name="phone_country" aria-label="Pays et indicatif téléphonique" value={phoneCountry} onChange={e => { setPhoneCountry(e.target.value); setPhonePrefix(e.target.value === "MG" ? "032" : ""); setPhoneNational(""); }} required>
-                <option value="MG">Madagascar (+261)</option><option value="FR">France (+33)</option><option value="RE">La Réunion (+262)</option><option value="MU">Maurice (+230)</option><option value="KM">Comores (+269)</option><option value="ZA">Afrique du Sud (+27)</option><option value="SN">Sénégal (+221)</option><option value="KE">Kenya (+254)</option><option value="GB">Royaume-Uni (+44)</option><option value="US">États-Unis (+1)</option><option value="CA">Canada (+1)</option><option value="DE">Allemagne (+49)</option><option value="IT">Italie (+39)</option><option value="ES">Espagne (+34)</option><option value="CH">Suisse (+41)</option><option value="AE">Émirats arabes unis (+971)</option><option value="IN">Inde (+91)</option><option value="CN">Chine (+86)</option><option value="JP">Japon (+81)</option><option value="AU">Australie (+61)</option>
-              </select>
+              <div className="signup-phone-country-controls">
+                <input id="signup-phone-country-search" type="search" aria-label="Rechercher un pays ou un indicatif" placeholder="Rechercher un pays ou +…" value={phoneCountryQuery} onChange={e => setPhoneCountryQuery(e.target.value)} />
+                <select id="signup-phone-country" name="phone_country" aria-label="Pays du numéro de téléphone" value={phoneCountry} onChange={e => { setPhoneCountry(e.target.value); setPhonePrefix(e.target.value === "MG" ? "032" : ""); setPhoneNational(""); }} required>
+                  {filteredPhoneCountries.length ? filteredPhoneCountries.map(item => <option key={item.iso2} value={item.iso2}>{item.flag} {item.name} (+{item.dialCode})</option>) : <option value={phoneCountry}>{phoneCountry} — aucun résultat</option>}
+                </select>
+              </div>
             </div>
             <div className="signup-phone-dial-code">
               <span className="signup-phone-field-label">Indicatif</span>
@@ -114,15 +135,17 @@ export default function Signup() {
             </div>
             <div className="signup-phone-prefix">
             <span className="signup-phone-field-label">Préfixe</span>
-            <select id="signup-phone-prefix" name="phone_prefix" aria-label="Préfixe opérateur" value={phonePrefix} onChange={e => setPhonePrefix(e.target.value)} required={phoneCountry === "MG"}>
+            <select id="signup-phone-prefix" name="phone_prefix" aria-label="Préfixe mobile" value={phonePrefix} onChange={e => setPhonePrefix(e.target.value)} required={phoneCountry === "MG"} disabled={phoneCountry !== "MG"}>
               {phoneCountry === "MG" ? ["032","033","034","035","036","037","038","039"].map(prefix => <option key={prefix} value={prefix}>{prefix}</option>) : <option value="">—</option>}
             </select>
             </div>
             <div className="signup-phone-national">
             <span className="signup-phone-field-label">Numéro</span>
-            <input id="signup-phone-national" name="phone_national" type="tel" inputMode="numeric" autoComplete="tel-national" required value={phoneNational} onChange={e => setPhoneNational(e.target.value.replace(/\D/g, "").slice(0, phoneCountry === "MG" ? 7 : 14))} minLength={phoneCountry === "MG" ? 7 : ({FR:9,RE:9,MU:8,KM:7,ZA:9,SN:9,KE:9,GB:10,US:10,CA:10,DE:10,IT:9,ES:9,CH:9,AE:9,IN:10,CN:11,JP:10,AU:9} as Record<string,number>)[phoneCountry] || 7} maxLength={phoneCountry === "MG" ? 7 : ({FR:9,RE:9,MU:8,KM:7,ZA:9,SN:9,KE:9,GB:10,US:10,CA:10,DE:11,IT:10,ES:9,CH:9,AE:9,IN:10,CN:11,JP:10,AU:9} as Record<string,number>)[phoneCountry] || 14} pattern="[0-9]*" placeholder={phoneCountry === "MG" ? "1234567" : "Numéro national"} aria-label={phoneCountry === "MG" ? "Sept chiffres du numéro" : "Numéro national sans indicatif"} />
+            <input id="signup-phone-national" name="phone_national" type="tel" inputMode="numeric" autoComplete="tel-national" required disabled={!selectedPhoneCountry?.mobilePattern} value={phoneNational} onChange={e => setPhoneNational(e.target.value.replace(/\\D/g, "").slice(0, nationalMaxLength))} minLength={nationalMinLength} maxLength={nationalMaxLength} pattern="[0-9]*" placeholder={phoneCountry === "MG" ? "1234567" : "Numéro national"} aria-label={phoneCountry === "MG" ? "Sept chiffres du numéro" : "Numéro national sans indicatif"} />
             </div>
           </div>
+        </div>
+          {!selectedPhoneCountry?.mobilePattern && <small role="status">Les règles de numérotation mobile ne sont pas publiées pour ce territoire dans le référentiel actuel.</small>}
         </div>
         <div className="signup-residence-grid">
         <div className="field">
