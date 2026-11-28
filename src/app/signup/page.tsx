@@ -52,8 +52,8 @@ export default function Signup() {
     : region.trim();
   const selectedPhoneCountry = getSignupPhoneCountry(residenceCountry);
   const nationalLengthOptions = selectedPhoneCountry?.mobileLengths || [];
-  const nationalMinLength = phoneCountry === "MG" ? 7 : nationalLengthOptions.length ? Math.min(...nationalLengthOptions) : 4;
-  const nationalMaxLength = phoneCountry === "MG" ? 7 : nationalLengthOptions.length ? Math.max(...nationalLengthOptions) : 14;
+  const nationalMinLength = residenceCountry === "MG" ? 7 : nationalLengthOptions.length ? Math.min(...nationalLengthOptions) : 4;
+  const nationalMaxLength = residenceCountry === "MG" ? 7 : nationalLengthOptions.length ? Math.max(...nationalLengthOptions) : 14;
   useEffect(() => {
     if (residenceCountry === "MG") {
       setRegionOptions(REGISTRATION_REGIONS.map(item => ({ code: item.code, name: item.name })));
