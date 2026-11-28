@@ -33,11 +33,11 @@ export default function Signup() {
     flag: item.iso2 === "MG" ? "🇲🇬" : String.fromCodePoint(...Array.from(item.iso2, c => 127397 + c.charCodeAt(0))),
   })).sort((a, b) => a.iso2 === "MG" ? -1 : b.iso2 === "MG" ? 1 : a.name.localeCompare(b.name, "fr"));
   const countryQuery = phoneCountryQuery.trim().toLocaleLowerCase("fr");
-  const countryQueryDigits = countryQuery.replace(/\\D/g, "");
+  const countryQueryDigits = countryQuery.replace(/\D/g, "");
   const filteredPhoneCountries = phoneCountryOptions.filter(item =>
     !countryQuery || item.name.toLocaleLowerCase("fr").includes(countryQuery) ||
     item.iso2.toLowerCase().includes(countryQuery) ||
-    item.dialCode.includes(countryQueryDigits) || ("+" + item.dialCode).includes(countryQuery)
+    (countryQueryDigits.length > 0 && item.dialCode.includes(countryQueryDigits)) || ("+" + item.dialCode).includes(countryQuery)
   );
   const selectedPhoneCountry = getSignupPhoneCountry(phoneCountry);
   const nationalLengthOptions = selectedPhoneCountry?.mobileLengths || [];
