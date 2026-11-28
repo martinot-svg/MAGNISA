@@ -26,7 +26,7 @@ const signupSchema = z.object({
   locality_ref: z.string().trim().max(20).optional(),
   phone_country: z.string().length(2),
   phone_prefix: z.string().max(3),
-  phone_national: z.string().regex(/^[0-9]{7,14}$/),
+  phone_national: z.string().regex(/^[0-9]{4,14}$/),
 });
 
 export async function signUp(formData: FormData) {
