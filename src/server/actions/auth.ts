@@ -27,8 +27,8 @@ const signupSchema = z.object({
   residence_locality_name: z.string().trim().min(2).max(160),
   residence_locality_ref: z.string().trim().max(40).optional(),
   phone_country: z.string().length(2),
-  phone_prefix: z.string().max(3),
-  phone_national: z.string().regex(/^[0-9]{4,14}$/),
+  phone_prefix: z.string().max(3).optional(),
+  phone_national: z.string().regex(/^[0-9]{4,14}$/).optional(),
 });
 
 export async function signUp(formData: FormData) {
@@ -37,7 +37,7 @@ export async function signUp(formData: FormData) {
     return { error: "Adresse e-mail ou mot de passe invalide. Le mot de passe doit comporter au moins 10 caractères." };
   }
 
-  const phone = normalizeSignupPhone(parsed.data.phone_country, parsed.data.phone_prefix, parsed.data.phone_national);
+  const phone = normalizeSignupPhone(parsed.data.phone_country, parsed.data.phone_prefix || "", parsed.data.phone_national || "");
   if (!phone) return { error: "Le numéro de téléphone est invalide pour le pays et le préfixe sélectionnés." };
 
   const username = normalizeUsername(parsed.data.username);
