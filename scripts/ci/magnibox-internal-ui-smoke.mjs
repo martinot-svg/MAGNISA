@@ -262,7 +262,18 @@ try {
     .filter({has:a.page.getByText(subject,{exact:true})}).first();
   await sentCard.waitFor({state:"visible",timeout:15000});
   await sentCard.locator('select[name="folderId"]').selectOption({label:folderName});
-  await sentCard.getByRole("button",{name:"Classer"}).click();
+  // Wait for the Server Action response before reloading. Reloading immediately
+  // can interrupt the request and make the following fresh-render assertion flaky.
+  const classifyResponse = a.page.waitForResponse(response =>
+    response.request().method() === "POST"
+    && new URL(response.url()).pathname === "/orbit/magnibox/messagerie"
+    && response.status() < 400,
+    { timeout: 20000 }
+  );
+  await Promise.all([
+    classifyResponse,
+    sentCard.getByRole("button",{name:"Classer"}).click(),
+  ]);
   // Server Actions revalidate the route; reload once to assert the persisted
   // assignment from a fresh server render rather than matching a hidden option.
   await reloadForFreshRender(a.page);

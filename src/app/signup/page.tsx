@@ -16,14 +16,16 @@ export default function Signup() {
   const [phoneCountry, setPhoneCountry] = useState("MG");
   const [phonePrefix, setPhonePrefix] = useState("032");
   const [phoneNational, setPhoneNational] = useState("");
-  const [phoneCountryQuery, setPhoneCountryQuery] = useState("");
   const [step, setStep] = useState<1 | 2>(1);
   const identityFieldsRef = useRef<HTMLFieldSetElement>(null);
   const [username, setUsername] = useState("");
   const [customized, setCustomized] = useState(false);
   const [residenceCountry, setResidenceCountry] = useState("MG");
   const [residenceCountryQuery, setResidenceCountryQuery] = useState("");
+  const [residenceCountryOpen, setResidenceCountryOpen] = useState(false);
   const [region, setRegion] = useState("");
+  const [regionQuery, setRegionQuery] = useState("");
+  const [regionOpen, setRegionOpen] = useState(false);
   const [locality, setLocality] = useState("");
   const [localityRef, setLocalityRef] = useState("");
   const [suggestions, setSuggestions] = useState<LocalitySuggestion[]>([]);
@@ -35,13 +37,6 @@ export default function Signup() {
     name: phoneCountryNames.of(item.iso2) || item.iso2,
     flag: item.iso2 === "MG" ? "🇲🇬" : String.fromCodePoint(...Array.from(item.iso2, c => 127397 + c.charCodeAt(0))),
   })).sort((a, b) => a.iso2 === "MG" ? -1 : b.iso2 === "MG" ? 1 : a.name.localeCompare(b.name, "fr"));
-  const countryQuery = phoneCountryQuery.trim().toLocaleLowerCase("fr");
-  const countryQueryDigits = countryQuery.replace(/\D/g, "");
-  const filteredPhoneCountries = phoneCountryOptions.filter(item =>
-    !countryQuery || item.name.toLocaleLowerCase("fr").includes(countryQuery) ||
-    item.iso2.toLowerCase().includes(countryQuery) ||
-    (countryQueryDigits.length > 0 && item.dialCode.includes(countryQueryDigits)) || ("+" + item.dialCode).includes(countryQuery)
-  );
   const residenceQuery = residenceCountryQuery.trim().toLocaleLowerCase("fr");
   const filteredResidenceCountries = phoneCountryOptions.filter(item =>
     !residenceQuery || item.name.toLocaleLowerCase("fr").includes(residenceQuery) ||
@@ -129,18 +124,40 @@ export default function Signup() {
           <label htmlFor="signup-birth-date">Date de naissance</label>
           <input id="signup-birth-date" name="birth_date" type="date" required max={new Date().toISOString().slice(0,10)} autoComplete="bday" />
         </div>
-        <div className="field signup-phone-field">
-          <label htmlFor="signup-phone-country">Téléphone</label>
-          <div className="signup-phone-row">
-            <div className="signup-phone-country">
-              <span className={phoneCountry === "MG" ? "signup-flag-mg" : "signup-flag-other"} aria-label={phoneCountry === "MG" ? "Drapeau de Madagascar" : "Drapeau du pays sélectionné"}>{phoneCountry === "MG" ? null : String.fromCodePoint(...Array.from(phoneCountry, c => 127397 + c.charCodeAt(0)))}</span>
-              <div className="signup-phone-country-controls">
-                <input id="signup-phone-country-search" type="search" aria-label="Rechercher un pays ou un indicatif" placeholder="Rechercher un pays ou +…" value={phoneCountryQuery} onChange={e => setPhoneCountryQuery(e.target.value)} />
-                <select id="signup-phone-country" name="phone_country" aria-label="Pays du numéro de téléphone" value={phoneCountry} onChange={e => { setPhoneCountry(e.target.value); setPhonePrefix(e.target.value === "MG" ? "032" : ""); setPhoneNational(""); }} required>
-                  {filteredPhoneCountries.length ? filteredPhoneCountries.map(item => <option key={item.iso2} value={item.iso2}>{item.flag} {item.name} (+{item.dialCode})</option>) : <option value={phoneCountry}>{phoneCountry} — aucun résultat</option>}
-                </select>
+        <div className="signup-country-phone-row">
+        <div className="field signup-residence-country-field">
+          <label htmlFor="signup-residence-country-display">Pays de résidence</label>
+          <input type="hidden" name="residence_country_iso2" value={residenceCountry} />
+          <input type="hidden" name="residence_country_name" value={selectedResidenceCountryName} />
+          <div className="signup-country-picker">
+            <input type="text" id="signup-residence-country-display" className="signup-country-trigger"
+              required readOnly aria-haspopup="listbox" aria-expanded={residenceCountryOpen}
+              aria-controls="signup-country-options"
+              value={`${phoneCountryOptions.find(item => item.iso2 === residenceCountry)?.flag || "🌐"} ${selectedResidenceCountryName}`}
+              onClick={() => { setResidenceCountryOpen(open => !open); setResidenceCountryQuery(""); }} />
+            {residenceCountryOpen && <div className="signup-country-menu">
+              <input type="search" autoFocus aria-label="Rechercher un pays" placeholder="Rechercher un pays…"
+                value={residenceCountryQuery} onChange={e => setResidenceCountryQuery(e.target.value)} />
+              <div id="signup-country-options" role="listbox" aria-label="Pays disponibles" className="signup-country-options">
+                {filteredResidenceCountries.map(item => <button type="button" role="option"
+                  aria-selected={item.iso2 === residenceCountry} key={item.iso2}
+                  onClick={() => {
+                    const country = item.iso2;
+                    setResidenceCountry(country); setPhoneCountry(country); setPhonePrefix(country === "MG" ? "032" : "");
+                    setPhoneNational(""); setRegion(""); setLocality(""); setLocalityRef("");
+                    setSuggestions([]); setResidenceCountryQuery(""); setResidenceCountryOpen(false);
+                  }}>
+                  <span aria-hidden="true">{item.flag}</span><span>{item.name}</span><span className="signup-country-iso">{item.iso2}</span>
+                </button>)}
+                {filteredResidenceCountries.length === 0 && <p className="signup-country-empty">Aucun pays trouvé.</p>}
               </div>
-            </div>
+            </div>}
+          </div>
+        </div>
+        <div className="field signup-phone-field">
+          <label htmlFor="signup-phone-national">Téléphone</label>
+          <input type="hidden" name="phone_country" value={phoneCountry} />
+          <div className="signup-phone-row">
             <div className="signup-phone-dial-code">
               <span className="signup-phone-field-label">Indicatif</span>
               <output aria-live="polite" aria-label="Indicatif international">+{getSignupPhoneDialCode(phoneCountry)}</output>
@@ -159,32 +176,34 @@ export default function Signup() {
           </div>
           {!selectedPhoneCountry?.mobilePattern && <small role="status">Les règles de numérotation mobile ne sont pas publiées pour ce territoire dans le référentiel actuel.</small>}
         </div>
-        <div className="signup-residence-grid">
-        <div className="field">
-          <label htmlFor="signup-residence-country">Pays de résidence</label>
-          <input type="search" aria-label="Rechercher un pays de résidence" placeholder="Rechercher un pays…"
-            value={residenceCountryQuery} onChange={e => setResidenceCountryQuery(e.target.value)} />
-          <select id="signup-residence-country" name="residence_country_iso2" required value={residenceCountry}
-            onChange={e => {
-              setResidenceCountry(e.target.value); setRegion(""); setLocality(""); setLocalityRef("");
-              setSuggestions([]); setResidenceCountryQuery("");
-            }}>
-            {filteredResidenceCountries.map(item => <option key={item.iso2} value={item.iso2}>{item.flag} {item.name}</option>)}
-            {!filteredResidenceCountries.some(item => item.iso2 === residenceCountry) &&
-              <option value={residenceCountry}>{residenceCountryNames.of(residenceCountry) || residenceCountry}</option>}
-          </select>
-          <input type="hidden" name="residence_country_name" value={selectedResidenceCountryName} />
         </div>
+        <div className="signup-residence-grid">
         <div className="field">
           <label htmlFor="signup-region">Région / Province / État de résidence</label>
           {residenceCountry === "MG" ? (
-            <select id="signup-region" name="residence_region_code" required value={region}
-              onChange={e => {
-                setRegion(e.target.value); setLocality(""); setLocalityRef(""); setSuggestions([]);
-              }}>
-              <option value="" disabled>Sélectionner une région</option>
-              {REGISTRATION_REGIONS.map(item => <option key={item.code} value={item.code}>{item.name}</option>)}
-            </select>
+            <>
+              <input type="hidden" name="residence_region_code" value={region} />
+              <div className="signup-country-picker">
+                <input type="text" id="signup-region" className="signup-country-trigger" required readOnly
+                  aria-haspopup="listbox" aria-expanded={regionOpen} aria-controls="signup-region-options"
+                  value={REGISTRATION_REGIONS.find(item => item.code === region)?.name || ""}
+                  placeholder="Sélectionner une région"
+                  onClick={() => { setRegionOpen(open => !open); setRegionQuery(""); }} />
+                {regionOpen && <div className="signup-country-menu">
+                  <input type="search" autoFocus aria-label="Rechercher une région" placeholder="Rechercher une région…"
+                    value={regionQuery} onChange={e => setRegionQuery(e.target.value)} />
+                  <div id="signup-region-options" role="listbox" aria-label="Régions de Madagascar" className="signup-country-options">
+                    {REGISTRATION_REGIONS.filter(item => !regionQuery.trim() ||
+                      item.name.toLocaleLowerCase("fr").includes(regionQuery.trim().toLocaleLowerCase("fr")))
+                      .map(item => <button type="button" role="option" aria-selected={item.code === region}
+                        key={item.code} onClick={() => {
+                          setRegion(item.code); setLocality(""); setLocalityRef(""); setSuggestions([]);
+                          setRegionQuery(""); setRegionOpen(false);
+                        }}>{item.name}</button>)}
+                  </div>
+                </div>}
+              </div>
+            </>
           ) : (
             <input id="signup-region" name="residence_region_name" required minLength={1} maxLength={120}
               autoComplete="address-level1" value={region} onChange={e => setRegion(e.target.value)}

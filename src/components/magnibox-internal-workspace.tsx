@@ -127,10 +127,37 @@ async function createInternalFolder(form: FormData) {
   const ctx = await requireOrganization();
   const name = String(form.get("name") || "").trim().replace(/\s+/g, " ").slice(0, 60);
   if (!name) throw new Error("Le nom du dossier est obligatoire.");
-  const { error } = await ctx.supabase.from("magnibox_internal_folders").insert({
-    organization_id: ctx.organizationId, name,
-  });
-  if (error) throw new Error("Ce dossier existe déjà ou ne peut pas être créé.");
+
+  // Folder creation is idempotent: a repeated Server Action submission must not
+  // turn a successfully-created folder into a 500 response. RLS limits this
+  // lookup to the current collaborator's own folders.
+  const findExisting = () => ctx.supabase.from("magnibox_internal_folders")
+    .select("id,name").eq("organization_id", ctx.organizationId).limit(500);
+  const existing = await findExisting();
+  if (existing.error) throw new Error("Impossible de vérifier les dossiers existants.");
+  const normalizedName = name.toLocaleLowerCase("fr");
+  const alreadyExists = (existing.data || []).some(folder =>
+    String(folder.name).trim().toLocaleLowerCase("fr") === normalizedName
+  );
+
+  if (!alreadyExists) {
+    const { error } = await ctx.supabase.from("magnibox_internal_folders").insert({
+      organization_id: ctx.organizationId, name,
+    });
+    if (error) {
+      // Concurrent duplicate submissions can race after the pre-check. Accept
+      // only the unique-name conflict when the matching folder now exists.
+      if (error.code !== "23505") {
+        throw new Error("Impossible de créer ce dossier.");
+      }
+      const duplicate = await findExisting();
+      if (duplicate.error || !(duplicate.data || []).some(folder =>
+        String(folder.name).trim().toLocaleLowerCase("fr") === normalizedName
+      )) {
+        throw new Error("Ce dossier existe déjà ou ne peut pas être créé.");
+      }
+    }
+  }
   revalidatePath(PATH);
   revalidatePath("/orbit/magnibox");
 }
