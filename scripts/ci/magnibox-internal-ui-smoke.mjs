@@ -55,7 +55,7 @@ async function reloadForFreshRender(page){
   for(let attempt=0;attempt<2;attempt++){
     try{
       await page.reload({waitUntil:"domcontentloaded",timeout:30000});
-      await page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({state:"visible",timeout:20000});
+      await page.getByRole("heading",{name:"Messagerie",exact:true}).waitFor({state:"visible",timeout:20000});
       return;
     }catch(error){
       const message=String(error);
@@ -65,7 +65,7 @@ async function reloadForFreshRender(page){
   }
   const currentUrl=page.url();
   await page.goto(currentUrl,{waitUntil:"domcontentloaded",timeout:30000});
-  await page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({state:"visible",timeout:20000});
+  await page.getByRole("heading",{name:"Messagerie",exact:true}).waitFor({state:"visible",timeout:20000});
 }
 
 async function openDialog(page,label,scope=page){
@@ -202,7 +202,7 @@ try {
   console.log("SCENARIO 3/7: demandes de domaine et d’adresse avec validation DNS");
   // Domain administration is a separate route; return to the inbox and wait for hydration.
   await a.page.goto(base+"/orbit/magnibox/messagerie",{waitUntil:"domcontentloaded"});
-  await a.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
+  await a.page.getByRole("heading",{name:"Messagerie",exact:true}).waitFor({timeout:20000});
   await openDialog(a.page,/Nouveau message/);
   await a.page.locator('select[name="senderId"]').selectOption(sender);
   // Drafts are allowed to be incomplete: the submitter's formNoValidate must
@@ -303,7 +303,7 @@ try {
   if(await b.page.getByText("magnisa-orbit="+domainRequest.verification_token).count())
     throw Error("Collaborator can read a domain ownership challenge");
   await b.page.goto(base+"/orbit/magnibox/messagerie",{waitUntil:"domcontentloaded"});
-  await b.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
+  await b.page.getByRole("heading",{name:"Messagerie",exact:true}).waitFor({timeout:20000});
   await b.page.getByRole("heading",{name:"Brouillons (0)"}).waitFor({timeout:20000});
   const employeeProbe=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
   const employeeLogin=await employeeProbe.auth.signInWithPassword({email:employee.email,password:employee.password});
@@ -339,7 +339,7 @@ try {
     await employeeMessageCard.waitFor({state:"visible",timeout:8000});
   } catch {
     await b.page.reload({waitUntil:"domcontentloaded"});
-    await b.page.getByRole("heading",{name:"Magnibox",exact:true}).waitFor({timeout:20000});
+    await b.page.getByRole("heading",{name:"Messagerie",exact:true}).waitFor({timeout:20000});
     await employeeMessageCard.waitFor({state:"visible",timeout:15000});
   }
   console.log("MAGNIBOX UI: message réceptionné par le collaborateur");
